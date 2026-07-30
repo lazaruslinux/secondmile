@@ -3,9 +3,11 @@
 
     python manage.py create-admin <username>
     python manage.py create-invite [--expires-days N]
+    python manage.py verify-email <username>
     python manage.py seed-demo
 
-There is no open registration, so the first account has to be made here.
+The first account has to be made here: registration needs either an invite or
+an open instance, and both of those need an admin to exist first.
 """
 
 import argparse
@@ -40,6 +42,21 @@ def _prompt_password() -> str:
     return first
 
 
+def _prompt_email() -> str | None:
+    """Read an optional address, and refuse an obviously wrong one.
+
+    Optional because this account is being made by whoever has a shell on the
+    server, which is a stronger claim than any mail round trip, and because an
+    instance with no mail server configured has nothing to send to it anyway.
+    """
+    raw = input("Email (optional, press enter to skip): ").strip().lower()
+    if not raw:
+        return None
+    if len(raw) > security.MAX_EMAIL_LENGTH or not security.EMAIL_PATTERN.match(raw):
+        sys.exit("That does not look like an email address.")
+    return raw
+
+
 def cmd_create_admin(args: argparse.Namespace) -> None:
     username = args.username.strip().lower()
     if not security.USERNAME_PATTERN.match(username):
@@ -53,11 +70,20 @@ def cmd_create_admin(args: argparse.Namespace) -> None:
             select(models.User.id).where(models.User.username == username)
         ).scalar_one_or_none():
             sys.exit(f"There is already an account called {username}.")
+        email = _prompt_email()
+        if email is not None and db.execute(
+            select(models.User.id).where(models.User.email == email)
+        ).scalar_one_or_none():
+            sys.exit("Another account already uses that address.")
         password = _prompt_password()
         db.add(
             models.User(
                 username=username,
                 password_hash=security.hash_password(password),
+                email=email,
+                # Verified on the spot. There is no link to click yet, and an
+                # admin who cannot sign in cannot mint the first invite either.
+                email_verified=True,
                 is_admin=True,
                 units="imperial",
                 created_at=security.now_utc(),
@@ -65,6 +91,27 @@ def cmd_create_admin(args: argparse.Namespace) -> None:
         )
         db.commit()
         print(f"Created admin account {username}.")
+    finally:
+        db.close()
+
+
+def cmd_verify_email(args: argparse.Namespace) -> None:
+    """Mark an account verified by hand.
+
+    The way through for an install with no mail server: the admin reads the
+    link out of the backend log, or skips it and does this instead.
+    """
+    username = args.username.strip().lower()
+    db = _session()
+    try:
+        user = db.execute(
+            select(models.User).where(models.User.username == username)
+        ).scalar_one_or_none()
+        if user is None:
+            sys.exit(f"There is no account called {username}.")
+        user.email_verified = True
+        db.commit()
+        print(f"{username} can now sign in.")
     finally:
         db.close()
 
@@ -151,6 +198,9 @@ def cmd_seed_demo(args: argparse.Namespace) -> None:
         user = models.User(
             username="demo",
             password_hash=security.hash_password(password),
+            # No address, and verified anyway: the point of the demo account is
+            # that the password printed below signs you straight in.
+            email_verified=True,
             is_admin=False,
             units="imperial",
             created_at=security.now_utc(),
@@ -233,6 +283,10 @@ def main() -> None:
     invite = sub.add_parser("create-invite", help="mint a one-time registration code")
     invite.add_argument("--expires-days", type=int, default=14)
     invite.set_defaults(func=cmd_create_invite)
+
+    verify = sub.add_parser("verify-email", help="mark an account verified without a link")
+    verify.add_argument("username")
+    verify.set_defaults(func=cmd_verify_email)
 
     demo = sub.add_parser("seed-demo", help="fill an empty database with a fictional account")
     demo.set_defaults(func=cmd_seed_demo)

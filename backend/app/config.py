@@ -29,6 +29,28 @@ class Settings(BaseSettings):
     cookie_secure: bool = True
     session_hours: int = 720
 
+    # Whether anyone who can reach the site may create an account. False keeps
+    # the instance invite-only. It is the default because an open form on a
+    # public URL is found by bots within days, and turning it on is a decision
+    # the person running the server should have to make on purpose.
+    registration_open: bool = False
+
+    # Where the verification link points. Getting this wrong produces links
+    # that work from the machine you tested on and nowhere else, so it is the
+    # first thing to check when a verification mail arrives and the link does
+    # not open the app.
+    site_url: str = "http://127.0.0.1:8110"
+
+    # Outbound mail. An empty smtp_host is a supported configuration, not a
+    # broken one: the verification link is written to the backend log instead,
+    # which is enough for an instance whose accounts are all made by people the
+    # admin can hand a link to.
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_pass: str = ""
+    smtp_from: str = ""
+
     # Timezone used to group workouts into days and weeks. Everything is stored
     # in UTC; this only decides where the day boundaries fall for the Almanac
     # and for the daily distance caps.

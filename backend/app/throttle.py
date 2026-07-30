@@ -81,8 +81,19 @@ ingest_limiter = RateLimiter(60, "ingest")
 # force the current-password check the change has to clear, and so doing that
 # does not consume the login allowance a real user needs.
 password_limiter = RateLimiter(5, "password")
+# Asking for another verification mail. Tighter than the rest, because every
+# accepted call sends a message to an address someone else chose, and a form
+# that will mail a stranger on demand is a way to use this server to bother
+# them.
+resend_limiter = RateLimiter(3, "resend")
 
-_ALL_LIMITERS = (login_limiter, register_limiter, ingest_limiter, password_limiter)
+_ALL_LIMITERS = (
+    login_limiter,
+    register_limiter,
+    ingest_limiter,
+    password_limiter,
+    resend_limiter,
+)
 
 
 def reset_limiters() -> None:

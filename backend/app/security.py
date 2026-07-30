@@ -24,6 +24,18 @@ COOKIE_NAME = "session"
 MIN_PASSWORD_LENGTH = 10
 USERNAME_PATTERN = re.compile(r"^[a-z0-9_.-]{3,32}$")
 
+# Deliberately loose. The only thing worth checking here is that the address
+# could be delivered to, because the real proof is the verification mail
+# arriving; a stricter pattern would reject valid addresses and prove nothing
+# the round trip does not already prove.
+EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s.]+(\.[^@\s.]+)+$")
+MAX_EMAIL_LENGTH = 255
+
+# How long a verification link stays usable. Long enough to survive a mail that
+# lands in a spam folder and is found in the evening, short enough that a link
+# sitting in an old inbox is not a standing key to the account.
+VERIFY_TOKEN_HOURS = 24
+
 # A real hash of a value nobody can log in with, verified against when the
 # username does not exist. Without it, a missing user returns in microseconds
 # and a real one takes the full Argon2 cost, which is a timing oracle that
@@ -79,6 +91,27 @@ def create_session(db: Session, user_id: int) -> str:
             user_id=user_id,
             created_at=now_utc(),
             expires_at=now_utc() + dt.timedelta(hours=settings.session_hours),
+        )
+    )
+    return token
+
+
+def create_email_token(db: Session, user_id: int) -> str:
+    """Issue a verification token and return the plaintext, which is never stored.
+
+    Any earlier token for the same account is dropped first. Otherwise every
+    resend leaves another working link behind, and the oldest mail in the inbox
+    stays as good as the newest one for a day.
+    """
+    db.execute(delete(models.EmailToken).where(models.EmailToken.user_id == user_id))
+    token = generate_token()
+    db.add(
+        models.EmailToken(
+            token_hash=hash_token(token),
+            user_id=user_id,
+            purpose="verify",
+            created_at=now_utc(),
+            expires_at=now_utc() + dt.timedelta(hours=VERIFY_TOKEN_HOURS),
         )
     )
     return token

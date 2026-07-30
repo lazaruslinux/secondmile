@@ -16,12 +16,21 @@ function errorText(err: unknown): string {
 
 interface Props {
   username: string
+  email: string | null
+  emailVerified: boolean
   units: Units
   onUnitsChanged: (units: Units) => void
   onSignedOut: () => void
 }
 
-export default function Settings({ username, units, onUnitsChanged, onSignedOut }: Props) {
+export default function Settings({
+  username,
+  email,
+  emailVerified,
+  units,
+  onUnitsChanged,
+  onSignedOut,
+}: Props) {
   const [tokenStatus, setTokenStatus] = useState<IngestTokenStatus | null>(null)
   // Held in state only until the page is left: the server stores a hash, so
   // this string exists nowhere else once it is gone.
@@ -212,6 +221,16 @@ export default function Settings({ username, units, onUnitsChanged, onSignedOut 
       <section className="card">
         <h2>Account</h2>
         <p className="note">Signed in as {username}.</p>
+        {email ? (
+          <p className="note">
+            {email} <span className={emailVerified ? 'tag' : 'tag tag-flag'}>
+              {emailVerified ? 'verified' : 'not verified'}
+            </span>
+          </p>
+        ) : (
+          // The command line makes accounts without one, and they work fine.
+          <p className="note">No email address on this account.</p>
+        )}
         <button type="button" className="secondary" onClick={() => void signOut()}>
           Sign out
         </button>

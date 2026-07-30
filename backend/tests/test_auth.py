@@ -8,41 +8,64 @@ from conftest import MEMBER, make_invite
 def test_status_is_public(client):
     response = client.get("/api/status")
     assert response.status_code == 200
-    assert response.json() == {"name": "secondmile", "version": "0.1.0"}
+    assert response.json() == {
+        "name": "secondmile",
+        "version": "0.1.0",
+        "registration_open": False,
+    }
 
 
-def test_register_with_invite_signs_you_in(client, invite):
+def test_register_with_invite_asks_for_verification(client, invite, outbox):
     response = client.post(
         "/api/auth/register",
-        json={"invite_code": invite.code, "username": "newcomer", "password": "long-enough-1"},
+        json={
+            "invite_code": invite.code,
+            "username": "newcomer",
+            "email": "newcomer@example.com",
+            "password": "long-enough-1",
+        },
     )
     assert response.status_code == 201
-    assert response.json()["username"] == "newcomer"
-    assert response.json()["is_admin"] is False
-
-    me = client.get("/api/auth/me")
-    assert me.status_code == 200
-    assert me.json()["username"] == "newcomer"
+    assert response.json() == {"detail": "Check your email to verify your account."}
+    # No session comes back: the account still has to answer its mail.
+    assert client.cookies.get("session") is None
+    assert client.get("/api/auth/me").status_code == 401
+    assert outbox[0][0] == "newcomer@example.com"
 
 
 def test_register_rejects_unknown_invite(client, admin):
     response = client.post(
         "/api/auth/register",
-        json={"invite_code": "no-such-code", "username": "newcomer", "password": "long-enough-1"},
+        json={
+            "invite_code": "no-such-code",
+            "username": "newcomer",
+            "email": "newcomer@example.com",
+            "password": "long-enough-1",
+        },
     )
     assert response.status_code == 400
     assert response.json() == {"detail": "Invite code is not valid."}
 
 
-def test_invite_works_once(client, invite):
+def test_invite_works_once(client, invite, outbox):
     first = client.post(
         "/api/auth/register",
-        json={"invite_code": invite.code, "username": "first", "password": "long-enough-1"},
+        json={
+            "invite_code": invite.code,
+            "username": "first",
+            "email": "first@example.com",
+            "password": "long-enough-1",
+        },
     )
     assert first.status_code == 201
     second = client.post(
         "/api/auth/register",
-        json={"invite_code": invite.code, "username": "second", "password": "long-enough-1"},
+        json={
+            "invite_code": invite.code,
+            "username": "second",
+            "email": "second@example.com",
+            "password": "long-enough-1",
+        },
     )
     assert second.status_code == 400
 
@@ -53,33 +76,36 @@ def test_expired_invite_is_refused(client, db_session, admin):
     db_session.commit()
     response = client.post(
         "/api/auth/register",
-        json={"invite_code": stale.code, "username": "latecomer", "password": "long-enough-1"},
-    )
-    assert response.status_code == 400
-
-
-def test_register_rejects_taken_username(client, invite, member):
-    response = client.post(
-        "/api/auth/register",
         json={
-            "invite_code": invite.code,
-            "username": MEMBER["username"],
+            "invite_code": stale.code,
+            "username": "latecomer",
+            "email": "latecomer@example.com",
             "password": "long-enough-1",
         },
     )
-    assert response.status_code == 409
+    assert response.status_code == 400
 
 
 def test_register_enforces_username_and_password_rules(client, invite):
     bad_name = client.post(
         "/api/auth/register",
-        json={"invite_code": invite.code, "username": "No Spaces", "password": "long-enough-1"},
+        json={
+            "invite_code": invite.code,
+            "username": "No Spaces",
+            "email": "spaces@example.com",
+            "password": "long-enough-1",
+        },
     )
     assert bad_name.status_code == 400
 
     short_password = client.post(
         "/api/auth/register",
-        json={"invite_code": invite.code, "username": "shorty", "password": "tooshort"},
+        json={
+            "invite_code": invite.code,
+            "username": "shorty",
+            "email": "shorty@example.com",
+            "password": "tooshort",
+        },
     )
     assert short_password.status_code == 400
 
@@ -194,7 +220,12 @@ def test_login_burst_is_rate_limited(client, member):
 
 
 def test_register_burst_is_rate_limited(client, admin, db_session):
-    body = {"invite_code": "nope", "username": "someone", "password": "long-enough-1"}
+    body = {
+        "invite_code": "nope",
+        "username": "someone",
+        "email": "someone@example.com",
+        "password": "long-enough-1",
+    }
     codes = [client.post("/api/auth/register", json=body).status_code for _ in range(6)]
     assert codes[:5] == [400] * 5
     assert codes[5] == 429

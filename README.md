@@ -19,8 +19,12 @@ Current version: **0.1.0**. Releases are tagged in git.
   week, with totals per activity. Manually entered workouts are marked as
   such, and workouts with impossible numbers (a four minute mile, a fifty
   mile walk) are imported but flagged rather than trusted.
-- **Multi-user from day one.** Accounts are invite-only. The server admin
-  creates invites from the command line; there is no open registration.
+- **Multi-user from day one.** Accounts are invite-only out of the box: the
+  server admin creates invites from the command line. Flip `REGISTRATION_OPEN`
+  and anyone who can reach the site can sign up instead. Either way a new
+  account has to verify its email address before it can sign in, and an
+  instance with no mail server configured writes the verification link to the
+  backend log instead of sending it.
 
 ## Where it is going
 
@@ -70,8 +74,10 @@ put your own reverse proxy in front of it.
    docker compose exec backend python manage.py create-invite
    ```
 
-   The first command prompts for a password. Invites are one-time codes for
-   the registration page.
+   The first command prompts for a password and an optional email address,
+   and the account it makes is verified already. Invites are one-time codes
+   for the registration page; everyone who registers there gets a
+   verification link by email before they can sign in.
 5. Open http://127.0.0.1:8110, or point your reverse proxy at that port and
    use your own domain.
 
@@ -96,17 +102,32 @@ Everything configurable lives in `.env`, and every variable is documented in
 [.env.example](.env.example). Runtime things that are not secrets (units, your
 ingest token) live in the app's Settings screen instead of a file.
 
+Two of them decide how people get accounts:
+
+- `REGISTRATION_OPEN` is false by default, which keeps registration to people
+  holding an invite code. Set it to true for an instance anyone may join.
+- The `SMTP_*` block and `SITE_URL` are how the verification email gets sent
+  and where its link points. Leaving `SMTP_HOST` empty is a supported setup,
+  not a broken one: see [docs/01-self-hosting.md](docs/01-self-hosting.md) for
+  running without a mail server.
+
 ## Security model
 
 - Passwords are hashed with Argon2id. Sessions are opaque random tokens
   stored server-side and delivered in an httpOnly, secure, same-site cookie,
   so a leaked database dump does not contain usable sessions.
-- Login, registration, ingest, and password changes are rate limited per
-  address.
+- Login, registration, ingest, password changes, and verification resends are
+  rate limited per address.
 - The ingest endpoint authenticates with a per-user bearer token that can be
   rotated from Settings at any time. Tokens are stored hashed.
-- Registration is invite-only. There is no way to create an account without
-  a code from the admin.
+- Registration is invite-only unless you open it, and either way an account
+  cannot sign in until it has answered a verification link. Verification
+  tokens are random, stored hashed, good for 24 hours, and spent on first use.
+- Registration answers the same way whether it created an account or the
+  username or address was already taken, so the form cannot be used to find
+  out who has an account here. Sign in gives one message for every kind of
+  failure, and the unverified check runs after the password check so it can
+  never confirm a password.
 - Suspicious workouts are flagged, never silently trusted: impossible paces
   and days that blow past the configured distance caps are marked in the
   Almanac.

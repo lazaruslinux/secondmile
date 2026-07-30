@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from app import config
 from app.config import APP_NAME, APP_VERSION, check_deploy_config
 from app.routers import auth, ingest, settings, workouts
 
@@ -35,8 +36,19 @@ async def validation_error(request: Request, exc: RequestValidationError) -> JSO
 @app.get("/api/status")
 def read_status() -> dict:
     """Public, unauthenticated, and deliberately dull: enough for a health check
-    and a version banner, nothing an unauthenticated caller should not know."""
-    return {"name": APP_NAME, "version": APP_VERSION}
+    and a version banner, nothing an unauthenticated caller should not know.
+
+    The registration mode is in here because the sign-in screen has to know
+    whether to ask for an invite code before anyone has signed in, and it is
+    not a secret: anyone can learn it by sending the form once.
+    """
+    return {
+        "name": APP_NAME,
+        "version": APP_VERSION,
+        # Read through the module rather than bound at import, so the settings
+        # object is the one source of the answer.
+        "registration_open": config.settings.registration_open,
+    }
 
 
 app.include_router(auth.router, prefix="/api")

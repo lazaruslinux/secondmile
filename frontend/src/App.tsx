@@ -1,5 +1,12 @@
 import { useEffect, useState } from 'react'
-import { getMe, setUnauthorizedHandler, type Me, type Units } from './api.ts'
+import {
+  ApiError,
+  getMe,
+  setUnauthorizedHandler,
+  verifyEmail,
+  type Me,
+  type Units,
+} from './api.ts'
 import Login from './views/Login.tsx'
 import Almanac from './views/Almanac.tsx'
 import Settings from './views/Settings.tsx'
@@ -12,15 +19,42 @@ export default function App() {
   const [me, setMe] = useState<Me | null>(null)
   const [checkingSession, setCheckingSession] = useState(true)
   const [view, setView] = useState<View>('almanac')
+  const [verifyNote, setVerifyNote] = useState('')
 
   useEffect(() => {
     // One place decides that a lost session means the login screen, so no
     // individual request has to handle it.
     setUnauthorizedHandler(() => setMe(null))
-    getMe()
-      .then(setMe)
-      .catch(() => setMe(null))
-      .finally(() => setCheckingSession(false))
+
+    async function boot() {
+      // The verification mail links here with the token in the URL fragment,
+      // which the browser never sends to any server, so it cannot end up in an
+      // access log. There is no route for it: the token is read, spent, and
+      // taken back out of the address bar, and what is left is the ordinary app.
+      const token = new URLSearchParams(window.location.hash.slice(1)).get('token')
+      if (token) {
+        try {
+          await verifyEmail(token)
+          setVerifyNote('Email verified. Sign in below.')
+        } catch (err) {
+          setVerifyNote(
+            err instanceof ApiError ? err.message : 'That link did not work. Ask for a new one.',
+          )
+        }
+        // Cleaned even when the call failed. A working link left in the bar is
+        // a credential sitting in history, in a bookmark, and in the tab title
+        // someone screenshots, and a spent one is only confusing on reload.
+        window.history.replaceState(null, '', window.location.pathname)
+      }
+      try {
+        setMe(await getMe())
+      } catch {
+        setMe(null)
+      }
+      setCheckingSession(false)
+    }
+
+    void boot()
   }, [])
 
   function changeUnits(units: Units) {
@@ -32,6 +66,7 @@ export default function App() {
   if (!me) {
     return (
       <Login
+        notice={verifyNote}
         onSignedIn={(user) => {
           setMe(user)
           setView('almanac')
@@ -70,6 +105,8 @@ export default function App() {
         ) : (
           <Settings
             username={me.username}
+            email={me.email}
+            emailVerified={me.email_verified}
             units={me.units}
             onUnitsChanged={changeUnits}
             onSignedOut={() => setMe(null)}

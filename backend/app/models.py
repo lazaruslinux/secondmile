@@ -65,6 +65,13 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     username: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Nullable because accounts made from the command line do not need one, and
+    # unique as an index rather than a constraint so that both databases treat
+    # the missing ones as distinct from each other rather than as one repeated
+    # value. Always stored lower-cased, so the uniqueness check cannot be walked
+    # around with a capital letter.
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True, index=True)
+    email_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     units: Mapped[str] = mapped_column(String(16), nullable=False, default="imperial")
     created_at: Mapped[dt.datetime] = mapped_column(
@@ -99,6 +106,24 @@ class UserSession(Base):
     created_at: Mapped[dt.datetime] = mapped_column(
         UtcDateTime, nullable=False, server_default=func.now()
     )
+    expires_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
+
+
+class EmailToken(Base):
+    __tablename__ = "email_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # Hashed like a session token, and for the same reason: whoever holds the
+    # plaintext can take the action it authorises, so the database must not.
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    # Only "verify" exists today. The column is here because the next token of
+    # this kind (a password reset) has a different meaning and must not be
+    # accepted by the endpoint that consumes this one.
+    purpose: Mapped[str] = mapped_column(String(16), nullable=False, default="verify")
+    created_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
     expires_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
 
 

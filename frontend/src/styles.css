@@ -222,6 +222,17 @@ button:disabled {
   gap: 0.5rem;
 }
 
+/* The resend block that appears under a sign in refused for an unverified
+   address. It sits inside the form, which lays its own children out, so it
+   restates the spacing for the fields it holds. */
+.verify {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.75rem;
+}
+
 .choice-option {
   flex: 1;
   background: transparent;

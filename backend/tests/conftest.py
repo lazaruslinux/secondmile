@@ -24,7 +24,7 @@ from sqlalchemy import create_engine, event  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
-from app import models, security, throttle  # noqa: E402
+from app import mail, models, security, throttle  # noqa: E402
 from app.db import Base, get_db  # noqa: E402
 from app.main import app as fastapi_app  # noqa: E402
 
@@ -82,10 +82,38 @@ def client(db_session):
     fastapi_app.dependency_overrides.clear()
 
 
-def make_user(db_session, username: str, password: str, *, is_admin: bool = False) -> models.User:
+@pytest.fixture()
+def outbox(monkeypatch) -> list[tuple[str, str]]:
+    """Every verification mail the app tried to send, as (address, token).
+
+    Patched at the module the router reaches through, so the background task
+    the request schedules lands here instead of at a mail server. The token is
+    the plaintext one, which is the only place a test can get it: the database
+    keeps the hash.
+    """
+    sent: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        mail, "send_verification", lambda address, token: sent.append((address, token))
+    )
+    return sent
+
+
+def make_user(
+    db_session,
+    username: str,
+    password: str,
+    *,
+    is_admin: bool = False,
+    email: str | None = None,
+    verified: bool = True,
+) -> models.User:
+    # Verified by default: almost every test signs in, and an unverified account
+    # cannot. The cases that care about verification ask for it explicitly.
     user = models.User(
         username=username,
         password_hash=security.hash_password(password),
+        email=email,
+        email_verified=verified,
         is_admin=is_admin,
         units="imperial",
         created_at=security.now_utc(),

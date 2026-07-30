@@ -10,8 +10,18 @@ export type Source = 'sync' | 'manual'
 export interface Me {
   id: number
   username: string
+  // Null on accounts made from the command line, which never needed an address.
+  email: string | null
+  email_verified: boolean
   units: Units
   is_admin: boolean
+}
+
+export interface Status {
+  name: string
+  version: string
+  // Whether the sign-up form should ask for an invite code.
+  registration_open: boolean
 }
 
 // Soft flags: the server imports the workout either way and marks what looked
@@ -116,20 +126,40 @@ export function getMe(): Promise<Me> {
   return getJson<Me>('/auth/me')
 }
 
+export function getStatus(): Promise<Status> {
+  return getJson<Status>('/status')
+}
+
 export async function login(username: string, password: string): Promise<void> {
   await sendJson('/auth/login', 'POST', { username, password })
 }
 
+// Returns the server's own wording rather than a copy of it kept here, because
+// this answer is deliberately the same whether an account was created or the
+// name was already taken, and two places phrasing that differently is how the
+// difference leaks back out.
 export async function register(
-  inviteCode: string,
+  email: string,
   username: string,
   password: string,
-): Promise<void> {
-  await sendJson('/auth/register', 'POST', {
-    invite_code: inviteCode,
+  inviteCode: string,
+): Promise<string> {
+  const res = await sendJson('/auth/register', 'POST', {
+    email,
     username,
     password,
+    invite_code: inviteCode,
   })
+  const body = (await res.json()) as { detail: string }
+  return body.detail
+}
+
+export async function verifyEmail(token: string): Promise<void> {
+  await sendJson('/auth/verify', 'POST', { token })
+}
+
+export async function resendVerification(email: string): Promise<void> {
+  await sendJson('/auth/resend-verification', 'POST', { email })
 }
 
 export async function logout(): Promise<void> {
