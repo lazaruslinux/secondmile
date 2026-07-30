@@ -1,0 +1,55 @@
+# Three services: Postgres, the FastAPI backend, and nginx serving the built
+# frontend. The frontend container proxies /api to the backend, so its one
+# port is the whole app; put your own HTTPS reverse proxy in front of it.
+services:
+  db:
+    # Digest-pinned like the Dockerfiles (tag in the comment; Dependabot bumps
+    # the digest): postgres:16
+    image: postgres:16@sha256:33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20
+    restart: unless-stopped
+    # Only the three variables Postgres actually needs, interpolated from
+    # .env. An env_file: here would hand the database container every secret
+    # in the file, which is none of its business.
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      # pg_isready succeeds only once Postgres can accept connections, so the
+      # backend can wait for "service_healthy" before it tries to connect.
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    # No published ports: the database is reachable only by other services on
+    # the internal compose network, never from the LAN. To inspect it from a
+    # GUI on this machine, uncomment the localhost-only mapping below.
+    # ports:
+    #   - "127.0.0.1:5432:5432"
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+    # Bind to localhost only so the raw API stays on this machine, not the
+    # LAN. Everything normal goes through the frontend's /api proxy.
+    ports:
+      - "127.0.0.1:8100:8000"
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    # nginx serves the built app and proxies /api to the backend. Point your
+    # reverse proxy, terminating HTTPS, at this port.
+    ports:
+      - "127.0.0.1:8110:80"
+
+volumes:
+  postgres-data:

@@ -1,0 +1,55 @@
+# This repo is code only. Nothing personal, private, or instance-specific ever
+# gets committed. When in doubt, add it here.
+
+# --- Secrets and local environment ---
+.env
+.env.*
+!.env.example
+
+# --- Local session / AI-assistant context (personal, never shared) ---
+# SPEC.md is the full design document; it stays local because it explains
+# things the game deliberately never explains.
+CLAUDE.md
+SPEC.md
+.claude/settings.local.json
+.claude/*.local.json
+
+# --- Local-only deployment overrides (your own domains, paths, proxy) ---
+docker-compose.override.yml
+*.local
+
+# --- Certificates and keys ---
+*.pem
+*.key
+*.crt
+
+# --- Runtime data ---
+*.sqlite
+*.sqlite3
+*.db
+*.log
+postgres-data/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# --- Node / frontend ---
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+npm-debug.log*
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*~

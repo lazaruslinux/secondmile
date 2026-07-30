@@ -1,0 +1,66 @@
+# Dependency update PRs, grouped so a quiet week produces one pull request
+# rather than a dozen. Security fixes arrive separately and immediately through
+# Dependabot security updates, which are enabled in the repository settings;
+# this file is only about staying current, not about emergencies.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: monthly
+    groups:
+      frontend:
+        patterns: ["*"]
+        update-types: [minor, patch]
+    # Majors are left to a deliberate upgrade round: they tend to need code
+    # changes and a manual pass over the UI, which a bot cannot verify.
+    ignore:
+      - dependency-name: "*"
+        update-types: [version-update:semver-major]
+
+  - package-ecosystem: pip
+    directory: /backend
+    schedule:
+      interval: monthly
+    groups:
+      backend:
+        patterns: ["*"]
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: [version-update:semver-major]
+
+  # The base images are digest-pinned in both Dockerfiles and docker-compose;
+  # these keep the digests moving as the upstream tags are rebuilt. Majors are
+  # ignored here too: a Postgres major in particular changes the on-disk data
+  # format, so upgrading it is a deliberate dump-and-restore round, never a
+  # bot merge.
+  - package-ecosystem: docker
+    directories: [/backend, /frontend]
+    schedule:
+      interval: monthly
+    groups:
+      images:
+        patterns: ["*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: [version-update:semver-major]
+
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      images:
+        patterns: ["*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: [version-update:semver-major]

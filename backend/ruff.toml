@@ -1,0 +1,9 @@
+# Correctness rules only, selected explicitly rather than left to ruff's
+# defaults. The defaults widen between releases, and a widened default set
+# fails CI on a commit that touched no Python at all. The ruff version is
+# pinned in requirements-dev.txt so a rule change is always a deliberate act;
+# this list is the intent behind that pin.
+target-version = "py312"
+
+[lint]
+select = ["E4", "E7", "E9", "F"]

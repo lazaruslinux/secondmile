@@ -1,0 +1,8 @@
+# Test and lint dependencies. The production image never installs these.
+pytest
+# Starlette's TestClient is a thin wrapper over httpx and refuses to import
+# without it.
+httpx
+# Pinned: ruff's default rule set changes between releases, so an unpinned
+# linter starts failing CI on its own schedule instead of ours.
+ruff==0.16.0

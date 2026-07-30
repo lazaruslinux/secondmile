@@ -1,0 +1,386 @@
+/* One stylesheet, no framework. This is the screen someone opens on a phone
+   right after a workout, so the whole thing is a single readable column with
+   large touch targets. The shell reads as a serious fitness product: neutral
+   chrome, one strong accent, and the data doing the talking. The game world
+   gets its own warmer art later; it never bleeds into this chrome. */
+
+:root {
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --ink: #16181d;
+  --muted: #5c6570;
+  --line: #e2e5e9;
+  --accent: #c2410c;
+  --accent-soft: #fdf0e7;
+  --radius: 8px;
+  --gap: 1.25rem;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  /* Nothing is loaded from outside this origin, fonts included, so the app
+     works air-gapped and inherits whatever the reader's device does well. */
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
+  line-height: 1.55;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+body {
+  margin: 0;
+  font-size: 16px;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0 0 0.5rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+h1 {
+  font-size: 1.6rem;
+}
+
+h2 {
+  font-size: 1.15rem;
+}
+
+h3 {
+  font-size: 1rem;
+}
+
+p {
+  margin: 0 0 0.75rem;
+}
+
+code {
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+}
+
+/* Layout */
+
+.app {
+  min-height: 100vh;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 0.75rem 1rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.wordmark {
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+}
+
+.wordmark-large {
+  font-size: 1.7rem;
+  text-align: center;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.page,
+.gate {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: var(--gap) 1rem 3rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.gate {
+  max-width: 26rem;
+  padding-top: 2.5rem;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1rem;
+}
+
+/* Forms */
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+input,
+select {
+  font: inherit;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.6rem 0.7rem;
+  min-height: 2.75rem;
+  width: 100%;
+}
+
+input:focus-visible,
+select:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Two fields per row where there is room; one per row on a phone. */
+.field-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.75rem;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border-radius: var(--radius);
+  min-height: 2.75rem;
+  padding: 0.55rem 1rem;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.primary {
+  background: var(--accent);
+  color: #fff;
+  border: 1px solid var(--accent);
+  font-weight: 600;
+}
+
+.secondary {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+.link {
+  background: none;
+  border: none;
+  color: var(--accent);
+  padding: 0.25rem;
+  text-decoration: underline;
+}
+
+.tab {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--muted);
+  padding: 0.4rem 0.75rem;
+}
+
+.tab-current {
+  color: var(--accent);
+  border-color: var(--line);
+  background: var(--accent-soft);
+}
+
+.choice {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.choice-option {
+  flex: 1;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--ink);
+}
+
+.choice-current {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Messages */
+
+.hint,
+.muted {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.notice,
+.note {
+  color: var(--muted);
+}
+
+.notice {
+  text-align: center;
+  padding: 0.5rem 1rem;
+}
+
+.error {
+  color: #8c2f14;
+  background: #f7e6df;
+  border: 1px solid #e6c6b8;
+  border-radius: var(--radius);
+  padding: 0.5rem 0.7rem;
+  margin: 0;
+}
+
+.warning {
+  font-weight: 600;
+}
+
+.token {
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  border-radius: var(--radius);
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.token code {
+  display: block;
+  /* A token is one long unbroken string; without this it runs off a phone. */
+  overflow-wrap: anywhere;
+  background: #fff;
+  border-radius: var(--radius);
+  padding: 0.5rem;
+  font-size: 0.9rem;
+}
+
+/* History */
+
+.week {
+  margin-bottom: 1.5rem;
+}
+
+.totals,
+.workouts {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+}
+
+.totals {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 0.5rem 0.75rem;
+}
+
+.totals li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  padding: 0.2rem 0;
+}
+
+.totals-activity {
+  min-width: 4.5rem;
+  font-weight: 600;
+}
+
+.totals-week {
+  border-top: 1px solid var(--line);
+  margin-top: 0.35rem;
+  padding-top: 0.45rem;
+  color: var(--muted);
+}
+
+.workouts li {
+  border-bottom: 1px solid var(--line);
+  padding: 0.6rem 0.25rem;
+}
+
+.workouts li:last-child {
+  border-bottom: none;
+}
+
+.workout-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.25rem 0.75rem;
+}
+
+.workout-activity {
+  font-weight: 600;
+}
+
+.workout-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.9rem;
+  font-size: 0.95rem;
+}
+
+.tag {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 0.6rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.tag-flag {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.flag-note {
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* Small phones: the narrowest layout still has to read cleanly at 360px. */
+@media (max-width: 400px) {
+  .page,
+  .gate {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  .card {
+    padding: 0.85rem;
+  }
+}

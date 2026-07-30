@@ -1,0 +1,29 @@
+# The human-edited dependency list. requirements.txt is compiled from it with
+# exact versions and hashes; regenerate after editing (run from backend/):
+#   pip install pip-tools && pip-compile --generate-hashes requirements.in
+
+# The web framework the API is written against
+fastapi
+
+# The ASGI server that actually runs it; the [standard] extra brings the fast
+# HTTP parser and the websocket support the game world will need later
+uvicorn[standard]
+
+# Loads settings from the environment and .env, which is where every secret
+# and every tunable in this project lives
+pydantic-settings
+
+# The database layer: models, queries, and the savepoints that make ingest
+# idempotent without a round trip per duplicate
+sqlalchemy
+
+# The PostgreSQL driver behind postgresql+psycopg:// URLs; [binary] ships the
+# compiled libpq so the image needs no build toolchain
+psycopg[binary]
+
+# Schema migrations, applied automatically when the container starts
+alembic
+
+# Argon2id password hashing, the only thing standing between a stolen database
+# dump and everyone's passwords
+argon2-cffi

@@ -1,0 +1,6 @@
+node_modules
+dist
+# Local env files must never be baked into the image: COPY . . would pick them
+# up, and Vite inlines VITE_* variables into the public bundle.
+.env
+.env.*

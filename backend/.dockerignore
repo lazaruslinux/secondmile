@@ -1,0 +1,15 @@
+# Keep the build context to what the image actually needs. Anything listed here
+# either does not belong in a running container or would invalidate the layer
+# cache every time it changed locally.
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.env.*
+.pytest_cache/
+.ruff_cache/
+tests/
+pytest.ini
+ruff.toml
+requirements-dev.txt
