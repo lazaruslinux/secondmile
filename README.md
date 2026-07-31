@@ -3,8 +3,8 @@
 A self-hosted browser game powered by real movement. Miles you actually walk,
 run, cycle, or swim sync from your phone and become the way your character
 travels, gathers, builds, and gives inside an original 2D world. The game is
-at the very beginning: accounts, workout sync, and the Almanac work today, and
-the world itself comes next.
+early: accounts, workout sync, the Almanac, and the journey map across the
+Vale work today, and the rest of the world is being built on top of them.
 
 Current version: **0.1.0**. Releases are tagged in git.
 
@@ -19,6 +19,20 @@ Current version: **0.1.0**. Releases are tagged in git.
   week, with totals per activity. Manually entered workouts are marked as
   such, and workouts with impossible numbers (a four minute mile, a fifty
   mile walk) are imported but flagged rather than trusted.
+- **Turns those miles into a journey.** The Vale is a map, and your real
+  distance is the movement: you pick somewhere to set out for and your marker
+  walks the road while you get on with your life. Each activity converts at
+  its own rate, so an hour in the pool is not an hour on a bike. Fixed marks
+  along the roads earn permanent accolades, and gated regions are priced in
+  run miles. Nothing is ever lost by not opening the app: miles logged with
+  no destination set are walked where you stand and still count. When you do
+  open it, you get a recap of everything that happened while you were away.
+- **Drops chests, and chests hold cards.** Every few travelled miles a chest
+  appears, carrying one card from the set belonging to wherever your marker
+  is. The album is a naturalist's field guide of the places you have actually
+  been: plates you have not found yet show only a number and a rarity. Cards
+  cannot be bought with anything, chests never expire, and there is no daily
+  anything. Moving your body is the only way to fill a page.
 - **Multi-user from day one.** Accounts are invite-only out of the box: the
   server admin creates invites from the command line. Flip `REGISTRATION_OPEN`
   and anyone who can reach the site can sign up instead. Either way a new
@@ -31,14 +45,14 @@ Current version: **0.1.0**. Releases are tagged in git.
 The synced miles are the fuel for a game world in active development. The
 short version of the design:
 
-- Each activity will have its own role. Walking gathers, running reaches,
-  cycling hauls, swimming opens deep water. No activity substitutes for
-  another.
+- Each activity has its own role. Walking gathers, running reaches, cycling
+  hauls, swimming opens deep water. No activity substitutes for another.
 - The economy is built so that giving feels better than keeping. Serving
   others is meant to be the winning strategy, and the best things in the
   game will be earned by service, not bought.
 - Rest is part of the design, not a failure state. Nothing breaks because
-  you took a day off.
+  you took a day off, and nothing rewards you for opening the app. Everything
+  accrues while you are away.
 
 The name comes from an old teaching about going farther than you were asked
 to. The game never explains it, and neither will I.
@@ -142,7 +156,7 @@ If you find a security problem, see [SECURITY.md](SECURITY.md).
 ```
 backend/     FastAPI application, migrations, tests, manage.py CLI
 frontend/    Vite + React app, served by nginx in production
-docs/        Self-hosting and health sync guides
+docs/        Self-hosting, health sync, and artwork guides
 ```
 
 ## Development

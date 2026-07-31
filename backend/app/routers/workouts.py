@@ -9,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app import activity as activity_rules
+from app import journey as engine
 from app import models, security
 from app.db import get_db
 from app.models import ACTIVITIES
@@ -79,6 +80,10 @@ def create_workout(
     if activity_rules.over_daily_cap(db, user.id, body.activity, start_ts):
         workout.flags = {**flags, "daily_cap": True}
     db.commit()
+
+    # A workout typed in by hand counts exactly as much as one from a watch, so
+    # it advances the journey on the same terms and through the same engine.
+    engine.process_user(db, user.id)
     return activity_rules.serialize(workout)
 
 

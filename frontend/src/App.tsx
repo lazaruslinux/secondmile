@@ -1,25 +1,42 @@
 import { useEffect, useState } from 'react'
 import {
+  ackRecap,
   ApiError,
   getMe,
+  getRecap,
   setUnauthorizedHandler,
   verifyEmail,
+  type JourneyEvent,
   type Me,
   type Units,
 } from './api.ts'
 import Login from './views/Login.tsx'
+import Vale from './views/Vale.tsx'
+import Album from './views/Album.tsx'
 import Almanac from './views/Almanac.tsx'
+import Recap from './views/Recap.tsx'
 import Settings from './views/Settings.tsx'
 
-// Three screens do not earn a router: the whole navigation model is which of
-// them is on screen, and the URL has nothing to say about it yet.
-type View = 'almanac' | 'settings'
+// Four screens still do not earn a router: the whole navigation model is which
+// of them is on screen, and the URL has nothing to say about it yet.
+type View = 'vale' | 'album' | 'almanac' | 'settings'
+
+const TABS: { id: View; label: string }[] = [
+  { id: 'vale', label: 'Vale' },
+  { id: 'album', label: 'Album' },
+  { id: 'almanac', label: 'Almanac' },
+  { id: 'settings', label: 'Settings' },
+]
 
 export default function App() {
   const [me, setMe] = useState<Me | null>(null)
   const [checkingSession, setCheckingSession] = useState(true)
-  const [view, setView] = useState<View>('almanac')
+  const [view, setView] = useState<View>('vale')
   const [verifyNote, setVerifyNote] = useState('')
+  const [recap, setRecap] = useState<JourneyEvent[]>([])
+  // Bumped whenever something outside the Vale changes what it shows, which so
+  // far means chests opened from the recap.
+  const [refreshToken, setRefreshToken] = useState(0)
 
   useEffect(() => {
     // One place decides that a lost session means the login screen, so no
@@ -57,6 +74,29 @@ export default function App() {
     void boot()
   }, [])
 
+  // Everything that happened while the app was shut, shown once. Opening the
+  // app is never required, so this is a letter waiting rather than a reward.
+  const userId = me?.id
+  useEffect(() => {
+    if (userId === undefined) {
+      setRecap([])
+      return
+    }
+    getRecap()
+      .then(setRecap)
+      .catch(() => setRecap([]))
+  }, [userId])
+
+  async function dismissRecap() {
+    setRecap([])
+    setRefreshToken((count) => count + 1)
+    try {
+      await ackRecap()
+    } catch {
+      // Nothing useful to say: unacked events simply come back next time.
+    }
+  }
+
   function changeUnits(units: Units) {
     setMe((current) => (current ? { ...current, units } : current))
   }
@@ -69,7 +109,7 @@ export default function App() {
         notice={verifyNote}
         onSignedIn={(user) => {
           setMe(user)
-          setView('almanac')
+          setView('vale')
         }}
       />
     )
@@ -80,29 +120,27 @@ export default function App() {
       <header className="topbar">
         <span className="wordmark">secondmile</span>
         <nav className="tabs">
-          <button
-            type="button"
-            className={view === 'almanac' ? 'tab tab-current' : 'tab'}
-            aria-current={view === 'almanac' ? 'page' : undefined}
-            onClick={() => setView('almanac')}
-          >
-            Almanac
-          </button>
-          <button
-            type="button"
-            className={view === 'settings' ? 'tab tab-current' : 'tab'}
-            aria-current={view === 'settings' ? 'page' : undefined}
-            onClick={() => setView('settings')}
-          >
-            Settings
-          </button>
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              className={view === tab.id ? 'tab tab-current' : 'tab'}
+              aria-current={view === tab.id ? 'page' : undefined}
+              onClick={() => setView(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
         </nav>
       </header>
 
+      {recap.length > 0 && <Recap events={recap} onDismiss={() => void dismissRecap()} />}
+
       <main className="page">
-        {view === 'almanac' ? (
-          <Almanac units={me.units} />
-        ) : (
+        {view === 'vale' && <Vale refreshToken={refreshToken} />}
+        {view === 'album' && <Album />}
+        {view === 'almanac' && <Almanac units={me.units} />}
+        {view === 'settings' && (
           <Settings
             username={me.username}
             email={me.email}

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The player's marker. Placeholder artwork, meant to be replaced.
+
+  The app injects this file and scales it by its viewBox, so a replacement can
+  be any size and any shape as long as it declares a viewBox. The centre of the
+  viewBox is the point that sits on the road, so draw the mark around the
+  middle rather than around a pin tip.
+
+  No ids are needed here. As with the map, use presentation attributes rather
+  than style="..." or a <style> block.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <circle cx="16" cy="16" r="14" fill="#ffffff" stroke="#7c3f16" stroke-width="2"/>
+  <circle cx="16" cy="16" r="8" fill="#c2410c"/>
+</svg>

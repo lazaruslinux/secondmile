@@ -179,3 +179,131 @@ class IngestLog(Base):
     # the whole reason this table exists.
     payload: Mapped[dict] = mapped_column(JSONType, nullable=False)
     result: Mapped[dict] = mapped_column(JSONType, nullable=False)
+
+
+# Ids of places, roads, regions, cards, and accolades all come from app.world
+# rather than from a table. They are strings here and no foreign key points at
+# them, because the world is authored in the source and a release is the only
+# thing that changes it.
+_WORLD_ID = String(48)
+
+
+class Journey(Base):
+    __tablename__ = "journeys"
+
+    # One row per account, so the key is the account. A journey is a position,
+    # not a history: where the marker has been lives in journey_events.
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    # Exactly one of these two is set. At a location the marker is standing
+    # somewhere; on a road it is between two places, position_mi along it from
+    # the road's from_id end.
+    location_id: Mapped[str | None] = mapped_column(_WORLD_ID, nullable=True)
+    road_id: Mapped[str | None] = mapped_column(_WORLD_ID, nullable=True)
+    position_mi: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    # Where the marker is headed, cleared on arrival. None means every mile
+    # becomes a local round wherever the marker stands.
+    destination_id: Mapped[str | None] = mapped_column(_WORLD_ID, nullable=True)
+    # Miles still to travel before the next chest. Carried between workouts so
+    # a run that ends half a chest short is not rounded away, and null until
+    # the first roll, which happens with the first workout's seeded generator.
+    next_chest_mi: Mapped[float | None] = mapped_column(Float, nullable=True)
+    traveled_mi: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    # Workouts before this instant are history rather than movement. Set when
+    # the account is created, so signing up does not fire a year of old
+    # training through the map in one sweep.
+    started_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
+    updated_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
+
+
+class ProcessedWorkout(Base):
+    __tablename__ = "processed_workouts"
+
+    # The idempotency spine of the engine. A workout advances the marker once
+    # and only once, whatever order the ingest, the manual form, and the
+    # catch-up sweep arrive in, because the marker row here is claimed before
+    # any movement happens and the primary key settles every race.
+    workout_id: Mapped[int] = mapped_column(
+        ForeignKey("workouts.id", ondelete="CASCADE"), primary_key=True
+    )
+
+
+class JourneyEvent(Base):
+    __tablename__ = "journey_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    created_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
+    # travel, chest, milestone, arrival, unlock.
+    type: Mapped[str] = mapped_column(String(16), nullable=False)
+    # Everything the recap needs to narrate this line without another request.
+    # JSON rather than JSONB, so the same migration runs on SQLite.
+    data: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
+    seen: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+
+class Chest(Base):
+    __tablename__ = "chests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # Decided when the chest drops, revealed when it is opened. Deciding at
+    # open time would let a client learn what is inside by asking twice, and
+    # would make the seeded generator's determinism meaningless.
+    card_id: Mapped[str] = mapped_column(_WORLD_ID, nullable=False)
+    dropped_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
+    # Null means still closed. Chests never expire, so nothing else ever
+    # writes this column.
+    opened_at: Mapped[dt.datetime | None] = mapped_column(UtcDateTime, nullable=True)
+
+
+class UserCard(Base):
+    __tablename__ = "user_cards"
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    card_id: Mapped[str] = mapped_column(_WORLD_ID, primary_key=True)
+    count: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    first_found_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
+
+
+class UserAccolade(Base):
+    __tablename__ = "user_accolades"
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    accolade_id: Mapped[str] = mapped_column(_WORLD_ID, primary_key=True)
+    earned_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
+
+
+class RegionUnlock(Base):
+    __tablename__ = "region_unlocks"
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    region_id: Mapped[str] = mapped_column(_WORLD_ID, primary_key=True)
+    unlocked_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
+
+
+class MileSpend(Base):
+    __tablename__ = "mile_spends"
+
+    # A ledger rather than a balance column. Converted Miles earned are a sum
+    # over workouts, so keeping what was spent as its own list means the two
+    # halves of a bucket are each derived from rows that are never rewritten.
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    activity: Mapped[str] = mapped_column(ActivityEnum, nullable=False)
+    amount_mi: Mapped[float] = mapped_column(Float, nullable=False)
+    reason: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)

@@ -71,6 +71,166 @@ export interface IngestTokenStatus {
   rotated_at: string | null
 }
 
+// The journey. Distances here are Miles, the world's own unit: converted from
+// real distance by the server at a rate per activity, and never shown in
+// kilometers, because the map is measured in them.
+
+export interface MileBucket {
+  earned: number
+  spent: number
+  available: number
+}
+
+// Either standing at a place or somewhere along a road. The road fields are
+// null in the first case and the location fields in the second.
+export interface JourneyPosition {
+  location_id: string | null
+  location_name: string | null
+  road_id: string | null
+  road_name: string | null
+  position_mi: number
+  // Measured from the road's from_id end, which is the direction the map draws
+  // it, so it can be handed straight to getPointAtLength.
+  fraction: number | null
+  road_length_mi: number | null
+  road_from_id: string | null
+  road_to_id: string | null
+  heading_to_id: string | null
+  heading_to_name: string | null
+}
+
+export interface JourneyPlace {
+  id: string
+  name: string
+  reachable: boolean
+}
+
+export interface JourneyRoad {
+  id: string
+  name: string
+  from_id: string
+  to_id: string
+  length_mi: number
+  region_id: string | null
+  open: boolean
+}
+
+export interface JourneyRegion {
+  id: string
+  name: string
+  detail: string
+  unlocked: boolean
+  cost_run_miles: number
+}
+
+export interface JourneyState {
+  started_at: string
+  updated_at: string
+  position: JourneyPosition
+  destination: { id: string; name: string } | null
+  buckets: Record<Activity, MileBucket>
+  total_traveled_mi: number
+  unopened_chests: number
+  unseen_events: number
+  locations: JourneyPlace[]
+  roads: JourneyRoad[]
+  regions: JourneyRegion[]
+}
+
+export type JourneyEventType = 'travel' | 'chest' | 'milestone' | 'arrival' | 'unlock'
+
+// One loose shape for every event type rather than a union, because the server
+// stores this as free JSON and a field it stops sending should read as absent
+// rather than break the type. Which fields are present follows from the type.
+export interface JourneyEventData {
+  activity?: Activity
+  raw_distance_mi?: number
+  miles?: number
+  road_id?: string
+  road_name?: string
+  toward_name?: string
+  location_name?: string
+  local?: boolean
+  chest_id?: number
+  set_name?: string
+  area_name?: string
+  source?: string
+  name?: string
+  detail?: string
+  mile?: number
+  was_destination?: boolean
+  region_name?: string
+  cost_run_miles?: number
+}
+
+export interface JourneyEvent {
+  id: number
+  type: JourneyEventType
+  created_at: string
+  data: JourneyEventData
+}
+
+export type Rarity = 'common' | 'uncommon' | 'rare'
+
+export interface Card {
+  id: string
+  set_id: string
+  set_name: string
+  number: number
+  name: string
+  rarity: Rarity
+  flavor: string
+}
+
+// What is inside is deliberately not in this response: the reveal belongs to
+// opening it.
+export interface Chest {
+  id: number
+  dropped_at: string
+  set_id: string
+  set_name: string
+}
+
+export interface OpenedChest {
+  card: Card
+  duplicate: boolean
+  count: number
+}
+
+// An unowned plate carries its number and rarity and nothing else, so every
+// field that would name it is optional here too.
+export interface AlbumPlate {
+  number: number
+  rarity: Rarity
+  owned: boolean
+  id?: string
+  set_id?: string
+  set_name?: string
+  name?: string
+  flavor?: string
+  count?: number
+  first_found_at?: string
+}
+
+export interface AlbumSet {
+  id: string
+  name: string
+  size: number
+  owned: number
+  cards: AlbumPlate[]
+}
+
+export interface Album {
+  sets: AlbumSet[]
+}
+
+export interface Accolade {
+  id: string
+  name: string
+  detail: string
+  earned_at: string
+}
+
 export class ApiError extends Error {
   status: number
 
@@ -203,4 +363,47 @@ export async function setUnits(units: Units): Promise<Units> {
   const res = await sendJson('/settings', 'PATCH', { units })
   const body = (await res.json()) as { units: Units }
   return body.units
+}
+
+// Reading the journey is what makes the server walk any workout that arrived
+// while the app was closed, so this is never just a read.
+export function getJourney(): Promise<JourneyState> {
+  return getJson<JourneyState>('/journey')
+}
+
+// Answers with the whole state, so a view that just changed the destination
+// does not need a second round trip to redraw.
+export async function setDestination(locationId: string): Promise<JourneyState> {
+  const res = await sendJson('/journey/destination', 'POST', { location_id: locationId })
+  return (await res.json()) as JourneyState
+}
+
+export function getRecap(): Promise<JourneyEvent[]> {
+  return getJson<JourneyEvent[]>('/journey/recap')
+}
+
+export async function ackRecap(): Promise<void> {
+  await send('/journey/recap/ack', { method: 'POST' })
+}
+
+export async function unlockRegion(regionId: string): Promise<JourneyState> {
+  const res = await send(`/regions/${encodeURIComponent(regionId)}/unlock`, { method: 'POST' })
+  return (await res.json()) as JourneyState
+}
+
+export function listChests(): Promise<Chest[]> {
+  return getJson<Chest[]>('/chests')
+}
+
+export async function openChest(chestId: number): Promise<OpenedChest> {
+  const res = await send(`/chests/${chestId}/open`, { method: 'POST' })
+  return (await res.json()) as OpenedChest
+}
+
+export function getAlbum(): Promise<Album> {
+  return getJson<Album>('/album')
+}
+
+export function getAccolades(): Promise<Accolade[]> {
+  return getJson<Accolade[]>('/accolades')
 }

@@ -4,6 +4,7 @@
     python manage.py create-admin <username>
     python manage.py create-invite [--expires-days N]
     python manage.py verify-email <username>
+    python manage.py journey-restart <username> [--from-beginning]
     python manage.py seed-demo
 
 The first account has to be made here: registration needs either an invite or
@@ -16,10 +17,11 @@ import getpass
 import secrets
 import sys
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from app import activity as activity_rules
-from app import models, security
+from app import journey as engine
+from app import models, security, world
 from app.config import check_deploy_config
 from app.db import SessionLocal
 from app.routers.auth import create_invite
@@ -76,19 +78,21 @@ def cmd_create_admin(args: argparse.Namespace) -> None:
         ).scalar_one_or_none():
             sys.exit("Another account already uses that address.")
         password = _prompt_password()
-        db.add(
-            models.User(
-                username=username,
-                password_hash=security.hash_password(password),
-                email=email,
-                # Verified on the spot. There is no link to click yet, and an
-                # admin who cannot sign in cannot mint the first invite either.
-                email_verified=True,
-                is_admin=True,
-                units="imperial",
-                created_at=security.now_utc(),
-            )
+        user = models.User(
+            username=username,
+            password_hash=security.hash_password(password),
+            email=email,
+            # Verified on the spot. There is no link to click yet, and an
+            # admin who cannot sign in cannot mint the first invite either.
+            email_verified=True,
+            is_admin=True,
+            units="imperial",
+            created_at=security.now_utc(),
         )
+        db.add(user)
+        db.flush()
+        # Same as a registration through the web form: the journey starts now.
+        engine.ensure_journey(db, user.id)
         db.commit()
         print(f"Created admin account {username}.")
     finally:
@@ -112,6 +116,66 @@ def cmd_verify_email(args: argparse.Namespace) -> None:
         user.email_verified = True
         db.commit()
         print(f"{username} can now sign in.")
+    finally:
+        db.close()
+
+
+def cmd_journey_restart(args: argparse.Namespace) -> None:
+    """Throw away one account's journey and walk it again from scratch.
+
+    Everything the engine ever wrote for this account goes: the position, the
+    events, the chests, the cards, the accolades, the region unlocks, the mile
+    spends, and the processed markers that stop a workout counting twice. The
+    workouts themselves are never touched, so nothing anybody actually did is
+    at risk here.
+
+    Without the flag the journey restarts from now, which is the useful one
+    after a change to the map. With --from-beginning it restarts from the day
+    the account was made and every workout since then is walked in one sweep,
+    which is how a long history gets converted into a position on the map.
+    """
+    username = args.username.strip().lower()
+    db = _session()
+    try:
+        user = db.execute(
+            select(models.User).where(models.User.username == username)
+        ).scalar_one_or_none()
+        if user is None:
+            sys.exit(f"There is no account called {username}.")
+
+        for table in (
+            models.JourneyEvent,
+            models.Chest,
+            models.UserCard,
+            models.UserAccolade,
+            models.RegionUnlock,
+            models.MileSpend,
+        ):
+            db.execute(delete(table).where(table.user_id == user.id))
+        # processed_workouts has no user column of its own: it is keyed by the
+        # workout, and the workout is what belongs to somebody.
+        db.execute(
+            delete(models.ProcessedWorkout).where(
+                models.ProcessedWorkout.workout_id.in_(
+                    select(models.Workout.id).where(models.Workout.user_id == user.id)
+                )
+            )
+        )
+        db.execute(delete(models.Journey).where(models.Journey.user_id == user.id))
+
+        started_at = user.created_at if args.from_beginning else security.now_utc()
+        engine.ensure_journey(db, user.id, started_at=started_at)
+        db.commit()
+
+        journey = engine.process_user(db, user.id)
+        where = (
+            world.LOCATIONS[journey.location_id].name
+            if journey.location_id
+            else f"{world.ROADS[journey.road_id].name}, mile {journey.position_mi:.1f}"
+        )
+        print(f"Restarted {username}'s journey from {started_at.isoformat()}.")
+        print(f"  position: {where}")
+        print(f"  travelled: {journey.traveled_mi:.1f} Miles")
     finally:
         db.close()
 
@@ -195,6 +259,10 @@ def cmd_seed_demo(args: argparse.Namespace) -> None:
             )
 
         password = secrets.token_urlsafe(12)
+        today = dt.datetime.now(activity_rules.SERVER_TZ).date()
+        first_monday = today - dt.timedelta(days=today.weekday(), weeks=_DEMO_WEEKS - 1)
+        this_monday = today - dt.timedelta(days=today.weekday())
+
         user = models.User(
             username="demo",
             password_hash=security.hash_password(password),
@@ -203,13 +271,16 @@ def cmd_seed_demo(args: argparse.Namespace) -> None:
             email_verified=True,
             is_admin=False,
             units="imperial",
-            created_at=security.now_utc(),
+            # Dated to before the seeded history, so the account is as old as
+            # the workouts under it and journey-restart --from-beginning has
+            # something to replay.
+            created_at=dt.datetime.combine(
+                first_monday - dt.timedelta(days=1), dt.time(9, 0), tzinfo=activity_rules.SERVER_TZ
+            ),
         )
         db.add(user)
         db.flush()
 
-        today = dt.datetime.now(activity_rules.SERVER_TZ).date()
-        first_monday = today - dt.timedelta(days=today.weekday(), weeks=_DEMO_WEEKS - 1)
         for week in range(_DEMO_WEEKS):
             scale = _WEEK_SCALE[week]
             for weekday, (activity, miles, duration, kcal, hr) in _DEMO_WEEK.items():
@@ -262,10 +333,35 @@ def cmd_seed_demo(args: argparse.Namespace) -> None:
             "sync",
         )
 
+        # The journey starts on the Monday of the current week rather than
+        # before all six of them. Six weeks of converted Miles is roughly five
+        # times the length of the whole map, so the marker would be parked at
+        # the far end walking local rounds with forty chests behind it, which
+        # is not what any of these screens look like in use. One week leaves
+        # the marker part way along a road with a handful of chests waiting
+        # and a part-finished album, and the earlier weeks still fill the
+        # Almanac. Fells Gate as the destination so the demo walks through
+        # Millbrook and picks up milestones on two different roads.
+        engine.ensure_journey(
+            db,
+            user.id,
+            started_at=dt.datetime.combine(
+                this_monday, dt.time.min, tzinfo=activity_rules.SERVER_TZ
+            ),
+            destination_id="fells_gate",
+        )
         db.commit()
+        journey = engine.process_user(db, user.id)
+        where = (
+            world.LOCATIONS[journey.location_id].name
+            if journey.location_id
+            else f"{world.ROADS[journey.road_id].name}, mile {journey.position_mi:.1f}"
+        )
+
         print("Seeded the demo account.")
         print("  username: demo")
         print(f"  password: {password}")
+        print(f"  journey: {where}, {journey.traveled_mi:.1f} Miles travelled")
         print("This password is shown once. It is a fictional account; delete it before")
         print("the instance is used for anything real.")
     finally:
@@ -287,6 +383,15 @@ def main() -> None:
     verify = sub.add_parser("verify-email", help="mark an account verified without a link")
     verify.add_argument("username")
     verify.set_defaults(func=cmd_verify_email)
+
+    restart = sub.add_parser("journey-restart", help="wipe and replay one account's journey")
+    restart.add_argument("username")
+    restart.add_argument(
+        "--from-beginning",
+        action="store_true",
+        help="start again from the day the account was made, walking its whole history",
+    )
+    restart.set_defaults(func=cmd_journey_restart)
 
     demo = sub.add_parser("seed-demo", help="fill an empty database with a fictional account")
     demo.set_defaults(func=cmd_seed_demo)

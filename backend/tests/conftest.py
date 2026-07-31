@@ -24,7 +24,7 @@ from sqlalchemy import create_engine, event  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
-from app import mail, models, security, throttle  # noqa: E402
+from app import mail, models, security, throttle, world  # noqa: E402
 from app.db import Base, get_db  # noqa: E402
 from app.main import app as fastapi_app  # noqa: E402
 
@@ -156,6 +156,64 @@ def signed_in(client, member) -> TestClient:
     response = client.post("/api/auth/login", json=MEMBER)
     assert response.status_code == 204
     return client
+
+
+def start_journey(
+    db_session,
+    user_id: int,
+    *,
+    days_ago: float = 1.0,
+    destination_id: str | None = world.START_DESTINATION,
+) -> models.Journey:
+    """Give an account a journey that began before the test's workouts.
+
+    Registration does this for real accounts. Tests that make a user directly
+    have to ask for it, because a journey starting now would ignore every
+    workout the test then posts, which is exactly the behaviour the engine is
+    supposed to have.
+    """
+    started = security.now_utc() - dt.timedelta(days=days_ago)
+    row = models.Journey(
+        user_id=user_id,
+        location_id=world.START_LOCATION,
+        road_id=None,
+        position_mi=0.0,
+        destination_id=destination_id,
+        next_chest_mi=None,
+        traveled_mi=0.0,
+        started_at=started,
+        updated_at=started,
+    )
+    db_session.add(row)
+    db_session.commit()
+    return row
+
+
+@pytest.fixture()
+def traveller(signed_in, db_session, member) -> TestClient:
+    """A signed-in member whose journey started yesterday at the Homestead."""
+    start_journey(db_session, member.id)
+    return signed_in
+
+
+def log_workout(client, activity="run", miles=1.0, *, pace_min=12.0, offset_min=0) -> dict:
+    """Post one manual workout inside the journey window, and return it.
+
+    Start times are spread by the offset so two workouts in one test never
+    collide on the dedupe key.
+    """
+    start = security.now_utc() - dt.timedelta(hours=12) + dt.timedelta(minutes=offset_min)
+    response = client.post(
+        "/api/workouts",
+        json={
+            "activity": activity,
+            "start_ts": start.isoformat(),
+            "duration_s": max(600, int(miles * pace_min * 60)),
+            "distance_mi": miles,
+        },
+    )
+    assert response.status_code == 201, response.text
+    return response.json()
 
 
 @pytest.fixture()

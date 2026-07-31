@@ -89,6 +89,31 @@ MAX_CYCLE_SPEED_MPH = 30.0
 MAX_SWIM_SPEED_MPH = 5.0
 
 
+# How far one raw mile of each activity carries the marker, in Miles. Effort
+# equivalence rather than distance: an hour of swimming is not an hour of
+# cycling, and the world is priced in effort. These live in code and not in the
+# environment on purpose. They are game balance, not deployment configuration,
+# and an instance that quietly tripled its own rates would not be playing the
+# same game as anybody else.
+MILES_PER_RAW = {"walk": 1.0, "run": 1.0, "cycle": 1.0 / 3.0, "swim": 4.0}
+
+# A chest drops every this many travelled Miles, rolled fresh after each one so
+# the next is never countable. The low end is what stops a short walk feeling
+# pointless; the high end is what stops chests feeling like change from a till.
+CHEST_SPACING_MI = (2.0, 4.0)
+
+# Walking's role in the world is gathering, and this is it: every completed
+# walked mile rolls once for a chest on top of whatever the distance already
+# earned. Running past the same hedge finds nothing.
+WALK_BONUS_CHEST_CHANCE = 0.10
+
+# Duplicate protection. A card the player does not own yet is this many times
+# more likely to come out of a chest than one they already have. Not a
+# guarantee: a set finished by attrition is a different feeling from one
+# finished by luck, and the last plate should still be worth waiting for.
+UNOWNED_CARD_WEIGHT = 3.0
+
+
 def daily_cap_mi(activity: str) -> float:
     """The configured daily distance ceiling for one activity, in miles."""
     return {

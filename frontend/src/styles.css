@@ -383,6 +383,410 @@ button:disabled {
   color: var(--muted);
 }
 
+/* The Vale */
+
+.vale-card {
+  padding: 0.75rem;
+}
+
+.vale-frame {
+  position: relative;
+}
+
+/* The map is the one warm element in the app, so it keeps its own parchment
+   ground behind the artwork rather than the neutral surface everything else
+   sits on. touch-action is off because the view handles its own dragging and
+   pinching; without it the browser scrolls the page instead. */
+.vale-map {
+  display: block;
+  width: 100%;
+  /* The height comes from the map file's own proportions, set on the element
+     itself, so a replacement drawn to another shape is not letterboxed. */
+  max-height: 60vh;
+  touch-action: none;
+  background: #f0e5cd;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  cursor: grab;
+}
+
+.vale-hit {
+  cursor: pointer;
+}
+
+.vale-zoom {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.vale-zoom button {
+  width: 2.5rem;
+  min-height: 2.5rem;
+  padding: 0;
+  font-weight: 700;
+  background: var(--surface);
+}
+
+.vale-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+}
+
+.vale-confirm-text {
+  margin: 0;
+  font-weight: 600;
+}
+
+.hud {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.75rem;
+}
+
+.hud-cell {
+  display: flex;
+  flex-direction: column;
+}
+
+.hud-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.hud-value {
+  font-weight: 600;
+}
+
+.buckets {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.bucket {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.5rem 0.25rem;
+}
+
+.bucket-name {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.bucket-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.bucket-unit {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.meter {
+  height: 0.5rem;
+  margin: 0.5rem 0;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.meter-fill {
+  height: 100%;
+  background: var(--accent);
+}
+
+.chests {
+  list-style: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
+}
+
+.chests li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.chests li:last-child {
+  border-bottom: none;
+}
+
+.reveal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: 1rem;
+}
+
+/* The recap */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(22, 24, 29, 0.55);
+}
+
+@media (min-width: 600px) {
+  .overlay {
+    align-items: center;
+  }
+}
+
+.overlay-panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 36rem;
+  max-height: 88vh;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.overlay-head {
+  padding: 1rem 1rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.overlay-head .hint {
+  margin: 0;
+}
+
+.overlay-foot {
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.overlay-foot button {
+  width: 100%;
+}
+
+.recap {
+  flex: 1;
+  list-style: none;
+  margin: 0;
+  padding: 0.5rem 1rem;
+  overflow-y: auto;
+}
+
+.recap-item {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.recap-item:last-child {
+  border-bottom: none;
+}
+
+/* A fixed width so every entry's text starts at the same place, whatever the
+   word on its tag. */
+.recap-item .tag {
+  flex: 0 0 auto;
+  min-width: 4.75rem;
+  height: fit-content;
+  text-align: center;
+}
+
+.tag-chest,
+.tag-milestone,
+.tag-unlock {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.recap-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+}
+
+.recap-title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.recap-detail {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.reveal {
+  width: 100%;
+  max-width: 15rem;
+}
+
+.reveal .hint {
+  margin: 0.35rem 0 0;
+}
+
+/* The album */
+
+.set-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.plates {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+  gap: 0.75rem;
+}
+
+.plate {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.6rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+/* A plate for a card nobody has found is left almost empty on purpose. */
+.plate-empty {
+  background: transparent;
+  border-style: dashed;
+}
+
+.plate-art {
+  aspect-ratio: 4 / 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 6px;
+  background: #efe9dd;
+}
+
+.plate-empty .plate-art {
+  background: transparent;
+  border: 1px dashed var(--line);
+}
+
+.plate-art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.plate-slot {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.plate-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.plate-number {
+  font-variant-numeric: tabular-nums;
+}
+
+.plate-rarity {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.plate-uncommon {
+  color: #3f6b53;
+}
+
+.plate-rare {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.plate-name {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.plate-flavor {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.plate-count {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.plate-unfound {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.plate-large .plate-name {
+  font-size: 1.05rem;
+}
+
+/* Accolades */
+
+.accolades {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.accolades li {
+  display: flex;
+  flex-direction: column;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.accolades li:last-child {
+  border-bottom: none;
+}
+
+.accolade-name {
+  font-weight: 600;
+}
+
 /* Small phones: the narrowest layout still has to read cleanly at 360px. */
 @media (max-width: 400px) {
   .page,
@@ -393,5 +797,17 @@ button:disabled {
 
   .card {
     padding: 0.85rem;
+  }
+
+  .buckets {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .plates {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .vale-card {
+    padding: 0.5rem;
   }
 }
