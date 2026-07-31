@@ -1,4 +1,4 @@
-import { cardArt } from '../cardArt.ts'
+import { cardArt } from '../art.ts'
 import type { Rarity } from '../api.ts'
 
 const RARITY_NAMES: Record<Rarity, string> = {
@@ -19,7 +19,7 @@ interface Props {
   large?: boolean
 }
 
-// One plate, used by the album, the recap, and the Vale. An unowned plate is
+// One plate, used by the album, the recap, and the profile. An unowned plate is
 // deliberately almost empty: the number and the rarity are the only things the
 // server tells us about a card nobody has found yet, and that is the point.
 export default function CardPlate({

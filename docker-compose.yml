@@ -36,6 +36,11 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # Profile pictures are files rather than rows, so they need somewhere to
+    # live that a rebuild does not take with it. The path matches AVATAR_DIR's
+    # default, so nothing has to be configured for this to work.
+    volumes:
+      - avatar-data:/data/avatars
     # Bind to localhost only so the raw API stays on this machine, not the
     # LAN. Everything normal goes through the frontend's /api proxy.
     ports:
@@ -53,3 +58,4 @@ services:
 
 volumes:
   postgres-data:
+  avatar-data:

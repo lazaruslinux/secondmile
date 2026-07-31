@@ -2,39 +2,22 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import {
   ApiError,
   createWorkout,
-  getAccolades,
   listWeeks,
   listWorkouts,
-  type Accolade,
   type Activity,
   type Units,
   type Week,
   type Workout,
   type WorkoutFlags,
 } from '../api.ts'
+import { formatDistance, KM_PER_MILE, unitName } from '../format.ts'
 import { ACTIVITY_NAMES, ACTIVITY_ORDER } from '../labels.ts'
 
 const WORKOUT_PAGE = 50
 const WEEK_COUNT = 8
-const KM_PER_MILE = 1.609344
 
 function pad(value: number): string {
   return String(value).padStart(2, '0')
-}
-
-function unitName(units: Units): string {
-  return units === 'metric' ? 'km' : 'mi'
-}
-
-// Distances are stored in miles no matter what the account displays, so the
-// conversion happens at the edge: here on the way out, and in the entry form
-// on the way in.
-function toDisplayDistance(miles: number, units: Units): number {
-  return units === 'metric' ? miles * KM_PER_MILE : miles
-}
-
-function formatDistance(miles: number, units: Units): string {
-  return `${toDisplayDistance(miles, units).toFixed(2)} ${unitName(units)}`
 }
 
 function formatDuration(seconds: number): string {
@@ -104,7 +87,6 @@ interface Props {
 export default function Almanac({ units }: Props) {
   const [workouts, setWorkouts] = useState<Workout[]>([])
   const [weeks, setWeeks] = useState<Week[]>([])
-  const [accolades, setAccolades] = useState<Accolade[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
 
@@ -123,14 +105,12 @@ export default function Almanac({ units }: Props) {
 
   const load = useCallback(async () => {
     try {
-      const [history, totals, earned] = await Promise.all([
+      const [history, totals] = await Promise.all([
         listWorkouts(WORKOUT_PAGE),
         listWeeks(WEEK_COUNT),
-        getAccolades(),
       ])
       setWorkouts(history)
       setWeeks(totals)
-      setAccolades(earned)
       setLoadError('')
     } catch (err) {
       setLoadError(errorText(err))
@@ -286,24 +266,6 @@ export default function Almanac({ units }: Props) {
             Add workout
           </button>
         </form>
-      </section>
-
-      <section className="card">
-        <h2>Accolades</h2>
-        {accolades.length === 0 ? (
-          <p className="hint">
-            Marks on the roads you pass. Nothing earned yet; the first one comes with the miles.
-          </p>
-        ) : (
-          <ul className="accolades">
-            {accolades.map((accolade) => (
-              <li key={accolade.id}>
-                <span className="accolade-name">{accolade.name}</span>
-                <span className="muted">{accolade.detail}</span>
-              </li>
-            ))}
-          </ul>
-        )}
       </section>
 
       <section>

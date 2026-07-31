@@ -383,135 +383,351 @@ button:disabled {
   color: var(--muted);
 }
 
-/* The Vale */
+/* The profile */
 
-.vale-card {
-  padding: 0.75rem;
+.profile-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem 1.5rem;
 }
 
-.vale-frame {
+/* The picture, its frame, and the four badge slots. The block is padded by
+   exactly one badge so a slot sits in the corner of the padding and can never
+   reach the picture, whatever artwork is dropped in for either. */
+.avatar-block {
   position: relative;
+  flex: 0 0 auto;
+  padding: 3rem;
 }
 
-/* The map is the one warm element in the app, so it keeps its own parchment
-   ground behind the artwork rather than the neutral surface everything else
-   sits on. touch-action is off because the view handles its own dragging and
-   pinching; without it the browser scrolls the page instead. */
-.vale-map {
-  display: block;
-  width: 100%;
-  /* The height comes from the map file's own proportions, set on the element
-     itself, so a replacement drawn to another shape is not letterboxed. */
-  max-height: 60vh;
-  touch-action: none;
-  background: #f0e5cd;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  cursor: grab;
+.avatar-frame {
+  position: relative;
+  width: 9rem;
+  height: 9rem;
 }
 
-.vale-hit {
-  cursor: pointer;
-}
-
-.vale-zoom {
+/* The artwork is drawn over the whole square and the picture is inset inside
+   it, so a heavier border tier frames the same picture rather than cropping
+   it. Borders keep their middle empty; see docs/03-artwork.md. */
+.avatar-shot {
   position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.vale-zoom button {
-  width: 2.5rem;
-  min-height: 2.5rem;
-  padding: 0;
-  font-weight: 700;
-  background: var(--surface);
-}
-
-.vale-confirm {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
-  padding: 0.75rem;
-  border: 1px solid var(--accent);
-  border-radius: var(--radius);
+  inset: 13%;
+  width: 74%;
+  height: 74%;
+  object-fit: cover;
+  border-radius: 3px;
   background: var(--accent-soft);
 }
 
-.vale-confirm-text {
-  margin: 0;
-  font-weight: 600;
+.avatar-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3rem;
+  font-weight: 700;
+  color: var(--accent);
 }
 
-.hud {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
-  gap: 0.75rem;
+.avatar-border {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
 }
 
-.hud-cell {
+.badge-slot {
+  position: absolute;
+  width: 3rem;
+  height: 3rem;
+}
+
+.badge-slot-1 {
+  top: 0.5rem;
+  left: 0.5rem;
+}
+
+.badge-slot-2 {
+  top: 0.5rem;
+  right: 0.5rem;
+}
+
+.badge-slot-3 {
+  bottom: 0.5rem;
+  left: 0.5rem;
+}
+
+.badge-slot-4 {
+  bottom: 0.5rem;
+  right: 0.5rem;
+}
+
+.badge {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.badge img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* An achievement with no artwork at all still needs to occupy its place. */
+.badge-blank,
+.badge-empty {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 1px dashed var(--line);
+  border-radius: 999px;
+}
+
+.badge-locked {
+  opacity: 0.35;
+  filter: grayscale(1);
+}
+
+/* Going the second mile has to be visible from across the room. This is what
+   a gilded badge gets when its own gilded artwork has not been drawn yet. */
+.badge-gilded {
+  /* The padding is what makes the gold read as a ring rather than a rim, since
+     a badge drawing is usually opaque out to its own edge. */
+  padding: 7%;
+  border-radius: 999px;
+  background: radial-gradient(circle, #fcd9a4 0%, #f3b45c 55%, #b45309 100%);
+  box-shadow: 0 0 0 2px #b45309;
+}
+
+.profile-meta {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.profile-name {
+  margin-bottom: 0.15rem;
+  font-size: 1.4rem;
+}
+
+.level-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0.75rem 0 0.35rem;
+}
+
+.level-tag {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+}
+
+/* A progress element rather than a filled div: the content security policy
+   allows no inline styles, so a width computed per render cannot be set on the
+   element itself. */
+.xp-meter {
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 0.5rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--line);
+  color: var(--accent);
+  overflow: hidden;
+}
+
+.xp-meter::-webkit-progress-bar {
+  background: var(--line);
+}
+
+.xp-meter::-webkit-progress-value {
+  background: var(--accent);
+}
+
+.xp-meter::-moz-progress-bar {
+  background: var(--accent);
+}
+
+.profile-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.75rem;
+  list-style: none;
+  margin: 0.9rem 0 0;
+  padding: 0;
+}
+
+.profile-counts li {
   display: flex;
   flex-direction: column;
 }
 
-.hud-label {
+.count-value {
+  font-size: 1.2rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.count-label {
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--muted);
 }
 
-.hud-value {
-  font-weight: 600;
-}
-
-.buckets {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 0.5rem;
-  margin-top: 1rem;
-}
-
-.bucket {
+.profile-edit {
   display: flex;
   flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.file-field input {
+  padding: 0.5rem;
+}
+
+.picker {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.picker-list {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+}
+
+.picker-list li {
+  border-bottom: 1px solid var(--line);
+}
+
+.picker-list li:last-child {
+  border-bottom: none;
+}
+
+/* Labels are columns everywhere else in the app; a picker row is not. */
+.picker-option {
+  flex-direction: row;
   align-items: center;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 0.5rem 0.25rem;
+  gap: 0.75rem;
+  padding: 0.4rem 0;
+  color: var(--ink);
+  font-size: 1rem;
+  cursor: pointer;
 }
 
-.bucket-name {
-  font-size: 0.8rem;
-  color: var(--muted);
+.picker-option input {
+  width: auto;
+  min-height: 0;
+  flex: 0 0 auto;
 }
 
-.bucket-value {
-  font-size: 1.25rem;
-  font-weight: 700;
+.picker-option .badge {
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: 0 0 auto;
+}
+
+/* Stats */
+
+.stats {
+  width: 100%;
+  border-collapse: collapse;
   font-variant-numeric: tabular-nums;
 }
 
-.bucket-unit {
+.stats th,
+.stats td {
+  padding: 0.4rem 0.3rem;
+  text-align: right;
+  border-bottom: 1px solid var(--line);
+}
+
+.stats th:first-child,
+.stats td:first-child {
+  text-align: left;
+}
+
+.stats thead th {
   font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   color: var(--muted);
 }
 
-.meter {
-  height: 0.5rem;
-  margin: 0.5rem 0;
-  border-radius: 999px;
-  background: var(--line);
-  overflow: hidden;
+.stats tbody th {
+  font-weight: 600;
 }
 
-.meter-fill {
-  height: 100%;
-  background: var(--accent);
+.stats tfoot th,
+.stats tfoot td {
+  border-bottom: none;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+/* Achievements */
+
+.achievements {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.achievement {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.achievement:last-child {
+  border-bottom: none;
+}
+
+.achievement .badge {
+  flex: 0 0 auto;
+  width: 4rem;
+  height: 4rem;
+}
+
+.achievement-body {
+  min-width: 0;
+}
+
+.achievement-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-weight: 600;
+}
+
+.achievement-detail {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.achievement-locked .achievement-name,
+.achievement-locked .achievement-detail {
+  color: var(--muted);
+}
+
+.tag-gilded {
+  border-color: #b45309;
+  background: #fdf3e3;
+  color: #92400e;
+  font-weight: 600;
 }
 
 .chests {
@@ -590,57 +806,50 @@ button:disabled {
 
 .recap {
   flex: 1;
-  list-style: none;
-  margin: 0;
-  padding: 0.5rem 1rem;
+  padding: 0.5rem 1rem 1rem;
   overflow-y: auto;
 }
 
-.recap-item {
+/* The one number the letter is about. */
+.recap-miles {
   display: flex;
-  gap: 0.6rem;
-  padding: 0.6rem 0;
-  border-bottom: 1px solid var(--line);
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0.5rem 0 1rem;
 }
 
-.recap-item:last-child {
-  border-bottom: none;
-}
-
-/* A fixed width so every entry's text starts at the same place, whatever the
-   word on its tag. */
-.recap-item .tag {
-  flex: 0 0 auto;
-  min-width: 4.75rem;
-  height: fit-content;
-  text-align: center;
-}
-
-.tag-chest,
-.tag-milestone,
-.tag-unlock {
-  border-color: var(--accent);
-  background: var(--accent-soft);
+.recap-miles-value {
+  font-size: 2.25rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
   color: var(--accent);
 }
 
-.recap-body {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.35rem;
-}
-
-.recap-title {
-  margin: 0;
-  font-weight: 600;
-}
-
-.recap-detail {
-  margin: 0;
-  font-size: 0.9rem;
+.recap-miles-label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   color: var(--muted);
+}
+
+.recap-section {
+  margin-bottom: 1rem;
+}
+
+.recap-section:last-child {
+  margin-bottom: 0;
+}
+
+.recap-chest {
+  display: block;
+}
+
+.chest-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 
 .reveal {
@@ -764,27 +973,12 @@ button:disabled {
   font-size: 1.05rem;
 }
 
-/* Accolades */
-
-.accolades {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.accolades li {
-  display: flex;
-  flex-direction: column;
-  padding: 0.35rem 0;
-  border-bottom: 1px solid var(--line);
-}
-
-.accolades li:last-child {
-  border-bottom: none;
-}
-
-.accolade-name {
-  font-weight: 600;
+/* Once the picture and the numbers stop sharing a row, the picture centres
+   rather than hanging off the left edge on its own. */
+@media (max-width: 34rem) {
+  .profile-head {
+    justify-content: center;
+  }
 }
 
 /* Small phones: the narrowest layout still has to read cleanly at 360px. */
@@ -799,15 +993,29 @@ button:disabled {
     padding: 0.85rem;
   }
 
-  .buckets {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
   .plates {
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .vale-card {
-    padding: 0.5rem;
+  /* The picture and its slots shrink together, so a badge still lands in the
+     corner of the padding rather than on somebody's face. */
+  .avatar-block {
+    padding: 2.5rem;
+  }
+
+  .avatar-frame {
+    width: 7.5rem;
+    height: 7.5rem;
+  }
+
+  .badge-slot {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+
+  .stats th,
+  .stats td {
+    padding: 0.35rem 0.15rem;
+    font-size: 0.9rem;
   }
 }

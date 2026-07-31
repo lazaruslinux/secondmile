@@ -16,6 +16,7 @@ from app import models
 from app.config import (
     MAX_CYCLE_SPEED_MPH,
     MAX_SWIM_SPEED_MPH,
+    MILES_PER_RAW,
     MIN_PACE_MIN_PER_MI,
     SERVER_TZ,
     daily_cap_mi,
@@ -226,6 +227,17 @@ def parse_payload(payload) -> tuple[list[ParsedWorkout], list[dict]]:
             )
         )
     return parsed, ignored
+
+
+def converted_miles(activity: str, distance_mi: float) -> float:
+    """What one workout's distance is worth as Miles.
+
+    Effort equivalence rather than distance: an hour of swimming is not an hour
+    of cycling, and everything the game counts is counted in effort. Lives here
+    rather than in the pipeline because the achievements engine and the profile
+    totals need the same answer and must never drift from it.
+    """
+    return distance_mi * MILES_PER_RAW[activity]
 
 
 def impossible_pace(activity: str, duration_s: int, distance_mi: float) -> bool:

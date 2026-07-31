@@ -23,8 +23,8 @@ export default function Album() {
       <section className="card">
         <h2>The album</h2>
         <p className="hint">
-          Cards come out of chests, and chests come from traveled Miles. A set belongs to a place,
-          so the album ends up being a record of where you have been.
+          Cards come out of chests, and chests come from Miles covered. Nothing else mints one,
+          so the album ends up being a record of how far you have gone.
         </p>
       </section>
 

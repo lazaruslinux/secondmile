@@ -4,7 +4,7 @@
     python manage.py create-admin <username>
     python manage.py create-invite [--expires-days N]
     python manage.py verify-email <username>
-    python manage.py journey-restart <username> [--from-beginning]
+    python manage.py recompute-progress <username>
     python manage.py seed-demo
 
 The first account has to be made here: registration needs either an invite or
@@ -17,11 +17,11 @@ import getpass
 import secrets
 import sys
 
-from sqlalchemy import delete, select
+from sqlalchemy import select
 
+from app import achievements
 from app import activity as activity_rules
-from app import journey as engine
-from app import models, security, world
+from app import models, progress, security
 from app.config import check_deploy_config
 from app.db import SessionLocal
 from app.routers.auth import create_invite
@@ -90,9 +90,6 @@ def cmd_create_admin(args: argparse.Namespace) -> None:
             created_at=security.now_utc(),
         )
         db.add(user)
-        db.flush()
-        # Same as a registration through the web form: the journey starts now.
-        engine.ensure_journey(db, user.id)
         db.commit()
         print(f"Created admin account {username}.")
     finally:
@@ -120,19 +117,20 @@ def cmd_verify_email(args: argparse.Namespace) -> None:
         db.close()
 
 
-def cmd_journey_restart(args: argparse.Namespace) -> None:
-    """Throw away one account's journey and walk it again from scratch.
+def cmd_recompute_progress(args: argparse.Namespace) -> None:
+    """Rebuild one account's experience, level, chests, and cards from its workouts.
 
-    Everything the engine ever wrote for this account goes: the position, the
-    events, the chests, the cards, the accolades, the region unlocks, the mile
-    spends, and the processed markers that stop a workout counting twice. The
-    workouts themselves are never touched, so nothing anybody actually did is
-    at risk here.
+    The safety hatch for the day a constant changes, and the way to replay a
+    history the migration credited in one lump without dropping its chests.
+    Everything derived goes and is rebuilt: the experience, the level, the
+    chest accumulator, the chests, and the album. Earned achievements are left
+    alone, because they are never revoked and the evaluator re-awards whatever
+    the rebuilt history earns on top of them.
 
-    Without the flag the journey restarts from now, which is the useful one
-    after a change to the map. With --from-beginning it restarts from the day
-    the account was made and every workout since then is walked in one sweep,
-    which is how a long history gets converted into a position on the map.
+    The workouts themselves are never touched, so nothing anybody actually did
+    is at risk here. A filled album is thrown away and refound, though, and the
+    cards it comes back with will not be the same ones: take a dump first if
+    that matters.
     """
     username = args.username.strip().lower()
     db = _session()
@@ -143,39 +141,14 @@ def cmd_journey_restart(args: argparse.Namespace) -> None:
         if user is None:
             sys.exit(f"There is no account called {username}.")
 
-        for table in (
-            models.JourneyEvent,
-            models.Chest,
-            models.UserCard,
-            models.UserAccolade,
-            models.RegionUnlock,
-            models.MileSpend,
-        ):
-            db.execute(delete(table).where(table.user_id == user.id))
-        # processed_workouts has no user column of its own: it is keyed by the
-        # workout, and the workout is what belongs to somebody.
-        db.execute(
-            delete(models.ProcessedWorkout).where(
-                models.ProcessedWorkout.workout_id.in_(
-                    select(models.Workout.id).where(models.Workout.user_id == user.id)
-                )
-            )
+        row = progress.recompute(db, user.id)
+        chests = (
+            db.query(models.Chest).filter(models.Chest.user_id == user.id).count()
         )
-        db.execute(delete(models.Journey).where(models.Journey.user_id == user.id))
-
-        started_at = user.created_at if args.from_beginning else security.now_utc()
-        engine.ensure_journey(db, user.id, started_at=started_at)
-        db.commit()
-
-        journey = engine.process_user(db, user.id)
-        where = (
-            world.LOCATIONS[journey.location_id].name
-            if journey.location_id
-            else f"{world.ROADS[journey.road_id].name}, mile {journey.position_mi:.1f}"
-        )
-        print(f"Restarted {username}'s journey from {started_at.isoformat()}.")
-        print(f"  position: {where}")
-        print(f"  travelled: {journey.traveled_mi:.1f} Miles")
+        print(f"Rebuilt {username} from their workout history.")
+        print(f"  level: {row.level} ({row.xp} XP)")
+        print(f"  chests: {chests}")
+        print(f"  achievements: {achievements.earned_count(db, user.id)}")
     finally:
         db.close()
 
@@ -216,6 +189,11 @@ _DEMO_WEEK = {
 _WEEK_SCALE = (0.82, 0.95, 1.0, 1.12, 0.9, 1.05)
 
 _DEMO_WEEKS = len(_WEEK_SCALE)
+
+# How many of the seeded chests are left closed. Enough that the recap has
+# something in it and the profile shows a waiting count, few enough that the
+# first screen is not a wall of them.
+_DEMO_PENDING_CHESTS = 5
 
 
 def _add_workout(db, user_id, activity, start_ts, duration_s, distance_mi, kcal, hr, source):
@@ -261,7 +239,6 @@ def cmd_seed_demo(args: argparse.Namespace) -> None:
         password = secrets.token_urlsafe(12)
         today = dt.datetime.now(activity_rules.SERVER_TZ).date()
         first_monday = today - dt.timedelta(days=today.weekday(), weeks=_DEMO_WEEKS - 1)
-        this_monday = today - dt.timedelta(days=today.weekday())
 
         user = models.User(
             username="demo",
@@ -271,9 +248,8 @@ def cmd_seed_demo(args: argparse.Namespace) -> None:
             email_verified=True,
             is_admin=False,
             units="imperial",
-            # Dated to before the seeded history, so the account is as old as
-            # the workouts under it and journey-restart --from-beginning has
-            # something to replay.
+            # Dated to before the seeded history, so the account is as old
+            # as the workouts under it.
             created_at=dt.datetime.combine(
                 first_monday - dt.timedelta(days=1), dt.time(9, 0), tzinfo=activity_rules.SERVER_TZ
             ),
@@ -333,35 +309,46 @@ def cmd_seed_demo(args: argparse.Namespace) -> None:
             "sync",
         )
 
-        # The journey starts on the Monday of the current week rather than
-        # before all six of them. Six weeks of converted Miles is roughly five
-        # times the length of the whole map, so the marker would be parked at
-        # the far end walking local rounds with forty chests behind it, which
-        # is not what any of these screens look like in use. One week leaves
-        # the marker part way along a road with a handful of chests waiting
-        # and a part-finished album, and the earlier weeks still fill the
-        # Almanac. Fells Gate as the destination so the demo walks through
-        # Millbrook and picks up milestones on two different roads.
-        engine.ensure_journey(
-            db,
-            user.id,
-            started_at=dt.datetime.combine(
-                this_monday, dt.time.min, tzinfo=activity_rules.SERVER_TZ
-            ),
-            destination_id="fells_gate",
-        )
         db.commit()
-        journey = engine.process_user(db, user.id)
-        where = (
-            world.LOCATIONS[journey.location_id].name
-            if journey.location_id
-            else f"{world.ROADS[journey.road_id].name}, mile {journey.position_mi:.1f}"
+        # The whole seeded history goes through the real pipeline, so the demo
+        # account's level, badges, and chests are all things the invented
+        # workouts actually earned rather than numbers typed in here.
+        row = progress.process_user(db, user.id)
+
+        # Six weeks of movement is a lot of chests, and a profile behind a wall
+        # of several dozen unopened ones shows nothing of the album or the
+        # collection badges. Most are opened here so the field guide is part
+        # filled, and the last few are left waiting so the recap has something
+        # to hand over on the first sign in.
+        pending = (
+            db.query(models.Chest)
+            .filter(models.Chest.user_id == user.id, models.Chest.opened_at.is_(None))
+            .order_by(models.Chest.id)
+            .all()
         )
+        now = security.now_utc()
+        album: dict[str, models.UserCard] = {}
+        for chest in pending[:-_DEMO_PENDING_CHESTS]:
+            chest.opened_at = now
+            owned = album.get(chest.card_id)
+            if owned is None:
+                owned = models.UserCard(
+                    user_id=user.id, card_id=chest.card_id, count=1, first_found_at=now
+                )
+                album[chest.card_id] = owned
+                db.add(owned)
+            else:
+                owned.count += 1
+        db.flush()
+        achievements.evaluate(db, user.id)
+        db.commit()
 
         print("Seeded the demo account.")
         print("  username: demo")
         print(f"  password: {password}")
-        print(f"  journey: {where}, {journey.traveled_mi:.1f} Miles travelled")
+        print(f"  level: {row.level} ({row.xp} XP)")
+        print(f"  achievements: {achievements.earned_count(db, user.id)}")
+        print(f"  chests waiting: {min(len(pending), _DEMO_PENDING_CHESTS)}")
         print("This password is shown once. It is a fictional account; delete it before")
         print("the instance is used for anything real.")
     finally:
@@ -384,14 +371,11 @@ def main() -> None:
     verify.add_argument("username")
     verify.set_defaults(func=cmd_verify_email)
 
-    restart = sub.add_parser("journey-restart", help="wipe and replay one account's journey")
-    restart.add_argument("username")
-    restart.add_argument(
-        "--from-beginning",
-        action="store_true",
-        help="start again from the day the account was made, walking its whole history",
+    recompute = sub.add_parser(
+        "recompute-progress", help="rebuild one account's progress from its workouts"
     )
-    restart.set_defaults(func=cmd_journey_restart)
+    recompute.add_argument("username")
+    recompute.set_defaults(func=cmd_recompute_progress)
 
     demo = sub.add_parser("seed-demo", help="fill an empty database with a fictional account")
     demo.set_defaults(func=cmd_seed_demo)

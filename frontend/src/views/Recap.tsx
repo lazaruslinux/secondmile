@@ -1,76 +1,23 @@
 import { useEffect, useState } from 'react'
-import { ApiError, openChest, type JourneyEvent, type OpenedChest } from '../api.ts'
-import { ACTIVITY_NAMES } from '../labels.ts'
+import { ApiError, openChest, type OpenedChest, type RecapState } from '../api.ts'
+import { formatDate } from '../format.ts'
+import Badge from './Badge.tsx'
 import CardPlate from './CardPlate.tsx'
 
 function errorText(err: unknown): string {
   return err instanceof ApiError ? err.message : 'Something went wrong. Try again.'
 }
 
-function miles(value: number | undefined): string {
-  return (value ?? 0).toFixed(1)
-}
-
-interface Line {
-  title: string
-  detail: string
-  tag: string
-}
-
-// Deliberately plain sentences. The recap is a record of what your body did
-// while the app was shut, and it reads better as a log than as an announcement.
-function describe(event: JourneyEvent): Line {
-  const data = event.data
-  const activity = data.activity ? ACTIVITY_NAMES[data.activity].toLowerCase() : 'workout'
-  switch (event.type) {
-    case 'travel':
-      return data.local
-        ? {
-            title: `${miles(data.miles)} Miles around ${data.location_name ?? 'home'}`,
-            detail: `From a ${activity}, with no destination set.`,
-            tag: 'Travel',
-          }
-        : {
-            title: `${miles(data.miles)} Miles along the ${data.road_name ?? 'road'}`,
-            detail: `From a ${activity}, heading for ${data.toward_name ?? 'the next place'}.`,
-            tag: 'Travel',
-          }
-    case 'arrival':
-      return {
-        title: `Arrived at ${data.location_name ?? 'a new place'}`,
-        detail: data.was_destination
-          ? 'The place you set out for. Choose the next one on the map.'
-          : 'Passing through.',
-        tag: 'Arrival',
-      }
-    case 'milestone':
-      return {
-        title: data.name ?? 'A milestone',
-        detail: data.detail ?? '',
-        tag: 'Accolade',
-      }
-    case 'chest':
-      return {
-        title: `A chest near ${data.area_name ?? 'the road'}`,
-        detail: `${data.set_name ?? 'A'} set.`,
-        tag: 'Chest',
-      }
-    case 'unlock':
-      return {
-        title: `${data.region_name ?? 'A region'} is open`,
-        detail: data.detail ?? '',
-        tag: 'Region',
-      }
-  }
-}
-
 interface Props {
-  events: JourneyEvent[]
+  recap: RecapState
   // The parent acks the recap and reloads whatever the opened chests changed.
   onDismiss: () => void
 }
 
-export default function Recap({ events, onDismiss }: Props) {
+// The letter waiting on the mat. Everything in it already happened: the miles
+// were covered, the chests were dropped, the badges were earned. Opening the
+// app is how you read about it, never how you cause it.
+export default function Recap({ recap, onDismiss }: Props) {
   const [opened, setOpened] = useState<Record<number, OpenedChest>>({})
   const [busy, setBusy] = useState<number | null>(null)
   const [errors, setErrors] = useState<Record<number, string>>({})
@@ -96,71 +43,104 @@ export default function Recap({ events, onDismiss }: Props) {
     }
   }
 
-  const chests = events.filter((event) => event.type === 'chest').length
+  const chests = recap.chests.length
 
   return (
     <div className="overlay">
-      <section className="overlay-panel" role="dialog" aria-modal="true" aria-labelledby="recap-title">
+      <section
+        className="overlay-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="recap-title"
+      >
         <header className="overlay-head">
           <h2 id="recap-title">While you were away</h2>
           <p className="hint">
-            {events.length} {events.length === 1 ? 'entry' : 'entries'}
-            {chests > 0 && `, ${chests} ${chests === 1 ? 'chest' : 'chests'}`}. Chests keep. You
-            can open them here or later on the map.
+            {recap.since ? `Since ${formatDate(recap.since)}.` : 'Everything so far.'} Chests
+            keep. You can open them here or later on your profile.
           </p>
         </header>
 
-        <ol className="recap">
-          {events.map((event) => {
-            const line = describe(event)
-            const chestId = event.data.chest_id
-            const reveal = chestId === undefined ? undefined : opened[chestId]
-            return (
-              <li key={event.id} className="recap-item">
-                <span className={`tag tag-${event.type}`}>{line.tag}</span>
-                <div className="recap-body">
-                  <p className="recap-title">{line.title}</p>
-                  {line.detail && <p className="recap-detail">{line.detail}</p>}
+        <div className="recap">
+          <p className="recap-miles">
+            <span className="recap-miles-value">{recap.miles.toFixed(1)}</span>
+            <span className="recap-miles-label">Miles covered</span>
+          </p>
 
-                  {chestId !== undefined && !reveal && (
-                    <button
-                      type="button"
-                      className="secondary"
-                      disabled={busy === chestId}
-                      onClick={() => void open(chestId)}
-                    >
-                      Open the chest
-                    </button>
-                  )}
-                  {chestId !== undefined && errors[chestId] && (
-                    <p className="error" role="alert">
-                      {errors[chestId]}
-                    </p>
-                  )}
-                  {reveal && (
-                    <div className="reveal">
-                      <CardPlate
-                        number={reveal.card.number}
-                        rarity={reveal.card.rarity}
-                        owned
-                        cardId={reveal.card.id}
-                        name={reveal.card.name}
-                        flavor={reveal.card.flavor}
-                        count={reveal.count}
-                      />
-                      <p className="hint">
-                        {reveal.card.set_name} set.{' '}
-                        {reveal.duplicate
-                          ? `You already had this one. ${reveal.count} copies now.`
-                          : 'New to the album.'}
+          {recap.achievements.length > 0 && (
+            <section className="recap-section">
+              <h3>Earned</h3>
+              <ul className="achievements">
+                {recap.achievements.map((row) => (
+                  <li key={row.id} className="achievement">
+                    <Badge achievement={row} />
+                    <div className="achievement-body">
+                      <p className="achievement-name">
+                        {row.name}
+                        {row.gilded && <span className="tag tag-gilded">Gilded</span>}
                       </p>
+                      <p className="achievement-detail">{row.detail}</p>
                     </div>
-                  )}
-                </div>
-              </li>
-            )
-          })}
-        </ol>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {chests > 0 && (
+            <section className="recap-section">
+              <h3>
+                {chests} {chests === 1 ? 'chest' : 'chests'} waiting
+              </h3>
+              <ul className="chests">
+                {recap.chests.map((chest) => {
+                  const reveal = opened[chest.id]
+                  return (
+                    <li key={chest.id} className="recap-chest">
+                      <div className="chest-line">
+                        <span>{chest.set_name} set</span>
+                        {!reveal && (
+                          <button
+                            type="button"
+                            className="secondary"
+                            disabled={busy === chest.id}
+                            onClick={() => void open(chest.id)}
+                          >
+                            Open
+                          </button>
+                        )}
+                      </div>
+                      {errors[chest.id] && (
+                        <p className="error" role="alert">
+                          {errors[chest.id]}
+                        </p>
+                      )}
+                      {reveal && (
+                        <div className="reveal">
+                          <CardPlate
+                            number={reveal.card.number}
+                            rarity={reveal.card.rarity}
+                            owned
+                            cardId={reveal.card.id}
+                            name={reveal.card.name}
+                            flavor={reveal.card.flavor}
+                            count={reveal.count}
+                          />
+                          <p className="hint">
+                            {reveal.card.set_name} set.{' '}
+                            {reveal.duplicate
+                              ? `You already had this one. ${reveal.count} copies now.`
+                              : 'New to the album.'}
+                          </p>
+                        </div>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            </section>
+          )}
+        </div>
 
         <footer className="overlay-foot">
           <button type="button" className="primary" onClick={onDismiss}>

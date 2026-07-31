@@ -9,8 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app import activity as activity_rules
-from app import journey as engine
-from app import models, security
+from app import models, progress, security
 from app.db import get_db
 from app.models import ACTIVITIES
 
@@ -81,9 +80,9 @@ def create_workout(
         workout.flags = {**flags, "daily_cap": True}
     db.commit()
 
-    # A workout typed in by hand counts exactly as much as one from a watch, so
-    # it advances the journey on the same terms and through the same engine.
-    engine.process_user(db, user.id)
+    # A workout typed in by hand counts exactly as much as one from a watch,
+    # so it goes through the same pipeline on the same terms.
+    progress.process_user(db, user.id)
     return activity_rules.serialize(workout)
 
 

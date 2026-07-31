@@ -27,3 +27,14 @@ alembic
 # Argon2id password hashing, the only thing standing between a stolen database
 # dump and everyone's passwords
 argon2-cffi
+
+# Image decoding and re-encoding for profile pictures. The only safe way to
+# find out whether an upload is really an image is to decode it, and the only
+# way to be sure the stored file carries no EXIF, no location, and no embedded
+# payload is to re-encode it from its pixels. Backend only.
+pillow
+
+# Starlette's multipart parser, which is what makes the avatar form readable
+# at all and, more to the point, what enforces the upload size cap while the
+# body is still arriving rather than after it has all been buffered
+python-multipart

@@ -1,14 +1,19 @@
-"""Chests, the card album, and the accolades earned along the roads."""
+"""Chests, the card album, and the recap of everything that happened while away."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Response, status
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app import journey as engine
-from app import models, security, world
+from app import achievements, models, progress, security, world
+from app.activity import converted_miles
 from app.db import get_db
 
 router = APIRouter(tags=["cards"])
+
+# The recap is a story, not a feed. Anything past this many pending chests is
+# almost certainly a rebuild replaying months of history, and nobody opens three
+# hundred of them in one sitting; the rest are still there, and still waiting.
+MAX_RECAP = 200
 
 
 def _card(card: world.Card) -> dict:
@@ -24,6 +29,28 @@ def _card(card: world.Card) -> dict:
     }
 
 
+def _chest(row: models.Chest) -> dict:
+    """A closed chest, saying where its card comes from and nothing more."""
+    card_set = world.CARDS[row.card_id].set_id
+    return {
+        "id": row.id,
+        "dropped_at": row.dropped_at.isoformat(),
+        "set_id": card_set,
+        "set_name": world.CARD_SETS[card_set].name,
+    }
+
+
+def _pending(db: Session, user_id: int, limit: int | None = None) -> list[models.Chest]:
+    stmt = (
+        select(models.Chest)
+        .where(models.Chest.user_id == user_id, models.Chest.opened_at.is_(None))
+        .order_by(models.Chest.id)
+    )
+    if limit is not None:
+        stmt = stmt.limit(limit)
+    return list(db.execute(stmt).scalars())
+
+
 @router.get("/chests")
 def list_chests(
     db: Session = Depends(get_db), user: models.User = Depends(security.current_user)
@@ -34,20 +61,8 @@ def list_chests(
     moment the chest drops, but the reveal belongs to opening it, and an API
     that answers the question early takes the only surprise the game has.
     """
-    rows = db.execute(
-        select(models.Chest)
-        .where(models.Chest.user_id == user.id, models.Chest.opened_at.is_(None))
-        .order_by(models.Chest.id)
-    ).scalars()
-    return [
-        {
-            "id": row.id,
-            "dropped_at": row.dropped_at.isoformat(),
-            "set_id": world.CARDS[row.card_id].set_id,
-            "set_name": world.CARD_SETS[world.CARDS[row.card_id].set_id].name,
-        }
-        for row in rows
-    ]
+    progress.process_user(db, user.id)
+    return [_chest(row) for row in _pending(db, user.id)]
 
 
 @router.post("/chests/{chest_id}/open")
@@ -77,6 +92,10 @@ def open_chest(
         db.add(owned)
     else:
         owned.count += 1
+    db.flush()
+    # A plate can finish a set, and finishing a set is an achievement. Awarded
+    # here rather than at the next sweep so the badge arrives with the card.
+    achievements.evaluate(db, user.id)
     db.commit()
     return {
         "card": _card(card),
@@ -94,8 +113,8 @@ def read_album(
     """The field guide: every set, every plate, owned or not.
 
     An unowned plate carries its number and its rarity and nothing else. The
-    name and the line of text under it are the reward for finding the card,
-    and an album that listed them all up front would be a shopping list.
+    name and the line of text under it are the reward for finding the card, and
+    an album that listed them all up front would be a shopping list.
     """
     held = {
         row.card_id: row
@@ -132,33 +151,65 @@ def read_album(
     return {"sets": sets}
 
 
-@router.get("/accolades")
-def read_accolades(
+@router.get("/recap")
+def read_recap(
     db: Session = Depends(get_db), user: models.User = Depends(security.current_user)
-) -> list[dict]:
-    """The permanent marks of places the marker has passed, oldest first."""
-    # The sweep runs here because an accolade is earned by movement, and the
-    # Almanac showing a stale list after a sync would be its own small lie.
-    engine.process_user(db, user.id)
-    rows = db.execute(
-        select(models.UserAccolade)
-        .where(models.UserAccolade.user_id == user.id)
-        .order_by(models.UserAccolade.earned_at, models.UserAccolade.accolade_id)
-    ).scalars()
-    earned = []
-    for row in rows:
-        milestone = world.ACCOLADES.get(row.accolade_id)
-        if milestone is None:
-            # An accolade the current release no longer defines. Skipped
-            # rather than shown as a blank, and left in the table so that
-            # reinstating it gives the player back what they earned.
-            continue
-        earned.append(
-            {
-                "id": milestone.id,
-                "name": milestone.name,
-                "detail": milestone.detail,
-                "earned_at": row.earned_at.isoformat(),
-            }
+) -> dict:
+    """Everything waiting since the last time this was cleared.
+
+    Harvest and mail, which is the only thing opening the app is for. The
+    chests were already dropped and the badges were already earned; nothing
+    here happens because somebody looked.
+    """
+    row = progress.process_user(db, user.id)
+    since = row.last_ack_at
+    badge_stmt = select(models.UserAchievement).where(
+        models.UserAchievement.user_id == user.id
+    )
+    if since is not None:
+        badge_stmt = badge_stmt.where(models.UserAchievement.earned_at > since)
+    fresh = db.execute(
+        badge_stmt.order_by(
+            models.UserAchievement.earned_at, models.UserAchievement.achievement_id
         )
-    return earned
+    ).scalars()
+
+    # Miles from workouts that landed since the last acknowledgement, by when
+    # the row arrived rather than when the workout started: a week of history
+    # synced this morning is news this morning, whatever date is on it.
+    miles_stmt = select(
+        models.Workout.activity, func.coalesce(func.sum(models.Workout.distance_mi), 0.0)
+    ).where(models.Workout.user_id == user.id)
+    if since is not None:
+        miles_stmt = miles_stmt.where(models.Workout.created_at > since)
+    miles = sum(
+        converted_miles(activity, float(total))
+        for activity, total in db.execute(
+            miles_stmt.group_by(models.Workout.activity)
+        ).all()
+    )
+
+    return {
+        "since": since.isoformat() if since is not None else None,
+        "miles": round(miles, 2),
+        "chests": [_chest(chest) for chest in _pending(db, user.id, MAX_RECAP)],
+        "achievements": [
+            achievements.serialize(achievements.BY_ID[held.achievement_id], held)
+            for held in fresh
+            if held.achievement_id in achievements.BY_ID
+        ],
+    }
+
+
+@router.post("/recap/ack", status_code=status.HTTP_204_NO_CONTENT)
+def ack_recap(
+    response: Response,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(security.current_user),
+) -> Response:
+    """Mark the recap read. Chests are not touched: they wait to be opened."""
+    row = progress.ensure_progress(db, user.id)
+    row.last_ack_at = security.now_utc()
+    db.commit()
+    response.status_code = status.HTTP_204_NO_CONTENT
+    return response

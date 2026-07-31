@@ -39,6 +39,12 @@ types in the export are counted in the response but ignored.
   configured daily cap) are imported but flagged, and the Almanac shows the
   flag. Nothing is rejected; the flags exist so bad data never silently
   becomes progress.
+- Every imported workout is credited to your profile straight away: experience
+  toward your level, converted miles toward the next chest, and whatever
+  achievements it has just earned. That happens at sync time rather than when
+  you next open the app, so the recap waiting for you was already written.
+  Each activity converts at its own rate, which is why a mile swum is worth
+  more than a mile cycled.
 
 ## Manual entry
 

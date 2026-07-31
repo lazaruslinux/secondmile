@@ -56,6 +56,12 @@ class Settings(BaseSettings):
     # and for the daily distance caps.
     tz: str = "UTC"
 
+    # Where re-encoded profile pictures are written. The default is the path
+    # the compose file mounts a named volume at, so avatars survive a rebuild
+    # without anybody having to configure anything. Files here are named from
+    # the account id and never from anything the uploader sent.
+    avatar_dir: str = "/data/avatars"
+
     daily_cap_walk_mi: float = 40.0
     daily_cap_run_mi: float = 40.0
     daily_cap_cycle_mi: float = 200.0
@@ -112,6 +118,35 @@ WALK_BONUS_CHEST_CHANCE = 0.10
 # guarantee: a set finished by attrition is a different feeling from one
 # finished by luck, and the last plate should still be worth waiting for.
 UNOWNED_CARD_WEIGHT = 3.0
+
+
+# Experience. A workout is worth its converted Miles at this rate plus a point
+# for every active minute, so an hour in the pool and an hour on a bike are
+# both worth an hour even before the distance conversion has its say. Nothing
+# but synced or manually entered movement ever produces any of it.
+XP_PER_MILE = 10.0
+XP_PER_MINUTE = 1.0
+
+# The level curve. Reaching level n costs LEVEL_STEP_XP * n beyond level n - 1,
+# so the levels get further apart forever and the border tiers below are spaced
+# to match. Everyone starts at level 1 with nothing.
+LEVEL_STEP_XP = 100
+
+# The level each border tier arrives at, in order. Six files, six tiers, and a
+# player is on the highest tier whose level they have passed.
+BORDER_LEVELS = (1, 5, 10, 20, 35, 50)
+
+# How many badges a player may wear around their avatar. Fixed slots, and the
+# picture is never covered, so this is a layout constant as much as a rule.
+MAX_DISPLAYED_BADGES = 4
+
+# Avatar upload limits. The byte cap is checked against Content-Length and then
+# again while reading, because a client is free to lie in the header. The pixel
+# cap is the decompression-bomb guard: a small file can declare an enormous
+# canvas, and Pillow will happily try to allocate it.
+MAX_AVATAR_BYTES = 5 * 1024 * 1024
+MAX_AVATAR_PIXELS = 50_000_000
+AVATAR_SIZE = 512
 
 
 def daily_cap_mi(activity: str) -> float:

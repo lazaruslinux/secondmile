@@ -82,31 +82,48 @@ negotiated with STARTTLS or used from the first byte. Mail failures are logged
 and never break a signup, so if a link does not arrive, check the backend log
 first and have the person use the resend button on the sign-in screen.
 
-## Journeys and the map
+## Progress, and rebuilding it
 
-An account's journey starts the day the account is made, not the day of its
-oldest workout. Importing a year of stored training would otherwise fire the
-whole map past in one sweep, and the first thing the person saw would be a
-recap of a journey they did not take.
+Experience, levels, chests, and achievements are all derived from the workout
+history. Nothing is typed in and nothing is trusted from a browser: every
+workout is credited exactly once, whether it arrived from a phone, from the
+manual entry form, or was written straight into the database.
 
-If you would rather it did exactly that, or if you want to walk somebody's
-history again after a release changes the map, there is a command for it:
+If you ever need to rebuild one account's progress from its workouts, for
+instance after an upgrade that changed how something is counted, there is a
+command for it:
 
 ```
-docker compose exec backend python manage.py journey-restart theirname
-docker compose exec backend python manage.py journey-restart theirname --from-beginning
+docker compose exec backend python manage.py recompute-progress theirname
 ```
 
-Without the flag the journey starts again from now. With it, the journey
-starts from the day the account was created and every workout since is walked
-in one go. Either way this clears that account's position, events, chests,
-cards, accolades, and region unlocks and rebuilds them from the workouts.
-Workouts themselves are never touched, so nothing anybody actually did is at
-risk. Replaying the same workouts produces the same chests in the same order,
+This clears that account's experience, level, chest counter, unopened chests,
+and card album, and builds them again from the workouts. The workouts
+themselves are never touched, so nothing anybody actually did is at risk.
+Earned achievements are left exactly where they are: they are never revoked,
+and anything the rebuilt history earns is added on top.
+
+Replaying the same workouts produces the same chests in the same order,
 because every roll is seeded on the account and the workout rather than on the
-clock, but a journey restarted from a different date walks a different set of
-workouts and will find different cards. A filled album is thrown away and
-rebuilt either way, so take a dump first if that matters.
+clock. A filled album is still thrown away and refound, though, and the cards
+that come back will not be the ones that went in. Take a dump first if that
+matters to the person whose account it is.
+
+## Profile pictures
+
+Avatars are files, not database rows. They live in the container at the path
+`AVATAR_DIR` names, and the compose file mounts a named volume there so they
+survive a rebuild. They are not in the Postgres dump: back the volume up
+separately if you want to keep them.
+
+```
+docker compose cp backend:/data/avatars ./avatars-backup
+```
+
+Every upload is capped at 5 MB, decoded to prove it is really an image, and
+re-encoded from its pixels into a 512 by 512 webp. What lands on disk is never
+the file that was uploaded, carries no metadata or location, and is named after
+the account rather than after anything the uploader chose.
 
 ## Putting it behind a domain
 

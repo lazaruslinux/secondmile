@@ -24,7 +24,7 @@ from sqlalchemy import create_engine, event  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
-from app import mail, models, security, throttle, world  # noqa: E402
+from app import config, mail, models, security, throttle  # noqa: E402
 from app.db import Base, get_db  # noqa: E402
 from app.main import app as fastapi_app  # noqa: E402
 
@@ -158,46 +158,20 @@ def signed_in(client, member) -> TestClient:
     return client
 
 
-def start_journey(
-    db_session,
-    user_id: int,
-    *,
-    days_ago: float = 1.0,
-    destination_id: str | None = world.START_DESTINATION,
-) -> models.Journey:
-    """Give an account a journey that began before the test's workouts.
+@pytest.fixture(autouse=True)
+def avatar_dir(tmp_path, monkeypatch):
+    """Point avatar storage at a throwaway directory for every test.
 
-    Registration does this for real accounts. Tests that make a user directly
-    have to ask for it, because a journey starting now would ignore every
-    workout the test then posts, which is exactly the behaviour the engine is
-    supposed to have.
+    Autouse because the default is a path the compose file mounts a volume at,
+    and a test suite that writes there would be writing outside its own sandbox.
     """
-    started = security.now_utc() - dt.timedelta(days=days_ago)
-    row = models.Journey(
-        user_id=user_id,
-        location_id=world.START_LOCATION,
-        road_id=None,
-        position_mi=0.0,
-        destination_id=destination_id,
-        next_chest_mi=None,
-        traveled_mi=0.0,
-        started_at=started,
-        updated_at=started,
-    )
-    db_session.add(row)
-    db_session.commit()
-    return row
-
-
-@pytest.fixture()
-def traveller(signed_in, db_session, member) -> TestClient:
-    """A signed-in member whose journey started yesterday at the Homestead."""
-    start_journey(db_session, member.id)
-    return signed_in
+    target = tmp_path / "avatars"
+    monkeypatch.setattr(config.settings, "avatar_dir", str(target))
+    return target
 
 
 def log_workout(client, activity="run", miles=1.0, *, pace_min=12.0, offset_min=0) -> dict:
-    """Post one manual workout inside the journey window, and return it.
+    """Post one manual workout and return it.
 
     Start times are spread by the offset so two workouts in one test never
     collide on the dedupe key.

@@ -7,8 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app import activity, models, security, throttle
-from app import journey as engine
+from app import activity, models, progress, security, throttle
 from app.db import get_db
 
 router = APIRouter(tags=["ingest"])
@@ -110,8 +109,8 @@ async def ingest(request: Request, db: Session = Depends(get_db)) -> dict:
     )
     db.commit()
 
-    # Walk whatever this sync brought in. Doing it here rather than only when
-    # the app is next opened is what makes the recap a story that was already
-    # written by the time anybody looks at it.
-    engine.process_user(db, user.id)
+    # Credit whatever this sync brought in. Doing it here rather than only
+    # when the app is next opened is what makes the recap a story that was
+    # already written by the time anybody looks at it.
+    progress.process_user(db, user.id)
     return result

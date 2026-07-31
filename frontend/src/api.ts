@@ -71,103 +71,61 @@ export interface IngestTokenStatus {
   rotated_at: string | null
 }
 
-// The journey. Distances here are Miles, the world's own unit: converted from
-// real distance by the server at a rate per activity, and never shown in
-// kilometers, because the map is measured in them.
+// The profile. Distances come back two ways: distance_mi is what the body
+// actually covered, and converted_mi is the same distance in Miles, the unit
+// the game counts in, which weights the activities against each other.
 
-export interface MileBucket {
-  earned: number
-  spent: number
-  available: number
+export interface ActivityStats {
+  distance_mi: number
+  converted_mi: number
+  active_kcal: number
+  workouts: number
 }
 
-// Either standing at a place or somewhere along a road. The road fields are
-// null in the first case and the location fields in the second.
-export interface JourneyPosition {
-  location_id: string | null
-  location_name: string | null
-  road_id: string | null
-  road_name: string | null
-  position_mi: number
-  // Measured from the road's from_id end, which is the direction the map draws
-  // it, so it can be handed straight to getPointAtLength.
-  fraction: number | null
-  road_length_mi: number | null
-  road_from_id: string | null
-  road_to_id: string | null
-  heading_to_id: string | null
-  heading_to_name: string | null
+export interface Profile {
+  user_id: number
+  username: string
+  created_at: string
+  has_avatar: boolean
+  // Changes with every upload, and null when there is no picture. Appended to
+  // the picture's URL so a new one is seen straight away.
+  avatar_version: number | null
+  level: number
+  xp: number
+  xp_into_level: number
+  xp_for_next_level: number
+  border_tier: number
+  displayed_badges: string[]
+  // Activities with nothing recorded are absent rather than zeroed, the same
+  // way the weekly totals behave.
+  week: Partial<Record<Activity, ActivityStats>>
+  lifetime: Partial<Record<Activity, ActivityStats>>
+  cards: { owned: number; total: number }
+  achievements: { earned: number; total: number }
 }
 
-export interface JourneyPlace {
+export interface AvatarState {
+  has_avatar: boolean
+  avatar_version: number
+}
+
+export type AchievementKind =
+  | 'duration-single'
+  | 'week-distance'
+  | 'lifetime-distance'
+  | 'firsts'
+  | 'collection'
+
+export interface Achievement {
   id: string
-  name: string
-  reachable: boolean
-}
-
-export interface JourneyRoad {
-  id: string
-  name: string
-  from_id: string
-  to_id: string
-  length_mi: number
-  region_id: string | null
-  open: boolean
-}
-
-export interface JourneyRegion {
-  id: string
+  kind: AchievementKind
   name: string
   detail: string
-  unlocked: boolean
-  cost_run_miles: number
-}
-
-export interface JourneyState {
-  started_at: string
-  updated_at: string
-  position: JourneyPosition
-  destination: { id: string; name: string } | null
-  buckets: Record<Activity, MileBucket>
-  total_traveled_mi: number
-  unopened_chests: number
-  unseen_events: number
-  locations: JourneyPlace[]
-  roads: JourneyRoad[]
-  regions: JourneyRegion[]
-}
-
-export type JourneyEventType = 'travel' | 'chest' | 'milestone' | 'arrival' | 'unlock'
-
-// One loose shape for every event type rather than a union, because the server
-// stores this as free JSON and a field it stops sending should read as absent
-// rather than break the type. Which fields are present follows from the type.
-export interface JourneyEventData {
-  activity?: Activity
-  raw_distance_mi?: number
-  miles?: number
-  road_id?: string
-  road_name?: string
-  toward_name?: string
-  location_name?: string
-  local?: boolean
-  chest_id?: number
-  set_name?: string
-  area_name?: string
-  source?: string
-  name?: string
-  detail?: string
-  mile?: number
-  was_destination?: boolean
-  region_name?: string
-  cost_run_miles?: number
-}
-
-export interface JourneyEvent {
-  id: number
-  type: JourneyEventType
-  created_at: string
-  data: JourneyEventData
+  // Whether this one has a gilded form at all, which is the weekly ladder only.
+  gildable: boolean
+  earned: boolean
+  gilded: boolean
+  earned_at: string | null
 }
 
 export type Rarity = 'common' | 'uncommon' | 'rare'
@@ -224,11 +182,14 @@ export interface Album {
   sets: AlbumSet[]
 }
 
-export interface Accolade {
-  id: string
-  name: string
-  detail: string
-  earned_at: string
+// Everything that happened while the app was shut. The chests were dropped and
+// the badges were earned before anyone looked; this is the letter, not the
+// event.
+export interface RecapState {
+  since: string | null
+  miles: number
+  chests: Chest[]
+  achievements: Achievement[]
 }
 
 export class ApiError extends Error {
@@ -365,30 +326,48 @@ export async function setUnits(units: Units): Promise<Units> {
   return body.units
 }
 
-// Reading the journey is what makes the server walk any workout that arrived
+// Reading the profile is what makes the server credit any workout that arrived
 // while the app was closed, so this is never just a read.
-export function getJourney(): Promise<JourneyState> {
-  return getJson<JourneyState>('/journey')
+export function getProfile(): Promise<Profile> {
+  return getJson<Profile>('/profile')
 }
 
-// Answers with the whole state, so a view that just changed the destination
-// does not need a second round trip to redraw.
-export async function setDestination(locationId: string): Promise<JourneyState> {
-  const res = await sendJson('/journey/destination', 'POST', { location_id: locationId })
-  return (await res.json()) as JourneyState
+// Answers with the whole profile, so the slots around the picture can be
+// redrawn from the server's word rather than from what was just sent to it.
+export async function setDisplayedBadges(badges: string[]): Promise<Profile> {
+  const res = await sendJson('/profile', 'PATCH', { displayed_badges: badges })
+  return (await res.json()) as Profile
 }
 
-export function getRecap(): Promise<JourneyEvent[]> {
-  return getJson<JourneyEvent[]>('/journey/recap')
+// One part, named "file", and nothing else in the form. The browser writes the
+// Content-Type with its own boundary, which is why none is set here.
+export async function uploadAvatar(file: File): Promise<AvatarState> {
+  const body = new FormData()
+  body.append('file', file)
+  const res = await send('/profile/avatar', { method: 'POST', body })
+  return (await res.json()) as AvatarState
 }
 
+export async function deleteAvatar(): Promise<void> {
+  await send('/profile/avatar', { method: 'DELETE' })
+}
+
+export function avatarUrl(userId: number, version: number | null): string {
+  return `${BASE}/profile/avatar/${userId}${version === null ? '' : `?v=${version}`}`
+}
+
+export function listAchievements(): Promise<Achievement[]> {
+  return getJson<Achievement[]>('/achievements')
+}
+
+export function getRecap(): Promise<RecapState> {
+  return getJson<RecapState>('/recap')
+}
+
+// Marks the letter read. Chests are untouched by this: they wait in the
+// profile until they are opened.
 export async function ackRecap(): Promise<void> {
-  await send('/journey/recap/ack', { method: 'POST' })
-}
-
-export async function unlockRegion(regionId: string): Promise<JourneyState> {
-  const res = await send(`/regions/${encodeURIComponent(regionId)}/unlock`, { method: 'POST' })
-  return (await res.json()) as JourneyState
+  await send('/recap/ack', { method: 'POST' })
 }
 
 export function listChests(): Promise<Chest[]> {
@@ -402,8 +381,4 @@ export async function openChest(chestId: number): Promise<OpenedChest> {
 
 export function getAlbum(): Promise<Album> {
   return getJson<Album>('/album')
-}
-
-export function getAccolades(): Promise<Accolade[]> {
-  return getJson<Accolade[]>('/accolades')
 }

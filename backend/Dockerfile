@@ -20,8 +20,15 @@ COPY alembic.ini .
 COPY migrations ./migrations
 COPY manage.py .
 
-# The service parses payloads posted by a phone, so it does not run as root.
+# The service parses payloads posted by a phone and decodes images uploaded
+# from a browser, so it does not run as root.
 RUN useradd --create-home app
+
+# Created and owned before the volume is mounted over it. A named volume takes
+# its ownership from the image's directory, so without this the mounted path
+# arrives owned by root and the unprivileged process cannot write an avatar.
+RUN mkdir -p /data/avatars && chown app:app /data/avatars
+
 USER app
 
 EXPOSE 8000

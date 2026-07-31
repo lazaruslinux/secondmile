@@ -16,7 +16,6 @@ from sqlalchemy import or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app import journey as engine
 from app import mail, models, security, throttle
 from app.config import settings
 from app.db import get_db
@@ -173,11 +172,6 @@ def register(
         if claimed.rowcount != 1:
             db.rollback()
             raise invalid_invite
-
-    # The journey starts now, not at the first workout. Anything already in
-    # the account's history is history; the map only ever moves on miles run
-    # after somebody signed up to walk them.
-    engine.ensure_journey(db, user.id, started_at=now)
 
     token = security.create_email_token(db, user.id)
     db.commit()

@@ -93,7 +93,7 @@ export default function Login({ notice, onSignedIn }: Props) {
   return (
     <div className="gate">
       <h1 className="wordmark wordmark-large">secondmile</h1>
-      <p className="notice">The Vale is being built. Your miles already count.</p>
+      <p className="notice">Still being built. Your miles already count.</p>
 
       <form className="card" onSubmit={submit}>
         <h2>{registering ? 'Create an account' : 'Sign in'}</h2>

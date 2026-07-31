@@ -6,12 +6,12 @@ import {
   getRecap,
   setUnauthorizedHandler,
   verifyEmail,
-  type JourneyEvent,
   type Me,
+  type RecapState,
   type Units,
 } from './api.ts'
 import Login from './views/Login.tsx'
-import Vale from './views/Vale.tsx'
+import Profile from './views/Profile.tsx'
 import Album from './views/Album.tsx'
 import Almanac from './views/Almanac.tsx'
 import Recap from './views/Recap.tsx'
@@ -19,10 +19,10 @@ import Settings from './views/Settings.tsx'
 
 // Four screens still do not earn a router: the whole navigation model is which
 // of them is on screen, and the URL has nothing to say about it yet.
-type View = 'vale' | 'album' | 'almanac' | 'settings'
+type View = 'profile' | 'album' | 'almanac' | 'settings'
 
 const TABS: { id: View; label: string }[] = [
-  { id: 'vale', label: 'Vale' },
+  { id: 'profile', label: 'Profile' },
   { id: 'album', label: 'Album' },
   { id: 'almanac', label: 'Almanac' },
   { id: 'settings', label: 'Settings' },
@@ -31,11 +31,11 @@ const TABS: { id: View; label: string }[] = [
 export default function App() {
   const [me, setMe] = useState<Me | null>(null)
   const [checkingSession, setCheckingSession] = useState(true)
-  const [view, setView] = useState<View>('vale')
+  const [view, setView] = useState<View>('profile')
   const [verifyNote, setVerifyNote] = useState('')
-  const [recap, setRecap] = useState<JourneyEvent[]>([])
-  // Bumped whenever something outside the Vale changes what it shows, which so
-  // far means chests opened from the recap.
+  const [recap, setRecap] = useState<RecapState | null>(null)
+  // Bumped whenever something outside the profile changes what it shows, which
+  // so far means chests opened from the recap.
   const [refreshToken, setRefreshToken] = useState(0)
 
   useEffect(() => {
@@ -79,21 +79,21 @@ export default function App() {
   const userId = me?.id
   useEffect(() => {
     if (userId === undefined) {
-      setRecap([])
+      setRecap(null)
       return
     }
     getRecap()
       .then(setRecap)
-      .catch(() => setRecap([]))
+      .catch(() => setRecap(null))
   }, [userId])
 
   async function dismissRecap() {
-    setRecap([])
+    setRecap(null)
     setRefreshToken((count) => count + 1)
     try {
       await ackRecap()
     } catch {
-      // Nothing useful to say: unacked events simply come back next time.
+      // Nothing useful to say: an unacked recap simply comes back next time.
     }
   }
 
@@ -109,7 +109,7 @@ export default function App() {
         notice={verifyNote}
         onSignedIn={(user) => {
           setMe(user)
-          setView('vale')
+          setView('profile')
         }}
       />
     )
@@ -134,10 +134,15 @@ export default function App() {
         </nav>
       </header>
 
-      {recap.length > 0 && <Recap events={recap} onDismiss={() => void dismissRecap()} />}
+      {/* Nothing to read is not worth interrupting anyone for, so the letter
+          only appears when it says something. */}
+      {recap !== null &&
+        (recap.chests.length > 0 || recap.achievements.length > 0 || recap.miles > 0) && (
+          <Recap recap={recap} onDismiss={() => void dismissRecap()} />
+        )}
 
       <main className="page">
-        {view === 'vale' && <Vale refreshToken={refreshToken} />}
+        {view === 'profile' && <Profile units={me.units} refreshToken={refreshToken} />}
         {view === 'album' && <Album />}
         {view === 'almanac' && <Almanac units={me.units} />}
         {view === 'settings' && (

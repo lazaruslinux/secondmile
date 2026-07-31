@@ -86,6 +86,10 @@ password_limiter = RateLimiter(5, "password")
 # that will mail a stranger on demand is a way to use this server to bother
 # them.
 resend_limiter = RateLimiter(3, "resend")
+# Uploading a profile picture. Tight, because every accepted call hands the
+# server several megabytes to decode and re-encode, which is by far the most
+# expensive thing a signed-in account can ask it to do.
+avatar_limiter = RateLimiter(5, "avatar")
 
 _ALL_LIMITERS = (
     login_limiter,
@@ -93,6 +97,7 @@ _ALL_LIMITERS = (
     ingest_limiter,
     password_limiter,
     resend_limiter,
+    avatar_limiter,
 )
 
 

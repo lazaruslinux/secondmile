@@ -1,72 +1,28 @@
-"""The Vale: its places, its roads, its milestones, and its cards.
+"""The collection: four sets of cards, and the weights a chest is drawn against.
 
-All of it is static Python rather than database rows. The world is authored,
+All of it is static Python rather than database rows. The catalogue is authored,
 not user data, so a release changes it and a migration never has to; the
-database keeps only where each player has got to and what they have found.
-Ids are the stable part. Names and flavour can be rewritten in place, but an
-id appears in chests, user_cards, and user_accolades, so changing one orphans
-whatever a player already earned.
+database keeps only what each player has found.
+
+Ids are the stable part. Names and flavour can be rewritten in place, but an id
+appears in chests and user_cards, so changing one orphans whatever a player
+already earned. The id convention is <set_id>_<slug>.
 """
 
-from collections import deque
 from dataclasses import dataclass
 
-# Where a new account's marker stands, and the destination it is given so the
-# first sync already moves it. A journey with no destination only ever walks
-# local rounds, which is a poor first impression of a game about travelling.
-START_LOCATION = "homestead"
-START_DESTINATION = "millbrook"
-
 RARITIES = ("common", "uncommon", "rare")
-
-
-@dataclass(frozen=True)
-class Location:
-    id: str
-    name: str
-    # Which card set a chest dropped here comes from. Homestead and Fells Gate
-    # borrow the set of the road they sit at the end of; they are gateposts
-    # rather than places with a character of their own yet.
-    card_set: str
-
-
-@dataclass(frozen=True)
-class Milestone:
-    """A fixed mark on a road that grants a permanent accolade the first time a
-    marker passes it. The id is the accolade id."""
-
-    id: str
-    name: str
-    detail: str
-    mile: float
-
-
-@dataclass(frozen=True)
-class Road:
-    id: str
-    name: str
-    from_id: str
-    to_id: str
-    length_mi: float
-    card_set: str
-    milestones: tuple[Milestone, ...] = ()
-    # A road inside a region cannot be walked until that region is unlocked.
-    # None means open to everyone from the first day.
-    region: str | None = None
-
-
-@dataclass(frozen=True)
-class Region:
-    id: str
-    name: str
-    cost_run_miles: float
-    detail: str
 
 
 @dataclass(frozen=True)
 class CardSet:
     id: str
     name: str
+    # How often a chest is drawn from this set. Relative, not a percentage:
+    # the roll is over every set at once. The scarce sets are scarce because
+    # of this number and nothing else, so retuning the feel of the collection
+    # is a one-line change rather than a rework.
+    weight: float
 
 
 @dataclass(frozen=True)
@@ -79,231 +35,114 @@ class Card:
     flavor: str
 
 
-LOCATIONS: dict[str, Location] = {
-    location.id: location
-    for location in (
-        Location("homestead", "Homestead", "east_road"),
-        Location("millbrook", "Millbrook", "millbrook"),
-        Location("fells_gate", "Fells Gate", "north_road"),
-        Location("shieling", "The Shieling", "high_fells"),
-    )
-}
-
-
-ROADS: dict[str, Road] = {
-    road.id: road
-    for road in (
-        Road(
-            id="east_road",
-            name="East Road",
-            from_id="homestead",
-            to_id="millbrook",
-            length_mi=10.0,
-            card_set="east_road",
-            milestones=(
-                Milestone(
-                    "east_road_footbridge",
-                    "The Footbridge",
-                    "Three planks over the brook, three miles out from home.",
-                    3.0,
-                ),
-                Milestone(
-                    "east_road_old_mill",
-                    "The Old Mill",
-                    "Six miles out, where the wheel still turns when the water is up.",
-                    6.0,
-                ),
-            ),
-        ),
-        Road(
-            id="north_road",
-            name="North Road",
-            from_id="millbrook",
-            to_id="fells_gate",
-            length_mi=15.0,
-            card_set="north_road",
-            milestones=(
-                Milestone(
-                    "north_road_waymarker",
-                    "The Waymarker Stone",
-                    "Four miles north of town, cut with a hand pointing the way.",
-                    4.0,
-                ),
-                Milestone(
-                    "north_road_viewpoint",
-                    "The Viewpoint",
-                    "Nine miles north, where the whole valley lies out below you.",
-                    9.0,
-                ),
-            ),
-        ),
-        Road(
-            id="fell_road",
-            name="Fell Road",
-            from_id="fells_gate",
-            to_id="shieling",
-            length_mi=6.0,
-            card_set="high_fells",
-            region="high_fells",
-        ),
-    )
-}
-
-
-REGIONS: dict[str, Region] = {
-    region.id: region
-    for region in (
-        Region(
-            id="high_fells",
-            name="The High Fells",
-            cost_run_miles=26.2,
-            detail="The gate above Fells Gate. It opens to a marathon of run Miles.",
-        ),
-    )
-}
-
-
 CARD_SETS: dict[str, CardSet] = {
     card_set.id: card_set
     for card_set in (
-        CardSet("east_road", "East Road"),
-        CardSet("millbrook", "Millbrook"),
-        CardSet("north_road", "North Road"),
-        CardSet("high_fells", "High Fells"),
+        CardSet("hedgerow", "The Hedgerow", 8.0),
+        CardSet("still_water", "Still Water", 5.0),
+        CardSet("open_hill", "The Open Hill", 3.0),
+        CardSet("first_light", "First Light", 2.0),
     )
 }
 
 
 # The field guide. Numbers are the plate numbers a collector sees, so they run
 # from one within each set and never move. Unowned plates show the number and
-# the rarity and nothing else, which is why the names carry no hints and the
-# ids are prefixed with the set rather than being guessable from the number.
+# the rarity and nothing else, which is why the ids are prefixed with the set
+# rather than being guessable from the number.
 _CARD_LINES: tuple[tuple[str, str, str, str], ...] = (
-    # East Road: the lane between the Homestead and town, its hedges and its
-    # brook. Twelve plates.
-    ("east_road_hawthorn", "east_road", "Hedgerow Hawthorn", "common"),
-    ("east_road_speedwell", "east_road", "Roadside Speedwell", "common"),
-    ("east_road_cart_ruts", "east_road", "Cart Ruts", "common"),
-    ("east_road_field_gate", "east_road", "The Field Gate", "common"),
-    ("east_road_skylark", "east_road", "Skylark", "uncommon"),
-    ("east_road_footbridge", "east_road", "The Footbridge", "uncommon"),
-    ("east_road_heron", "east_road", "Heron Below the Footbridge", "rare"),
-    ("east_road_sloes", "east_road", "Blackthorn Sloes", "common"),
-    ("east_road_dog_rose", "east_road", "Dog Rose", "common"),
-    ("east_road_footpath_sign", "east_road", "The Footpath Sign", "common"),
-    ("east_road_mill_wheel", "east_road", "The Old Mill Wheel", "uncommon"),
-    ("east_road_barn_owl", "east_road", "Barn Owl at Dusk", "rare"),
-    # Millbrook: the town at the far end of the East Road. Ten plates.
-    ("millbrook_millpond", "millbrook", "The Millpond", "common"),
-    ("millbrook_miller", "millbrook", "The Old Miller", "uncommon"),
-    ("millbrook_cobbles", "millbrook", "Market Cobbles", "common"),
-    ("millbrook_bakehouse", "millbrook", "The Bakehouse Door", "common"),
-    ("millbrook_notice_board", "millbrook", "The Notice Board", "common"),
-    ("millbrook_bridge", "millbrook", "Millbrook Bridge", "common"),
-    ("millbrook_swifts", "millbrook", "Swifts Over the Square", "uncommon"),
-    ("millbrook_long_table", "millbrook", "The Long Table", "uncommon"),
-    ("millbrook_ladder", "millbrook", "The Lamplighter's Ladder", "common"),
-    ("millbrook_willow", "millbrook", "The Millbrook Willow", "rare"),
-    # North Road: rising ground out of town toward the gate. Eight plates.
-    ("north_road_waymarker", "north_road", "The Waymarker Stone", "uncommon"),
-    ("north_road_bracken", "north_road", "Bracken", "common"),
-    ("north_road_drystone_wall", "north_road", "Drystone Wall", "common"),
-    ("north_road_curlew", "north_road", "Curlew", "uncommon"),
-    ("north_road_foxglove", "north_road", "Foxglove", "common"),
-    ("north_road_viewpoint", "north_road", "The Viewpoint", "common"),
-    ("north_road_sheep_track", "north_road", "Sheep Track", "common"),
-    ("north_road_rowan", "north_road", "Rowan at the Gate", "rare"),
-    # High Fells: above the gate, and only reachable once it is open. Six.
-    ("high_fells_cotton_grass", "high_fells", "Cotton Grass", "common"),
-    ("high_fells_cairn", "high_fells", "The Cairn", "common"),
-    ("high_fells_ravens", "high_fells", "Raven Pair", "uncommon"),
-    ("high_fells_shieling", "high_fells", "The Shieling", "uncommon"),
-    ("high_fells_late_snow", "high_fells", "Late Snow in the Gully", "common"),
-    ("high_fells_inversion", "high_fells", "Cloud Inversion", "rare"),
+    # The Hedgerow: what grows and lives in the strip of everything nobody
+    # planted. Twelve plates, and the set most chests come from.
+    ("hedgerow_hawthorn", "hedgerow", "Hawthorn", "common"),
+    ("hedgerow_speedwell", "hedgerow", "Speedwell", "common"),
+    ("hedgerow_dog_rose", "hedgerow", "Dog Rose", "common"),
+    ("hedgerow_bramble", "hedgerow", "Bramble", "common"),
+    ("hedgerow_sloes", "hedgerow", "Blackthorn Sloes", "common"),
+    ("hedgerow_red_campion", "hedgerow", "Red Campion", "common"),
+    ("hedgerow_elder", "hedgerow", "Elder in Flower", "common"),
+    ("hedgerow_wren", "hedgerow", "Wren", "uncommon"),
+    ("hedgerow_yellowhammer", "hedgerow", "Yellowhammer", "uncommon"),
+    ("hedgerow_hedgehog", "hedgerow", "Hedgehog", "uncommon"),
+    ("hedgerow_dormouse", "hedgerow", "Hazel Dormouse", "rare"),
+    ("hedgerow_barn_owl", "hedgerow", "Barn Owl", "rare"),
+    # Still Water: ponds, slow rivers, and the margins nothing hurries in.
+    # Ten plates.
+    ("still_water_reedbed", "still_water", "Reedbed", "common"),
+    ("still_water_water_mint", "still_water", "Water Mint", "common"),
+    ("still_water_crowfoot", "still_water", "Water Crowfoot", "common"),
+    ("still_water_moorhen", "still_water", "Moorhen", "common"),
+    ("still_water_alder", "still_water", "Alder Roots", "common"),
+    ("still_water_dragonfly", "still_water", "Emperor Dragonfly", "uncommon"),
+    ("still_water_heron", "still_water", "Grey Heron", "uncommon"),
+    ("still_water_willow", "still_water", "Leaning Willow", "uncommon"),
+    ("still_water_kingfisher", "still_water", "Kingfisher", "rare"),
+    ("still_water_otter", "still_water", "Otter", "rare"),
+    # The Open Hill: above the last wall, where the weather arrives first.
+    # Eight plates.
+    ("open_hill_heather", "open_hill", "Heather", "common"),
+    ("open_hill_bilberry", "open_hill", "Bilberry", "common"),
+    ("open_hill_cotton_grass", "open_hill", "Cotton Grass", "common"),
+    ("open_hill_skylark", "open_hill", "Skylark", "uncommon"),
+    ("open_hill_curlew", "open_hill", "Curlew", "uncommon"),
+    ("open_hill_rowan", "open_hill", "Rowan", "uncommon"),
+    ("open_hill_mountain_hare", "open_hill", "Mountain Hare", "rare"),
+    ("open_hill_raven", "open_hill", "Raven Pair", "rare"),
+    # First Light: the hour before the day belongs to anybody. Six plates, and
+    # the set that turns up least.
+    ("first_light_dew", "first_light", "Dew on the Grass", "common"),
+    ("first_light_blackbird", "first_light", "Blackbird", "common"),
+    ("first_light_mist", "first_light", "Mist in the Hollow", "uncommon"),
+    ("first_light_roe_deer", "first_light", "Roe Deer", "uncommon"),
+    ("first_light_hare", "first_light", "Brown Hares Boxing", "rare"),
+    ("first_light_frost", "first_light", "First Frost", "rare"),
 )
 
 _FLAVOR: dict[str, str] = {
-    "east_road_hawthorn": "White in May, red in October, thorned all year in between.",
-    "east_road_speedwell": (
+    "hedgerow_hawthorn": "White in May, red in October, thorned all year in between.",
+    "hedgerow_speedwell": (
         "Blue as a scrap of sky, and gone by the time you turn back to look at it."
     ),
-    "east_road_cart_ruts": (
-        "Two lines pressed into the mud by every load that ever went to market."
-    ),
-    "east_road_field_gate": (
-        "Latched with baler twine since before anyone can remember. It still holds."
-    ),
-    "east_road_skylark": "Sings on the way up, which is harder than singing standing still.",
-    "east_road_footbridge": "Three planks and a handrail over water that was here first.",
-    "east_road_heron": "Stands so long in the shallows that the water forgets about it.",
-    "east_road_sloes": "Bitter until the first frost, which is a kind of patience.",
-    "east_road_dog_rose": "Grows where it likes, which is anywhere the hedge lets it through.",
-    "east_road_footpath_sign": (
-        "The way is open. It has always been open. Someone keeps the sign painted."
-    ),
-    "east_road_mill_wheel": (
-        "Turned by the brook for two hundred years, and still turning when the water is up."
-    ),
-    "east_road_barn_owl": (
+    "hedgerow_dog_rose": "Grows where it likes, which is anywhere the hedge lets it through.",
+    "hedgerow_bramble": "Takes the worst ground it can find and fruits there anyway.",
+    "hedgerow_sloes": "Bitter until the first frost, which is a kind of patience.",
+    "hedgerow_red_campion": "Waist high by June along every verge nobody got round to cutting.",
+    "hedgerow_elder": "Flat white plates of flower in June, and the whole lane smells of it.",
+    "hedgerow_wren": "The smallest voice in the hedge and by some way the loudest.",
+    "hedgerow_yellowhammer": "Sings the same seven notes all afternoon and never gets bored of it.",
+    "hedgerow_hedgehog": "Covers more ground in one night than most people do in a week.",
+    "hedgerow_dormouse": "Asleep for half the year, and still gets where it is going.",
+    "hedgerow_barn_owl": (
         "Hunts the verge without a sound, and is only ever seen by whoever is still out walking."
     ),
-    "millbrook_millpond": (
-        "Flat as a plate at first light, and full of sky until somebody throws a stone."
-    ),
-    "millbrook_miller": (
-        "Knows the weather by the sound of his own wheel, and will tell you whether you asked."
-    ),
-    "millbrook_cobbles": "Set by hand, uneven on purpose, kinder to hooves than any flat road.",
-    "millbrook_bakehouse": (
-        "Open before dawn. You can find it by the smell from the top of the lane."
-    ),
-    "millbrook_notice_board": (
-        "Everything the town needs doing, pinned up where everybody can see it."
-    ),
-    "millbrook_bridge": (
-        "Two arches, one for the water and one for the flood that comes every few winters."
-    ),
-    "millbrook_swifts": (
-        "Back the same week every year, screaming round the chimneys, gone again by August."
-    ),
-    "millbrook_long_table": (
-        "Carried out for anyone the town wants to feed. It is not often put away."
-    ),
-    "millbrook_ladder": "Leans by the tap room door. Whoever passes at dusk is welcome to use it.",
-    "millbrook_willow": (
-        "Older than the mill it is named for, and still leaning over the water without falling in."
-    ),
-    "north_road_waymarker": (
-        "Cut with a hand pointing north by somebody who wanted strangers to arrive safely."
-    ),
-    "north_road_bracken": (
-        "Green to the waist in summer, rust to the ankle in winter, in the way in both."
-    ),
-    "north_road_drystone_wall": (
-        "No mortar and no nails. Held up entirely by the care taken putting it there."
-    ),
-    "north_road_curlew": "You hear it long before you see it, and usually you never see it.",
-    "north_road_foxglove": "Tall, purple, and best admired from the path.",
-    "north_road_viewpoint": (
-        "Everything you walked this morning, laid out small enough to hold in one hand."
-    ),
-    "north_road_sheep_track": "Not a road, but it knows the hill better than the road does.",
-    "north_road_rowan": (
-        "Planted where the road turns up into the fells, by somebody who never saw it grown."
-    ),
-    "high_fells_cotton_grass": (
+    "still_water_reedbed": "A whole county's worth of birds hidden in something you can see through.",
+    "still_water_water_mint": "Crushed underfoot at the edge, and the smell follows you home.",
+    "still_water_crowfoot": "White flowers on the surface, and everything else happening beneath it.",
+    "still_water_moorhen": "Not built for swimming and swims anyway, all afternoon, without complaint.",
+    "still_water_alder": "Holds the bank together with roots nobody was ever meant to see.",
+    "still_water_dragonfly": "Two years underwater for one summer in the air, and worth it.",
+    "still_water_heron": "Stands so long in the shallows that the water forgets about it.",
+    "still_water_willow": "Leaning further over every year and still not in the water.",
+    "still_water_kingfisher": "You mostly see where it was. That counts.",
+    "still_water_otter": "Leaves five toes in the mud and is a mile downstream before you find them.",
+    "open_hill_heather": "Grey eleven months of the year, and then the whole hill goes purple.",
+    "open_hill_bilberry": "Ankle high, easy to miss, and worth kneeling down for in July.",
+    "open_hill_cotton_grass": (
         "White heads over black peat, marking ground that will take your boot if you let it."
     ),
-    "high_fells_cairn": "Every walker adds a stone. Nobody has ever been asked to.",
-    "high_fells_ravens": (
+    "open_hill_skylark": "Sings on the way up, which is harder than singing standing still.",
+    "open_hill_curlew": "You hear it long before you see it, and usually you never see it.",
+    "open_hill_rowan": "Grows out of bare rock where nothing sensible would try.",
+    "open_hill_mountain_hare": "Turns white for a winter that does not always come any more.",
+    "open_hill_raven": (
         "They travel in pairs, and they roll over in the air for no reason anyone can prove."
     ),
-    "high_fells_shieling": (
-        "A summer hut with a cold hearth, left unlocked for whoever needs it next."
-    ),
-    "high_fells_late_snow": "Lies in the north-facing cut until June out of sheer stubbornness.",
-    "high_fells_inversion": (
-        "Once or twice a year the valley fills with white and the tops become islands."
+    "first_light_dew": "Every blade holds one, and the whole field is lit for about ten minutes.",
+    "first_light_blackbird": "First voice up, most mornings, and in no hurry about it.",
+    "first_light_mist": "Lying in the low ground like something poured there overnight.",
+    "first_light_roe_deer": "Out in the open at six and back in the wood by seven.",
+    "first_light_hare": "March, in a bare field, and neither of them will back down.",
+    "first_light_frost": (
+        "One morning the grass crunches, and everything from here is a different season."
     ),
 }
 
@@ -326,57 +165,3 @@ def _build_cards() -> tuple[dict[str, Card], dict[str, tuple[Card, ...]]]:
 
 
 CARDS, CARDS_BY_SET = _build_cards()
-
-# Every milestone on every road, keyed by accolade id, so the accolades
-# endpoint can name a row in user_accolades without walking the road list.
-ACCOLADES: dict[str, Milestone] = {
-    milestone.id: milestone for road in ROADS.values() for milestone in road.milestones
-}
-
-
-def _neighbours(location_id: str, unlocked: frozenset[str] | set[str]):
-    """Every road out of a place that the player is allowed to walk today."""
-    for road in ROADS.values():
-        if road.region is not None and road.region not in unlocked:
-            continue
-        if road.from_id == location_id:
-            yield road, road.to_id
-        elif road.to_id == location_id:
-            yield road, road.from_id
-
-
-def route(start: str, destination: str, unlocked: frozenset[str] | set[str]) -> list[Road] | None:
-    """The roads from one place to another, or None if there is no open way.
-
-    Breadth first, so the answer is the fewest roads rather than the fewest
-    miles. On a map this size the two are the same thing, and the shape of the
-    map is a designed decision rather than something to be optimised over.
-    """
-    if start == destination:
-        return []
-    seen = {start}
-    queue: deque[tuple[str, list[Road]]] = deque([(start, [])])
-    while queue:
-        node, path = queue.popleft()
-        for road, other in _neighbours(node, unlocked):
-            if other in seen:
-                continue
-            step = [*path, road]
-            if other == destination:
-                return step
-            seen.add(other)
-            queue.append((other, step))
-    return None
-
-
-def reachable(start: str, unlocked: frozenset[str] | set[str]) -> set[str]:
-    """Everywhere a marker at `start` could get to on foot today, itself included."""
-    seen = {start}
-    queue = deque([start])
-    while queue:
-        node = queue.popleft()
-        for _road, other in _neighbours(node, unlocked):
-            if other not in seen:
-                seen.add(other)
-                queue.append(other)
-    return seen

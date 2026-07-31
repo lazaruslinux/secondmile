@@ -1,10 +1,10 @@
 # secondmile
 
-A self-hosted browser game powered by real movement. Miles you actually walk,
-run, cycle, or swim sync from your phone and become the way your character
-travels, gathers, builds, and gives inside an original 2D world. The game is
-early: accounts, workout sync, the Almanac, and the journey map across the
-Vale work today, and the rest of the world is being built on top of them.
+A self-hosted fitness app with a game inside it. Miles you actually walk, run,
+cycle, or swim sync from your phone and become experience, collectible cards,
+and badges on a profile you build over months. The game is early: accounts,
+workout sync, the Almanac, the profile with its levels and achievements, and
+the card collection work today, and the rest is being built on top of them.
 
 Current version: **0.1.0**. Releases are tagged in git.
 
@@ -19,20 +19,24 @@ Current version: **0.1.0**. Releases are tagged in git.
   week, with totals per activity. Manually entered workouts are marked as
   such, and workouts with impossible numbers (a four minute mile, a fifty
   mile walk) are imported but flagged rather than trusted.
-- **Turns those miles into a journey.** The Vale is a map, and your real
-  distance is the movement: you pick somewhere to set out for and your marker
-  walks the road while you get on with your life. Each activity converts at
-  its own rate, so an hour in the pool is not an hour on a bike. Fixed marks
-  along the roads earn permanent accolades, and gated regions are priced in
-  run miles. Nothing is ever lost by not opening the app: miles logged with
-  no destination set are walked where you stand and still count. When you do
-  open it, you get a recap of everything that happened while you were away.
-- **Drops chests, and chests hold cards.** Every few travelled miles a chest
-  appears, carrying one card from the set belonging to wherever your marker
-  is. The album is a naturalist's field guide of the places you have actually
-  been: plates you have not found yet show only a number and a rarity. Cards
-  cannot be bought with anything, chests never expire, and there is no daily
-  anything. Moving your body is the only way to fill a page.
+- **Turns those miles into a profile.** Distance and time both earn
+  experience, and each activity converts at its own rate, so an hour in the
+  pool is not an hour on a bike and a swimmer is never shortchanged. Levels
+  grow the border around your picture, and the badges you have chosen sit in
+  fixed slots around it. Weekly and lifetime totals are worn on the profile.
+  There are no leaderboards of raw miles and there never will be: profiles
+  celebrate, they do not rank.
+- **Keeps an endless list of things to earn.** Achievements for one long
+  workout, for a big week, for a lifetime total, for the first of each
+  activity, and for finishing a set of cards. Weekly targets have a second,
+  visibly finer version, earned by voluntarily doubling the target inside the
+  same week. Achievements are never taken away.
+- **Drops chests, and chests hold cards.** Every few converted miles a chest
+  appears, carrying one card from one of four nature collections. The album is
+  a field guide: plates you have not found yet show only a number and a
+  rarity. Walked miles find extra chests, cards cannot be bought with
+  anything, chests never expire, and there is no daily anything. Moving your
+  body is the only way to fill a page.
 - **Multi-user from day one.** Accounts are invite-only out of the box: the
   server admin creates invites from the command line. Flip `REGISTRATION_OPEN`
   and anyone who can reach the site can sign up instead. Either way a new
@@ -42,11 +46,12 @@ Current version: **0.1.0**. Releases are tagged in git.
 
 ## Where it is going
 
-The synced miles are the fuel for a game world in active development. The
-short version of the design:
+The synced miles are the fuel for a game in active development. The short
+version of the design:
 
-- Each activity has its own role. Walking gathers, running reaches, cycling
-  hauls, swimming opens deep water. No activity substitutes for another.
+- Friends and a home feed, so the week you had is something you share rather
+  than something you rank.
+- Each activity has its own role, and no activity substitutes for another.
 - The economy is built so that giving feels better than keeping. Serving
   others is meant to be the winning strategy, and the best things in the
   game will be earned by service, not bought.
@@ -145,6 +150,14 @@ Two of them decide how people get accounts:
 - Suspicious workouts are flagged, never silently trusted: impossible paces
   and days that blow past the configured distance caps are marked in the
   Almanac.
+- Uploaded profile pictures are refused above 5 MB before anything decodes
+  them, then decoded to prove they really are images, then re-encoded from
+  their pixels to a 512 by 512 webp. The original bytes are never stored or
+  served, all metadata including location is dropped, and the file name comes
+  from the account rather than from the upload.
+- Experience, levels, achievements, and chest drops are computed on the server
+  from synced workouts alone. There is no client input that can grant any of
+  them.
 - The containers run unprivileged, base images are digest-pinned, Python
   dependencies are hash-locked, and CI runs a known-vulnerability audit on
   every push.
