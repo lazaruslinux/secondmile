@@ -3,9 +3,10 @@
 import os
 import time
 
+import anyio
 import pytest
 
-from app import config, models, security, throttle
+from app import config, main, models, security, throttle
 from conftest import ADMIN, MEMBER
 
 
@@ -213,3 +214,67 @@ def test_admin_flag_is_read_from_the_database_not_the_cookie(client, db_session,
     db_session.commit()
     # No new sign in, and the answer has already changed.
     assert client.get("/api/auth/me").json()["is_admin"] is False
+
+
+def _oversized(size: int) -> bytes:
+    """A body of roughly `size` bytes that is valid JSON if it survives."""
+    return b'{"filler":"' + b"x" * size + b'"}'
+
+
+def test_body_over_the_ingest_cap_is_refused_before_the_token_is_read(client):
+    response = client.post(
+        "/api/ingest",
+        content=_oversized(config.MAX_INGEST_BODY_BYTES),
+        headers={"Authorization": "Bearer not-a-real-token"},
+    )
+    # 413 rather than 401: the size is settled before anything reads the body,
+    # and before the token is checked, so a flood costs nothing to refuse.
+    assert response.status_code == 413
+
+
+def test_sync_gets_more_room_than_the_rest_of_the_api(client):
+    body = _oversized(config.MAX_BODY_BYTES + 1024)
+    assert client.post("/api/auth/login", content=body).status_code == 413
+    # The same body at the sync endpoint gets as far as the token check.
+    everywhere_else = client.post(
+        "/api/ingest", content=body, headers={"Authorization": "Bearer not-a-real-token"}
+    )
+    assert everywhere_else.status_code == 401
+
+
+def test_a_body_without_a_content_length_is_counted_as_it_arrives():
+    """The declared length is only a claim, so the bytes are counted too.
+
+    Driven directly rather than through the test client, which always declares
+    a length: this is the path a chunked upload takes.
+    """
+    chunk = b"x" * (1024 * 1024)
+    read = 0
+    statuses = []
+
+    async def parses_the_body(scope, receive, send):
+        while (await receive()).get("more_body"):
+            pass
+        # What a handler does with a body it cannot make sense of.
+        await send({"type": "http.response.start", "status": 400, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    async def receive():
+        nonlocal read
+        read += len(chunk)
+        return {"type": "http.request", "body": chunk, "more_body": True}
+
+    async def send(message):
+        if message["type"] == "http.response.start":
+            statuses.append(message["status"])
+
+    async def drive():
+        middleware = main.BodySizeLimitMiddleware(parses_the_body)
+        scope = {"type": "http", "method": "POST", "path": "/api/ingest", "headers": []}
+        await middleware(scope, receive, send)
+
+    anyio.run(drive)
+
+    assert statuses == [413]
+    # Cut off at the cap rather than read to the end.
+    assert read <= config.MAX_INGEST_BODY_BYTES + len(chunk)

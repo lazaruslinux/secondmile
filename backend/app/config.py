@@ -148,6 +148,14 @@ MAX_AVATAR_BYTES = 5 * 1024 * 1024
 MAX_AVATAR_PIXELS = 50_000_000
 AVATAR_SIZE = 512
 
+# Request body ceilings, enforced by the app itself so an install that fronts
+# uvicorn with something other than the bundled proxy, or with nothing, still
+# has one. The default sits just above the avatar cap so that endpoint keeps
+# refusing in its own words; sync gets far more room because a phone's export
+# carries sample arrays and a first catch-up can cover years.
+MAX_BODY_BYTES = 6 * 1024 * 1024
+MAX_INGEST_BODY_BYTES = 15 * 1024 * 1024
+
 
 def daily_cap_mi(activity: str) -> float:
     """The configured daily distance ceiling for one activity, in miles."""
