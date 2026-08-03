@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import {
   ApiError,
+  errorText,
   getMe,
   getStatus,
   login,
@@ -59,7 +60,7 @@ export default function Login({ notice, onSignedIn }: Props) {
         onSignedIn(await getMe())
       }
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Something went wrong. Try again.')
+      setError(errorText(err))
       if (err instanceof ApiError && err.status === 403) setUnverified(true)
     } finally {
       setBusy(false)
@@ -76,7 +77,7 @@ export default function Login({ notice, onSignedIn }: Props) {
       // a claim it never made.
       setNote('If that address is waiting to be verified, a new link is on its way.')
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Something went wrong. Try again.')
+      setError(errorText(err))
     } finally {
       setBusy(false)
     }
@@ -129,8 +130,15 @@ export default function Login({ notice, onSignedIn }: Props) {
             value={username}
             onChange={(event) => setUsername(event.target.value)}
             autoComplete="username"
+            // A phone capitalises the first letter of a field like this one,
+            // and the rule below then refuses what it typed.
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
             // Mirrors the server's rule so a typo is caught before a round trip.
             pattern="[a-z0-9_.\-]{3,32}"
+            // What the browser's own bubble says when the pattern fails.
+            title="3 to 32 characters: lowercase letters, numbers, dot, dash, underscore."
             required
           />
         </label>
@@ -195,6 +203,12 @@ export default function Login({ notice, onSignedIn }: Props) {
               ? 'Create an account'
               : 'I have an invite code'}
         </button>
+
+        {!registering && (
+          <p className="hint">
+            Forgot your password? The person who runs this instance can reset it.
+          </p>
+        )}
       </form>
     </div>
   )

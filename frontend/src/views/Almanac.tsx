@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import {
   ApiError,
   createWorkout,
+  errorText,
   listWeeks,
   listWorkouts,
   type Activity,
@@ -76,25 +77,40 @@ function flagNotes(flags: WorkoutFlags): string[] {
   return notes
 }
 
-function errorText(err: unknown): string {
-  return err instanceof ApiError ? err.message : 'Something went wrong. Try again.'
+// What the datetime field starts on. Read when the form is opened rather than
+// once at mount, since an app left running overnight would otherwise offer
+// yesterday.
+function nowInput(): string {
+  const now = new Date()
+  return `${localDateInput(now)}T${pad(now.getHours())}:${pad(now.getMinutes())}`
 }
 
+interface Cached {
+  workouts: Workout[]
+  weeks: Week[]
+}
+
+// What this tab last showed, kept by account so a second person signing in on
+// the same browser never sees the first one's history. It lives as long as the
+// page does and no longer.
+const cache = new Map<number, Cached>()
+
 interface Props {
+  userId: number
   units: Units
 }
 
-export default function Almanac({ units }: Props) {
-  const [workouts, setWorkouts] = useState<Workout[]>([])
-  const [weeks, setWeeks] = useState<Week[]>([])
-  const [loading, setLoading] = useState(true)
+export default function Almanac({ userId, units }: Props) {
+  // Coming back to the tab draws what was here before and asks the server again
+  // underneath, so switching tabs is not a blank screen every time.
+  const [workouts, setWorkouts] = useState<Workout[]>(() => cache.get(userId)?.workouts ?? [])
+  const [weeks, setWeeks] = useState<Week[]>(() => cache.get(userId)?.weeks ?? [])
+  const [loading, setLoading] = useState(() => !cache.has(userId))
   const [loadError, setLoadError] = useState('')
 
+  const [adding, setAdding] = useState(false)
   const [activity, setActivity] = useState<Activity>('walk')
-  const [start, setStart] = useState(() => {
-    const now = new Date()
-    return `${localDateInput(now)}T${pad(now.getHours())}:${pad(now.getMinutes())}`
-  })
+  const [start, setStart] = useState(nowInput)
   const [minutes, setMinutes] = useState('')
   const [distance, setDistance] = useState('')
   const [calories, setCalories] = useState('')
@@ -109,6 +125,7 @@ export default function Almanac({ units }: Props) {
         listWorkouts(WORKOUT_PAGE),
         listWeeks(WEEK_COUNT),
       ])
+      cache.set(userId, { workouts: history, weeks: totals })
       setWorkouts(history)
       setWeeks(totals)
       setLoadError('')
@@ -117,11 +134,18 @@ export default function Almanac({ units }: Props) {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [userId])
 
   useEffect(() => {
     void load()
   }, [load])
+
+  function openForm() {
+    setStart(nowInput())
+    setFormError('')
+    setFormNote('')
+    setAdding(true)
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault()
@@ -143,6 +167,7 @@ export default function Almanac({ units }: Props) {
       setCalories('')
       setHeartRate('')
       setFormNote('Added to the Almanac.')
+      setAdding(false)
       await load()
     } catch (err) {
       // The server identifies a workout by who, when, and how long, so a 409
@@ -171,102 +196,127 @@ export default function Almanac({ units }: Props) {
 
   return (
     <>
-      <section className="card">
-        <h2>Add a workout</h2>
-        <p className="hint">For anything your phone did not sync.</p>
-        <form onSubmit={submit}>
-          <div className="field-row">
-            <label>
-              Activity
-              <select
-                value={activity}
-                onChange={(event) => setActivity(event.target.value as Activity)}
+      {/* History is what this screen is for, so the form waits behind a button
+          rather than sitting on top of it. The note only ever shows while the
+          form is away, since a successful add is what closes it. */}
+      {adding ? (
+        <section className="card">
+          <h2>Add a workout</h2>
+          <p className="hint">For anything your phone did not sync.</p>
+          <form onSubmit={submit}>
+            <div className="field-row">
+              <label>
+                Activity
+                <select
+                  value={activity}
+                  onChange={(event) => setActivity(event.target.value as Activity)}
+                >
+                  {ACTIVITY_ORDER.map((name) => (
+                    <option key={name} value={name}>
+                      {ACTIVITY_NAMES[name]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                Date and time
+                <input
+                  type="datetime-local"
+                  value={start}
+                  onChange={(event) => setStart(event.target.value)}
+                  required
+                />
+              </label>
+            </div>
+
+            <div className="field-row">
+              <label>
+                Duration (minutes)
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min="1"
+                  step="0.5"
+                  value={minutes}
+                  onChange={(event) => setMinutes(event.target.value)}
+                  required
+                />
+              </label>
+
+              <label>
+                Distance ({unitName(units)})
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min="0.01"
+                  step="0.01"
+                  value={distance}
+                  onChange={(event) => setDistance(event.target.value)}
+                  required
+                />
+              </label>
+            </div>
+
+            <div className="field-row">
+              <label>
+                Active calories (optional)
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min="0"
+                  step="1"
+                  value={calories}
+                  onChange={(event) => setCalories(event.target.value)}
+                />
+              </label>
+
+              <label>
+                Average heart rate (optional)
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min="0"
+                  step="1"
+                  value={heartRate}
+                  onChange={(event) => setHeartRate(event.target.value)}
+                />
+              </label>
+            </div>
+
+            {formError && (
+              <p className="error" role="alert">
+                {formError}
+              </p>
+            )}
+
+            <div className="choice">
+              <button type="submit" className="primary" disabled={saving}>
+                Add workout
+              </button>
+              <button
+                type="button"
+                className="secondary"
+                disabled={saving}
+                onClick={() => setAdding(false)}
               >
-                {ACTIVITY_ORDER.map((name) => (
-                  <option key={name} value={name}>
-                    {ACTIVITY_NAMES[name]}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label>
-              Date and time
-              <input
-                type="datetime-local"
-                value={start}
-                onChange={(event) => setStart(event.target.value)}
-                required
-              />
-            </label>
-          </div>
-
-          <div className="field-row">
-            <label>
-              Duration (minutes)
-              <input
-                type="number"
-                inputMode="decimal"
-                min="1"
-                step="1"
-                value={minutes}
-                onChange={(event) => setMinutes(event.target.value)}
-                required
-              />
-            </label>
-
-            <label>
-              Distance ({unitName(units)})
-              <input
-                type="number"
-                inputMode="decimal"
-                min="0"
-                step="0.01"
-                value={distance}
-                onChange={(event) => setDistance(event.target.value)}
-                required
-              />
-            </label>
-          </div>
-
-          <div className="field-row">
-            <label>
-              Active calories (optional)
-              <input
-                type="number"
-                inputMode="numeric"
-                min="0"
-                step="1"
-                value={calories}
-                onChange={(event) => setCalories(event.target.value)}
-              />
-            </label>
-
-            <label>
-              Average heart rate (optional)
-              <input
-                type="number"
-                inputMode="numeric"
-                min="0"
-                step="1"
-                value={heartRate}
-                onChange={(event) => setHeartRate(event.target.value)}
-              />
-            </label>
-          </div>
-
-          {formError && (
-            <p className="error" role="alert">
-              {formError}
+                Never mind
+              </button>
+            </div>
+          </form>
+        </section>
+      ) : (
+        <>
+          {formNote && (
+            <p className="note note-success" role="status">
+              {formNote}
             </p>
           )}
-          {formNote && <p className="note">{formNote}</p>}
-
-          <button type="submit" className="primary" disabled={saving}>
-            Add workout
+          <button type="button" className="secondary" onClick={openForm}>
+            Add a workout
           </button>
-        </form>
-      </section>
+        </>
+      )}
 
       <section>
         <h2>History</h2>

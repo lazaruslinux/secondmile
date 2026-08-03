@@ -7,6 +7,8 @@ from collections import defaultdict, deque
 
 from fastapi import Request
 
+from app.config import settings
+
 log = logging.getLogger("secondmile.throttle")
 
 _WINDOW_SECONDS = 60
@@ -90,6 +92,14 @@ resend_limiter = RateLimiter(3, "resend")
 # server several megabytes to decode and re-encode, which is by far the most
 # expensive thing a signed-in account can ask it to do.
 avatar_limiter = RateLimiter(5, "avatar")
+# Typing in a workout. Roomy, because catching up a week of forgotten sessions
+# is a real thing to do, and low enough that nobody is filling a history with a
+# script through the form.
+workout_limiter = RateLimiter(30, "workout")
+# Spending a verification link. Its own budget because the token is the only
+# secret it checks, and without one the endpoint is a place to guess tokens at
+# whatever rate the network allows.
+verify_limiter = RateLimiter(10, "verify")
 
 _ALL_LIMITERS = (
     login_limiter,
@@ -98,6 +108,8 @@ _ALL_LIMITERS = (
     password_limiter,
     resend_limiter,
     avatar_limiter,
+    workout_limiter,
+    verify_limiter,
 )
 
 
@@ -124,11 +136,19 @@ def client_address(request: Request) -> str:
     the limiter. The right-most entry is the one our own proxy wrote, so it is
     the only one nobody upstream could have forged.
 
-    This trusts exactly one hop, which is the topology this ships with. Put a
-    second proxy in front and this needs to skip that many more entries.
+    One hop is the topology this ships with, and TRUSTED_PROXY_HOPS is how an
+    install with more says so: each proxy of your own in front of that one wrote
+    an entry of its own, so that many right-most entries are skipped before the
+    reading starts. Only entries your own proxies wrote may be skipped. Setting
+    it higher than the number you really run hands the choice of bucket back to
+    the caller, which is the hole this whole function exists to close.
     """
     forwarded = request.headers.get("x-forwarded-for", "")
-    for entry in reversed([part.strip() for part in forwarded.split(",")]):
+    entries = [part.strip() for part in reversed(forwarded.split(","))]
+    # Clamped, so a header shorter than the configured hop count falls through
+    # to the connection address rather than reading past the end of the list.
+    hops = min(max(settings.trusted_proxy_hops, 0), len(entries))
+    for entry in entries[hops:]:
         if not entry:
             continue
         try:

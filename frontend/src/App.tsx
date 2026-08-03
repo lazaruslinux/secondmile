@@ -142,9 +142,13 @@ export default function App() {
         )}
 
       <main className="page">
-        {view === 'profile' && <Profile units={me.units} refreshToken={refreshToken} />}
-        {view === 'album' && <Album />}
-        {view === 'almanac' && <Almanac units={me.units} />}
+        {/* The views keep what they last loaded, per account, so switching tabs
+            shows it again at once while a fresh copy is on its way. */}
+        {view === 'profile' && (
+          <Profile userId={me.id} units={me.units} refreshToken={refreshToken} />
+        )}
+        {view === 'album' && <Album userId={me.id} />}
+        {view === 'almanac' && <Almanac userId={me.id} units={me.units} />}
         {view === 'settings' && (
           <Settings
             username={me.username}

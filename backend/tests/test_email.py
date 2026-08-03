@@ -184,6 +184,14 @@ def test_resend_burst_is_rate_limited(client):
     assert codes == [204, 204, 204, 429]
 
 
+def test_verify_burst_is_rate_limited(client):
+    codes = [_verify(client, "not-a-real-token").status_code for _ in range(11)]
+    # The token is the only thing the endpoint checks, so guessing at it has to
+    # cost an allowance like every other guess does.
+    assert codes.count(400) == 10
+    assert codes[-1] == 429
+
+
 def test_register_rejects_an_address_that_is_not_one(client, invite, outbox):
     assert _register(client, invite, email="not-an-address").status_code == 400
     assert _register(client, invite, email="still@not@one").status_code == 400

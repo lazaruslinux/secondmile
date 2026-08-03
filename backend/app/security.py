@@ -22,6 +22,10 @@ _hasher = PasswordHasher()
 
 COOKIE_NAME = "session"
 MIN_PASSWORD_LENGTH = 10
+# Argon2 will hash a megabyte of text as willingly as a passphrase, and every
+# byte of it costs the server memory and time. Far longer than any passphrase
+# anybody types, so the cap only ever refuses something that was not one.
+MAX_PASSWORD_LENGTH = 256
 USERNAME_PATTERN = re.compile(r"^[a-z0-9_.-]{3,32}$")
 
 # Deliberately loose. The only thing worth checking here is that the address

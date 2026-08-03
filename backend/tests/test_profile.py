@@ -170,6 +170,20 @@ def test_one_account_cannot_overwrite_another_avatar(signed_in, db_session, admi
     assert signed_in.get(f"/api/profile/avatar/{admin.id}").status_code == 404
 
 
+def test_an_avatar_the_row_claims_but_the_disk_lost_is_a_404(signed_in, member, avatar_dir):
+    """A volume that did not come back is not a server error to the caller.
+
+    The row still says there is a picture; handing that path to FileResponse
+    raises inside the response. The same 404 an account with no picture gets is
+    both the honest answer and the one that says nothing about who exists.
+    """
+    upload(signed_in, image_bytes())
+    (avatar_dir / f"{member.id}.webp").unlink()
+    response = signed_in.get(f"/api/profile/avatar/{member.id}")
+    assert response.status_code == 404
+    assert response.json() == {"detail": "No picture."}
+
+
 def test_a_stored_avatar_survives_a_second_upload(signed_in, member, avatar_dir):
     first = upload(signed_in, image_bytes(colour=(10, 10, 10))).json()["avatar_version"]
     stored = avatar_dir / f"{member.id}.webp"

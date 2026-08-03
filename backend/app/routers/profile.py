@@ -1,5 +1,7 @@
 """The profile: the trophy room, its picture, its badge slots, and the catalogue."""
 
+import os
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -174,8 +176,16 @@ def read_avatar(
     owner = db.get(models.User, user_id)
     if owner is None or owner.avatar_path is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No picture.")
+    stored = avatars.path_for(user_id)
+    if not os.path.isfile(stored):
+        # The row says there is a picture and the disk disagrees, which is what
+        # a lost or unmounted volume looks like. Handing that to FileResponse
+        # raises inside the response and answers 500; the same 404 as an account
+        # with no picture is both the honest answer and the one that still says
+        # nothing about which accounts exist.
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No picture.")
     return FileResponse(
-        avatars.path_for(user_id),
+        stored,
         media_type=avatars.MEDIA_TYPE,
         headers={
             # Private: a shared cache must not hand one member's picture to

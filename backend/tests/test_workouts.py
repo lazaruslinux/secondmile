@@ -62,6 +62,85 @@ def test_manual_entry_validates_its_input(signed_in):
     assert signed_in.post("/api/workouts", json=manual(miles=-1)).status_code == 400
 
 
+def raw_manual(client, **numbers):
+    """Post a manual entry as text rather than through the JSON encoder.
+
+    The encoder refuses to write a NaN, and Python's parser reads one back
+    happily, which is exactly why the endpoint has to refuse them itself.
+    """
+    fields = {"duration_s": "1800", "distance_mi": "3.0"}
+    fields.update(numbers)
+    parts = ['"activity": "run"', '"start_ts": "2026-07-20T06:12:00+00:00"']
+    parts += [f'"{key}": {value}' for key, value in fields.items()]
+    return client.post(
+        "/api/workouts",
+        content=("{" + ", ".join(parts) + "}").encode(),
+        headers={"Content-Type": "application/json"},
+    )
+
+
+def test_manual_entry_refuses_numbers_that_are_not_numbers(signed_in, db_session):
+    """NaN and infinity are valid JSON literals and a float field takes both.
+
+    A stored one is not a cosmetic problem: the progress pipeline reads every
+    workout the account owns on every request, so one of them turns every later
+    request for that account into a 500 that no retry clears.
+    """
+    for fields in (
+        {"distance_mi": "NaN"},
+        {"distance_mi": "Infinity"},
+        {"active_kcal": "NaN"},
+        {"avg_hr": "-Infinity"},
+        {"duration_s": "NaN"},
+        # A JSON number too large for a float parses to infinity on its own.
+        {"distance_mi": "1e400"},
+    ):
+        response = raw_manual(signed_in, **fields)
+        assert response.status_code == 400, response.text
+        assert set(response.json()) == {"detail"}
+    assert db_session.query(models.Workout).count() == 0
+    # The account is still readable, which is the property all of this protects.
+    assert signed_in.get("/api/profile").status_code == 200
+
+
+def test_manual_entry_refuses_absurd_numbers(signed_in, db_session):
+    over_bounds = (
+        manual(miles=5000.0),
+        manual(duration=400000),
+        manual(active_kcal=900000.0),
+        manual(avg_hr=9000.0),
+        manual(avg_hr=2.0),
+    )
+    for body in over_bounds:
+        response = signed_in.post("/api/workouts", json=body)
+        assert response.status_code == 400, response.text
+        # A plain sentence, not a field dump: the person typed something wrong
+        # and has to be told what the rule is.
+        assert response.json()["detail"][-1] == "."
+    assert db_session.query(models.Workout).count() == 0
+
+
+def test_manual_entry_takes_the_numbers_just_inside_the_bounds(signed_in):
+    accepted = signed_in.post(
+        "/api/workouts",
+        json=manual(duration=48 * 3600, miles=1000.0, active_kcal=50000.0, avg_hr=300.0),
+    )
+    assert accepted.status_code == 201, accepted.text
+
+
+def test_manual_entry_is_rate_limited(signed_in):
+    codes = []
+    for minute in range(31):
+        codes.append(
+            signed_in.post(
+                "/api/workouts",
+                json=manual(start=f"2026-07-20T06:{minute:02d}:00+00:00"),
+            ).status_code
+        )
+    assert codes.count(201) == 30
+    assert codes[-1] == 429
+
+
 def test_manual_entry_flags_an_impossible_pace(signed_in):
     response = signed_in.post("/api/workouts", json=manual(duration=600, miles=4.0))
     assert response.status_code == 201

@@ -8,9 +8,21 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app import activity, models, progress, security, throttle
+from app.config import MAX_INGEST_WORKOUTS
 from app.db import get_db
 
 router = APIRouter(tags=["ingest"])
+
+
+def _refuse_constant(literal: str) -> float:
+    """Called by json.loads for a bare NaN, Infinity, or -Infinity.
+
+    Python's parser accepts all three even though no other JSON reader has to,
+    and the payload column is stored verbatim, so one of them reaching the
+    database is a row Postgres cannot write back out. Refusing here turns it
+    into the same 400 any other unreadable body gets.
+    """
+    raise ValueError(f"{literal} is not a number this endpoint accepts")
 
 
 def ingest_user(request: Request, db: Session = Depends(get_db)) -> models.User:
@@ -50,11 +62,19 @@ async def ingest(request: Request, db: Session = Depends(get_db)) -> dict:
 
     raw = await request.body()
     try:
-        payload = json.loads(raw)
-    except (json.JSONDecodeError, UnicodeDecodeError):
+        payload = json.loads(raw, parse_constant=_refuse_constant)
+    except ValueError:
         # Nothing is logged in this case: the payload column is JSON, so there
         # is nowhere to put a body that is not JSON in the first place.
+        # JSONDecodeError, UnicodeDecodeError, and the refusal above are all
+        # ValueError, so one clause covers every way the body can be unreadable.
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Body must be JSON.") from None
+
+    # Counted before anything is parsed, so an export with a million entries
+    # costs one length check rather than a million savepoints.
+    entries = activity.workout_entries(payload)
+    if entries is not None and len(entries) > MAX_INGEST_WORKOUTS:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Too many workouts in one export.")
 
     parsed, ignored = activity.parse_payload(payload)
 

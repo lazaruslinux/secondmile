@@ -159,6 +159,31 @@ def test_forwarded_for_uses_the_right_most_entry():
     assert throttle.client_address(FakeRequest(f"{forged}, junk", socket_peer)) == socket_peer
 
 
+def test_trusted_proxy_hops_skips_the_entries_our_own_proxies_wrote(monkeypatch):
+    class FakeRequest:
+        def __init__(self, forwarded, peer="192.0.2.1"):
+            self.headers = {"x-forwarded-for": forwarded} if forwarded else {}
+            self.client = type("Peer", (), {"host": peer})()
+
+    forged, real_client, inner_proxy = "203.0.113.4", "198.51.100.9", "192.0.2.7"
+    header = f"{forged}, {real_client}, {inner_proxy}"
+
+    # Nothing configured: one proxy, so the right-most entry is the caller.
+    assert throttle.client_address(FakeRequest(header)) == inner_proxy
+    # One extra proxy of our own wrote the right-most entry, so the one before
+    # it is what the proxy behind it saw.
+    monkeypatch.setattr(config.settings, "trusted_proxy_hops", 1)
+    assert throttle.client_address(FakeRequest(header)) == real_client
+    # More hops than the header carries falls back to the connection address
+    # rather than reading off the end into whatever the caller wrote.
+    monkeypatch.setattr(config.settings, "trusted_proxy_hops", 5)
+    assert throttle.client_address(FakeRequest(header)) == "192.0.2.1"
+    assert throttle.client_address(FakeRequest("")) == "192.0.2.1"
+    # A nonsense setting cannot make it read further right than the header goes.
+    monkeypatch.setattr(config.settings, "trusted_proxy_hops", -3)
+    assert throttle.client_address(FakeRequest(header)) == inner_proxy
+
+
 def test_forged_forwarded_for_cannot_dodge_the_login_limiter(client, member):
     wrong = {"username": MEMBER["username"], "password": "wrong-password-1"}
     codes = []
@@ -205,6 +230,18 @@ def test_reset_limiters_clears_every_one(client, member):
     assert client.post("/api/auth/login", json=wrong).status_code == 429
     throttle.reset_limiters()
     assert client.post("/api/auth/login", json=wrong).status_code == 401
+
+
+def test_every_limiter_is_registered_for_the_reset(client, member):
+    """A limiter that is not in the group is the test that passes alone and
+    fails in the suite, so the group is checked rather than assumed."""
+    names = {limiter.name for limiter in throttle._ALL_LIMITERS}
+    assert {"workout", "verify"} <= names
+    for limiter in throttle._ALL_LIMITERS:
+        limiter.hit("198.51.100.9")
+        assert limiter.tracked() == 1
+    throttle.reset_limiters()
+    assert all(limiter.tracked() == 0 for limiter in throttle._ALL_LIMITERS)
 
 
 def test_admin_flag_is_read_from_the_database_not_the_cookie(client, db_session, admin):

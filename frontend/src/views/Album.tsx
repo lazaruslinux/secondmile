@@ -1,22 +1,32 @@
 import { useEffect, useState } from 'react'
-import { ApiError, getAlbum, type AlbumSet } from '../api.ts'
+import { errorText, getAlbum, type AlbumSet } from '../api.ts'
 import CardPlate from './CardPlate.tsx'
 
-function errorText(err: unknown): string {
-  return err instanceof ApiError ? err.message : 'Something went wrong. Try again.'
+// What this tab last showed, kept by account so a second person signing in on
+// the same browser never sees the first one's album. It lives as long as the
+// page does and no longer.
+const cache = new Map<number, AlbumSet[]>()
+
+interface Props {
+  userId: number
 }
 
-export default function Album() {
-  const [sets, setSets] = useState<AlbumSet[]>([])
-  const [loading, setLoading] = useState(true)
+export default function Album({ userId }: Props) {
+  // Coming back to the tab draws what was here before and asks the server again
+  // underneath, so switching tabs is not a blank screen every time.
+  const [sets, setSets] = useState<AlbumSet[]>(() => cache.get(userId) ?? [])
+  const [loading, setLoading] = useState(() => !cache.has(userId))
   const [loadError, setLoadError] = useState('')
 
   useEffect(() => {
     getAlbum()
-      .then((album) => setSets(album.sets))
+      .then((album) => {
+        cache.set(userId, album.sets)
+        setSets(album.sets)
+      })
       .catch((err: unknown) => setLoadError(errorText(err)))
       .finally(() => setLoading(false))
-  }, [])
+  }, [userId])
 
   return (
     <>

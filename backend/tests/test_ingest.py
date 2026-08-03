@@ -2,7 +2,7 @@
 
 import datetime as dt
 
-from app import models
+from app import config, models
 from app.activity import classify, parse_start, to_kcal, to_miles
 
 
@@ -267,6 +267,135 @@ def test_ingest_burst_is_rate_limited(signed_in, ingest_token):
         codes.append(post(signed_in, ingest_token, payload).status_code)
     assert codes.count(200) == 60
     assert codes[-1] == 429
+
+
+def test_a_value_that_is_not_a_number_is_ignored_not_stored(
+    signed_in, ingest_token, db_session
+):
+    """One broken entry must not become a row, and must not cost the rest.
+
+    A stored NaN or infinity is not a cosmetic problem: the progress pipeline
+    reads every workout an account owns on every request, so one of them turns
+    every later request for that account into a 500 that no retry clears.
+    """
+    # Sent as text: the JSON encoder refuses to write a number this large, and
+    # the parser reads it back as infinity without complaint.
+    body = (
+        '{"data": {"workouts": ['
+        '{"name": "Outdoor Walk", "start": "2026-07-20T06:00:00+00:00", "duration": 2400,'
+        ' "distance": {"qty": 2.1, "units": "mi"}},'
+        # A string the export tool wrote for a reading it did not have.
+        '{"name": "Outdoor Run", "start": "2026-07-20T07:00:00+00:00", "duration": 1800,'
+        ' "distance": {"qty": "NaN", "units": "mi"}},'
+        # A JSON number too large for a float, which parses to infinity.
+        '{"name": "Indoor Cycle", "start": "2026-07-20T08:00:00+00:00", "duration": 1800,'
+        ' "activeEnergyBurned": {"qty": 1e400, "units": "kcal"}}'
+        "]}}"
+    )
+    response = signed_in.post(
+        "/api/ingest",
+        content=body.encode(),
+        headers={
+            "Authorization": f"Bearer {ingest_token}",
+            "Content-Type": "application/json",
+        },
+    )
+    assert response.status_code == 200
+    # The good entry still lands: one bad number never poisons the batch.
+    assert response.json() == {"imported": 1, "skipped": 0, "flagged": 0, "ignored": 2}
+    assert db_session.query(models.Workout).count() == 1
+
+    logged = db_session.query(models.IngestLog).one()
+    assert [item["reason"] for item in logged.result["ignored_detail"]] == [
+        "value is not a number",
+        "value is not a number",
+    ]
+
+
+def test_absurd_numbers_are_ignored_with_a_reason(signed_in, ingest_token, db_session):
+    payload = export(
+        workout("Outdoor Walk", "2026-07-20T06:00:00+00:00", 2400, 2.1, 190),
+        workout("Outdoor Run", "2026-07-20T07:00:00+00:00", 1800, 5000.0, 300),
+        workout("Indoor Cycle", "2026-07-20T08:00:00+00:00", 400000, 10.0, 300),
+        workout("Pool Swim", "2026-07-20T09:00:00+00:00", 1800, 0.5, 900000),
+    )
+    response = post(signed_in, ingest_token, payload)
+    assert response.json() == {"imported": 1, "skipped": 0, "flagged": 0, "ignored": 3}
+    assert db_session.query(models.Workout).count() == 1
+
+    logged = db_session.query(models.IngestLog).one()
+    reasons = {item["reason"] for item in logged.result["ignored_detail"]}
+    assert reasons == {"numbers out of range"}
+
+
+def test_an_impossible_heart_rate_is_dropped_but_the_workout_stays(
+    signed_in, ingest_token, db_session
+):
+    payload = export(workout("Outdoor Walk", "2026-07-20T06:00:00+00:00", 2400, 2.1, 190, 9000))
+    assert post(signed_in, ingest_token, payload).json()["imported"] == 1
+    # Nothing is scored from a heart rate, so a reading no heart produces goes
+    # on its own rather than taking a real session with it.
+    assert db_session.query(models.Workout).one().avg_hr is None
+
+
+def test_a_literal_nan_in_the_body_is_a_bad_request(signed_in, ingest_token, db_session):
+    """Python's JSON parser accepts NaN as a bare literal; this endpoint does not.
+
+    Refused at the door rather than at the database, where it would arrive as a
+    500 from the payload column the log writes it to.
+    """
+    body = (
+        b'{"data": {"workouts": [{"name": "Outdoor Walk", '
+        b'"start": "2026-07-20T06:00:00+00:00", "duration": NaN}]}}'
+    )
+    response = signed_in.post(
+        "/api/ingest",
+        content=body,
+        headers={
+            "Authorization": f"Bearer {ingest_token}",
+            "Content-Type": "application/json",
+        },
+    )
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Body must be JSON."}
+    assert db_session.query(models.Workout).count() == 0
+
+
+def test_a_literal_infinity_in_the_body_is_a_bad_request(signed_in, ingest_token):
+    body = (
+        b'{"data": {"workouts": [{"name": "Outdoor Walk", '
+        b'"start": "2026-07-20T06:00:00+00:00", "duration": 1800, '
+        b'"distance": {"qty": -Infinity, "units": "mi"}}]}}'
+    )
+    response = signed_in.post(
+        "/api/ingest",
+        content=body,
+        headers={
+            "Authorization": f"Bearer {ingest_token}",
+            "Content-Type": "application/json",
+        },
+    )
+    assert response.status_code == 400
+
+
+def test_an_export_with_too_many_entries_is_refused(signed_in, ingest_token, db_session):
+    entry = workout("Outdoor Walk", "2026-07-20T06:00:00+00:00", 2400, 2.1, 190)
+    payload = export(*[dict(entry) for _ in range(config.MAX_INGEST_WORKOUTS + 1)])
+    response = post(signed_in, ingest_token, payload)
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Too many workouts in one export."}
+    # Refused before any row work, so nothing was written and nothing logged.
+    assert db_session.query(models.Workout).count() == 0
+    assert db_session.query(models.IngestLog).count() == 0
+
+
+def test_an_export_well_under_the_entry_limit_is_untouched(signed_in, ingest_token):
+    entries = [
+        workout("Outdoor Walk", f"2026-07-20T06:00:{second:02d}+00:00", 2400, 2.1, 190)
+        for second in range(10)
+    ]
+    payload = export(*entries)
+    assert post(signed_in, ingest_token, payload).json()["imported"] == 10
 
 
 def test_workout_stored_in_utc(signed_in, ingest_token, db_session):

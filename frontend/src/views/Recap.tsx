@@ -1,12 +1,8 @@
-import { useEffect, useState } from 'react'
-import { ApiError, openChest, type OpenedChest, type RecapState } from '../api.ts'
+import { useEffect, useRef, useState } from 'react'
+import { errorText, openChest, type OpenedChest, type RecapState } from '../api.ts'
 import { formatDate } from '../format.ts'
 import Badge from './Badge.tsx'
 import CardPlate from './CardPlate.tsx'
-
-function errorText(err: unknown): string {
-  return err instanceof ApiError ? err.message : 'Something went wrong. Try again.'
-}
 
 interface Props {
   recap: RecapState
@@ -21,14 +17,13 @@ export default function Recap({ recap, onDismiss }: Props) {
   const [opened, setOpened] = useState<Record<number, OpenedChest>>({})
   const [busy, setBusy] = useState<number | null>(null)
   const [errors, setErrors] = useState<Record<number, string>>({})
+  const dialog = useRef<HTMLDialogElement>(null)
 
+  // Opened as a modal rather than with the open attribute, because only the
+  // modal form brings the focus trap, the page behind held still, and Esc.
   useEffect(() => {
-    function onKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') onDismiss()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onDismiss])
+    dialog.current?.showModal()
+  }, [])
 
   async function open(chestId: number) {
     setBusy(chestId)
@@ -46,13 +41,18 @@ export default function Recap({ recap, onDismiss }: Props) {
   const chests = recap.chests.length
 
   return (
-    <div className="overlay">
-      <section
-        className="overlay-panel"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="recap-title"
-      >
+    <dialog
+      className="overlay"
+      ref={dialog}
+      aria-labelledby="recap-title"
+      onCancel={(event) => {
+        // Esc. Dismissing is the parent's business and it takes this off the
+        // screen itself, so the browser's own close is left undone.
+        event.preventDefault()
+        onDismiss()
+      }}
+    >
+      <section className="overlay-panel">
         <header className="overlay-head">
           <h2 id="recap-title">While you were away</h2>
           <p className="hint">
@@ -103,6 +103,7 @@ export default function Recap({ recap, onDismiss }: Props) {
                           <button
                             type="button"
                             className="secondary"
+                            aria-label={`Open ${chest.set_name} chest`}
                             disabled={busy === chest.id}
                             onClick={() => void open(chest.id)}
                           >
@@ -148,6 +149,6 @@ export default function Recap({ recap, onDismiss }: Props) {
           </button>
         </footer>
       </section>
-    </div>
+    </dialog>
   )
 }

@@ -3,6 +3,7 @@ import {
   ApiError,
   avatarUrl,
   deleteAvatar,
+  errorText,
   getProfile,
   listAchievements,
   listChests,
@@ -28,16 +29,17 @@ import CardPlate from './CardPlate.tsx'
 // filled or not, because an empty slot is the invitation to fill it.
 const SLOTS = [0, 1, 2, 3]
 
-function errorText(err: unknown): string {
-  return err instanceof ApiError ? err.message : 'Something went wrong. Try again.'
-}
+// What the server accepts, checked here as well so an oversized picture is
+// answered at once instead of after a whole upload.
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024
+const TOO_LARGE = 'That picture is too large. The limit is 5 MB.'
 
 // The upload endpoint refuses things for reasons a person can act on, and two
 // of them can be answered by the proxy in front of the app rather than by the
 // server, so the sentence is written here rather than read off the response.
 function uploadErrorText(err: unknown): string {
   if (err instanceof ApiError) {
-    if (err.status === 413) return 'That picture is too large. The limit is 5 MB.'
+    if (err.status === 413) return TOO_LARGE
     if (err.status === 429) return 'Too many uploads just now. Wait a minute and try again.'
     return err.message
   }
@@ -109,21 +111,40 @@ function Stats({ stats, units, empty }: StatsProps) {
   )
 }
 
+interface Cached {
+  profile: ProfileData
+  achievements: Achievement[]
+  chests: Chest[]
+}
+
+// What this tab last showed, kept by account so a second person signing in on
+// the same browser never sees the first one's profile. It lives as long as the
+// page does and no longer.
+const cache = new Map<number, Cached>()
+
 interface Props {
+  userId: number
   units: Units
   // Bumped by the app when something outside this view changed what it shows,
   // which so far means chests opened from the recap.
   refreshToken: number
 }
 
-export default function Profile({ units, refreshToken }: Props) {
-  const [profile, setProfile] = useState<ProfileData | null>(null)
-  const [achievements, setAchievements] = useState<Achievement[]>([])
-  const [chests, setChests] = useState<Chest[]>([])
-  const [loading, setLoading] = useState(true)
+export default function Profile({ userId, units, refreshToken }: Props) {
+  // Coming back to the tab draws what was here before and asks the server again
+  // underneath, so switching tabs is not a blank screen every time.
+  const [profile, setProfile] = useState<ProfileData | null>(
+    () => cache.get(userId)?.profile ?? null,
+  )
+  const [achievements, setAchievements] = useState<Achievement[]>(
+    () => cache.get(userId)?.achievements ?? [],
+  )
+  const [chests, setChests] = useState<Chest[]>(() => cache.get(userId)?.chests ?? [])
+  const [loading, setLoading] = useState(() => !cache.has(userId))
   const [loadError, setLoadError] = useState('')
 
-  const [avatarBusy, setAvatarBusy] = useState(false)
+  // Which avatar call is in flight, so the note can say what is happening.
+  const [avatarBusy, setAvatarBusy] = useState<'' | 'upload' | 'remove'>('')
   const [avatarError, setAvatarError] = useState('')
 
   const [picking, setPicking] = useState(false)
@@ -157,13 +178,23 @@ export default function Profile({ units, refreshToken }: Props) {
     void load()
   }, [load, refreshToken])
 
+  // Whatever is on the screen is what a return to this tab should show, edits
+  // made here included, so the cache follows the state rather than the fetch.
+  useEffect(() => {
+    if (profile) cache.set(userId, { profile, achievements, chests })
+  }, [userId, profile, achievements, chests])
+
   async function pickAvatar(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
     // Cleared either way, so choosing the same file twice still counts as a
     // change and the picker does not sit there naming a spent upload.
     event.target.value = ''
     if (!file) return
-    setAvatarBusy(true)
+    if (file.size > MAX_AVATAR_BYTES) {
+      setAvatarError(TOO_LARGE)
+      return
+    }
+    setAvatarBusy('upload')
     setAvatarError('')
     try {
       const state = await uploadAvatar(file)
@@ -175,12 +206,12 @@ export default function Profile({ units, refreshToken }: Props) {
     } catch (err) {
       setAvatarError(uploadErrorText(err))
     } finally {
-      setAvatarBusy(false)
+      setAvatarBusy('')
     }
   }
 
   async function removeAvatar() {
-    setAvatarBusy(true)
+    setAvatarBusy('remove')
     setAvatarError('')
     try {
       await deleteAvatar()
@@ -190,7 +221,7 @@ export default function Profile({ units, refreshToken }: Props) {
     } catch (err) {
       setAvatarError(uploadErrorText(err))
     } finally {
-      setAvatarBusy(false)
+      setAvatarBusy('')
     }
   }
 
@@ -334,14 +365,19 @@ export default function Profile({ units, refreshToken }: Props) {
         <div className="profile-edit">
           <label className="file-field">
             Profile picture
-            <input type="file" accept="image/*" disabled={avatarBusy} onChange={pickAvatar} />
+            <input
+              type="file"
+              accept="image/*"
+              disabled={avatarBusy !== ''}
+              onChange={pickAvatar}
+            />
           </label>
           <div className="choice">
             {profile.has_avatar && (
               <button
                 type="button"
                 className="secondary"
-                disabled={avatarBusy}
+                disabled={avatarBusy !== ''}
                 onClick={() => void removeAvatar()}
               >
                 Remove picture
@@ -356,6 +392,11 @@ export default function Profile({ units, refreshToken }: Props) {
               {picking ? 'Close badges' : 'Choose badges'}
             </button>
           </div>
+          {avatarBusy === 'upload' && (
+            <p className="hint" role="status">
+              Uploading.
+            </p>
+          )}
           {avatarError && (
             <p className="error" role="alert">
               {avatarError}
@@ -452,6 +493,7 @@ export default function Profile({ units, refreshToken }: Props) {
                 <button
                   type="button"
                   className="secondary"
+                  aria-label={`Open ${chest.set_name} chest`}
                   disabled={openingChest === chest.id}
                   onClick={() => void open(chest.id)}
                 >

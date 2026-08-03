@@ -56,6 +56,31 @@ def test_the_level_curve_costs_a_hundred_more_each_time():
     assert progress.level_bounds(350) == (2, 150, 300)
 
 
+def _level_by_scan(xp: int) -> int:
+    """The linear scan the closed form replaced, kept as the reference answer."""
+    level = 1
+    while xp >= progress.xp_to_reach(level + 1):
+        level += 1
+    return level
+
+
+def test_the_closed_form_level_matches_the_scan_it_replaced():
+    for xp in range(0, 40000):
+        assert progress.level_for_xp(xp) == _level_by_scan(xp)
+    # Every boundary and the totals either side of it, well past any real one.
+    for level in range(1, 300):
+        floor = progress.xp_to_reach(level)
+        for xp in (floor - 1, floor, floor + 1):
+            if xp >= 0:
+                assert progress.level_for_xp(xp) == _level_by_scan(xp)
+    # Totals nobody earns, which is the point: the scan is linear in the total
+    # and a request must not be held open by one.
+    for xp in (10**6, 2**31 - 1, 10**9):
+        assert progress.level_for_xp(xp) == _level_by_scan(xp)
+    # Only a corrupted row is ever below zero, and it must not raise.
+    assert progress.level_for_xp(-5) == 1
+
+
 def test_border_tiers_arrive_at_the_documented_levels():
     assert progress.border_tier(1) == 1
     assert progress.border_tier(4) == 1

@@ -201,6 +201,12 @@ export class ApiError extends Error {
   }
 }
 
+// The one sentence a view shows when a call failed: the server's own words when
+// it gave any, and something plain when it did not.
+export function errorText(err: unknown): string {
+  return err instanceof ApiError ? err.message : 'Something went wrong. Try again.'
+}
+
 // The session can end at any moment (expiry, logout elsewhere, a rotated
 // password). Rather than teaching every caller to recognise that, the app
 // registers one handler here and gets sent back to the login screen.

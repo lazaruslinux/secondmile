@@ -82,6 +82,11 @@ def _validate_credentials(username: str, password: str) -> str:
             status.HTTP_400_BAD_REQUEST,
             f"Password must be at least {security.MIN_PASSWORD_LENGTH} characters.",
         )
+    if len(password) > security.MAX_PASSWORD_LENGTH:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"Password must be at most {security.MAX_PASSWORD_LENGTH} characters.",
+        )
     return cleaned
 
 
@@ -182,7 +187,13 @@ def register(
 
 
 @router.post("/verify", status_code=status.HTTP_204_NO_CONTENT)
-def verify_email(body: VerifyBody, response: Response, db: Session = Depends(get_db)) -> Response:
+def verify_email(
+    body: VerifyBody, request: Request, response: Response, db: Session = Depends(get_db)
+) -> Response:
+    # The token is the only thing this endpoint checks, so without a limiter it
+    # is somewhere to guess tokens at network speed.
+    if throttle.verify_limiter.hit(throttle.client_address(request)):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, TOO_MANY)
     row = db.execute(
         select(models.EmailToken).where(
             models.EmailToken.token_hash == security.hash_token(body.token.strip()),
@@ -318,6 +329,11 @@ def change_password(
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
             f"Password must be at least {security.MIN_PASSWORD_LENGTH} characters.",
+        )
+    if len(body.new_password) > security.MAX_PASSWORD_LENGTH:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"Password must be at most {security.MAX_PASSWORD_LENGTH} characters.",
         )
 
     user.password_hash = security.hash_password(body.new_password)

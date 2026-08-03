@@ -141,6 +141,11 @@ If you gate your services behind a forward-auth layer such as Authelia,
 exempt `/api/ingest` from it. The phone posts workouts with its own bearer
 token and cannot answer an interactive login.
 
+A proxy like the one above adds a hop in front of the bundled nginx, so set
+`TRUSTED_PROXY_HOPS=1` in `.env`. Without it the rate limiter sees your
+proxy's address for every visitor and they all share one bucket; set it no
+higher than the number of proxies you actually run.
+
 ## Backups
 
 Everything that matters is in Postgres. A restorable dump:

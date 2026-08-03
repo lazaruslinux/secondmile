@@ -67,6 +67,11 @@ class Settings(BaseSettings):
     daily_cap_cycle_mi: float = 200.0
     daily_cap_swim_mi: float = 10.0
 
+    # How many proxies of your own sit in front of this app. Zero means the one
+    # the compose file ships. See client_address in app/throttle.py for what the
+    # number does and why getting it wrong is a rate-limiting hole.
+    trusted_proxy_hops: int = 0
+
 
 settings = Settings()
 
@@ -93,6 +98,20 @@ SERVER_TZ = _load_timezone(settings.tz)
 MIN_PACE_MIN_PER_MI = 4.0  # applies to walking and running
 MAX_CYCLE_SPEED_MPH = 30.0
 MAX_SWIM_SPEED_MPH = 5.0
+
+
+# Hard bounds, which the soft flags above are not. Anything past one of these is
+# not a workout somebody had a strange day doing, it is a broken export or a
+# deliberate one, and it never becomes a row: the progress pipeline reads every
+# row an account owns on every request, so one impossible number stored today is
+# an account that cannot load tomorrow. Generous enough that no real effort is
+# refused; a 48 hour ultra and a thousand mile day are both already past what a
+# body does.
+MAX_WORKOUT_DISTANCE_MI = 1000.0
+MAX_WORKOUT_DURATION_S = 172800
+MAX_WORKOUT_KCAL = 50000.0
+MIN_WORKOUT_HR = 20.0
+MAX_WORKOUT_HR = 300.0
 
 
 # How far one raw mile of each activity carries the marker, in Miles. Effort
@@ -145,7 +164,7 @@ MAX_DISPLAYED_BADGES = 4
 # cap is the decompression-bomb guard: a small file can declare an enormous
 # canvas, and Pillow will happily try to allocate it.
 MAX_AVATAR_BYTES = 5 * 1024 * 1024
-MAX_AVATAR_PIXELS = 50_000_000
+MAX_AVATAR_PIXELS = 25_000_000
 AVATAR_SIZE = 512
 
 # Request body ceilings, enforced by the app itself so an install that fronts
@@ -155,6 +174,12 @@ AVATAR_SIZE = 512
 # carries sample arrays and a first catch-up can cover years.
 MAX_BODY_BYTES = 6 * 1024 * 1024
 MAX_INGEST_BODY_BYTES = 15 * 1024 * 1024
+
+# How many workout entries one export may carry. The byte cap above bounds the
+# body, not the entry count, and an export of tiny entries is a request that
+# asks the server for one savepoint and one insert each. Years of catching up
+# for four activities does not come close to this.
+MAX_INGEST_WORKOUTS = 2000
 
 
 def daily_cap_mi(activity: str) -> float:

@@ -4,6 +4,8 @@ import datetime as dt
 
 from conftest import MEMBER, make_invite
 
+from app import models, security
+
 
 def test_status_is_public(client):
     response = client.get("/api/status")
@@ -108,6 +110,48 @@ def test_register_enforces_username_and_password_rules(client, invite):
         },
     )
     assert short_password.status_code == 400
+
+
+def test_register_refuses_a_password_nobody_typed(client, invite, db_session):
+    """Argon2 will hash a megabyte as willingly as a passphrase, and charge the
+    server for every byte of it."""
+    response = client.post(
+        "/api/auth/register",
+        json={
+            "invite_code": invite.code,
+            "username": "longwinded",
+            "email": "longwinded@example.com",
+            "password": "a" * (security.MAX_PASSWORD_LENGTH + 1),
+        },
+    )
+    assert response.status_code == 400
+    assert "at most" in response.json()["detail"]
+    assert db_session.query(models.User).filter_by(username="longwinded").count() == 0
+
+
+def test_a_password_at_the_length_cap_is_still_accepted(client, invite, outbox):
+    response = client.post(
+        "/api/auth/register",
+        json={
+            "invite_code": invite.code,
+            "username": "atthecap",
+            "email": "atthecap@example.com",
+            "password": "a" * security.MAX_PASSWORD_LENGTH,
+        },
+    )
+    assert response.status_code == 201
+
+
+def test_password_change_refuses_one_over_the_length_cap(signed_in):
+    response = signed_in.post(
+        "/api/auth/password",
+        json={
+            "current_password": MEMBER["password"],
+            "new_password": "a" * (security.MAX_PASSWORD_LENGTH + 1),
+        },
+    )
+    assert response.status_code == 400
+    assert "at most" in response.json()["detail"]
 
 
 def test_login_logout_round_trip(client, member):

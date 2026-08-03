@@ -7,6 +7,7 @@ deterministic.
 """
 
 import datetime as dt
+import math
 import random
 
 from sqlalchemy import delete, func, select
@@ -54,11 +55,21 @@ def xp_to_reach(level: int) -> int:
 
 
 def level_for_xp(xp: int) -> int:
-    """The level a total of experience stands at. Endless by design."""
-    level = 1
-    while xp >= xp_to_reach(level + 1):
-        level += 1
-    return level
+    """The level a total of experience stands at. Endless by design.
+
+    xp_to_reach is triangular, so this inverts it rather than counting up to it.
+    Same answer for every total, in one step instead of one step per level: the
+    curve is endless, and a scan over an absurd total would hold a request open
+    for as long as the total is large. Integer arithmetic throughout, because a
+    square root in floating point lands on the wrong side of an exact boundary.
+
+    level(level + 1) * LEVEL_STEP_XP <= 2 * (xp + LEVEL_STEP_XP) is the same
+    condition the loop tested; isqrt solves it for level.
+    """
+    if xp < LEVEL_STEP_XP * 2:  # the cost of level two, and the whole of level one
+        return 1
+    room = (2 * xp + 2 * LEVEL_STEP_XP) // LEVEL_STEP_XP
+    return (math.isqrt(4 * room + 1) - 1) // 2
 
 
 def level_bounds(xp: int) -> tuple[int, int, int]:

@@ -2,14 +2,21 @@
 
 import datetime as dt
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app import activity as activity_rules
-from app import models, progress, security
+from app import models, progress, security, throttle
+from app.config import (
+    MAX_WORKOUT_DISTANCE_MI,
+    MAX_WORKOUT_DURATION_S,
+    MAX_WORKOUT_HR,
+    MAX_WORKOUT_KCAL,
+    MIN_WORKOUT_HR,
+)
 from app.db import get_db
 from app.models import ACTIVITIES
 
@@ -25,25 +32,53 @@ class ManualWorkout(BaseModel):
     activity: str
     start_ts: dt.datetime
     duration_s: int
-    distance_mi: float
-    active_kcal: float = 0.0
-    avg_hr: float | None = None
+    # allow_inf_nan is the load-bearing part. A float field takes a NaN happily,
+    # JSON is allowed to write one as a bare literal, and a NaN passes every
+    # bound below because it compares false against all of them. Stored on a
+    # workout it breaks every later read of that account's progress, so it is
+    # refused at the door instead.
+    distance_mi: float = Field(allow_inf_nan=False)
+    active_kcal: float = Field(0.0, allow_inf_nan=False)
+    avg_hr: float | None = Field(None, allow_inf_nan=False)
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create_workout(
     body: ManualWorkout,
+    request: Request,
     db: Session = Depends(get_db),
     user: models.User = Depends(security.current_user),
 ) -> dict:
+    if throttle.workout_limiter.hit(throttle.client_address(request)):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many entries. Wait a minute.")
     if body.activity not in ACTIVITIES:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST, f"Activity must be one of: {', '.join(ACTIVITIES)}."
         )
     if body.duration_s <= 0:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Duration must be more than zero.")
+    if body.duration_s > MAX_WORKOUT_DURATION_S:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"Duration cannot be longer than {MAX_WORKOUT_DURATION_S // 3600} hours.",
+        )
     if body.distance_mi < 0 or body.active_kcal < 0:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Distance and energy cannot be negative.")
+    if body.distance_mi > MAX_WORKOUT_DISTANCE_MI:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"Distance cannot be more than {MAX_WORKOUT_DISTANCE_MI:.0f} miles.",
+        )
+    if body.active_kcal > MAX_WORKOUT_KCAL:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"Energy cannot be more than {MAX_WORKOUT_KCAL:.0f} kcal.",
+        )
+    if body.avg_hr is not None and not MIN_WORKOUT_HR <= body.avg_hr <= MAX_WORKOUT_HR:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"Heart rate must be between {MIN_WORKOUT_HR:.0f} and {MAX_WORKOUT_HR:.0f}.",
+        )
 
     start_ts = activity_rules.ensure_aware(body.start_ts)
     flags = {}

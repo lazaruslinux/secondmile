@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import {
-  ApiError,
   changePassword,
+  errorText,
   getIngestTokenStatus,
   logout,
   rotateIngestToken,
@@ -9,10 +9,6 @@ import {
   type IngestTokenStatus,
   type Units,
 } from '../api.ts'
-
-function errorText(err: unknown): string {
-  return err instanceof ApiError ? err.message : 'Something went wrong. Try again.'
-}
 
 interface Props {
   username: string
@@ -37,6 +33,11 @@ export default function Settings({
   const [freshToken, setFreshToken] = useState('')
   const [tokenError, setTokenError] = useState('')
   const [rotating, setRotating] = useState(false)
+  // Rotating breaks the phone until the new token is pasted, so the button asks
+  // once before it does it.
+  const [confirmingRotate, setConfirmingRotate] = useState(false)
+  // Empty until the Copy button is used, then which way it went.
+  const [copyState, setCopyState] = useState<'' | 'copied' | 'failed'>('')
 
   const [unitsError, setUnitsError] = useState('')
   const [savingUnits, setSavingUnits] = useState(false)
@@ -53,16 +54,35 @@ export default function Settings({
       .catch((err: unknown) => setTokenError(errorText(err)))
   }, [])
 
+  // The first token has nothing to break, so only a replacement is confirmed.
+  function askRotate() {
+    if (tokenStatus?.exists) setConfirmingRotate(true)
+    else void rotate()
+  }
+
   async function rotate() {
     setRotating(true)
     setTokenError('')
+    setCopyState('')
     try {
       setFreshToken(await rotateIngestToken())
       setTokenStatus(await getIngestTokenStatus())
+      setConfirmingRotate(false)
     } catch (err) {
       setTokenError(errorText(err))
     } finally {
       setRotating(false)
+    }
+  }
+
+  async function copyToken() {
+    try {
+      await navigator.clipboard.writeText(freshToken)
+      setCopyState('copied')
+    } catch {
+      // No clipboard on an insecure origin, or the browser refused. Nothing is
+      // lost: the token is on the screen and can be selected by hand.
+      setCopyState('failed')
     }
   }
 
@@ -135,6 +155,19 @@ export default function Settings({
               now. It will not be shown again.
             </p>
             <code>{freshToken}</code>
+            <button type="button" className="secondary" onClick={() => void copyToken()}>
+              Copy
+            </button>
+            {copyState === 'copied' && (
+              <p className="note note-success" role="status">
+                Copied.
+              </p>
+            )}
+            {copyState === 'failed' && (
+              <p className="note" role="status">
+                This browser would not copy it. Select the token and copy it by hand.
+              </p>
+            )}
           </div>
         )}
 
@@ -144,9 +177,36 @@ export default function Settings({
           </p>
         )}
 
-        <button type="button" className="primary" onClick={rotate} disabled={rotating}>
-          {tokenStatus?.exists ? 'Rotate token' : 'Create token'}
-        </button>
+        {confirmingRotate ? (
+          <>
+            <p className="hint">
+              Your phone stops syncing until the new token is pasted into your export
+              app.
+            </p>
+            <div className="choice">
+              <button
+                type="button"
+                className="primary"
+                onClick={() => void rotate()}
+                disabled={rotating}
+              >
+                Replace the old token?
+              </button>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => setConfirmingRotate(false)}
+                disabled={rotating}
+              >
+                Never mind
+              </button>
+            </div>
+          </>
+        ) : (
+          <button type="button" className="primary" onClick={askRotate} disabled={rotating}>
+            {tokenStatus?.exists ? 'Rotate token' : 'Create token'}
+          </button>
+        )}
       </section>
 
       <section className="card">
@@ -210,7 +270,11 @@ export default function Settings({
               {passwordError}
             </p>
           )}
-          {passwordNote && <p className="note">{passwordNote}</p>}
+          {passwordNote && (
+            <p className="note note-success" role="status">
+              {passwordNote}
+            </p>
+          )}
 
           <button type="submit" className="primary" disabled={savingPassword}>
             Change password

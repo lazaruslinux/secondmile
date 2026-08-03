@@ -5,6 +5,7 @@ no metadata. File paths derive from the account id and nothing else."""
 import io
 import logging
 import os
+import tempfile
 
 from PIL import Image, UnidentifiedImageError
 
@@ -110,10 +111,22 @@ def store(user_id: int, raw: bytes) -> str:
     os.makedirs(_directory(), exist_ok=True)
     target = path_for(user_id)
     # Write-then-rename so a request dying halfway cannot leave a truncated file.
-    temporary = f"{target}.tmp"
-    with open(temporary, "wb") as handle:
-        handle.write(encoded)
-    os.replace(temporary, target)
+    # The temporary name is unique per call rather than derived from the target:
+    # two uploads for the same account at once would otherwise be writing into
+    # the same file, and the one that renamed second would publish a mixture of
+    # both. The rename itself is atomic, so whichever wins is a whole picture.
+    handle, temporary = tempfile.mkstemp(dir=_directory(), prefix=f"{user_id}-", suffix=".tmp")
+    try:
+        with os.fdopen(handle, "wb") as out:
+            out.write(encoded)
+        os.replace(temporary, target)
+    except OSError:
+        # A failed write must not leave its scratch file behind for good.
+        try:
+            os.remove(temporary)
+        except OSError:
+            pass
+        raise
     return stored_name(user_id)
 
 
