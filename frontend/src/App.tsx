@@ -159,7 +159,13 @@ export default function App() {
         {/* The views keep what they last loaded, per account, so switching tabs
             shows it again at once while a fresh copy is on its way. */}
         {view === 'home' && (
-          <Home userId={me.id} units={me.units} refreshToken={refreshToken} />
+          <Home
+            userId={me.id}
+            units={me.units}
+            refreshToken={refreshToken}
+            onOpenLog={() => setView('log')}
+            onOpenCards={() => setView('cards')}
+          />
         )}
         {view === 'log' && <Log userId={me.id} units={me.units} />}
         {view === 'cards' && <Cards userId={me.id} />}

@@ -10,12 +10,12 @@ const SECTION_TITLE = 'Medals'
 interface MarkProps {
   id: string
   earned: boolean
-  // True where the badge stands on its own, as it does in the slots around the
+  // True where the badge stands on its own, as it does in the nest under the
   // avatar, and the picture has to carry its own name.
   standalone?: boolean
 }
 
-// One race badge picture. Used in the strip, in the slots around the avatar, in
+// One race badge picture. Used in the strip, in the nest under the avatar, in
 // the picker, and in the recap, so all four show the same drawing.
 export function RaceBadgeMark({ id, earned, standalone = false }: MarkProps) {
   const art = raceBadgeArt(id)

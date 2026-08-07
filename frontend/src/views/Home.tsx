@@ -17,9 +17,11 @@ import {
   formatStart,
   unitName,
 } from '../format.ts'
-import { ACTIVITY_NAMES, raceBadgeName } from '../labels.ts'
-import { diamondsOf, weekTotals } from '../profile.ts'
+import { ACTIVITY_NAMES, RACE_BADGE_ORDER, raceBadgeName } from '../labels.ts'
+import { lifetimeWorkouts, raceCountsOf, weekTotals } from '../profile.ts'
 import Icon from './Icon.tsx'
+import MedalNest from './MedalNest.tsx'
+import { RaceBadgeMark } from './RaceBadges.tsx'
 import RouteLine from './RouteLine.tsx'
 
 const PAGE = 20
@@ -63,6 +65,34 @@ function daysThisWeek(workouts: Workout[]): boolean[] {
   return days
 }
 
+// The weeks counted and this week's days. Drawn twice on the page: once in the
+// summary card the wide layout has, and once in a card of its own for the phone,
+// where there is no side column to put it in. Only one of the two is ever shown.
+function Streak({ streak, days }: { streak: number; days: boolean[] }) {
+  return (
+    <>
+      <p className="label">Week streak</p>
+      <p className="streak-count">
+        <span className="streak-value">{streak}</span>
+        <span className="streak-unit">{streak === 1 ? 'week' : 'weeks'}</span>
+      </p>
+      <ul className="streak-days">
+        {DAY_LETTERS.map((letter, index) => (
+          <li key={DAY_NAMES[index]} className="streak-day">
+            <span className={days[index] ? 'diamond diamond-on' : 'diamond diamond-off'}>
+              <Icon name="diamond" />
+            </span>
+            <span className="streak-letter">
+              {letter}
+              <span className="sr-only"> {DAY_NAMES[index]}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </>
+  )
+}
+
 interface Cached {
   profile: ProfileData
   workouts: Workout[]
@@ -79,9 +109,13 @@ interface Props {
   units: Units
   // Bumped by the app when something outside this view changed what it shows.
   refreshToken: number
+  // The app owns which screen is up, so the rows that go somewhere are handed
+  // the switch rather than reaching for it.
+  onOpenLog: () => void
+  onOpenCards: () => void
 }
 
-export default function Home({ userId, units, refreshToken }: Props) {
+export default function Home({ userId, units, refreshToken, onOpenLog, onOpenCards }: Props) {
   // Coming back to the tab draws what was here before and asks the server again
   // underneath, so switching tabs is not a blank screen every time.
   const [profile, setProfile] = useState<ProfileData | null>(
@@ -149,8 +183,17 @@ export default function Home({ userId, units, refreshToken }: Props) {
   const streak = profile.streak_weeks ?? 0
   const days = daysThisWeek(workouts)
   const border = borderArt(profile.border_tier)
-  const diamonds = diamondsOf(profile)
   const week = weekTotals(profile)
+  const activities = lifetimeWorkouts(profile)
+  const latest = workouts[0]
+  const raceCounts = raceCountsOf(profile.race_badges)
+
+  // Only the race medals among the chosen four are drawn here. This screen does
+  // not fetch the achievement catalogue, so an achievement badge has no artwork
+  // to draw from; the You screen shows all four.
+  const nestMedals = profile.displayed_badges
+    .filter((id) => (raceCounts.get(id) ?? 0) > 0)
+    .map((id) => <RaceBadgeMark key={id} id={id} earned standalone />)
 
   // Three columns from 900px up and one below it. The columns are wrappers
   // rather than a reordering, so the phone still draws the streak, then the
@@ -172,74 +215,45 @@ export default function Home({ userId, units, refreshToken }: Props) {
               </span>
             )}
             {border && <img className="avatar-border" src={border} alt="" />}
+            <MedalNest items={nestMedals} />
           </div>
 
           <h2 className="summary-name">{profile.username}</h2>
 
-          <p className="level-line">
-            <span className="level-tag">Level {profile.level}</span>
-          </p>
-          <progress
-            className="xp-meter"
-            value={profile.xp_into_level}
-            max={profile.xp_for_next_level}
-          >
-            {convertedValue(profile.xp_into_level)} of{' '}
-            {convertedValue(profile.xp_for_next_level)}
-          </progress>
-          {/* Miles here as on the You screen. The feed below still counts the
-              same number as XP on each card. */}
-          <p className="hint summary-xp">
-            {convertedValue(profile.xp_into_level)} of{' '}
-            {convertedValue(profile.xp_for_next_level)} mi toward level {profile.level + 1}
-          </p>
-
-          {diamonds.length > 0 && (
-            <ul className="diamond-chips summary-chips">
-              {diamonds.map((name) => (
-                <li key={name} className="diamond-chip">
-                  <span className="diamond diamond-on">
-                    <Icon name="diamond" />
-                  </span>
-                  <span className="chip-value">
-                    {distanceValue(profile.lifetime[name]?.distance_mi ?? 0, units)}
-                    <span className="chip-unit">{unitName(units)}</span>
-                  </span>
-                  <span className="label">{ACTIVITY_NAMES[name]}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      </aside>
-
-      <aside className="home-col home-right">
-        <section className="card">
-          <p className="label">Week streak</p>
-          <p className="streak-count">
-            <span className="streak-value">{streak}</span>
-            <span className="streak-unit">{streak === 1 ? 'week' : 'weeks'}</span>
-          </p>
-          <ul className="streak-days">
-            {DAY_LETTERS.map((letter, index) => (
-              <li key={DAY_NAMES[index]} className="streak-day">
-                <span className={days[index] ? 'diamond diamond-on' : 'diamond diamond-off'}>
-                  <Icon name="diamond" />
-                </span>
-                <span className="streak-letter">
-                  {letter}
-                  <span className="sr-only"> {DAY_NAMES[index]}</span>
-                </span>
-              </li>
-            ))}
+          <ul className="summary-stats">
+            <li>
+              <span className="count-value">{convertedValue(profile.xp)}</span>
+              <span className="count-label">Miles</span>
+            </li>
+            <li>
+              <span className="count-value">{activities}</span>
+              <span className="count-label">Activities</span>
+            </li>
+            <li>
+              <span className="count-value">{profile.level}</span>
+              <span className="count-label">Level</span>
+            </li>
           </ul>
-          <p className="hint">
-            Miles counted this week. Your phone syncs on its own, so nothing here needs
-            opening the app.
-          </p>
+
+          {latest && (
+            <p className="summary-latest">
+              <span className="label">Latest activity</span>
+              <span className="summary-latest-line">
+                {ACTIVITY_NAMES[latest.activity]}, {formatStart(latest.start_ts)}
+              </span>
+            </p>
+          )}
+
+          <div className="summary-streak">
+            <Streak streak={streak} days={days} />
+          </div>
+
+          <button type="button" className="row-link" onClick={onOpenLog}>
+            Your training log
+          </button>
         </section>
 
-        <section className="card home-week">
+        <section className="card">
           <h2 className="label">This week</h2>
           <ul className="week-totals">
             <li>
@@ -258,6 +272,64 @@ export default function Home({ userId, units, refreshToken }: Props) {
               <span className="count-label">Workouts</span>
             </li>
           </ul>
+
+          <div className="summary-level">
+            <progress
+              className="xp-meter"
+              value={profile.xp_into_level}
+              max={profile.xp_for_next_level}
+            >
+              {convertedValue(profile.xp_into_level)} of{' '}
+              {convertedValue(profile.xp_for_next_level)}
+            </progress>
+            {/* Miles here as on the You screen. The feed below still counts the
+                same number as XP on each card. */}
+            <p className="hint summary-xp">
+              {convertedValue(profile.xp_into_level)} of{' '}
+              {convertedValue(profile.xp_for_next_level)} mi toward level {profile.level + 1}
+            </p>
+          </div>
+        </section>
+      </aside>
+
+      <aside className="home-col home-right">
+        {/* The phone's copy of the streak. The wide layout shows the one inside
+            the summary card instead and hides this. */}
+        <section className="card home-streak">
+          <Streak streak={streak} days={days} />
+          <p className="hint">
+            Miles counted this week. Your phone syncs on its own, so nothing here needs
+            opening the app.
+          </p>
+        </section>
+
+        <section className="card home-medals">
+          <h2 className="label">Medals</h2>
+          <ul className="medal-list">
+            {RACE_BADGE_ORDER.map((id) => {
+              const count = raceCounts.get(id) ?? 0
+              return (
+                <li key={id} className={count > 0 ? 'medal-row' : 'medal-row medal-row-none'}>
+                  <RaceBadgeMark id={id} earned={count > 0} />
+                  <span className="medal-name">{raceBadgeName(id)}</span>
+                  <span className="medal-count">{count}</span>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+
+        <section className="card home-collection">
+          <h2 className="label">Cards</h2>
+          <p className="collection-count">
+            <span className="count-value">
+              {profile.cards.owned} of {profile.cards.total}
+            </span>
+            <span className="count-label">collected</span>
+          </p>
+          <button type="button" className="secondary" onClick={onOpenCards}>
+            Open cards
+          </button>
         </section>
       </aside>
 

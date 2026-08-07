@@ -131,9 +131,10 @@ The achievement ids are in `backend/app/achievements.py`, in the catalogue near
 the top of the file. They read like `week_10` and `collection_set_hedgerow`, so
 the file for the first of those is `week_10.svg`.
 
-Badges are drawn small: in the slots around the avatar they are roughly 48
+Badges are drawn small: in the nest under the avatar they are roughly 32 to 36
 pixels across, and in the achievements list roughly 64. Anything that depends
-on fine detail will not read at that size.
+on fine detail will not read at that size. A badge is drawn round in the nest,
+so keep the artwork inside a circle.
 
 ### The gilded variant
 

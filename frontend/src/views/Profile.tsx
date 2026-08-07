@@ -38,6 +38,7 @@ import Achievements from './Achievements.tsx'
 import Badge from './Badge.tsx'
 import CardPlate from './CardPlate.tsx'
 import Icon from './Icon.tsx'
+import MedalNest from './MedalNest.tsx'
 import RaceBadges, { RaceBadgeMark } from './RaceBadges.tsx'
 
 // Four, and the server says the same. The slots are drawn whether they are
@@ -368,81 +369,91 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
         </button>
       </div>
 
+      {/* The band across the top is inert and stays empty on purpose: it is the
+          space the garden grows into later. Nothing reads it, nothing presses
+          it, and it holds no data of its own. */}
+      <div className="you-banner">
+        <div className="you-band" />
+        <div className="you-ident">
+          <div className="avatar-block">
+            <div className="avatar-frame">
+              {profile.has_avatar ? (
+                <img
+                  className="avatar-shot"
+                  src={avatarUrl(profile.user_id, profile.avatar_version)}
+                  alt={`${profile.username}'s picture`}
+                />
+              ) : (
+                <span className="avatar-shot avatar-empty" aria-hidden="true">
+                  {profile.username.slice(0, 1).toUpperCase()}
+                </span>
+              )}
+              {border && <img className="avatar-border" src={border} alt="" />}
+              {/* All four positions, filled or not: an empty one here is the
+                  invitation to fill it, and this is the only screen that offers
+                  the choice. */}
+              <MedalNest
+                items={SLOTS.map((slot) => slotBadge(profile.displayed_badges[slot] ?? ''))}
+              />
+            </div>
+          </div>
+
+          <div className="you-ident-text">
+            <h2 className="profile-name">{profile.username}</h2>
+            <p className="you-level">
+              Level {profile.level}, {convertedValue(profile.xp)} mi
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Two columns from 900px up and one below it: the picture and its card on
           one side, everything counted on the other. */}
       <div className="you">
         <div className="you-col you-left">
           <section className="card">
-            <div className="profile-head">
-              <div className="avatar-block">
-                <div className="avatar-frame">
-                  {profile.has_avatar ? (
-                    <img
-                      className="avatar-shot"
-                      src={avatarUrl(profile.user_id, profile.avatar_version)}
-                      alt={`${profile.username}'s picture`}
-                    />
-                  ) : (
-                    <span className="avatar-shot avatar-empty" aria-hidden="true">
-                      {profile.username.slice(0, 1).toUpperCase()}
-                    </span>
-                  )}
-                  {border && <img className="avatar-border" src={border} alt="" />}
-                </div>
+            <p className="hint">Member since {formatDate(profile.created_at)}</p>
 
-                {SLOTS.map((slot) => (
-                  <span key={slot} className={`badge-slot badge-slot-${slot + 1}`}>
-                    {slotBadge(profile.displayed_badges[slot] ?? '')}
-                  </span>
-                ))}
-              </div>
+            {/* Miles rather than points on this screen. They are the same number
+                the feed counts as XP; the profile is where the app says what it
+                is really about. */}
+            <p className="level-line">
+              <span className="level-tag">Level {profile.level}</span>
+              <span className="muted">
+                {convertedValue(profile.xp_into_level)} of{' '}
+                {convertedValue(profile.xp_for_next_level)} mi toward level {nextLevel}
+              </span>
+            </p>
+            {/* A progress element rather than a div with a width on it: the
+                content security policy allows no inline styles, and this one
+                reads correctly to a screen reader as well. */}
+            <progress
+              className="xp-meter"
+              value={profile.xp_into_level}
+              max={profile.xp_for_next_level}
+            >
+              {convertedValue(profile.xp_into_level)} of{' '}
+              {convertedValue(profile.xp_for_next_level)}
+            </progress>
 
-              <div className="profile-meta">
-                <h2 className="profile-name">{profile.username}</h2>
-                <p className="hint">Member since {formatDate(profile.created_at)}</p>
-
-                {/* Miles rather than points on this screen. They are the same
-                    number the feed counts as XP; the profile is where the app
-                    says what it is really about. */}
-                <p className="level-line">
-                  <span className="level-tag">Level {profile.level}</span>
-                  <span className="muted">
-                    {convertedValue(profile.xp_into_level)} of{' '}
-                    {convertedValue(profile.xp_for_next_level)} mi toward level {nextLevel}
-                  </span>
-                </p>
-                {/* A progress element rather than a div with a width on it: the
-                    content security policy allows no inline styles, and this one
-                    reads correctly to a screen reader as well. */}
-                <progress
-                  className="xp-meter"
-                  value={profile.xp_into_level}
-                  max={profile.xp_for_next_level}
-                >
-                  {convertedValue(profile.xp_into_level)} of{' '}
-                  {convertedValue(profile.xp_for_next_level)}
-                </progress>
-
-                <ul className="profile-counts">
-                  <li>
-                    <span className="count-value">{convertedValue(profile.xp)}</span>
-                    <span className="count-label">Miles</span>
-                  </li>
-                  <li>
-                    <span className="count-value">
-                      {profile.cards.owned} / {profile.cards.total}
-                    </span>
-                    <span className="count-label">Cards</span>
-                  </li>
-                  <li>
-                    <span className="count-value">
-                      {profile.achievements.earned} / {profile.achievements.total}
-                    </span>
-                    <span className="count-label">Achievements</span>
-                  </li>
-                </ul>
-              </div>
-            </div>
+            <ul className="profile-counts">
+              <li>
+                <span className="count-value">{convertedValue(profile.xp)}</span>
+                <span className="count-label">Miles</span>
+              </li>
+              <li>
+                <span className="count-value">
+                  {profile.cards.owned} / {profile.cards.total}
+                </span>
+                <span className="count-label">Cards</span>
+              </li>
+              <li>
+                <span className="count-value">
+                  {profile.achievements.earned} / {profile.achievements.total}
+                </span>
+                <span className="count-label">Achievements</span>
+              </li>
+            </ul>
 
             {/* Lifetime distance in the sports this account cares about, up to
                 three. Nothing is ranked against anyone else here. */}
@@ -576,7 +587,7 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
             {picking && (
               <div className="picker">
                 <p className="hint">
-                  Up to {SLOTS.length}, in the slots around your picture. {chosen.length} chosen.
+                  Up to {SLOTS.length}, in the slots under your picture. {chosen.length} chosen.
                 </p>
                 <ul className="picker-list">
                   {earnedRaces.map((id) => {

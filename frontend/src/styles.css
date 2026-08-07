@@ -167,7 +167,7 @@ code {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 1rem;
+  padding: 0.85rem;
 }
 
 .view-head {
@@ -478,9 +478,11 @@ button:disabled {
   gap: var(--gap);
 }
 
-/* Both of these are side matter that only the wide layout has room for. */
+/* The rails either side of the feed are matter that only the wide layout has
+   room for. The phone keeps its own copy of the streak instead. */
 .home-left,
-.home-week {
+.home-medals,
+.home-collection {
   display: none;
 }
 
@@ -492,10 +494,11 @@ button:disabled {
 
 /* Home: the profile summary in the left column */
 
+/* Bottom margin enough for the half of a medal that hangs off the frame. */
 .summary-frame {
   width: 6rem;
   height: 6rem;
-  margin: 0 auto 0.75rem;
+  margin: 0 auto 1.6rem;
 }
 
 .summary-frame .avatar-empty {
@@ -504,40 +507,133 @@ button:disabled {
 
 .summary-name {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: 1rem;
   text-align: center;
 }
 
-.summary .level-line {
-  margin: 0.85rem 0 0.35rem;
+/* Miles, activities, level: the three numbers the wide home leads with. Spread
+   rather than divided into thirds, because ACTIVITIES is far the widest of the
+   three captions and an equal third of a narrow column is not enough for it. */
+.summary-stats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem 0.9rem;
+  list-style: none;
+  margin: 0.9rem 0 0;
+  padding: 0;
+}
+
+.summary-stats li {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.summary-latest {
+  margin: 0.9rem 0 0;
+}
+
+.summary-latest-line {
+  display: block;
+  font-size: 0.85rem;
+}
+
+/* The streak sits inside the summary card here, so it gets a rule above it
+   rather than a card of its own. */
+.summary-streak {
+  margin-top: 0.9rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--line);
+}
+
+.summary-streak .streak-days {
+  margin-bottom: 0;
+}
+
+/* A row along the foot of a card that goes somewhere, flush with its edges. */
+.row-link {
+  display: block;
+  width: calc(100% + 1.7rem);
+  margin: 0.9rem -0.85rem -0.85rem;
+  padding: 0.6rem 0.85rem;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* The level bar closes the second card, under this week's numbers. */
+.summary-level {
+  margin-top: 0.9rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--line);
 }
 
 .summary-xp {
   margin: 0.4rem 0 0;
 }
 
-/* One chip per row: this column is too narrow for the three across that the You
-   screen has room for. Written against both classes so it wins over the three
-   the chips are given further down. */
-.summary .diamond-chips {
-  grid-template-columns: 1fr;
-  margin-top: 0.9rem;
+/* Home: the medals and the collection in the right rail */
+
+.medal-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
 }
 
-/* A row rather than the stacked chip of the You screen: three tall boxes would
-   be most of this column. */
-.summary .diamond-chip {
-  flex-direction: row;
+.medal-row {
+  display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.7rem;
+  gap: 0.65rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--line);
 }
 
-.summary .diamond-chip .label {
-  margin-left: auto;
+.medal-row:last-child {
+  border-bottom: none;
 }
 
-/* Home: this week's totals in the right column */
+.medal-row .badge {
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+}
+
+.medal-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.medal-count {
+  font-size: 1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A distance never run keeps its row and goes quiet rather than leaving a gap
+   in the ladder. */
+.medal-row-none .medal-name,
+.medal-row-none .medal-count {
+  color: var(--muted);
+}
+
+.collection-count {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin: 0.5rem 0 0.75rem;
+}
+
+/* Home: this week's totals */
 
 /* Three across where the column is wide enough for three, and two where it is
    not: the numbers here are wide enough to run into each other otherwise. */
@@ -566,7 +662,7 @@ button:disabled {
 }
 
 .streak-value {
-  font-size: 3rem;
+  font-size: 2.25rem;
   font-weight: 800;
   line-height: 1;
   letter-spacing: -0.03em;
@@ -575,7 +671,7 @@ button:disabled {
 }
 
 .streak-unit {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -677,8 +773,8 @@ button:disabled {
 }
 
 .feed-title {
-  margin: 0.85rem 0 0.75rem;
-  font-size: 1.15rem;
+  margin: 0.75rem 0 0.7rem;
+  font-size: 1rem;
   font-weight: 700;
 }
 
@@ -696,7 +792,7 @@ button:disabled {
 }
 
 .stat-value {
-  font-size: 1.4rem;
+  font-size: 1.125rem;
   font-weight: 700;
   line-height: 1.15;
   letter-spacing: -0.02em;
@@ -717,8 +813,8 @@ button:disabled {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
-  margin: 0.9rem -1rem -1rem;
-  padding: 0.5rem 1rem;
+  margin: 0.85rem -0.85rem -0.85rem;
+  padding: 0.5rem 0.85rem;
   border-top: 1px solid var(--line);
 }
 
@@ -786,7 +882,7 @@ button:disabled {
 /* One week of history is one card, the same as everything else in the column. */
 .week {
   margin-bottom: var(--gap);
-  padding: 0.85rem 1rem;
+  padding: 0.75rem 0.85rem;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -877,20 +973,42 @@ button:disabled {
 
 /* You */
 
-.profile-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 1rem 1.5rem;
+/* The band across the top of the screen. It is deliberately empty and inert:
+   this is the space the garden grows into later, held now so the layout does
+   not have to change when it arrives. */
+.you-band {
+  height: 100px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
 }
 
-/* The picture, its frame, and the four badge slots. The block is padded by
-   exactly one badge so a slot sits in the corner of the padding and can never
-   reach the picture, whatever artwork is dropped in for either. */
+/* The picture rides up over the band's lower edge, with the name beside it. */
+.you-ident {
+  display: flex;
+  align-items: flex-end;
+  gap: 1rem;
+  margin-top: -3.5rem;
+  padding: 0 0.5rem;
+}
+
+.you-ident-text {
+  min-width: 0;
+  padding-bottom: 0.4rem;
+}
+
+.you-level {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+/* The picture, its frame, and the medals nestled under it. The block leaves
+   room below for the half of a medal that hangs off the frame. */
 .avatar-block {
   position: relative;
   flex: 0 0 auto;
-  padding: 2.75rem;
+  padding: 0 0 1.4rem;
 }
 
 .avatar-frame {
@@ -929,30 +1047,80 @@ button:disabled {
   pointer-events: none;
 }
 
-.badge-slot {
+/* The medal nest
+   The medals gather at the front bottom middle of the picture rather than
+   sitting at its corners: a short overlapping row, centred on the frame's
+   bottom edge with half of each circle hanging below it, the ends of the row a
+   few pixels higher than the middle so the row reads as a shallow arc. It is
+   drawn over the level border, which is the frame's own artwork. */
+.medal-nest {
   position: absolute;
-  width: 2.75rem;
-  height: 2.75rem;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  /* Half of each circle below the frame. */
+  transform: translateY(50%);
 }
 
-.badge-slot-1 {
-  top: 0.5rem;
-  left: 0.5rem;
+.medal-nest-item {
+  position: relative;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: 0 0 auto;
+  /* The pad in the frame colour is what keeps two overlapping medals apart. */
+  padding: 2px;
+  background: var(--bg);
+  border-radius: 999px;
 }
 
-.badge-slot-2 {
-  top: 0.5rem;
-  right: 0.5rem;
+/* Roughly a third of a circle sits under the one before it. */
+.medal-nest-item + .medal-nest-item {
+  margin-left: -0.7rem;
 }
 
-.badge-slot-3 {
-  bottom: 0.5rem;
-  left: 0.5rem;
+/* The ends of the arc ride a little higher than its middle. */
+.medal-nest-3 .medal-nest-item:nth-child(1),
+.medal-nest-3 .medal-nest-item:nth-child(3),
+.medal-nest-4 .medal-nest-item:nth-child(1),
+.medal-nest-4 .medal-nest-item:nth-child(4) {
+  bottom: 5px;
 }
 
-.badge-slot-4 {
-  bottom: 0.5rem;
-  right: 0.5rem;
+.medal-nest-4 .medal-nest-item:nth-child(2),
+.medal-nest-4 .medal-nest-item:nth-child(3) {
+  bottom: 1px;
+}
+
+/* The middle of the arc sits in front, so the ends tuck behind it rather than
+   the last one written covering the rest. */
+.medal-nest-3 .medal-nest-item:nth-child(2),
+.medal-nest-4 .medal-nest-item:nth-child(2),
+.medal-nest-4 .medal-nest-item:nth-child(3) {
+  z-index: 1;
+}
+
+/* The summary card's picture is smaller, so its medals are too. */
+.summary-frame .medal-nest-item {
+  width: 2rem;
+  height: 2rem;
+}
+
+.summary-frame .medal-nest-item + .medal-nest-item {
+  margin-left: -0.62rem;
+}
+
+/* An empty slot is an invitation, so it stays visible against the picture
+   without competing with the medals already earned. */
+.medal-nest .badge-empty {
+  border-color: var(--muted);
+  opacity: 0.5;
 }
 
 .badge {
@@ -994,14 +1162,9 @@ button:disabled {
   background: radial-gradient(circle, #fcd9a4 0%, #f3b45c 55%, #b45309 100%);
 }
 
-.profile-meta {
-  flex: 1 1 14rem;
-  min-width: 0;
-}
-
 .profile-name {
   margin-bottom: 0.15rem;
-  font-size: 1.35rem;
+  font-size: 1.2rem;
 }
 
 .level-line {
@@ -1062,7 +1225,7 @@ button:disabled {
 }
 
 .count-value {
-  font-size: 1.2rem;
+  font-size: 1rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -1111,7 +1274,7 @@ button:disabled {
 }
 
 .chip-value {
-  font-size: 1.2rem;
+  font-size: 1.05rem;
   font-weight: 700;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
@@ -1274,7 +1437,7 @@ button:disabled {
 }
 
 .race-count {
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 700;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
@@ -1609,23 +1772,15 @@ button:disabled {
   font-size: 1.05rem;
 }
 
-/* Once the picture and the numbers stop sharing a row, the picture centres
-   rather than hanging off the left edge on its own. */
-@media (max-width: 34rem) {
-  .profile-head {
-    justify-content: center;
-  }
-}
-
 /* Small phones: the narrowest layout still has to read cleanly at 360px. */
 @media (max-width: 400px) {
   .card {
-    padding: 0.85rem;
+    padding: 0.75rem;
   }
 
   .feed-foot {
-    margin: 0.9rem -0.85rem -0.85rem;
-    padding: 0.5rem 0.85rem;
+    margin: 0.85rem -0.75rem -0.75rem;
+    padding: 0.5rem 0.75rem;
   }
 
   .plates {
@@ -1633,13 +1788,13 @@ button:disabled {
   }
 
   .stat-value {
-    font-size: 1.25rem;
+    font-size: 1rem;
   }
 
-  /* The picture and its slots shrink together, so a badge still lands in the
-     corner of the padding rather than on somebody's face. */
+  /* The picture and its medals shrink together, so the nest stays inside the
+     width of the frame it hangs from. */
   .avatar-block {
-    padding: 2.4rem;
+    padding: 0 0 1.25rem;
   }
 
   .avatar-frame {
@@ -1647,9 +1802,13 @@ button:disabled {
     height: 7rem;
   }
 
-  .badge-slot {
-    width: 2.4rem;
-    height: 2.4rem;
+  .medal-nest-item {
+    width: 2rem;
+    height: 2rem;
+  }
+
+  .medal-nest-item + .medal-nest-item {
+    margin-left: -0.6rem;
   }
 
   .stats th,
@@ -1742,8 +1901,24 @@ button:disabled {
     grid-row: 1;
   }
 
-  .home-week {
+  /* The streak has a home inside the summary card here, so the phone's copy of
+     it stands down and the rail shows the medals and the collection instead. */
+  .home-streak {
+    display: none;
+  }
+
+  .home-medals,
+  .home-collection {
     display: block;
+  }
+
+  /* The band is taller where there is height to spare. */
+  .you-band {
+    height: 140px;
+  }
+
+  .you-ident {
+    margin-top: -4.5rem;
   }
 
   .you {

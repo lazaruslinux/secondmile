@@ -27,6 +27,14 @@ export function raceCountsOf(badges: RaceBadge[] | undefined): Map<string, numbe
   return new Map((badges ?? []).map((row) => [row.id, row.count ?? 0]))
 }
 
+// How many workouts are behind an account, across every activity. The profile
+// counts them per activity and never totals them.
+export function lifetimeWorkouts(profile: Profile): number {
+  let count = 0
+  for (const row of Object.values(profile.lifetime)) count += row.workouts
+  return count
+}
+
 // This week across every activity. The profile carries per-activity rows and no
 // sum of them, so the adding up happens here.
 export function weekTotals(profile: Profile) {

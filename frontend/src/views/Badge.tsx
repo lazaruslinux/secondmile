@@ -3,12 +3,12 @@ import type { Achievement } from '../api.ts'
 
 interface Props {
   achievement: Achievement
-  // True where the badge stands on its own, as it does in the slots around the
+  // True where the badge stands on its own, as it does in the nest under the
   // avatar, and the picture has to carry its own name.
   standalone?: boolean
 }
 
-// One badge, used in the slots around the avatar, in the achievements list, in
+// One badge, used in the nest under the avatar, in the achievements list, in
 // the picker, and in the recap. A badge with no artwork of its own falls back
 // to the generic one for its kind, and a gilded badge with no gilded artwork
 // gets a gilded treatment here instead, so going the second mile always shows.

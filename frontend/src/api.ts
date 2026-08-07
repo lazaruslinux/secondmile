@@ -390,7 +390,7 @@ export function getProfile(): Promise<Profile> {
   return getJson<Profile>('/profile')
 }
 
-// Answers with the whole profile, so the slots around the picture can be
+// Answers with the whole profile, so the slots under the picture can be
 // redrawn from the server's word rather than from what was just sent to it.
 export async function setDisplayedBadges(badges: string[]): Promise<Profile> {
   const res = await sendJson('/profile', 'PATCH', { displayed_badges: badges })
