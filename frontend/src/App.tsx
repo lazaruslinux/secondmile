@@ -11,31 +11,34 @@ import {
   type Units,
 } from './api.ts'
 import Login from './views/Login.tsx'
+import Cards from './views/Cards.tsx'
+import Home from './views/Home.tsx'
+import Icon from './views/Icon.tsx'
+import Log from './views/Log.tsx'
 import Profile from './views/Profile.tsx'
-import Album from './views/Album.tsx'
-import Almanac from './views/Almanac.tsx'
 import Recap from './views/Recap.tsx'
 import Settings from './views/Settings.tsx'
 
-// Four screens still do not earn a router: the whole navigation model is which
-// of them is on screen, and the URL has nothing to say about it yet.
-type View = 'profile' | 'album' | 'almanac' | 'settings'
+// A handful of screens still do not earn a router: the whole navigation model is
+// which of them is on screen, and the URL has nothing to say about it yet.
+// Settings is not a tab; it is reached from the You screen.
+type View = 'home' | 'log' | 'cards' | 'you' | 'settings'
 
-const TABS: { id: View; label: string }[] = [
-  { id: 'profile', label: 'Profile' },
-  { id: 'album', label: 'Album' },
-  { id: 'almanac', label: 'Almanac' },
-  { id: 'settings', label: 'Settings' },
+const TABS: { id: View; label: string; icon: string }[] = [
+  { id: 'home', label: 'Home', icon: 'tab-home' },
+  { id: 'log', label: 'Log', icon: 'tab-log' },
+  { id: 'cards', label: 'Cards', icon: 'tab-cards' },
+  { id: 'you', label: 'You', icon: 'tab-you' },
 ]
 
 export default function App() {
   const [me, setMe] = useState<Me | null>(null)
   const [checkingSession, setCheckingSession] = useState(true)
-  const [view, setView] = useState<View>('profile')
+  const [view, setView] = useState<View>('home')
   const [verifyNote, setVerifyNote] = useState('')
   const [recap, setRecap] = useState<RecapState | null>(null)
-  // Bumped whenever something outside the profile changes what it shows, which
-  // so far means chests opened from the recap.
+  // Bumped whenever something outside a view changes what it shows, which so
+  // far means chests opened from the recap.
   const [refreshToken, setRefreshToken] = useState(0)
 
   useEffect(() => {
@@ -109,7 +112,7 @@ export default function App() {
         notice={verifyNote}
         onSignedIn={(user) => {
           setMe(user)
-          setView('profile')
+          setView('home')
         }}
       />
     )
@@ -119,19 +122,6 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <span className="wordmark">secondmile</span>
-        <nav className="tabs">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              className={view === tab.id ? 'tab tab-current' : 'tab'}
-              aria-current={view === tab.id ? 'page' : undefined}
-              onClick={() => setView(tab.id)}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </nav>
       </header>
 
       {/* Nothing to read is not worth interrupting anyone for, so the letter
@@ -144,11 +134,19 @@ export default function App() {
       <main className="page">
         {/* The views keep what they last loaded, per account, so switching tabs
             shows it again at once while a fresh copy is on its way. */}
-        {view === 'profile' && (
-          <Profile userId={me.id} units={me.units} refreshToken={refreshToken} />
+        {view === 'home' && (
+          <Home userId={me.id} units={me.units} refreshToken={refreshToken} />
         )}
-        {view === 'album' && <Album userId={me.id} />}
-        {view === 'almanac' && <Almanac userId={me.id} units={me.units} />}
+        {view === 'log' && <Log userId={me.id} units={me.units} />}
+        {view === 'cards' && <Cards userId={me.id} />}
+        {view === 'you' && (
+          <Profile
+            userId={me.id}
+            units={me.units}
+            refreshToken={refreshToken}
+            onOpenSettings={() => setView('settings')}
+          />
+        )}
         {view === 'settings' && (
           <Settings
             username={me.username}
@@ -157,9 +155,30 @@ export default function App() {
             units={me.units}
             onUnitsChanged={changeUnits}
             onSignedOut={() => setMe(null)}
+            onBack={() => setView('you')}
           />
         )}
       </main>
+
+      <nav className="tabbar" aria-label="Sections">
+        {TABS.map((tab) => {
+          // Settings hangs off the You screen, so the bar keeps pointing there
+          // rather than showing nothing as current.
+          const current = view === tab.id || (tab.id === 'you' && view === 'settings')
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              className={current ? 'tab tab-current' : 'tab'}
+              aria-current={current ? 'page' : undefined}
+              onClick={() => setView(tab.id)}
+            >
+              <Icon name={tab.icon} />
+              <span className="tab-label">{tab.label}</span>
+            </button>
+          )
+        })}
+      </nav>
     </div>
   )
 }

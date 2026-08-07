@@ -17,8 +17,9 @@ from starlette.formparsers import MultiPartException
 from app import achievements
 from app import activity as activity_rules
 from app import avatars, models, progress, security, throttle, world
-from app.config import MAX_AVATAR_BYTES, MAX_DISPLAYED_BADGES
+from app.config import MAX_AVATAR_BYTES, MAX_DIAMOND_SPORTS, MAX_DISPLAYED_BADGES
 from app.db import get_db
+from app.models import ACTIVITIES
 
 router = APIRouter(tags=["profile"])
 
@@ -28,8 +29,17 @@ TOO_LARGE = (
 )
 
 
-class BadgesBody(BaseModel):
-    displayed_badges: list[str]
+class ProfileBody(BaseModel):
+    """A patch: only the fields that are sent are changed.
+
+    diamond_sports takes an explicit null, which is the reset to the automatic
+    pick, so whether it was sent is read from the model's field set rather than
+    from its value. Badge slots have no meaning for null, so an omitted one and
+    a null one both leave the slots alone.
+    """
+
+    displayed_badges: list[str] | None = None
+    diamond_sports: list[str] | None = None
 
 
 def serialize_profile(db: Session, user: models.User, row: models.UserProgress) -> dict:
@@ -49,6 +59,10 @@ def serialize_profile(db: Session, user: models.User, row: models.UserProgress) 
         "xp_for_next_level": level_span,
         "border_tier": progress.border_tier(level),
         "displayed_badges": list(user.displayed_badges or []),
+        # The effective list, never the stored one: the client renders diamonds
+        # and should not have to work out what null means.
+        "diamond_sports": progress.diamond_sports(db, user.id, user.diamond_sports),
+        "streak_weeks": progress.streak_weeks(db, user.id),
         "week": progress.week_totals(
             db, user.id, activity_rules.week_start(security.now_utc())
         ),
@@ -69,15 +83,10 @@ def read_profile(
     return serialize_profile(db, user, progress.process_user(db, user.id))
 
 
-@router.patch("/profile")
-def set_badges(
-    body: BadgesBody,
-    db: Session = Depends(get_db),
-    user: models.User = Depends(security.current_user),
-) -> dict:
-    """Choose which badges sit in the slots. Checked against what the account
-    actually owns; this function is the only thing enforcing that."""
-    chosen = [str(value) for value in body.displayed_badges]
+def _set_badges(db: Session, user: models.User, sent: list[str]) -> None:
+    """Checked against what the account actually owns; this function is the only
+    thing enforcing that."""
+    chosen = [str(value) for value in sent]
     if len(chosen) > MAX_DISPLAYED_BADGES:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
@@ -97,8 +106,42 @@ def set_badges(
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST, "You have not earned that badge."
             )
-
     user.displayed_badges = chosen
+
+
+def _set_diamonds(user: models.User, sent: list[str] | None) -> None:
+    """Null goes back to the automatic pick; a list is taken as the slot order."""
+    if sent is None:
+        user.diamond_sports = None
+        return
+    chosen = [str(value) for value in sent]
+    if len(chosen) > MAX_DIAMOND_SPORTS:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"There are only {MAX_DIAMOND_SPORTS} diamond slots.",
+        )
+    if len(set(chosen)) != len(chosen):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "A sport cannot fill two diamonds.")
+    for sport in chosen:
+        if sport not in ACTIVITIES:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                f"A diamond must be one of: {', '.join(ACTIVITIES)}.",
+            )
+    user.diamond_sports = chosen
+
+
+@router.patch("/profile")
+def set_profile(
+    body: ProfileBody,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(security.current_user),
+) -> dict:
+    """Choose which badges sit in the slots and which sports wear diamonds."""
+    if body.displayed_badges is not None:
+        _set_badges(db, user, body.displayed_badges)
+    if "diamond_sports" in body.model_fields_set:
+        _set_diamonds(user, body.diamond_sports)
     db.commit()
     return serialize_profile(db, user, progress.ensure_progress(db, user.id))
 

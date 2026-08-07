@@ -17,6 +17,7 @@ interface Props {
   units: Units
   onUnitsChanged: (units: Units) => void
   onSignedOut: () => void
+  onBack: () => void
 }
 
 export default function Settings({
@@ -26,6 +27,7 @@ export default function Settings({
   units,
   onUnitsChanged,
   onSignedOut,
+  onBack,
 }: Props) {
   const [tokenStatus, setTokenStatus] = useState<IngestTokenStatus | null>(null)
   // Held in state only until the page is left: the server stores a hash, so
@@ -129,6 +131,13 @@ export default function Settings({
 
   return (
     <>
+      <div className="view-head">
+        <h1 className="view-title">Settings</h1>
+        <button type="button" className="secondary" onClick={onBack}>
+          Back
+        </button>
+      </div>
+
       <section className="card">
         <h2>Sync token</h2>
         <p className="hint">
@@ -190,7 +199,7 @@ export default function Settings({
                 onClick={() => void rotate()}
                 disabled={rotating}
               >
-                Replace the old token?
+                Replace the token
               </button>
               <button
                 type="button"
@@ -198,7 +207,7 @@ export default function Settings({
                 onClick={() => setConfirmingRotate(false)}
                 disabled={rotating}
               >
-                Never mind
+                Cancel
               </button>
             </div>
           </>

@@ -2,7 +2,7 @@
 
 import datetime as dt
 
-from app import models
+from app import models, progress
 
 
 def manual(activity="run", start="2026-07-20T06:12:00+00:00", duration=1800, miles=3.0, **extra):
@@ -199,6 +199,26 @@ def test_history_is_per_user(signed_in, client, db_session, admin):
     signed_in.post("/api/auth/logout")
     signed_in.post("/api/auth/login", json=ADMIN)
     assert signed_in.get("/api/workouts").json() == []
+
+
+def test_history_rows_carry_what_each_workout_was_worth(signed_in):
+    """The row's xp is the pipeline's own number, not a second formula."""
+    signed_in.post("/api/workouts", json=manual(duration=1800, miles=3.0))
+    # Nine cycled miles are three Miles, so the same credit for a longer ride.
+    signed_in.post(
+        "/api/workouts",
+        json=manual(activity="cycle", start="2026-07-21T06:12:00+00:00", duration=1800, miles=9.0),
+    )
+    rows = signed_in.get("/api/workouts").json()
+    assert [row["xp"] for row in rows] == [60, 60]
+    assert all(isinstance(row["xp"], int) for row in rows)
+    for row in rows:
+        assert row["xp"] == progress.workout_xp(row["activity"], row["distance_mi"], row["duration_s"])
+
+
+def test_a_new_entry_reports_its_own_worth(signed_in):
+    created = signed_in.post("/api/workouts", json=manual(duration=1800, miles=3.0))
+    assert created.json()["xp"] == 60
 
 
 def test_history_needs_a_session(client):

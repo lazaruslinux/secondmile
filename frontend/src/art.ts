@@ -37,6 +37,17 @@ const badges = byName(
   }) as Record<string, string>,
 )
 
+// Interface icons are read as markup rather than as a URL, because they are
+// drawn inline: currentColor only means anything inside the page's own tree, and
+// an icon that cannot take the colour of the tab holding it is no use here.
+const icons = byName(
+  import.meta.glob('./assets/icons/*.svg', {
+    eager: true,
+    query: '?raw',
+    import: 'default',
+  }) as Record<string, string>,
+)
+
 export function cardArt(cardId: string | undefined): string | null {
   if (!cardId) return null
   return cards.get(cardId) ?? null
@@ -44,6 +55,11 @@ export function cardArt(cardId: string | undefined): string | null {
 
 export function borderArt(tier: number): string | null {
   return borders.get(`border-t${tier}`) ?? null
+}
+
+// The markup of one interface icon, named after its file without the extension.
+export function iconArt(name: string): string | null {
+  return icons.get(name) ?? null
 }
 
 export interface BadgeArt {

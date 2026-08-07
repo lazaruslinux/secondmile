@@ -41,6 +41,10 @@ export interface Workout {
   avg_hr: number | null
   source: Source
   flags: WorkoutFlags
+  // What this workout was worth. Computed by the server from the same formula
+  // the pipeline uses; optional here so the app still renders against a server
+  // that predates the field.
+  xp?: number
 }
 
 export interface ActivityTotals {
@@ -96,6 +100,13 @@ export interface Profile {
   xp_for_next_level: number
   border_tier: number
   displayed_badges: string[]
+  // The sports shown as diamonds, at most three. The server sends the effective
+  // list, which is the player's own pick or its best guess when they have not
+  // made one. Optional so the app still renders against a server that predates
+  // the field, in which case the view picks the top three itself.
+  diamond_sports?: Activity[]
+  // Consecutive weeks with at least one workout, counting back from this one.
+  streak_weeks?: number
   // Activities with nothing recorded are absent rather than zeroed, the same
   // way the weekly totals behave.
   week: Partial<Record<Activity, ActivityStats>>
@@ -303,8 +314,12 @@ export async function changePassword(
   })
 }
 
-export function listWorkouts(limit: number): Promise<Workout[]> {
-  return getJson<Workout[]>(`/workouts?limit=${limit}`)
+// The cursor is the start_ts of the last row already shown, and the server
+// answers with what started strictly before it. It has to be encoded: an
+// unescaped "+00:00" offset arrives as a space and only ever breaks page two.
+export function listWorkouts(limit: number, before?: string): Promise<Workout[]> {
+  const cursor = before === undefined ? '' : `&before=${encodeURIComponent(before)}`
+  return getJson<Workout[]>(`/workouts?limit=${limit}${cursor}`)
 }
 
 export function listWeeks(count: number): Promise<Week[]> {
@@ -342,6 +357,15 @@ export function getProfile(): Promise<Profile> {
 // redrawn from the server's word rather than from what was just sent to it.
 export async function setDisplayedBadges(badges: string[]): Promise<Profile> {
   const res = await sendJson('/profile', 'PATCH', { displayed_badges: badges })
+  return (await res.json()) as Profile
+}
+
+// The same again for the diamonds. At most three, and the server decides what
+// counts as a sport rather than trusting the list it was handed. Null is the
+// reset: the server goes back to picking the sports with the most miles behind
+// them, which is not the same as an empty list, which means no diamonds at all.
+export async function setDiamondSports(sports: Activity[] | null): Promise<Profile> {
+  const res = await sendJson('/profile', 'PATCH', { diamond_sports: sports })
   return (await res.json()) as Profile
 }
 

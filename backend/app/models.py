@@ -84,6 +84,11 @@ class User(Base):
     # write. JSON rather than a join table because it is an ordered list of
     # fixed length that is only ever read and written whole.
     displayed_badges: Mapped[list] = mapped_column(JSONType, nullable=False, default=list)
+    # The sports shown as diamonds on the profile, in slot order, or null for
+    # the automatic pick. Nullable rather than defaulted because null and an
+    # empty list mean different things: null is "choose for me", an empty list
+    # is a player who deliberately wears none.
+    diamond_sports: Mapped[list | None] = mapped_column(JSONType, nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(
         UtcDateTime, nullable=False, server_default=func.now()
     )

@@ -21,7 +21,7 @@ export default function Achievements({ achievements }: Props) {
         </span>
       </div>
       <p className="hint">
-        Weekly badges have a finer version, earned by doubling the target inside the same week.
+        Weekly badges have a gilded version, earned by doubling the target in the same week.
       </p>
 
       <ul className="achievements">

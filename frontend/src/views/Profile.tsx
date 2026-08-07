@@ -8,6 +8,7 @@ import {
   listAchievements,
   listChests,
   openChest,
+  setDiamondSports,
   setDisplayedBadges,
   uploadAvatar,
   type Achievement,
@@ -19,15 +20,19 @@ import {
   type Units,
 } from '../api.ts'
 import { borderArt } from '../art.ts'
-import { formatDate, formatDistance } from '../format.ts'
+import { distanceValue, formatDate, formatDistance, unitName } from '../format.ts'
 import { ACTIVITY_NAMES, ACTIVITY_ORDER } from '../labels.ts'
 import Achievements from './Achievements.tsx'
 import Badge from './Badge.tsx'
 import CardPlate from './CardPlate.tsx'
+import Icon from './Icon.tsx'
 
 // Four, and the server says the same. The slots are drawn whether they are
 // filled or not, because an empty slot is the invitation to fill it.
 const SLOTS = [0, 1, 2, 3]
+
+// How many sports get a diamond. The server enforces the same number.
+const MAX_DIAMONDS = 3
 
 // What the server accepts, checked here as well so an oversized picture is
 // answered at once instead of after a whole upload.
@@ -44,6 +49,19 @@ function uploadErrorText(err: unknown): string {
     return err.message
   }
   return 'Something went wrong. Try again.'
+}
+
+// Which sports get a diamond. The server sends the effective list; a server
+// that predates the field leaves the same choice to be made here, which is the
+// three sports with the most lifetime distance behind them.
+function diamondsOf(profile: ProfileData): Activity[] {
+  if (profile.diamond_sports) return profile.diamond_sports.slice(0, MAX_DIAMONDS)
+  return ACTIVITY_ORDER.filter((name) => (profile.lifetime[name]?.distance_mi ?? 0) > 0)
+    .sort(
+      (left, right) =>
+        (profile.lifetime[right]?.distance_mi ?? 0) - (profile.lifetime[left]?.distance_mi ?? 0),
+    )
+    .slice(0, MAX_DIAMONDS)
 }
 
 function totalsOf(stats: Partial<Record<Activity, ActivityStats>>) {
@@ -78,7 +96,9 @@ function Stats({ stats, units, empty }: StatsProps) {
         <tr>
           <th scope="col">Activity</th>
           <th scope="col">Distance</th>
-          <th scope="col">Miles</th>
+          {/* The weighted number the game counts in, so a swim and a bike ride
+              are worth what they cost rather than what they measure. */}
+          <th scope="col">Adjusted</th>
           <th scope="col">Workouts</th>
           <th scope="col">Calories</th>
         </tr>
@@ -128,9 +148,10 @@ interface Props {
   // Bumped by the app when something outside this view changed what it shows,
   // which so far means chests opened from the recap.
   refreshToken: number
+  onOpenSettings: () => void
 }
 
-export default function Profile({ userId, units, refreshToken }: Props) {
+export default function Profile({ userId, units, refreshToken, onOpenSettings }: Props) {
   // Coming back to the tab draws what was here before and asks the server again
   // underneath, so switching tabs is not a blank screen every time.
   const [profile, setProfile] = useState<ProfileData | null>(
@@ -151,6 +172,11 @@ export default function Profile({ userId, units, refreshToken }: Props) {
   const [chosen, setChosen] = useState<string[]>([])
   const [badgeBusy, setBadgeBusy] = useState(false)
   const [badgeError, setBadgeError] = useState('')
+
+  const [pickingSports, setPickingSports] = useState(false)
+  const [chosenSports, setChosenSports] = useState<Activity[]>([])
+  const [sportsBusy, setSportsBusy] = useState(false)
+  const [sportsError, setSportsError] = useState('')
 
   const [opened, setOpened] = useState<OpenedChest[]>([])
   const [openingChest, setOpeningChest] = useState<number | null>(null)
@@ -254,6 +280,37 @@ export default function Profile({ userId, units, refreshToken }: Props) {
     }
   }
 
+  function startPickingSports() {
+    setChosenSports(profile ? diamondsOf(profile) : [])
+    setSportsError('')
+    setPickingSports(true)
+  }
+
+  function toggleSport(name: Activity) {
+    setChosenSports((current) =>
+      current.includes(name)
+        ? current.filter((held) => held !== name)
+        : current.length >= MAX_DIAMONDS
+          ? current
+          : [...current, name],
+    )
+  }
+
+  async function saveSports() {
+    setSportsBusy(true)
+    setSportsError('')
+    try {
+      // Choosing nothing is a reset rather than an instruction to show nothing,
+      // which is what the server reads a null as.
+      setProfile(await setDiamondSports(chosenSports.length === 0 ? null : chosenSports))
+      setPickingSports(false)
+    } catch (err) {
+      setSportsError(errorText(err))
+    } finally {
+      setSportsBusy(false)
+    }
+  }
+
   async function open(chestId: number) {
     setOpeningChest(chestId)
     setChestError('')
@@ -284,9 +341,23 @@ export default function Profile({ userId, units, refreshToken }: Props) {
   const earned = achievements.filter((row) => row.earned)
   const border = borderArt(profile.border_tier)
   const nextLevel = profile.level + 1
+  const diamonds = diamondsOf(profile)
 
   return (
     <>
+      <div className="view-head">
+        <h1 className="view-title">You</h1>
+        <button
+          type="button"
+          className="icon-button"
+          aria-label="Settings"
+          onClick={onOpenSettings}
+        >
+          <Icon name="gear" />
+          <span className="tab-label">Settings</span>
+        </button>
+      </div>
+
       <section className="card">
         <div className="profile-head">
           <div className="avatar-block">
@@ -321,7 +392,7 @@ export default function Profile({ userId, units, refreshToken }: Props) {
 
           <div className="profile-meta">
             <h2 className="profile-name">{profile.username}</h2>
-            <p className="hint">Here since {formatDate(profile.created_at)}</p>
+            <p className="hint">Member since {formatDate(profile.created_at)}</p>
 
             <p className="level-line">
               <span className="level-tag">Level {profile.level}</span>
@@ -361,6 +432,90 @@ export default function Profile({ userId, units, refreshToken }: Props) {
             </ul>
           </div>
         </div>
+
+        {/* Lifetime distance in the sports this account cares about, up to
+            three. Nothing is ranked against anyone else here. */}
+        <div className="diamonds">
+          {diamonds.length === 0 ? (
+            <p className="hint">
+              Sync a workout and your sports show up here with their lifetime distance.
+            </p>
+          ) : (
+            <ul className="diamond-chips">
+              {diamonds.map((name) => (
+                <li key={name} className="diamond-chip">
+                  <span className="diamond diamond-on">
+                    <Icon name="diamond" />
+                  </span>
+                  <span className="chip-value">
+                    {distanceValue(profile.lifetime[name]?.distance_mi ?? 0, units)}
+                    <span className="chip-unit">{unitName(units)}</span>
+                  </span>
+                  <span className="label">{ACTIVITY_NAMES[name]}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => (pickingSports ? setPickingSports(false) : startPickingSports())}
+          >
+            {pickingSports ? 'Close sports' : 'Choose sports'}
+          </button>
+        </div>
+
+        {pickingSports && (
+          <div className="picker">
+            <p className="hint">
+              Up to {MAX_DIAMONDS} sports. {chosenSports.length} chosen. Choosing none lets
+              the app pick your busiest three.
+            </p>
+            <ul className="picker-list">
+              {ACTIVITY_ORDER.map((name) => {
+                const held = chosenSports.includes(name)
+                return (
+                  <li key={name}>
+                    <label className="picker-option">
+                      <input
+                        type="checkbox"
+                        checked={held}
+                        disabled={!held && chosenSports.length >= MAX_DIAMONDS}
+                        onChange={() => toggleSport(name)}
+                      />
+                      <span className="diamond diamond-on">
+                        <Icon name="diamond" />
+                      </span>
+                      <span>{ACTIVITY_NAMES[name]}</span>
+                    </label>
+                  </li>
+                )
+              })}
+            </ul>
+            {sportsError && (
+              <p className="error" role="alert">
+                {sportsError}
+              </p>
+            )}
+            <div className="choice">
+              <button
+                type="button"
+                className="primary"
+                disabled={sportsBusy}
+                onClick={() => void saveSports()}
+              >
+                Save sports
+              </button>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => setPickingSports(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="profile-edit">
           <label className="file-field">
@@ -469,7 +624,7 @@ export default function Profile({ userId, units, refreshToken }: Props) {
         <Stats
           stats={profile.lifetime}
           units={units}
-          empty="Nothing recorded yet. Sync your phone or add a workout in the Almanac."
+          empty="Nothing recorded yet. Sync your phone or add a workout in Log."
         />
       </section>
 
@@ -477,7 +632,7 @@ export default function Profile({ userId, units, refreshToken }: Props) {
         <h2>Chests</h2>
         {chests.length === 0 && opened.length === 0 && (
           <p className="hint">
-            Nothing waiting. Chests turn up every few Miles and keep until you open them.
+            Nothing waiting. Chests arrive as you cover miles, and they never expire.
           </p>
         )}
         {chestError && (

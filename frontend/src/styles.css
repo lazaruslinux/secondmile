@@ -1,19 +1,23 @@
 /* One stylesheet, no framework. This is the screen someone opens on a phone
    right after a workout, so the whole thing is a single readable column with
-   large touch targets. The shell reads as a serious fitness product: neutral
-   chrome, one strong accent, and the data doing the talking. The game world
-   gets its own warmer art later; it never bleeds into this chrome. */
+   large touch targets and a fixed bar along the bottom.
+
+   Dark only, on purpose: there is one theme and no light variant to keep in
+   step with it. Cards sit on pure black with black gutters between them, labels
+   are small and shouty, numbers are large and quiet, and crimson is the only
+   colour that is not black, white, or grey. Nothing moves: no transitions, no
+   animations, no shadows. */
 
 :root {
-  --bg: #f4f5f7;
-  --surface: #ffffff;
-  --ink: #16181d;
-  --muted: #5c6570;
-  --line: #e2e5e9;
-  --accent: #c2410c;
-  --accent-soft: #fdf0e7;
-  --radius: 8px;
-  --gap: 1.25rem;
+  color-scheme: dark;
+  --bg: #000000;
+  --surface: #0d0d0f;
+  --line: #26262b;
+  --text: #f4f4f5;
+  --muted: #9a9aa0;
+  --accent: #dc143c;
+  --radius: 6px;
+  --gap: 0.5rem;
 }
 
 * {
@@ -31,14 +35,15 @@ html {
     'Helvetica Neue',
     Arial,
     sans-serif;
-  line-height: 1.55;
-  color: var(--ink);
+  line-height: 1.5;
+  color: var(--text);
   background: var(--bg);
 }
 
 body {
   margin: 0;
   font-size: 16px;
+  background: var(--bg);
 }
 
 h1,
@@ -50,75 +55,112 @@ h3 {
 }
 
 h1 {
-  font-size: 1.6rem;
+  font-size: 1.5rem;
 }
 
 h2 {
-  font-size: 1.15rem;
+  font-size: 1.05rem;
 }
 
 h3 {
-  font-size: 1rem;
+  font-size: 0.95rem;
 }
 
 p {
-  margin: 0 0 0.75rem;
+  margin: 0 0 0.6rem;
 }
 
 code {
   font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
 }
 
+/* The one type style the whole app shares: a small, loud, grey caption over a
+   large quiet number. */
+.label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+/* Said to a screen reader and to nobody else. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Icons */
+
+/* Icons are inlined from their own files, so the SVG inside takes the colour of
+   whatever holds it. The span is what carries the size. */
+.icon {
+  display: block;
+  width: 1.5rem;
+  height: 1.5rem;
+  flex: 0 0 auto;
+}
+
+.icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 /* Layout */
 
 .app {
   min-height: 100vh;
+  background: var(--bg);
 }
 
 .topbar {
   position: sticky;
   top: 0;
-  z-index: 1;
+  z-index: 2;
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem 1rem;
-  padding: 0.75rem 1rem;
-  background: var(--surface);
+  gap: 1rem;
+  padding: 0.7rem 1rem;
+  background: var(--bg);
   border-bottom: 1px solid var(--line);
 }
 
 .wordmark {
-  font-size: 1.1rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
   color: var(--accent);
 }
 
 .wordmark-large {
-  font-size: 1.7rem;
+  font-size: 1.8rem;
   text-align: center;
-}
-
-.tabs {
-  display: flex;
-  gap: 0.5rem;
 }
 
 .page,
 .gate {
-  max-width: 44rem;
+  max-width: 34rem;
   margin: 0 auto;
-  padding: var(--gap) 1rem 3rem;
+  /* The bottom bar is fixed, so the column ends above it rather than under. */
+  padding: var(--gap) 0.75rem 6rem;
   display: flex;
   flex-direction: column;
   gap: var(--gap);
 }
 
 .gate {
-  max-width: 26rem;
+  max-width: 24rem;
   padding-top: 2.5rem;
+  padding-bottom: 3rem;
 }
 
 .card {
@@ -126,6 +168,78 @@ code {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 1rem;
+}
+
+.view-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.25rem 0.15rem 0;
+}
+
+.view-title {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+/* The bottom bar */
+
+.tabbar {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 3;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  background: var(--bg);
+  border-top: 1px solid var(--line);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  min-height: 3.4rem;
+  padding: 0.45rem 0.25rem;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: var(--muted);
+}
+
+.tab-current {
+  color: var(--accent);
+}
+
+.tab-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* An icon with a word next to it, used for the gear in the You header. */
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.7rem;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.icon-button .icon {
+  width: 1.15rem;
+  height: 1.15rem;
 }
 
 /* Forms */
@@ -139,16 +253,16 @@ form {
 label {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  font-size: 0.9rem;
+  gap: 0.3rem;
+  font-size: 0.85rem;
   color: var(--muted);
 }
 
 input,
 select {
   font: inherit;
-  color: var(--ink);
-  background: #fff;
+  color: var(--text);
+  background: var(--bg);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 0.6rem 0.7rem;
@@ -179,20 +293,27 @@ button {
 }
 
 button:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: default;
+}
+
+.primary,
+.secondary {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .primary {
   background: var(--accent);
-  color: #fff;
+  color: #ffffff;
   border: 1px solid var(--accent);
-  font-weight: 600;
 }
 
 .secondary {
   background: transparent;
-  color: var(--ink);
+  color: var(--text);
   border: 1px solid var(--line);
 }
 
@@ -200,21 +321,9 @@ button:disabled {
   background: none;
   border: none;
   color: var(--accent);
+  font-size: 0.95rem;
   padding: 0.25rem;
   text-decoration: underline;
-}
-
-.tab {
-  background: transparent;
-  border: 1px solid transparent;
-  color: var(--muted);
-  padding: 0.4rem 0.75rem;
-}
-
-.tab-current {
-  color: var(--accent);
-  border-color: var(--line);
-  background: var(--accent-soft);
 }
 
 .choice {
@@ -237,14 +346,16 @@ button:disabled {
   flex: 1;
   background: transparent;
   border: 1px solid var(--line);
-  color: var(--ink);
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .choice-current {
-  background: var(--accent-soft);
   border-color: var(--accent);
   color: var(--accent);
-  font-weight: 600;
 }
 
 /* Messages */
@@ -252,7 +363,7 @@ button:disabled {
 .hint,
 .muted {
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
 }
 
 .notice,
@@ -262,36 +373,37 @@ button:disabled {
 
 .notice {
   text-align: center;
-  padding: 0.5rem 1rem;
+  padding: 0.75rem 1rem;
 }
 
 .error {
-  color: #8c2f14;
-  background: #f7e6df;
-  border: 1px solid #e6c6b8;
+  color: #ffb3bd;
+  background: #24070d;
+  border: 1px solid #5e1622;
   border-radius: var(--radius);
   padding: 0.5rem 0.7rem;
   margin: 0;
+  font-size: 0.9rem;
 }
 
-/* The same shape as an error block for something that went right. Quieter than
-   the accent, because a confirmation is read once and then ignored. */
+/* The same shape as an error block for something that went right. */
 .note-success {
-  color: #3f6b53;
-  background: #eaf2ed;
-  border: 1px solid #cbdcd2;
+  color: #a9dcb8;
+  background: #0b1a10;
+  border: 1px solid #23492e;
   border-radius: var(--radius);
   padding: 0.5rem 0.7rem;
   margin: 0;
+  font-size: 0.9rem;
 }
 
 .warning {
-  font-weight: 600;
+  font-weight: 700;
+  color: var(--text);
 }
 
 .token {
   border: 1px solid var(--accent);
-  background: var(--accent-soft);
   border-radius: var(--radius);
   padding: 0.75rem;
   margin-bottom: 0.75rem;
@@ -310,16 +422,191 @@ button:disabled {
   display: block;
   /* A token is one long unbroken string; without this it runs off a phone. */
   overflow-wrap: anywhere;
-  background: #fff;
+  background: var(--bg);
+  border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 0.5rem;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+}
+
+/* Home: the streak header */
+
+.streak-count {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  margin: 0.2rem 0 0.9rem;
+}
+
+.streak-value {
+  font-size: 3rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+
+.streak-unit {
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text);
+}
+
+.streak-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.4rem;
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+}
+
+.streak-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.streak-letter {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+/* A day with miles on it is a solid crimson diamond; a day without is the same
+   diamond with nothing in it. The shape comes from the asset either way, and
+   the hollowing is done here so one file covers both. */
+.diamond {
+  display: block;
+  width: 1.15rem;
+  height: 1.15rem;
+  flex: 0 0 auto;
+}
+
+.diamond .icon {
+  width: 100%;
+  height: 100%;
+}
+
+.diamond-on {
+  color: var(--accent);
+}
+
+.diamond-off {
+  color: var(--muted);
+}
+
+.diamond-off svg * {
+  fill: none;
+}
+
+/* Home: the feed */
+
+.feed-head {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.feed-avatar {
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  object-fit: cover;
+  background: #17171b;
+}
+
+.feed-avatar-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.feed-who {
+  min-width: 0;
+}
+
+.feed-name {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.feed-when,
+.feed-source {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.feed-title {
+  margin: 0.85rem 0 0.75rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.stat-value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-unit {
+  margin-left: 0.15rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+/* A thin strip along the bottom of a feed card, flush with its edges. */
+.feed-foot {
+  margin: 0.9rem -1rem -1rem;
+  padding: 0.5rem 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.feed-xp {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
 }
 
 /* History */
 
+/* One week of history is one card, the same as everything else in the column. */
 .week {
-  margin-bottom: 1.5rem;
+  margin-bottom: var(--gap);
+  padding: 0.85rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
 }
 
 .totals,
@@ -329,11 +616,11 @@ button:disabled {
   padding: 0;
 }
 
+/* Already inside the week card, so this is a block of rows rather than a box. */
 .totals {
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
-  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--line);
 }
 
 .totals li {
@@ -341,11 +628,12 @@ button:disabled {
   flex-wrap: wrap;
   gap: 0.25rem 0.75rem;
   padding: 0.2rem 0;
+  font-variant-numeric: tabular-nums;
 }
 
 .totals-activity {
   min-width: 4.5rem;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .totals-week {
@@ -372,38 +660,39 @@ button:disabled {
 }
 
 .workout-activity {
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .workout-body {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem 0.9rem;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
 }
 
 .tag {
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 0 0.6rem;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   color: var(--muted);
 }
 
 .tag-flag {
   border-color: var(--accent);
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-weight: 600;
+  color: var(--text);
+  font-weight: 700;
 }
 
 .flag-note {
   margin: 0.35rem 0 0;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   color: var(--muted);
 }
 
-/* The profile */
+/* You */
 
 .profile-head {
   display: flex;
@@ -418,13 +707,13 @@ button:disabled {
 .avatar-block {
   position: relative;
   flex: 0 0 auto;
-  padding: 3rem;
+  padding: 2.75rem;
 }
 
 .avatar-frame {
   position: relative;
-  width: 9rem;
-  height: 9rem;
+  width: 8rem;
+  height: 8rem;
 }
 
 /* The artwork is drawn over the whole square and the picture is inset inside
@@ -437,14 +726,14 @@ button:disabled {
   height: 74%;
   object-fit: cover;
   border-radius: 3px;
-  background: var(--accent-soft);
+  background: #17171b;
 }
 
 .avatar-empty {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 3rem;
+  font-size: 2.6rem;
   font-weight: 700;
   color: var(--accent);
 }
@@ -459,8 +748,8 @@ button:disabled {
 
 .badge-slot {
   position: absolute;
-  width: 3rem;
-  height: 3rem;
+  width: 2.75rem;
+  height: 2.75rem;
 }
 
 .badge-slot-1 {
@@ -506,19 +795,20 @@ button:disabled {
 }
 
 .badge-locked {
-  opacity: 0.35;
+  opacity: 0.3;
   filter: grayscale(1);
 }
 
-/* Going the second mile has to be visible from across the room. This is what
-   a gilded badge gets when its own gilded artwork has not been drawn yet. */
+/* Going the second mile has to be visible from across the room. This is what a
+   gilded badge gets when its own gilded artwork has not been drawn yet. Gold is
+   the game's own mark for it rather than a second interface accent. */
 .badge-gilded {
   /* The padding is what makes the gold read as a ring rather than a rim, since
      a badge drawing is usually opaque out to its own edge. */
   padding: 7%;
+  border: 2px solid #b45309;
   border-radius: 999px;
   background: radial-gradient(circle, #fcd9a4 0%, #f3b45c 55%, #b45309 100%);
-  box-shadow: 0 0 0 2px #b45309;
 }
 
 .profile-meta {
@@ -528,7 +818,7 @@ button:disabled {
 
 .profile-name {
   margin-bottom: 0.15rem;
-  font-size: 1.4rem;
+  font-size: 1.35rem;
 }
 
 .level-line {
@@ -540,8 +830,10 @@ button:disabled {
 }
 
 .level-tag {
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
   color: var(--accent);
 }
 
@@ -552,7 +844,7 @@ button:disabled {
   appearance: none;
   display: block;
   width: 100%;
-  height: 0.5rem;
+  height: 0.4rem;
   border: none;
   border-radius: 999px;
   background: var(--line);
@@ -593,9 +885,59 @@ button:disabled {
 }
 
 .count-label {
-  font-size: 0.75rem;
+  font-size: 11px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+/* The diamonds: lifetime distance in the sports this account picked. */
+
+.diamonds {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.diamond-chips {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.diamond-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.7rem 0.4rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.diamond-chip .diamond {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.chip-value {
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.chip-unit {
+  margin-left: 0.12rem;
+  font-size: 0.7rem;
+  font-weight: 700;
   color: var(--muted);
 }
 
@@ -610,6 +952,23 @@ button:disabled {
 
 .file-field input {
   padding: 0.5rem;
+}
+
+/* The browser draws this button light by default, which is the one piece of
+   the page that would otherwise ignore the theme. */
+.file-field input::file-selector-button {
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  margin-right: 0.6rem;
+  padding: 0.45rem 0.8rem;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
 }
 
 .picker {
@@ -638,7 +997,7 @@ button:disabled {
   align-items: center;
   gap: 0.75rem;
   padding: 0.4rem 0;
-  color: var(--ink);
+  color: var(--text);
   font-size: 1rem;
   cursor: pointer;
 }
@@ -647,6 +1006,7 @@ button:disabled {
   width: auto;
   min-height: 0;
   flex: 0 0 auto;
+  accent-color: var(--accent);
 }
 
 .picker-option .badge {
@@ -676,22 +1036,22 @@ button:disabled {
 }
 
 .stats thead th {
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
   color: var(--muted);
 }
 
 .stats tbody th {
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .stats tfoot th,
 .stats tfoot td {
   border-bottom: none;
   color: var(--muted);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 /* Achievements */
@@ -716,8 +1076,8 @@ button:disabled {
 
 .achievement .badge {
   flex: 0 0 auto;
-  width: 4rem;
-  height: 4rem;
+  width: 3.5rem;
+  height: 3.5rem;
 }
 
 .achievement-body {
@@ -730,24 +1090,23 @@ button:disabled {
   align-items: center;
   gap: 0.5rem;
   margin: 0;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .achievement-detail {
   margin: 0;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+  color: var(--muted);
 }
 
-.achievement-locked .achievement-name,
-.achievement-locked .achievement-detail {
+.achievement-locked .achievement-name {
   color: var(--muted);
 }
 
 .tag-gilded {
   border-color: #b45309;
-  background: #fdf3e3;
-  color: #92400e;
-  font-weight: 600;
+  color: #e5b264;
+  font-weight: 700;
 }
 
 .chests {
@@ -771,8 +1130,8 @@ button:disabled {
 
 .reveal-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 0.75rem;
 }
 
 /* The recap */
@@ -792,7 +1151,7 @@ button:disabled {
   padding: 1rem;
   border: none;
   overflow: hidden;
-  color: var(--ink);
+  color: var(--text);
   background: transparent;
 }
 
@@ -804,7 +1163,7 @@ button:disabled {
 }
 
 .overlay::backdrop {
-  background: rgba(22, 24, 29, 0.55);
+  background: rgba(0, 0, 0, 0.75);
 }
 
 @media (min-width: 600px) {
@@ -817,7 +1176,7 @@ button:disabled {
   display: flex;
   flex-direction: column;
   width: 100%;
-  max-width: 36rem;
+  max-width: 34rem;
   max-height: 88vh;
   overflow: hidden;
   background: var(--surface);
@@ -858,18 +1217,12 @@ button:disabled {
 }
 
 .recap-miles-value {
-  font-size: 2.25rem;
-  font-weight: 700;
+  font-size: 2.5rem;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
   line-height: 1;
   color: var(--accent);
-}
-
-.recap-miles-label {
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--muted);
 }
 
 .recap-section {
@@ -893,14 +1246,14 @@ button:disabled {
 
 .reveal {
   width: 100%;
-  max-width: 15rem;
+  max-width: 14rem;
 }
 
 .reveal .hint {
   margin: 0.35rem 0 0;
 }
 
-/* The album */
+/* Cards */
 
 .set-head {
   display: flex;
@@ -911,8 +1264,8 @@ button:disabled {
 
 .plates {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  gap: 0.5rem;
 }
 
 .plate {
@@ -926,9 +1279,15 @@ button:disabled {
 }
 
 /* A plate for a card nobody has found is left almost empty on purpose. */
-.plate-empty {
+.plate-unowned {
   background: transparent;
   border-style: dashed;
+}
+
+/* The one place rarity is worth an accent, and it is the edge rather than the
+   word: crimson type this small does not carry enough contrast. */
+.plate-owned-rare {
+  border-color: var(--accent);
 }
 
 .plate-art {
@@ -937,11 +1296,11 @@ button:disabled {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border-radius: 6px;
-  background: #efe9dd;
+  border-radius: 4px;
+  background: #17171b;
 }
 
-.plate-empty .plate-art {
+.plate-unowned .plate-art {
   background: transparent;
   border: 1px dashed var(--line);
 }
@@ -963,7 +1322,9 @@ button:disabled {
   display: flex;
   justify-content: space-between;
   gap: 0.5rem;
-  font-size: 0.75rem;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
   color: var(--muted);
 }
 
@@ -973,16 +1334,11 @@ button:disabled {
 
 .plate-rarity {
   text-transform: uppercase;
-  letter-spacing: 0.05em;
 }
 
-.plate-uncommon {
-  color: #3f6b53;
-}
-
-.plate-rare {
-  color: var(--accent);
-  font-weight: 600;
+.rarity-uncommon,
+.rarity-rare {
+  color: var(--text);
 }
 
 .plate-name {
@@ -992,19 +1348,20 @@ button:disabled {
 
 .plate-flavor {
   margin: 0;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   color: var(--muted);
 }
 
 .plate-count {
   margin: 0;
-  font-size: 0.8rem;
-  font-weight: 600;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted);
 }
 
 .plate-unfound {
   margin: 0;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   color: var(--muted);
 }
 
@@ -1022,39 +1379,42 @@ button:disabled {
 
 /* Small phones: the narrowest layout still has to read cleanly at 360px. */
 @media (max-width: 400px) {
-  .page,
-  .gate {
-    padding-left: 0.75rem;
-    padding-right: 0.75rem;
-  }
-
   .card {
     padding: 0.85rem;
+  }
+
+  .feed-foot {
+    margin: 0.9rem -0.85rem -0.85rem;
+    padding: 0.5rem 0.85rem;
   }
 
   .plates {
     grid-template-columns: repeat(2, 1fr);
   }
 
+  .stat-value {
+    font-size: 1.25rem;
+  }
+
   /* The picture and its slots shrink together, so a badge still lands in the
      corner of the padding rather than on somebody's face. */
   .avatar-block {
-    padding: 2.5rem;
+    padding: 2.4rem;
   }
 
   .avatar-frame {
-    width: 7.5rem;
-    height: 7.5rem;
+    width: 7rem;
+    height: 7rem;
   }
 
   .badge-slot {
-    width: 2.5rem;
-    height: 2.5rem;
+    width: 2.4rem;
+    height: 2.4rem;
   }
 
   .stats th,
   .stats td {
     padding: 0.35rem 0.15rem;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
   }
 }

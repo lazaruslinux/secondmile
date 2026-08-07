@@ -15,11 +15,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app import achievements, models, world
-from app.activity import converted_miles
+from app.activity import converted_miles, week_start
 from app.config import (
     BORDER_LEVELS,
     CHEST_SPACING_MI,
     LEVEL_STEP_XP,
+    MAX_DIAMOND_SPORTS,
     SERVER_TZ,
     UNOWNED_CARD_WEIGHT,
     WALK_BONUS_CHEST_CHANCE,
@@ -297,3 +298,64 @@ def week_totals(db: Session, user_id: int, week_start_date: dt.date) -> dict[str
 def owned_card_count(db: Session, user_id: int) -> int:
     """Distinct plates in the album, counted against the catalogue."""
     return achievements.card_counts(db, user_id)[0]
+
+
+def streak_weeks(db: Session, user_id: int, moment: dt.datetime | None = None) -> int:
+    """How many weeks in a row have carried at least one workout.
+
+    Counted back from the current week, over the same server-timezone Mondays
+    the Almanac groups by, so the two screens can never disagree about where a
+    week starts. A quiet current week does not break the streak: the week is
+    still being lived, so the count simply starts from the one behind it. Miles
+    are what keep it alive, never opening the app.
+    """
+    this_week = week_start(moment or now_utc())
+    one_week = dt.timedelta(weeks=1)
+    stamps = db.execute(
+        select(models.Workout.start_ts)
+        .where(models.Workout.user_id == user_id)
+        # Newest first so the walk below stops at the first gap rather than
+        # reading a whole history to answer a question about recent weeks.
+        .order_by(models.Workout.start_ts.desc())
+    ).scalars()
+
+    count = 0
+    cursor = this_week
+    for stamp in stamps:
+        week = week_start(stamp)
+        if week > this_week:
+            # Dated ahead of now, which a manual entry is free to be. It cannot
+            # extend a streak that has not happened yet.
+            continue
+        if count == 0:
+            if week < this_week - one_week:
+                return 0
+            count = 1
+        elif week == cursor - one_week:
+            count += 1
+        elif week < cursor - one_week:
+            break
+        else:
+            continue  # another workout in a week already counted
+        cursor = week
+    return count
+
+
+def diamond_sports(db: Session, user_id: int, chosen: list | None) -> list[str]:
+    """The three sports the profile wears, picked or worked out from the miles.
+
+    A stored list is taken as it stands, including an empty one. Null is the
+    default and means automatic: the sports with the most lifetime distance,
+    which is what a profile should say about somebody nobody has asked yet.
+    """
+    if chosen is not None:
+        return [str(name) for name in chosen]
+    totals = lifetime_totals(db, user_id)
+    # Only sports that have actually covered ground; a session logged with no
+    # distance has no miles to put on a diamond. Ties fall back to the activity
+    # order so the same history always produces the same three.
+    ranked = sorted(
+        (name for name in totals if totals[name]["distance_mi"] > 0),
+        key=lambda name: (-totals[name]["distance_mi"], ACTIVITIES.index(name)),
+    )
+    return ranked[:MAX_DIAMOND_SPORTS]

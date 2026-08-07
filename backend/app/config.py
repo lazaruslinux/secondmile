@@ -159,6 +159,10 @@ BORDER_LEVELS = (1, 5, 10, 20, 35, 50)
 # picture is never covered, so this is a layout constant as much as a rule.
 MAX_DISPLAYED_BADGES = 4
 
+# How many sports the profile shows as diamonds. Fixed slots again, and the
+# same number whether the player picked them or the server did.
+MAX_DIAMOND_SPORTS = 3
+
 # Avatar upload limits. The byte cap is checked against Content-Length and then
 # again while reading, because a client is free to lie in the header. The pixel
 # cap is the decompression-bomb guard: a small file can declare an enormous

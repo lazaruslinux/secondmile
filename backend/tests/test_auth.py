@@ -5,14 +5,18 @@ import datetime as dt
 from conftest import MEMBER, make_invite
 
 from app import models, security
+from app.config import APP_VERSION
 
 
 def test_status_is_public(client):
     response = client.get("/api/status")
     assert response.status_code == 200
+    # Read from config rather than written out again: this endpoint exists to
+    # report the version the build is running, and a literal here only ever
+    # fails the suite one commit after a bump.
     assert response.json() == {
         "name": "secondmile",
-        "version": "0.1.0",
+        "version": APP_VERSION,
         "registration_open": False,
     }
 

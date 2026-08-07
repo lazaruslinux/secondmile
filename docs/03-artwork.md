@@ -26,6 +26,46 @@ Two constraints apply to every SVG here:
   The app loads nothing from outside its own origin. Embed anything you need,
   and use generic font families for text.
 
+The interface is dark and has no light variant, so every file here is drawn to
+sit on a near-black card. The placeholder art follows the palette at the bottom
+of this page; yours does not have to, as long as it reads on black.
+
+## Interface icons
+
+`frontend/src/assets/icons/*.svg`
+
+The small line drawings in the interface chrome. Unlike everything else here,
+these are drawn inline in the page rather than loaded as pictures, which is what
+lets them take the colour of whatever holds them: the bottom bar draws its
+current tab in the accent colour and the rest in grey, using the same file for
+both.
+
+| File | Where it appears |
+| --- | --- |
+| `tab-home.svg` | Home in the bottom bar |
+| `tab-log.svg` | Log in the bottom bar |
+| `tab-cards.svg` | Cards in the bottom bar |
+| `tab-you.svg` | You in the bottom bar |
+| `gear.svg` | The settings button in the You header |
+| `diamond.svg` | The week strip on Home, and the sport diamonds on You |
+
+Three rules on top of the two above, because these files are placed straight
+into the page:
+
+- **Draw on a 24 by 24 viewBox.** They are shown at about 24 pixels in the
+  bottom bar and about 17 in the week strip, so fine detail is wasted.
+- **Use `currentColor`, never a fixed colour.** `stroke="currentColor"` and
+  `fill="currentColor"` are what let one file be grey in one place and crimson
+  in another. A hard-coded colour will simply ignore the interface.
+- **Nothing but shapes.** No `<script>`, no `<style>`, no `<foreignObject>`, no
+  external references. These files become part of the page, so anything else in
+  them is a way into it.
+
+`diamond.svg` is used in two states from the one file: a day with miles on it is
+drawn as you drew it, and a day without has its fill removed by the stylesheet,
+leaving the outline. Give the shape both a `fill="currentColor"` and a
+`stroke="currentColor"` so both states have something to show.
+
 ## Avatar borders
 
 `frontend/src/assets/borders/border-t1.svg` through `border-t6.svg`
@@ -120,5 +160,18 @@ frontend build, so nothing in `assets` affects it.
 ## What is not a file yet
 
 The interface itself, the buttons, the colours, the type, is plain CSS in
-`frontend/src/styles.css`, not artwork. The one accent colour is defined once
-at the top of that file.
+`frontend/src/styles.css`, not artwork. The whole palette is six custom
+properties at the top of that file:
+
+| Property | Value | What it is |
+| --- | --- | --- |
+| `--bg` | `#000000` | The page, and the gutters between cards |
+| `--surface` | `#0d0d0f` | Cards |
+| `--line` | `#26262b` | Every border and rule |
+| `--text` | `#f4f4f5` | Type and numbers |
+| `--muted` | `#9a9aa0` | Labels and secondary type |
+| `--accent` | `#dc143c` | The one accent, used sparingly |
+
+There is one theme and it is dark. Changing the six values above is the whole
+of a recolour; `--accent` on its own is the quickest way to make the app look
+like something else.

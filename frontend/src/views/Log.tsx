@@ -11,31 +11,18 @@ import {
   type Workout,
   type WorkoutFlags,
 } from '../api.ts'
-import { formatDistance, KM_PER_MILE, unitName } from '../format.ts'
+import {
+  formatDistance,
+  formatDuration,
+  formatStart,
+  KM_PER_MILE,
+  pad,
+  unitName,
+} from '../format.ts'
 import { ACTIVITY_NAMES, ACTIVITY_ORDER } from '../labels.ts'
 
 const WORKOUT_PAGE = 50
 const WEEK_COUNT = 8
-
-function pad(value: number): string {
-  return String(value).padStart(2, '0')
-}
-
-function formatDuration(seconds: number): string {
-  const hours = Math.floor(seconds / 3600)
-  const minutes = Math.floor((seconds % 3600) / 60)
-  return hours > 0 ? `${hours}h ${pad(minutes)}m` : `${minutes}m`
-}
-
-function formatStart(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
-}
 
 function localDateInput(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
@@ -100,7 +87,7 @@ interface Props {
   units: Units
 }
 
-export default function Almanac({ userId, units }: Props) {
+export default function Log({ userId, units }: Props) {
   // Coming back to the tab draws what was here before and asks the server again
   // underneath, so switching tabs is not a blank screen every time.
   const [workouts, setWorkouts] = useState<Workout[]>(() => cache.get(userId)?.workouts ?? [])
@@ -166,7 +153,7 @@ export default function Almanac({ userId, units }: Props) {
       setDistance('')
       setCalories('')
       setHeartRate('')
-      setFormNote('Added to the Almanac.')
+      setFormNote('Workout added.')
       setAdding(false)
       await load()
     } catch (err) {
@@ -174,7 +161,7 @@ export default function Almanac({ userId, units }: Props) {
       // means this one is already recorded rather than that anything failed.
       setFormError(
         err instanceof ApiError && err.status === 409
-          ? 'That workout is already in the Almanac. Nothing was added.'
+          ? 'That workout is already logged. Nothing was added.'
           : errorText(err),
       )
     } finally {
@@ -196,6 +183,10 @@ export default function Almanac({ userId, units }: Props) {
 
   return (
     <>
+      <div className="view-head">
+        <h1 className="view-title">Log</h1>
+      </div>
+
       {/* History is what this screen is for, so the form waits behind a button
           rather than sitting on top of it. The note only ever shows while the
           form is away, since a successful add is what closes it. */}
@@ -300,7 +291,7 @@ export default function Almanac({ userId, units }: Props) {
                 disabled={saving}
                 onClick={() => setAdding(false)}
               >
-                Never mind
+                Cancel
               </button>
             </div>
           </form>

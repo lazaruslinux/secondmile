@@ -28,6 +28,19 @@ MAX_LIMIT = 200
 MAX_WEEKS = 52
 
 
+def _serialize(workout: models.Workout) -> dict:
+    """One workout plus what it was worth, which the history shows on each row.
+
+    The experience comes from the pipeline's own function rather than a copy of
+    the formula, so a row can never claim a number the account was not credited.
+    Computed rather than stored: nothing about a workout changes after it lands.
+    """
+    return {
+        **activity_rules.serialize(workout),
+        "xp": progress.workout_xp(workout.activity, workout.distance_mi, workout.duration_s),
+    }
+
+
 class ManualWorkout(BaseModel):
     activity: str
     start_ts: dt.datetime
@@ -118,7 +131,7 @@ def create_workout(
     # A workout typed in by hand counts exactly as much as one from a watch,
     # so it goes through the same pipeline on the same terms.
     progress.process_user(db, user.id)
-    return activity_rules.serialize(workout)
+    return _serialize(workout)
 
 
 def _parse_cursor(before: str) -> dt.datetime:
@@ -153,7 +166,7 @@ def list_workouts(
     # keep a stable order between pages; without it, paging can show one twice
     # and skip another.
     stmt = stmt.order_by(models.Workout.start_ts.desc(), models.Workout.id.desc()).limit(limit)
-    return [activity_rules.serialize(row) for row in db.execute(stmt).scalars()]
+    return [_serialize(row) for row in db.execute(stmt).scalars()]
 
 
 @router.get("/weeks")

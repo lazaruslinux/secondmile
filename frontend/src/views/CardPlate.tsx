@@ -19,7 +19,7 @@ interface Props {
   large?: boolean
 }
 
-// One plate, used by the album, the recap, and the profile. An unowned plate is
+// One plate, used by Cards, the recap, and the You screen. An unowned plate is
 // deliberately almost empty: the number and the rarity are the only things the
 // server tells us about a card nobody has found yet, and that is the point.
 export default function CardPlate({
@@ -34,7 +34,11 @@ export default function CardPlate({
 }: Props) {
   const art = owned ? cardArt(cardId) : null
   const classes = ['plate']
-  if (!owned) classes.push('plate-empty')
+  if (!owned) classes.push('plate-unowned')
+  // A rare card that has actually been found gets a crimson edge. An unowned
+  // plate never does: the rarity is all the server says about it, and framing
+  // an empty slot would be shouting about nothing.
+  if (owned && rarity === 'rare') classes.push('plate-owned-rare')
   if (large) classes.push('plate-large')
 
   return (
@@ -44,7 +48,7 @@ export default function CardPlate({
       </div>
       <div className="plate-head">
         <span className="plate-number">No. {number}</span>
-        <span className={`plate-rarity plate-${rarity}`}>{RARITY_NAMES[rarity]}</span>
+        <span className={`plate-rarity rarity-${rarity}`}>{RARITY_NAMES[rarity]}</span>
       </div>
       {owned ? (
         <>

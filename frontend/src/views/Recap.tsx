@@ -57,19 +57,19 @@ export default function Recap({ recap, onDismiss }: Props) {
           <h2 id="recap-title">While you were away</h2>
           <p className="hint">
             {recap.since ? `Since ${formatDate(recap.since)}.` : 'Everything so far.'} Chests
-            keep. You can open them here or later on your profile.
+            never expire. Open them here or later on the You screen.
           </p>
         </header>
 
         <div className="recap">
           <p className="recap-miles">
             <span className="recap-miles-value">{recap.miles.toFixed(1)}</span>
-            <span className="recap-miles-label">Miles covered</span>
+            <span className="label">Miles counted</span>
           </p>
 
           {recap.achievements.length > 0 && (
             <section className="recap-section">
-              <h3>Earned</h3>
+              <h3>New achievements</h3>
               <ul className="achievements">
                 {recap.achievements.map((row) => (
                   <li key={row.id} className="achievement">
@@ -92,6 +92,7 @@ export default function Recap({ recap, onDismiss }: Props) {
               <h3>
                 {chests} {chests === 1 ? 'chest' : 'chests'} waiting
               </h3>
+              <p className="hint">Opened here or later. Nothing is lost either way.</p>
               <ul className="chests">
                 {recap.chests.map((chest) => {
                   const reveal = opened[chest.id]
@@ -131,7 +132,7 @@ export default function Recap({ recap, onDismiss }: Props) {
                             {reveal.card.set_name} set.{' '}
                             {reveal.duplicate
                               ? `You already had this one. ${reveal.count} copies now.`
-                              : 'New to the album.'}
+                              : 'New card.'}
                           </p>
                         </div>
                       )}
