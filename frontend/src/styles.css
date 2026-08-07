@@ -225,6 +225,40 @@ code {
   letter-spacing: 0.08em;
 }
 
+/* The wide-screen navigation, which lives in the top bar. Below 900px the bar
+   along the bottom does this job and none of this is drawn. */
+
+.topnav {
+  display: none;
+}
+
+.topnav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.65rem;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+}
+
+.topnav-current {
+  color: var(--accent);
+}
+
+.topnav-item .icon {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.topnav-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
 /* An icon with a word next to it, used for the gear in the You header. */
 .icon-button {
   display: inline-flex;
@@ -427,6 +461,99 @@ button:disabled {
   border-radius: var(--radius);
   padding: 0.5rem;
   font-size: 0.85rem;
+}
+
+/* The columns of Home and You
+   Both screens are written as wrappers around the blocks they already had. On a
+   phone each wrapper is just a column of cards with the same gutter as the page
+   itself, so the result is the single column it has always been; the desktop
+   rules at the foot of this file turn the same wrappers into a grid. */
+
+.home,
+.home-col,
+.you,
+.you-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+/* Both of these are side matter that only the wide layout has room for. */
+.home-left,
+.home-week {
+  display: none;
+}
+
+/* The streak reads above the feed on a phone. The grid puts it back on the
+   right where there is a right to put it on. */
+.home-right {
+  order: -1;
+}
+
+/* Home: the profile summary in the left column */
+
+.summary-frame {
+  width: 6rem;
+  height: 6rem;
+  margin: 0 auto 0.75rem;
+}
+
+.summary-frame .avatar-empty {
+  font-size: 1.9rem;
+}
+
+.summary-name {
+  margin: 0;
+  font-size: 1.1rem;
+  text-align: center;
+}
+
+.summary .level-line {
+  margin: 0.85rem 0 0.35rem;
+}
+
+.summary-xp {
+  margin: 0.4rem 0 0;
+}
+
+/* One chip per row: this column is too narrow for the three across that the You
+   screen has room for. Written against both classes so it wins over the three
+   the chips are given further down. */
+.summary .diamond-chips {
+  grid-template-columns: 1fr;
+  margin-top: 0.9rem;
+}
+
+/* A row rather than the stacked chip of the You screen: three tall boxes would
+   be most of this column. */
+.summary .diamond-chip {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.7rem;
+}
+
+.summary .diamond-chip .label {
+  margin-left: auto;
+}
+
+/* Home: this week's totals in the right column */
+
+/* Three across where the column is wide enough for three, and two where it is
+   not: the numbers here are wide enough to run into each other otherwise. */
+.week-totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(4.5rem, 1fr));
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.week-totals li {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 /* Home: the streak header */
@@ -1416,5 +1543,90 @@ button:disabled {
   .stats td {
     padding: 0.35rem 0.15rem;
     font-size: 0.85rem;
+  }
+}
+
+/* Desktop
+   From 900px up this stops being a phone screen stretched wide. The bar along
+   the bottom gives way to the same four sections in the top bar, and each
+   screen gets the width and the number of columns it can actually use.
+   Everything narrower than this is untouched by the whole block. */
+@media (min-width: 900px) {
+  .tabbar {
+    display: none;
+  }
+
+  .topbar {
+    gap: 1.75rem;
+    padding: 0.6rem 1.5rem;
+  }
+
+  .topnav {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    /* Holds the group against the wordmark rather than letting the bar space
+       the two of them apart. */
+    margin-right: auto;
+  }
+
+  /* Nothing is fixed along the bottom any more, so the column stops leaving
+     room for it. */
+  .page {
+    max-width: 44rem;
+    padding: 1rem 1.5rem 3rem;
+  }
+
+  .page-home,
+  .page-cards {
+    max-width: 72rem;
+  }
+
+  .page-you {
+    max-width: 64rem;
+  }
+
+  /* The side columns give a little back on a window that is only just wide
+     enough, so the feed in the middle never gets so narrow that a pace wraps
+     onto a second line. They stop shrinking well before anything in them does. */
+  .home {
+    display: grid;
+    grid-template-columns:
+      clamp(200px, 20vw, 260px)
+      minmax(0, 40rem)
+      clamp(220px, 22vw, 280px);
+    align-items: start;
+    gap: 1rem;
+  }
+
+  /* The wrappers are written in phone order, so each one is told exactly where
+     it goes. The row matters as much as the column: left to itself, the grid
+     reads them in written order and drops the feed onto a second row. */
+  .home-left {
+    display: flex;
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .home-main {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .home-right {
+    order: 0;
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .home-week {
+    display: block;
+  }
+
+  .you {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 1rem;
   }
 }

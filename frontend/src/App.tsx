@@ -122,6 +122,25 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <span className="wordmark">secondmile</span>
+        {/* The same four sections as the bottom bar. Only one of the two is
+            ever on screen: this one from 900px up, the bar below it. */}
+        <nav className="topnav" aria-label="Sections">
+          {TABS.map((tab) => {
+            const current = view === tab.id || (tab.id === 'you' && view === 'settings')
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                className={current ? 'topnav-item topnav-current' : 'topnav-item'}
+                aria-current={current ? 'page' : undefined}
+                onClick={() => setView(tab.id)}
+              >
+                <Icon name={tab.icon} />
+                <span className="topnav-label">{tab.label}</span>
+              </button>
+            )
+          })}
+        </nav>
       </header>
 
       {/* Nothing to read is not worth interrupting anyone for, so the letter
@@ -131,7 +150,9 @@ export default function App() {
           <Recap recap={recap} onDismiss={() => void dismissRecap()} />
         )}
 
-      <main className="page">
+      {/* The view names its own column, which is all the wide layouts need to
+          differ: one grid per screen, one width per screen. */}
+      <main className={`page page-${view}`}>
         {/* The views keep what they last loaded, per account, so switching tabs
             shows it again at once while a fresh copy is on its way. */}
         {view === 'home' && (

@@ -22,6 +22,7 @@ import {
 import { borderArt } from '../art.ts'
 import { distanceValue, formatDate, formatDistance, unitName } from '../format.ts'
 import { ACTIVITY_NAMES, ACTIVITY_ORDER } from '../labels.ts'
+import { diamondsOf, MAX_DIAMONDS } from '../profile.ts'
 import Achievements from './Achievements.tsx'
 import Badge from './Badge.tsx'
 import CardPlate from './CardPlate.tsx'
@@ -30,9 +31,6 @@ import Icon from './Icon.tsx'
 // Four, and the server says the same. The slots are drawn whether they are
 // filled or not, because an empty slot is the invitation to fill it.
 const SLOTS = [0, 1, 2, 3]
-
-// How many sports get a diamond. The server enforces the same number.
-const MAX_DIAMONDS = 3
 
 // What the server accepts, checked here as well so an oversized picture is
 // answered at once instead of after a whole upload.
@@ -49,19 +47,6 @@ function uploadErrorText(err: unknown): string {
     return err.message
   }
   return 'Something went wrong. Try again.'
-}
-
-// Which sports get a diamond. The server sends the effective list; a server
-// that predates the field leaves the same choice to be made here, which is the
-// three sports with the most lifetime distance behind them.
-function diamondsOf(profile: ProfileData): Activity[] {
-  if (profile.diamond_sports) return profile.diamond_sports.slice(0, MAX_DIAMONDS)
-  return ACTIVITY_ORDER.filter((name) => (profile.lifetime[name]?.distance_mi ?? 0) > 0)
-    .sort(
-      (left, right) =>
-        (profile.lifetime[right]?.distance_mi ?? 0) - (profile.lifetime[left]?.distance_mi ?? 0),
-    )
-    .slice(0, MAX_DIAMONDS)
 }
 
 function totalsOf(stats: Partial<Record<Activity, ActivityStats>>) {
@@ -358,325 +343,333 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
         </button>
       </div>
 
-      <section className="card">
-        <div className="profile-head">
-          <div className="avatar-block">
-            <div className="avatar-frame">
-              {profile.has_avatar ? (
-                <img
-                  className="avatar-shot"
-                  src={avatarUrl(profile.user_id, profile.avatar_version)}
-                  alt={`${profile.username}'s picture`}
-                />
-              ) : (
-                <span className="avatar-shot avatar-empty" aria-hidden="true">
-                  {profile.username.slice(0, 1).toUpperCase()}
-                </span>
-              )}
-              {border && <img className="avatar-border" src={border} alt="" />}
+      {/* Two columns from 900px up and one below it: the picture and its card on
+          one side, everything counted on the other. */}
+      <div className="you">
+        <div className="you-col you-left">
+          <section className="card">
+            <div className="profile-head">
+              <div className="avatar-block">
+                <div className="avatar-frame">
+                  {profile.has_avatar ? (
+                    <img
+                      className="avatar-shot"
+                      src={avatarUrl(profile.user_id, profile.avatar_version)}
+                      alt={`${profile.username}'s picture`}
+                    />
+                  ) : (
+                    <span className="avatar-shot avatar-empty" aria-hidden="true">
+                      {profile.username.slice(0, 1).toUpperCase()}
+                    </span>
+                  )}
+                  {border && <img className="avatar-border" src={border} alt="" />}
+                </div>
+
+                {SLOTS.map((slot) => {
+                  const badge = byId.get(profile.displayed_badges[slot] ?? '')
+                  return (
+                    <span key={slot} className={`badge-slot badge-slot-${slot + 1}`}>
+                      {badge ? (
+                        <Badge achievement={badge} standalone />
+                      ) : (
+                        <span className="badge badge-empty" aria-hidden="true" />
+                      )}
+                    </span>
+                  )
+                })}
+              </div>
+
+              <div className="profile-meta">
+                <h2 className="profile-name">{profile.username}</h2>
+                <p className="hint">Member since {formatDate(profile.created_at)}</p>
+
+                <p className="level-line">
+                  <span className="level-tag">Level {profile.level}</span>
+                  <span className="muted">
+                    {profile.xp_into_level} of {profile.xp_for_next_level} XP toward level{' '}
+                    {nextLevel}
+                  </span>
+                </p>
+                {/* A progress element rather than a div with a width on it: the
+                    content security policy allows no inline styles, and this one
+                    reads correctly to a screen reader as well. */}
+                <progress
+                  className="xp-meter"
+                  value={profile.xp_into_level}
+                  max={profile.xp_for_next_level}
+                >
+                  {profile.xp_into_level} of {profile.xp_for_next_level}
+                </progress>
+
+                <ul className="profile-counts">
+                  <li>
+                    <span className="count-value">{profile.xp}</span>
+                    <span className="count-label">XP earned</span>
+                  </li>
+                  <li>
+                    <span className="count-value">
+                      {profile.cards.owned} / {profile.cards.total}
+                    </span>
+                    <span className="count-label">Cards</span>
+                  </li>
+                  <li>
+                    <span className="count-value">
+                      {profile.achievements.earned} / {profile.achievements.total}
+                    </span>
+                    <span className="count-label">Achievements</span>
+                  </li>
+                </ul>
+              </div>
             </div>
 
-            {SLOTS.map((slot) => {
-              const badge = byId.get(profile.displayed_badges[slot] ?? '')
-              return (
-                <span key={slot} className={`badge-slot badge-slot-${slot + 1}`}>
-                  {badge ? (
-                    <Badge achievement={badge} standalone />
-                  ) : (
-                    <span className="badge badge-empty" aria-hidden="true" />
-                  )}
-                </span>
-              )
-            })}
-          </div>
-
-          <div className="profile-meta">
-            <h2 className="profile-name">{profile.username}</h2>
-            <p className="hint">Member since {formatDate(profile.created_at)}</p>
-
-            <p className="level-line">
-              <span className="level-tag">Level {profile.level}</span>
-              <span className="muted">
-                {profile.xp_into_level} of {profile.xp_for_next_level} XP toward level{' '}
-                {nextLevel}
-              </span>
-            </p>
-            {/* A progress element rather than a div with a width on it: the
-                content security policy allows no inline styles, and this one
-                reads correctly to a screen reader as well. */}
-            <progress
-              className="xp-meter"
-              value={profile.xp_into_level}
-              max={profile.xp_for_next_level}
-            >
-              {profile.xp_into_level} of {profile.xp_for_next_level}
-            </progress>
-
-            <ul className="profile-counts">
-              <li>
-                <span className="count-value">{profile.xp}</span>
-                <span className="count-label">XP earned</span>
-              </li>
-              <li>
-                <span className="count-value">
-                  {profile.cards.owned} / {profile.cards.total}
-                </span>
-                <span className="count-label">Cards</span>
-              </li>
-              <li>
-                <span className="count-value">
-                  {profile.achievements.earned} / {profile.achievements.total}
-                </span>
-                <span className="count-label">Achievements</span>
-              </li>
-            </ul>
-          </div>
-        </div>
-
-        {/* Lifetime distance in the sports this account cares about, up to
-            three. Nothing is ranked against anyone else here. */}
-        <div className="diamonds">
-          {diamonds.length === 0 ? (
-            <p className="hint">
-              Sync a workout and your sports show up here with their lifetime distance.
-            </p>
-          ) : (
-            <ul className="diamond-chips">
-              {diamonds.map((name) => (
-                <li key={name} className="diamond-chip">
-                  <span className="diamond diamond-on">
-                    <Icon name="diamond" />
-                  </span>
-                  <span className="chip-value">
-                    {distanceValue(profile.lifetime[name]?.distance_mi ?? 0, units)}
-                    <span className="chip-unit">{unitName(units)}</span>
-                  </span>
-                  <span className="label">{ACTIVITY_NAMES[name]}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-          <button
-            type="button"
-            className="secondary"
-            onClick={() => (pickingSports ? setPickingSports(false) : startPickingSports())}
-          >
-            {pickingSports ? 'Close sports' : 'Choose sports'}
-          </button>
-        </div>
-
-        {pickingSports && (
-          <div className="picker">
-            <p className="hint">
-              Up to {MAX_DIAMONDS} sports. {chosenSports.length} chosen. Choosing none lets
-              the app pick your busiest three.
-            </p>
-            <ul className="picker-list">
-              {ACTIVITY_ORDER.map((name) => {
-                const held = chosenSports.includes(name)
-                return (
-                  <li key={name}>
-                    <label className="picker-option">
-                      <input
-                        type="checkbox"
-                        checked={held}
-                        disabled={!held && chosenSports.length >= MAX_DIAMONDS}
-                        onChange={() => toggleSport(name)}
-                      />
+            {/* Lifetime distance in the sports this account cares about, up to
+                three. Nothing is ranked against anyone else here. */}
+            <div className="diamonds">
+              {diamonds.length === 0 ? (
+                <p className="hint">
+                  Sync a workout and your sports show up here with their lifetime distance.
+                </p>
+              ) : (
+                <ul className="diamond-chips">
+                  {diamonds.map((name) => (
+                    <li key={name} className="diamond-chip">
                       <span className="diamond diamond-on">
                         <Icon name="diamond" />
                       </span>
-                      <span>{ACTIVITY_NAMES[name]}</span>
-                    </label>
-                  </li>
-                )
-              })}
-            </ul>
-            {sportsError && (
-              <p className="error" role="alert">
-                {sportsError}
-              </p>
-            )}
-            <div className="choice">
-              <button
-                type="button"
-                className="primary"
-                disabled={sportsBusy}
-                onClick={() => void saveSports()}
-              >
-                Save sports
-              </button>
+                      <span className="chip-value">
+                        {distanceValue(profile.lifetime[name]?.distance_mi ?? 0, units)}
+                        <span className="chip-unit">{unitName(units)}</span>
+                      </span>
+                      <span className="label">{ACTIVITY_NAMES[name]}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
               <button
                 type="button"
                 className="secondary"
-                onClick={() => setPickingSports(false)}
+                onClick={() => (pickingSports ? setPickingSports(false) : startPickingSports())}
               >
-                Cancel
+                {pickingSports ? 'Close sports' : 'Choose sports'}
               </button>
             </div>
-          </div>
-        )}
 
-        <div className="profile-edit">
-          <label className="file-field">
-            Profile picture
-            <input
-              type="file"
-              accept="image/*"
-              disabled={avatarBusy !== ''}
-              onChange={pickAvatar}
-            />
-          </label>
-          <div className="choice">
-            {profile.has_avatar && (
-              <button
-                type="button"
-                className="secondary"
-                disabled={avatarBusy !== ''}
-                onClick={() => void removeAvatar()}
-              >
-                Remove picture
-              </button>
+            {pickingSports && (
+              <div className="picker">
+                <p className="hint">
+                  Up to {MAX_DIAMONDS} sports. {chosenSports.length} chosen. Choosing none lets
+                  the app pick your busiest three.
+                </p>
+                <ul className="picker-list">
+                  {ACTIVITY_ORDER.map((name) => {
+                    const held = chosenSports.includes(name)
+                    return (
+                      <li key={name}>
+                        <label className="picker-option">
+                          <input
+                            type="checkbox"
+                            checked={held}
+                            disabled={!held && chosenSports.length >= MAX_DIAMONDS}
+                            onChange={() => toggleSport(name)}
+                          />
+                          <span className="diamond diamond-on">
+                            <Icon name="diamond" />
+                          </span>
+                          <span>{ACTIVITY_NAMES[name]}</span>
+                        </label>
+                      </li>
+                    )
+                  })}
+                </ul>
+                {sportsError && (
+                  <p className="error" role="alert">
+                    {sportsError}
+                  </p>
+                )}
+                <div className="choice">
+                  <button
+                    type="button"
+                    className="primary"
+                    disabled={sportsBusy}
+                    onClick={() => void saveSports()}
+                  >
+                    Save sports
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => setPickingSports(false)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
             )}
-            <button
-              type="button"
-              className="secondary"
-              disabled={earned.length === 0}
-              onClick={() => (picking ? setPicking(false) : startPicking())}
-            >
-              {picking ? 'Close badges' : 'Choose badges'}
-            </button>
-          </div>
-          {avatarBusy === 'upload' && (
-            <p className="hint" role="status">
-              Uploading.
-            </p>
-          )}
-          {avatarError && (
-            <p className="error" role="alert">
-              {avatarError}
-            </p>
-          )}
-          {earned.length === 0 && (
-            <p className="hint">Badges fill the slots once you have earned some.</p>
-          )}
-        </div>
 
-        {picking && (
-          <div className="picker">
-            <p className="hint">
-              Up to {SLOTS.length}, in the slots around your picture. {chosen.length} chosen.
-            </p>
-            <ul className="picker-list">
-              {earned.map((row) => {
-                const held = chosen.includes(row.id)
-                return (
-                  <li key={row.id}>
-                    <label className="picker-option">
-                      <input
-                        type="checkbox"
-                        checked={held}
-                        disabled={!held && chosen.length >= SLOTS.length}
-                        onChange={() => toggleBadge(row.id)}
-                      />
-                      <Badge achievement={row} />
-                      <span>{row.name}</span>
-                    </label>
-                  </li>
-                )
-              })}
-            </ul>
-            {badgeError && (
-              <p className="error" role="alert">
-                {badgeError}
-              </p>
-            )}
-            <div className="choice">
-              <button
-                type="button"
-                className="primary"
-                disabled={badgeBusy}
-                onClick={() => void saveBadges()}
-              >
-                Save badges
-              </button>
-              <button type="button" className="secondary" onClick={() => setPicking(false)}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
-      </section>
-
-      {loadError && (
-        <p className="error" role="alert">
-          {loadError}
-        </p>
-      )}
-
-      <section className="card">
-        <h2>This week</h2>
-        <Stats stats={profile.week} units={units} empty="Nothing recorded this week yet." />
-      </section>
-
-      <section className="card">
-        <h2>Lifetime</h2>
-        <Stats
-          stats={profile.lifetime}
-          units={units}
-          empty="Nothing recorded yet. Sync your phone or add a workout in Log."
-        />
-      </section>
-
-      <section className="card">
-        <h2>Chests</h2>
-        {chests.length === 0 && opened.length === 0 && (
-          <p className="hint">
-            Nothing waiting. Chests arrive as you cover miles, and they never expire.
-          </p>
-        )}
-        {chestError && (
-          <p className="error" role="alert">
-            {chestError}
-          </p>
-        )}
-        {chests.length > 0 && (
-          <ul className="chests">
-            {chests.map((chest) => (
-              <li key={chest.id}>
-                <span>{chest.set_name} set</span>
+            <div className="profile-edit">
+              <label className="file-field">
+                Profile picture
+                <input
+                  type="file"
+                  accept="image/*"
+                  disabled={avatarBusy !== ''}
+                  onChange={pickAvatar}
+                />
+              </label>
+              <div className="choice">
+                {profile.has_avatar && (
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={avatarBusy !== ''}
+                    onClick={() => void removeAvatar()}
+                  >
+                    Remove picture
+                  </button>
+                )}
                 <button
                   type="button"
                   className="secondary"
-                  aria-label={`Open ${chest.set_name} chest`}
-                  disabled={openingChest === chest.id}
-                  onClick={() => void open(chest.id)}
+                  disabled={earned.length === 0}
+                  onClick={() => (picking ? setPicking(false) : startPicking())}
                 >
-                  Open
+                  {picking ? 'Close badges' : 'Choose badges'}
                 </button>
-              </li>
-            ))}
-          </ul>
-        )}
-        {opened.length > 0 && (
-          <div className="reveal-grid">
-            {opened.map((result) => (
-              <CardPlate
-                key={`${result.card.id}-${result.count}`}
-                number={result.card.number}
-                rarity={result.card.rarity}
-                owned
-                cardId={result.card.id}
-                name={result.card.name}
-                flavor={result.card.flavor}
-                count={result.count}
-              />
-            ))}
-          </div>
-        )}
-      </section>
+              </div>
+              {avatarBusy === 'upload' && (
+                <p className="hint" role="status">
+                  Uploading.
+                </p>
+              )}
+              {avatarError && (
+                <p className="error" role="alert">
+                  {avatarError}
+                </p>
+              )}
+              {earned.length === 0 && (
+                <p className="hint">Badges fill the slots once you have earned some.</p>
+              )}
+            </div>
 
-      <Achievements achievements={achievements} />
+            {picking && (
+              <div className="picker">
+                <p className="hint">
+                  Up to {SLOTS.length}, in the slots around your picture. {chosen.length} chosen.
+                </p>
+                <ul className="picker-list">
+                  {earned.map((row) => {
+                    const held = chosen.includes(row.id)
+                    return (
+                      <li key={row.id}>
+                        <label className="picker-option">
+                          <input
+                            type="checkbox"
+                            checked={held}
+                            disabled={!held && chosen.length >= SLOTS.length}
+                            onChange={() => toggleBadge(row.id)}
+                          />
+                          <Badge achievement={row} />
+                          <span>{row.name}</span>
+                        </label>
+                      </li>
+                    )
+                  })}
+                </ul>
+                {badgeError && (
+                  <p className="error" role="alert">
+                    {badgeError}
+                  </p>
+                )}
+                <div className="choice">
+                  <button
+                    type="button"
+                    className="primary"
+                    disabled={badgeBusy}
+                    onClick={() => void saveBadges()}
+                  >
+                    Save badges
+                  </button>
+                  <button type="button" className="secondary" onClick={() => setPicking(false)}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </section>
+        </div>
+
+        <div className="you-col you-right">
+          {loadError && (
+            <p className="error" role="alert">
+              {loadError}
+            </p>
+          )}
+
+          <section className="card">
+            <h2>This week</h2>
+            <Stats stats={profile.week} units={units} empty="Nothing recorded this week yet." />
+          </section>
+
+          <section className="card">
+            <h2>Lifetime</h2>
+            <Stats
+              stats={profile.lifetime}
+              units={units}
+              empty="Nothing recorded yet. Sync your phone or add a workout in Log."
+            />
+          </section>
+
+          <section className="card">
+            <h2>Chests</h2>
+            {chests.length === 0 && opened.length === 0 && (
+              <p className="hint">
+                Nothing waiting. Chests arrive as you cover miles, and they never expire.
+              </p>
+            )}
+            {chestError && (
+              <p className="error" role="alert">
+                {chestError}
+              </p>
+            )}
+            {chests.length > 0 && (
+              <ul className="chests">
+                {chests.map((chest) => (
+                  <li key={chest.id}>
+                    <span>{chest.set_name} set</span>
+                    <button
+                      type="button"
+                      className="secondary"
+                      aria-label={`Open ${chest.set_name} chest`}
+                      disabled={openingChest === chest.id}
+                      onClick={() => void open(chest.id)}
+                    >
+                      Open
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {opened.length > 0 && (
+              <div className="reveal-grid">
+                {opened.map((result) => (
+                  <CardPlate
+                    key={`${result.card.id}-${result.count}`}
+                    number={result.card.number}
+                    rarity={result.card.rarity}
+                    owned
+                    cardId={result.card.id}
+                    name={result.card.name}
+                    flavor={result.card.flavor}
+                    count={result.count}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+
+          <Achievements achievements={achievements} />
+        </div>
+      </div>
     </>
   )
 }

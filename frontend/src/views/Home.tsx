@@ -8,6 +8,7 @@ import {
   type Units,
   type Workout,
 } from '../api.ts'
+import { borderArt } from '../art.ts'
 import {
   distanceValue,
   formatClock,
@@ -16,6 +17,7 @@ import {
   unitName,
 } from '../format.ts'
 import { ACTIVITY_NAMES } from '../labels.ts'
+import { diamondsOf, weekTotals } from '../profile.ts'
 import Icon from './Icon.tsx'
 
 const PAGE = 20
@@ -144,111 +146,195 @@ export default function Home({ userId, units, refreshToken }: Props) {
 
   const streak = profile.streak_weeks ?? 0
   const days = daysThisWeek(workouts)
+  const border = borderArt(profile.border_tier)
+  const diamonds = diamondsOf(profile)
+  const week = weekTotals(profile)
 
+  // Three columns from 900px up and one below it. The columns are wrappers
+  // rather than a reordering, so the phone still draws the streak, then the
+  // feed, in the order they are written.
   return (
-    <>
-      <section className="card">
-        <p className="label">Week streak</p>
-        <p className="streak-count">
-          <span className="streak-value">{streak}</span>
-          <span className="streak-unit">{streak === 1 ? 'week' : 'weeks'}</span>
-        </p>
-        <ul className="streak-days">
-          {DAY_LETTERS.map((letter, index) => (
-            <li key={DAY_NAMES[index]} className="streak-day">
-              <span className={days[index] ? 'diamond diamond-on' : 'diamond diamond-off'}>
-                <Icon name="diamond" />
-              </span>
-              <span className="streak-letter">
-                {letter}
-                <span className="sr-only"> {DAY_NAMES[index]}</span>
-              </span>
-            </li>
-          ))}
-        </ul>
-        <p className="hint">
-          Miles counted this week. Your phone syncs on its own, so nothing here needs
-          opening the app.
-        </p>
-      </section>
-
-      {loadError && (
-        <p className="error" role="alert">
-          {loadError}
-        </p>
-      )}
-
-      {workouts.length === 0 && !loadError && (
-        <p className="notice">Nothing recorded yet. Sync your phone or add a workout in Log.</p>
-      )}
-
-      {workouts.map((workout) => (
-        <article className="card feed" key={workout.id}>
-          <header className="feed-head">
+    <div className="home">
+      <aside className="home-col home-left">
+        <section className="card summary">
+          <div className="avatar-frame summary-frame">
             {profile.has_avatar ? (
               <img
-                className="feed-avatar"
+                className="avatar-shot"
                 src={avatarUrl(profile.user_id, profile.avatar_version)}
-                alt=""
+                alt={`${profile.username}'s picture`}
               />
             ) : (
-              <span className="feed-avatar feed-avatar-empty" aria-hidden="true">
+              <span className="avatar-shot avatar-empty" aria-hidden="true">
                 {profile.username.slice(0, 1).toUpperCase()}
               </span>
             )}
-            <div className="feed-who">
-              <p className="feed-name">{profile.username}</p>
-              <p className="feed-when">{formatStart(workout.start_ts)}</p>
-              <p className="feed-source">{SOURCE_NAMES[workout.source]}</p>
-            </div>
-          </header>
-
-          <h2 className="feed-title">{ACTIVITY_NAMES[workout.activity]}</h2>
-
-          <div className="stat-row">
-            <div className="stat">
-              <span className="label">Distance</span>
-              <span className="stat-value">
-                {distanceValue(workout.distance_mi, units)}
-                <span className="stat-unit">{unitName(units)}</span>
-              </span>
-            </div>
-            <div className="stat">
-              <span className="label">Pace</span>
-              <span className="stat-value">
-                {formatPace(workout.activity, workout.distance_mi, workout.duration_s, units)}
-              </span>
-            </div>
-            <div className="stat">
-              <span className="label">Time</span>
-              <span className="stat-value">{formatClock(workout.duration_s)}</span>
-            </div>
+            {border && <img className="avatar-border" src={border} alt="" />}
           </div>
 
-          {workout.xp !== undefined && (
-            <p className="feed-foot">
-              <span className="feed-xp">+{workout.xp} XP</span>
-            </p>
+          <h2 className="summary-name">{profile.username}</h2>
+
+          <p className="level-line">
+            <span className="level-tag">Level {profile.level}</span>
+          </p>
+          <progress
+            className="xp-meter"
+            value={profile.xp_into_level}
+            max={profile.xp_for_next_level}
+          >
+            {profile.xp_into_level} of {profile.xp_for_next_level}
+          </progress>
+          <p className="hint summary-xp">
+            {profile.xp_into_level} of {profile.xp_for_next_level} XP toward level{' '}
+            {profile.level + 1}
+          </p>
+
+          {diamonds.length > 0 && (
+            <ul className="diamond-chips summary-chips">
+              {diamonds.map((name) => (
+                <li key={name} className="diamond-chip">
+                  <span className="diamond diamond-on">
+                    <Icon name="diamond" />
+                  </span>
+                  <span className="chip-value">
+                    {distanceValue(profile.lifetime[name]?.distance_mi ?? 0, units)}
+                    <span className="chip-unit">{unitName(units)}</span>
+                  </span>
+                  <span className="label">{ACTIVITY_NAMES[name]}</span>
+                </li>
+              ))}
+            </ul>
           )}
-        </article>
-      ))}
+        </section>
+      </aside>
 
-      {moreError && (
-        <p className="error" role="alert">
-          {moreError}
-        </p>
-      )}
+      <aside className="home-col home-right">
+        <section className="card">
+          <p className="label">Week streak</p>
+          <p className="streak-count">
+            <span className="streak-value">{streak}</span>
+            <span className="streak-unit">{streak === 1 ? 'week' : 'weeks'}</span>
+          </p>
+          <ul className="streak-days">
+            {DAY_LETTERS.map((letter, index) => (
+              <li key={DAY_NAMES[index]} className="streak-day">
+                <span className={days[index] ? 'diamond diamond-on' : 'diamond diamond-off'}>
+                  <Icon name="diamond" />
+                </span>
+                <span className="streak-letter">
+                  {letter}
+                  <span className="sr-only"> {DAY_NAMES[index]}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="hint">
+            Miles counted this week. Your phone syncs on its own, so nothing here needs
+            opening the app.
+          </p>
+        </section>
 
-      {workouts.length > 0 && !done && (
-        <button
-          type="button"
-          className="secondary"
-          disabled={moreBusy}
-          onClick={() => void loadMore()}
-        >
-          Load more
-        </button>
-      )}
-    </>
+        <section className="card home-week">
+          <h2 className="label">This week</h2>
+          <ul className="week-totals">
+            <li>
+              <span className="count-value">
+                {distanceValue(week.distance, units)}
+                <span className="chip-unit">{unitName(units)}</span>
+              </span>
+              <span className="count-label">Distance</span>
+            </li>
+            <li>
+              <span className="count-value">{Math.round(week.kcal)}</span>
+              <span className="count-label">Calories</span>
+            </li>
+            <li>
+              <span className="count-value">{week.workouts}</span>
+              <span className="count-label">Workouts</span>
+            </li>
+          </ul>
+        </section>
+      </aside>
+
+      <div className="home-col home-main">
+        {loadError && (
+          <p className="error" role="alert">
+            {loadError}
+          </p>
+        )}
+
+        {workouts.length === 0 && !loadError && (
+          <p className="notice">Nothing recorded yet. Sync your phone or add a workout in Log.</p>
+        )}
+
+        {workouts.map((workout) => (
+          <article className="card feed" key={workout.id}>
+            <header className="feed-head">
+              {profile.has_avatar ? (
+                <img
+                  className="feed-avatar"
+                  src={avatarUrl(profile.user_id, profile.avatar_version)}
+                  alt=""
+                />
+              ) : (
+                <span className="feed-avatar feed-avatar-empty" aria-hidden="true">
+                  {profile.username.slice(0, 1).toUpperCase()}
+                </span>
+              )}
+              <div className="feed-who">
+                <p className="feed-name">{profile.username}</p>
+                <p className="feed-when">{formatStart(workout.start_ts)}</p>
+                <p className="feed-source">{SOURCE_NAMES[workout.source]}</p>
+              </div>
+            </header>
+
+            <h2 className="feed-title">{ACTIVITY_NAMES[workout.activity]}</h2>
+
+            <div className="stat-row">
+              <div className="stat">
+                <span className="label">Distance</span>
+                <span className="stat-value">
+                  {distanceValue(workout.distance_mi, units)}
+                  <span className="stat-unit">{unitName(units)}</span>
+                </span>
+              </div>
+              <div className="stat">
+                <span className="label">Pace</span>
+                <span className="stat-value">
+                  {formatPace(workout.activity, workout.distance_mi, workout.duration_s, units)}
+                </span>
+              </div>
+              <div className="stat">
+                <span className="label">Time</span>
+                <span className="stat-value">{formatClock(workout.duration_s)}</span>
+              </div>
+            </div>
+
+            {workout.xp !== undefined && (
+              <p className="feed-foot">
+                <span className="feed-xp">+{workout.xp} XP</span>
+              </p>
+            )}
+          </article>
+        ))}
+
+        {moreError && (
+          <p className="error" role="alert">
+            {moreError}
+          </p>
+        )}
+
+        {workouts.length > 0 && !done && (
+          <button
+            type="button"
+            className="secondary"
+            disabled={moreBusy}
+            onClick={() => void loadMore()}
+          >
+            Load more
+          </button>
+        )}
+      </div>
+    </div>
   )
 }
