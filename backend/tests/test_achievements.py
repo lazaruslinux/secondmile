@@ -123,37 +123,13 @@ def test_a_badge_is_never_revoked_and_never_reissued(signed_in, db_session, memb
     assert db_session.get(models.UserAchievement, (member.id, "week_10")).earned_at == first_earned
 
 
-def test_collection_badges_arrive_with_the_card(signed_in, db_session, member):
-    from app import world
-
-    assert "collection_first_card" not in earned(signed_in)
-    first_light = world.CARDS_BY_SET["first_light"]
-    chest = models.Chest(
-        user_id=member.id,
-        card_id=first_light[0].id,
-        dropped_at=security.now_utc(),
-        opened_at=None,
-    )
-    db_session.add(chest)
-    db_session.commit()
-    signed_in.post(f"/api/chests/{chest.id}/open")
-    held = earned(signed_in)
-    assert "collection_first_card" in held
-    assert "collection_set_first_light" not in held
-
-    for card in first_light[1:]:
-        db_session.add(
-            models.UserCard(
-                user_id=member.id,
-                card_id=card.id,
-                count=1,
-                first_found_at=security.now_utc(),
-            )
-        )
-    db_session.commit()
-    held = earned(signed_in)
-    assert "collection_set_first_light" in held
-    assert "collection_complete" not in held
+def test_the_catalogue_is_weekly_distance_and_nothing_else(signed_in):
+    """The collection badges went when the cards did, and nothing has replaced
+    them yet: what grows in the plot earns nothing this round."""
+    assert {row.kind for row in achievements.CATALOG} == {"week-distance"}
+    assert achievements.KINDS == ("week-distance",)
+    listed = signed_in.get("/api/achievements").json()
+    assert [row["id"] for row in listed] == [row.id for row in achievements.CATALOG]
 
 
 def test_evaluating_twice_writes_nothing_the_second_time(signed_in, db_session, member):

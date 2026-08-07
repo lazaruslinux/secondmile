@@ -97,22 +97,25 @@ command for it:
 docker compose exec backend python manage.py recompute-progress theirname
 ```
 
-This clears that account's experience, level, chest counter, unopened chests,
-card album, and race badges, and builds them again from the workouts. The
-workouts themselves are never touched, so nothing anybody actually did is at
-risk. Race badges come back with the dates of the runs that earned them, so
-running this is also how a history that predates the badges earns them. Earned
-achievements are left exactly where they are: they are never revoked, and
-anything the rebuilt history earns is added on top.
+This clears that account's experience, level, chest ladder, earned chests, the
+growth in its plot, and its race badges, and builds them all again from the
+workouts. The workouts themselves are never touched, so nothing anybody
+actually did is at risk. Race badges come back with the dates of the runs that
+earned them, so running this is also how a history that predates the badges
+earns them. Earned achievements are left exactly where they are: they are
+never revoked, and anything the rebuilt history earns is added on top.
 
-Replaying the same workouts produces the same chests in the same order,
-because every roll is seeded on the account and the workout rather than on the
-clock. A filled album is still thrown away and refound, though, and the cards
-that come back will not be the ones that went in. Take a dump first if that
-matters to the person whose account it is.
+Nothing anybody chose is rebuilt either. What is in the satchel, what has been
+planted, and every anointing given or received stay exactly as they are, and a
+chest that came out of somebody else's oil is left alone with them.
+
+Replaying the same workouts produces the same chests in the same order, because
+the ladder is fixed. Chests that were already opened do come back closed,
+though, and opening them again hands out items all over again. Take a dump
+first, and do not run this casually on an account with a full satchel.
 
 There are two narrower commands for the cases where a rebuild is more than you
-need. Neither touches chests, cards, or experience:
+need. Neither touches chests, the plot, or experience:
 
 ```
 docker compose exec backend python manage.py backfill-badges theirname

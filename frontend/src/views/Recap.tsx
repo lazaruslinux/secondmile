@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { errorText, openChest, type OpenedChest, type RecapState } from '../api.ts'
+import { errorText, openChest, type RecapState, type SatchelItem } from '../api.ts'
 import { formatDate } from '../format.ts'
-import { RACE_BADGE_DETAILS, raceBadgeName } from '../labels.ts'
-import { flourishLine, noteAuthor, recapCheers, recapNotes } from '../recap.ts'
+import { chestName, RACE_BADGE_DETAILS, raceBadgeName } from '../labels.ts'
+import { chestGiver, flourishLine, noteAuthor, recapCheers, recapNotes } from '../recap.ts'
 import Badge from './Badge.tsx'
-import CardPlate from './CardPlate.tsx'
+import ChestItem from './ChestItem.tsx'
 import { RaceBadgeMark } from './RaceBadges.tsx'
 
 interface Props {
@@ -17,7 +17,7 @@ interface Props {
 // were covered, the chests were dropped, the badges were earned. Opening the
 // app is how you read about it, never how you cause it.
 export default function Recap({ recap, onDismiss }: Props) {
-  const [opened, setOpened] = useState<Record<number, OpenedChest>>({})
+  const [opened, setOpened] = useState<Record<number, SatchelItem>>({})
   const [busy, setBusy] = useState<number | null>(null)
   const [errors, setErrors] = useState<Record<number, string>>({})
   const dialog = useRef<HTMLDialogElement>(null)
@@ -162,15 +162,24 @@ export default function Recap({ recap, onDismiss }: Props) {
               <ul className="chests">
                 {recap.chests.map((chest) => {
                   const reveal = opened[chest.id]
+                  const giver = chestGiver(chest)
                   return (
                     <li key={chest.id} className="recap-chest">
+                      {/* Oil says nothing when it is used. This line is where
+                          the person who gave it is finally named, so it reads
+                          with the weight the words in the letter have. */}
+                      {giver !== '' && (
+                        <p className="recap-chest-from">
+                          {giver} sent this one. More than your miles earned.
+                        </p>
+                      )}
                       <div className="chest-line">
-                        <span>{chest.set_name} set</span>
+                        <span>{chestName(chest.tier)}</span>
                         {!reveal && (
                           <button
                             type="button"
                             className="secondary"
-                            aria-label={`Open ${chest.set_name} chest`}
+                            aria-label={`Open ${chestName(chest.tier)}`}
                             disabled={busy === chest.id}
                             onClick={() => void open(chest.id)}
                           >
@@ -185,21 +194,7 @@ export default function Recap({ recap, onDismiss }: Props) {
                       )}
                       {reveal && (
                         <div className="reveal">
-                          <CardPlate
-                            number={reveal.card.number}
-                            rarity={reveal.card.rarity}
-                            owned
-                            cardId={reveal.card.id}
-                            name={reveal.card.name}
-                            flavor={reveal.card.flavor}
-                            count={reveal.count}
-                          />
-                          <p className="hint">
-                            {reveal.card.set_name} set.{' '}
-                            {reveal.duplicate
-                              ? `You already had this one. ${reveal.count} copies now.`
-                              : 'New card.'}
-                          </p>
+                          <ChestItem item={reveal} />
                         </div>
                       )}
                     </li>

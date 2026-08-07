@@ -197,7 +197,15 @@ export interface Profile {
   // way the weekly totals behave.
   week: Partial<Record<Activity, ActivityStats>>
   lifetime: Partial<Record<Activity, ActivityStats>>
-  cards: { owned: number; total: number }
+  // How much is in the plot. Optional so the app still renders against a server
+  // that predates the grove.
+  grove?: { planted: number; mature: number }
+  // The next chest and how far off it is, if the server says. Both shapes a
+  // server might reasonably use are allowed for, and the line is left out
+  // entirely when neither is there.
+  next_chest?: { tier?: string | null; miles_away?: number; mi_away?: number }
+  next_chest_tier?: string | null
+  next_chest_mi?: number
   achievements: { earned: number; total: number }
 }
 
@@ -206,7 +214,7 @@ export interface AvatarState {
   avatar_version: number
 }
 
-export type AchievementKind = 'week-distance' | 'collection'
+export type AchievementKind = 'week-distance'
 
 export interface Achievement {
   id: string
@@ -220,16 +228,45 @@ export interface Achievement {
   earned_at: string | null
 }
 
-export type Rarity = 'common' | 'uncommon' | 'rare'
+// Seeds carry a rarity that decides how big the thing they grow into gets. The
+// special one is its own kind of rare and never rolls.
+export type Rarity = 'common' | 'uncommon' | 'rare' | 'special'
 
-export interface Card {
-  id: string
-  set_id: string
-  set_name: string
-  number: number
-  name: string
+// What a chest holds. Every item is a tool with exactly one thing to do with it:
+// a seed is planted, water is poured onto a planting, oil is given to a friend.
+export type ItemKind = 'seed' | 'water' | 'oil'
+
+// One unused thing in the satchel. Water and oil carry no species; a seed
+// always does.
+export interface SatchelItem {
+  id: number
+  kind: ItemKind
+  species: string | null
   rarity: Rarity
-  flavor: string
+  acquired_at: string
+}
+
+// One thing growing in the plot. growth_mi and maturity_mi are converted miles:
+// the same miles the level bar counts, spent here as well.
+export interface Planting {
+  id: number
+  species: string
+  rarity: Rarity
+  planted_at: string
+  growth_mi: number
+  maturity_mi: number
+  mature: boolean
+}
+
+// A friend's plot, which is theirs to grow and only ours to water. Enough to
+// draw it and pour onto it: no miles, no dates, nothing to compare against.
+export interface FriendPlanting {
+  id: number
+  species: string
+  // 1 seedling, 2 growing, 3 grown. Read defensively: either field may be
+  // missing, and a plant already grown takes no more water.
+  stage?: number
+  mature?: boolean
 }
 
 // What is inside is deliberately not in this response: the reveal belongs to
@@ -237,41 +274,17 @@ export interface Card {
 export interface Chest {
   id: number
   dropped_at: string
-  set_id: string
-  set_name: string
-}
-
-export interface OpenedChest {
-  card: Card
-  duplicate: boolean
-  count: number
-}
-
-// An unowned plate carries its number and rarity and nothing else, so every
-// field that would name it is optional here too.
-export interface AlbumPlate {
-  number: number
-  rarity: Rarity
-  owned: boolean
-  id?: string
-  set_id?: string
-  set_name?: string
-  name?: string
-  flavor?: string
-  count?: number
-  first_found_at?: string
-}
-
-export interface AlbumSet {
-  id: string
-  name: string
-  size: number
-  owned: number
-  cards: AlbumPlate[]
-}
-
-export interface Album {
-  sets: AlbumSet[]
+  // Which step of the ladder dropped it, "5K" through "Ultra". Chests dropped
+  // before the ladder existed carry none, so this is read defensively.
+  tier?: string | null
+  // A chest a friend's oil brought rather than one the miles earned. Which
+  // field names the giver is the server's business; all the shapes it might
+  // reasonably use are allowed for here and read in one place.
+  bonus?: boolean
+  from_username?: string
+  giver_username?: string
+  giver?: string
+  from?: string
 }
 
 // Everything that happened while the app was shut. The chests were dropped and
@@ -563,11 +576,42 @@ export function listChests(): Promise<Chest[]> {
   return getJson<Chest[]>('/chests')
 }
 
-export async function openChest(chestId: number): Promise<OpenedChest> {
+// Opening one answers with the thing that was inside, which then sits in the
+// satchel until it is used.
+export async function openChest(chestId: number): Promise<SatchelItem> {
   const res = await send(`/chests/${chestId}/open`, { method: 'POST' })
-  return (await res.json()) as OpenedChest
+  return (await res.json()) as SatchelItem
 }
 
-export function getAlbum(): Promise<Album> {
-  return getJson<Album>('/album')
+// Everything held and not yet used.
+export function listSatchel(): Promise<SatchelItem[]> {
+  return getJson<SatchelItem[]>('/satchel')
+}
+
+// The plot: everything planted, whether it is still growing or done.
+export function listGrove(): Promise<Planting[]> {
+  return getJson<Planting[]>('/grove')
+}
+
+// An accepted friend's plot. Read-only, and the only reason to ask for it is to
+// pour water onto something in it.
+export function listFriendGrove(userId: number): Promise<FriendPlanting[]> {
+  return getJson<FriendPlanting[]>(`/grove/${userId}`)
+}
+
+export async function plantSeed(itemId: number): Promise<Planting> {
+  const res = await send(`/satchel/${itemId}/plant`, { method: 'POST' })
+  return (await res.json()) as Planting
+}
+
+// Water goes onto one planting, this account's own or a friend's, chosen by the
+// person pouring it.
+export async function pourWater(itemId: number, plantingId: number): Promise<void> {
+  await sendJson(`/satchel/${itemId}/pour`, 'POST', { planting_id: plantingId })
+}
+
+// Oil goes onto a friend and says nothing to them. A 409 means one is already
+// waiting on that person.
+export async function anointFriend(itemId: number, userId: number): Promise<void> {
+  await sendJson(`/satchel/${itemId}/anoint`, 'POST', { user_id: userId })
 }

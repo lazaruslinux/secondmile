@@ -44,7 +44,7 @@ both.
 | --- | --- |
 | `tab-home.svg` | Home in the bottom bar |
 | `tab-log.svg` | Log in the bottom bar |
-| `tab-cards.svg` | Cards in the bottom bar |
+| `tab-grove.svg` | Grove in the bottom bar |
 | `tab-you.svg` | You in the bottom bar |
 | `gear.svg` | The settings button in the You header |
 | `diamond.svg` | The week strip on Home, and the sport diamonds on You |
@@ -152,12 +152,11 @@ Drop a file in named after an achievement id and it becomes that achievement's
 badge. There is no list to edit and no import to add. An achievement with no
 file of its own falls back to a generic badge for its kind:
 
-`frontend/src/assets/badges/kind-week-distance.svg`,
-`kind-collection.svg`
+`frontend/src/assets/badges/kind-week-distance.svg`
 
 The achievement ids are in `backend/app/achievements.py`, in the catalogue near
-the top of the file. They read like `week_10` and `collection_set_hedgerow`, so
-the file for the first of those is `week_10.svg`.
+the top of the file. They read like `week_10`, so the file for that one is
+`week_10.svg`.
 
 Badges are drawn small: in the nest under the avatar they are roughly 32 to 36
 pixels across, and in the achievements list roughly 64. Anything that depends
@@ -176,32 +175,58 @@ treatment of its own. Providing the file is how you make the difference
 unmistakable, which is the point of the mechanic: it is meant to be visibly
 finer than the badge everybody else has.
 
-## Card illustrations
+## Grove plants
 
-`frontend/src/assets/cards/<card-id>.png`
+`frontend/src/assets/grove/<species>-s1.svg`, `-s2.svg`, `-s3.svg`
 
-Drop an image in named after the card id and it appears on that card's plate at
-the next build. `.png`, `.webp`, and `.svg` all work. A card with no file gets a
-plain plate with a blank slot, which is what the whole album looks like now.
+Three drawings per species, one per stage of growth. Thirteen species, so
+thirty nine files:
 
-The card ids are in `backend/app/world.py`, in the catalogue that makes up most
-of the file. They are always the set id followed by the card's own name, so
-they read like `hedgerow_hawthorn`, `still_water_kingfisher`, and
-`open_hill_raven`, and the file for the first of those is
-`hedgerow_hawthorn.png`.
-
-The four sets and their sizes:
-
-| Set id | Name | Plates |
+| Stage | File ends | What it shows |
 | --- | --- | --- |
-| `hedgerow` | The Hedgerow | 12 |
-| `still_water` | Still Water | 10 |
-| `open_hill` | The Open Hill | 8 |
-| `first_light` | First Light | 6 |
+| Seedling | `-s1` | Just up, the first days after planting |
+| Growing | `-s2` | Half way to full size or better |
+| Grown | `-s3` | Full size, and the only stage that bears fruit |
 
-Plates draw the illustration in a 4 by 3 slot and crop to fill, so images
-around 800 by 600 are a good fit. Album plates are shown at roughly 150 pixels
-wide, so nothing enormous is needed.
+The species and the file each one reads:
+
+| Species | Files |
+| --- | --- |
+| Strawberry | `strawberry-s1.svg`, `-s2`, `-s3` |
+| Tomato | `tomato-s1.svg`, `-s2`, `-s3` |
+| Mint | `mint-s1.svg`, `-s2`, `-s3` |
+| Grapevine | `grapevine-s1.svg`, `-s2`, `-s3` |
+| Blackberry | `blackberry-s1.svg`, `-s2`, `-s3` |
+| Fig bush | `fig-bush-s1.svg`, `-s2`, `-s3` |
+| Coffee | `coffee-s1.svg`, `-s2`, `-s3` |
+| Olive | `olive-s1.svg`, `-s2`, `-s3` |
+| Pomegranate | `pomegranate-s1.svg`, `-s2`, `-s3` |
+| Apple | `apple-s1.svg`, `-s2`, `-s3` |
+| Banana | `banana-s1.svg`, `-s2`, `-s3` |
+| Mango | `mango-s1.svg`, `-s2`, `-s3` |
+| Mustard | `mustard-s1.svg`, `-s2`, `-s3` |
+
+The species ids are in `backend/app/species.py`. An id written with an
+underscore reads as a hyphen here, so `fig_bush` is `fig-bush-s1.svg`. A species
+with no file draws nothing at all and the rest of the row is unaffected, so a
+missing file costs a picture rather than a screen.
+
+`.png`, `.webp`, and `.svg` all work. Four things to keep in mind:
+
+- **Draw them standing on the same floor.** Every plant is bottom aligned
+  wherever it appears, so leave no empty space under it and keep the ground at
+  the same height in all thirty nine files. The placeholder art puts it at 58
+  in a 64 by 64 viewBox.
+- **Scale is the story.** The three stages are read side by side down the plot
+  and along the band on the profile, and a grown apple tree standing next to a
+  seedling is how growth shows. Make each stage plainly bigger than the last,
+  and let a rare tree tower over a common herb.
+- **They are drawn small.** Roughly 88 pixels tall in the plot, 36 to 52 in the
+  band across the top of the profile, and 44 in the satchel and a chest reveal.
+  Silhouettes read at that size; fine detail does not.
+- **Distinct at a glance.** Thirteen species share one plot, so shape carries
+  more than colour: a vine on a wire, an arching bramble, a flat olive crown, a
+  round apple crown, banana paddles.
 
 ## Profile pictures
 

@@ -102,10 +102,10 @@ interface Props {
   // The app owns which screen is up, so the rows that go somewhere are handed
   // the switch rather than reaching for it.
   onOpenLog: () => void
-  onOpenCards: () => void
+  onOpenGrove: () => void
 }
 
-export default function Home({ userId, units, refreshToken, onOpenLog, onOpenCards }: Props) {
+export default function Home({ userId, units, refreshToken, onOpenLog, onOpenGrove }: Props) {
   // Coming back to the tab draws what was here before and asks the server again
   // underneath, so switching tabs is not a blank screen every time.
   const [profile, setProfile] = useState<ProfileData | null>(
@@ -310,16 +310,20 @@ export default function Home({ userId, units, refreshToken, onOpenLog, onOpenCar
           </ul>
         </section>
 
-        <section className="card home-collection">
-          <h2 className="label">Cards</h2>
-          <p className="collection-count">
-            <span className="count-value">
-              {profile.cards.owned} of {profile.cards.total}
-            </span>
-            <span className="count-label">collected</span>
-          </p>
-          <button type="button" className="secondary" onClick={onOpenCards}>
-            Open cards
+        <section className="card home-grove">
+          <h2 className="label">Grove</h2>
+          <ul className="grove-counts">
+            <li>
+              <span className="count-value">{profile.grove?.planted ?? 0}</span>
+              <span className="count-label">Planted</span>
+            </li>
+            <li>
+              <span className="count-value">{profile.grove?.mature ?? 0}</span>
+              <span className="count-label">Grown</span>
+            </li>
+          </ul>
+          <button type="button" className="secondary" onClick={onOpenGrove}>
+            Open grove
           </button>
         </section>
       </aside>

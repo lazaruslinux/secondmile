@@ -2,7 +2,7 @@
 // interface uses for them. Kept in one place so the feed, the log, and the You
 // screen never disagree about what to call a bike ride.
 
-import type { Activity } from './api.ts'
+import type { Activity, ItemKind, Rarity, SatchelItem } from './api.ts'
 
 export const ACTIVITY_ORDER: Activity[] = ['walk', 'run', 'cycle', 'swim']
 
@@ -44,4 +44,53 @@ export const RACE_BADGE_DETAILS: Record<string, string> = {
 // as something.
 export function raceBadgeName(id: string): string {
   return RACE_BADGE_NAMES[id] ?? id
+}
+
+// Species ids are words with an underscore or a hyphen between them, so the
+// name on screen is the id tidied up rather than a list to keep in step with
+// the server's. A species this build has never heard of still reads properly.
+export function speciesName(species: string): string {
+  const words = species.replace(/[_-]+/g, ' ').trim()
+  return words === '' ? 'Plant' : words.slice(0, 1).toUpperCase() + words.slice(1)
+}
+
+const RARITY_NAMES: Record<Rarity, string> = {
+  common: 'Common',
+  uncommon: 'Uncommon',
+  rare: 'Rare',
+  special: '',
+}
+
+// How rare a seed is, in a word. The rarity that never rolls has no word: the
+// app says nothing anywhere about the one seed that is not like the others.
+export function rarityWord(rarity: Rarity | string): string {
+  return RARITY_NAMES[rarity as Rarity] ?? ''
+}
+
+const KIND_NAMES: Record<ItemKind, string> = {
+  seed: 'Seed',
+  water: 'Water',
+  oil: 'Oil',
+}
+
+// What one thing in the satchel is called. A seed is named after what it grows
+// into, since that is the whole of what it is.
+export function itemName(item: SatchelItem): string {
+  if (item.kind === 'seed' && item.species) return `${speciesName(item.species)} seed`
+  return KIND_NAMES[item.kind] ?? item.kind
+}
+
+// The step of the ladder a chest dropped on. The names are the server's; a
+// chest from before the ladder simply has none.
+const CHEST_TIER_NAMES: Record<string, string> = {
+  '5k': '5K',
+  '10k': '10K',
+  half: 'Half',
+  marathon: 'Marathon',
+  ultra: 'Ultra',
+}
+
+export function chestName(tier: string | null | undefined): string {
+  if (!tier) return 'Chest'
+  return `${CHEST_TIER_NAMES[tier.toLowerCase()] ?? tier} chest`
 }

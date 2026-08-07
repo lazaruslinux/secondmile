@@ -122,21 +122,51 @@ MAX_WORKOUT_HR = 300.0
 # same game as anybody else.
 MILES_PER_RAW = {"walk": 1.0, "run": 1.0, "cycle": 1.0 / 3.0, "swim": 4.0}
 
-# A chest drops every this many travelled Miles, rolled fresh after each one so
-# the next is never countable. The low end is what stops a short walk feeling
-# pointless; the high end is what stops chests feeling like change from a till.
-CHEST_SPACING_MI = (2.0, 4.0)
+# The chest ladder: what each step of the cycle costs in converted Miles, and
+# what the chest at the top of it is called. Fixed rather than rolled, so the
+# next one is always countable, and repeating, so the reset to a 5K is the
+# wheel turning rather than a demotion. Fuel is converted Miles from every
+# activity, the same distance experience is measured in.
+CHEST_LADDER: tuple[tuple[str, str, float], ...] = (
+    ("5k", "5K", 3.1),
+    ("10k", "10K", 6.2),
+    ("half", "Half", 13.1),
+    ("marathon", "Marathon", 26.2),
+    ("ultra", "Ultra", 31.1),
+)
 
-# Walking's role in the world is gathering, and this is it: every completed
-# walked mile rolls once for a chest on top of whatever the distance already
-# earned. Running past the same hedge finds nothing.
-WALK_BONUS_CHEST_CHANCE = 0.10
+# The odds of each rarity slot per tier, as (common, uncommon, rare). The climb
+# is the reward for the long steps: an Ultra chest never holds a common.
+CHEST_TIER_ODDS: dict[str, tuple[float, float, float]] = {
+    "5k": (0.70, 0.25, 0.05),
+    "10k": (0.60, 0.30, 0.10),
+    "half": (0.50, 0.35, 0.15),
+    "marathon": (0.35, 0.40, 0.25),
+    "ultra": (0.0, 0.55, 0.45),
+}
 
-# Duplicate protection. A card the player does not own yet is this many times
-# more likely to come out of a chest than one they already have. Not a
-# guarantee: a set finished by attrition is a different feeling from one
-# finished by luck, and the last plate should still be worth waiting for.
-UNOWNED_CARD_WEIGHT = 3.0
+# What a chest that predates the ladder rolls against. Those chests were
+# dropped without a tier and are worth what the first step is worth.
+LEGACY_CHEST_ODDS = CHEST_TIER_ODDS["5k"]
+
+# What comes out of a rarity slot once it has been rolled, as (kind, chance)
+# summing to one. Every item is a tool with exactly one verb: a seed is
+# planted, water is poured, oil anoints somebody else. Oil only exists in the
+# rare slot, which is why it is mostly a Marathon and Ultra thing.
+CHEST_SLOT_ITEMS: dict[str, tuple[tuple[str, float], ...]] = {
+    "common": (("seed", 0.85), ("water", 0.15)),
+    "uncommon": (("seed", 0.70), ("water", 0.30)),
+    "rare": (("seed", 0.70), ("oil", 0.30)),
+}
+
+# Growth. Every planting grows from every credited workout, all at once and
+# with no tending: the miles are the water. Swimming adds this much again of
+# its converted Miles on top, which is the extra water a swim is.
+SWIM_GROWTH_BONUS = 0.5
+
+# What one water item pours into a single planting, in converted Miles of
+# growth. Roughly a swim and a run, given to whichever plant you choose.
+WATER_POUR_MI = 10.0
 
 
 # Experience is converted Miles, one for one. Nothing but synced or manually
@@ -173,6 +203,10 @@ MAX_DIAMOND_SPORTS = 3
 # admired would reward posting rather than caring.
 RENOWN_CHEER = 1
 RENOWN_NOTE = 3
+# Giving away something a chest gave you is worth more than words, and oil is
+# worth more than water because it is scarcer and because it becomes a chest.
+RENOWN_WATER = 5
+RENOWN_OIL = 8
 
 # The diminishing window. Inside this many days, one pair earns renown for the
 # first cheer and the first note only; everything after still arrives, and is

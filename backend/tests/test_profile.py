@@ -50,7 +50,9 @@ def test_a_fresh_profile_reports_the_whole_shape(signed_in, member):
     assert body["streak_weeks"] == 0
     assert body["week"] == {}
     assert body["lifetime"] == {}
-    assert body["cards"] == {"owned": 0, "total": 36}
+    # Nothing planted, and no total to fill: the plot is not a collection.
+    assert body["grove"] == {"planted": 0, "mature": 0}
+    assert body["next_chest"] == {"tier": "5K", "tier_id": "5k", "miles_away": 3.1}
     assert body["achievements"]["earned"] == 0
     assert body["achievements"]["total"] > 0
 

@@ -15,12 +15,13 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app import models, world
+from app import models
 from app.activity import converted_miles, week_start
 from app.security import now_utc
 
-# The two kinds; the frontend groups by these and each has a fallback badge.
-KINDS = ("week-distance", "collection")
+# The kinds the frontend groups by. One today: the collection achievements went
+# when the cards did, and the plot has not grown any of its own yet.
+KINDS = ("week-distance",)
 
 
 @dataclass(frozen=True)
@@ -29,8 +30,7 @@ class Achievement:
     kind: str
     name: str
     detail: str
-    # Minutes, Miles, or cards for the counted kinds; an activity name or a
-    # card set id for the rest.
+    # Miles for the counted kinds; an activity name for the rest.
     target: float | str
     # The Second Mile rule: reaching this inside the same window gilds the
     # badge in place. Only the weekly kind has one; a lifetime total has no
@@ -57,24 +57,6 @@ CATALOG: tuple[Achievement, ...] = (
     _week(15),
     _week(25),
     _week(40),
-    Achievement(
-        "collection_first_card", "collection", "First Plate",
-        "The first card in your guide.", 1.0,
-    ),
-    *(
-        Achievement(
-            f"collection_set_{card_set.id}",
-            "collection",
-            f"{card_set.name} Complete",
-            f"Every plate in {card_set.name}.",
-            card_set.id,
-        )
-        for card_set in world.CARD_SETS.values()
-    ),
-    Achievement(
-        "collection_complete", "collection", "The Whole Guide",
-        "Every plate in every set.", float(len(world.CARDS)),
-    ),
 )
 
 BY_ID: dict[str, Achievement] = {row.id: row for row in CATALOG}
@@ -97,36 +79,11 @@ def best_week_mi(db: Session, user_id: int) -> float:
     return max(weeks.values(), default=0.0)
 
 
-def card_counts(db: Session, user_id: int) -> tuple[int, dict[str, int]]:
-    """(plates owned, plates owned per set), counted against the catalogue so
-    a plate from a retired set can never inflate the total. Shared by the
-    profile total and the collection badges so they cannot disagree."""
-    owned = set(
-        db.execute(
-            select(models.UserCard.card_id).where(models.UserCard.user_id == user_id)
-        ).scalars()
-    )
-    per_set = {
-        set_id: sum(1 for card in cards if card.id in owned)
-        for set_id, cards in world.CARDS_BY_SET.items()
-    }
-    return sum(per_set.values()), per_set
-
-
 def _state(db: Session, user_id: int) -> dict[str, tuple[bool, bool]]:
     """(earned, gilded) for every achievement in the catalogue."""
-    best_week = best_week_mi(db, user_id)
-    owned_cards, per_set = card_counts(db, user_id)
+    reached = best_week_mi(db, user_id)
     out: dict[str, tuple[bool, bool]] = {}
     for row in CATALOG:
-        if row.kind == "week-distance":
-            reached = best_week
-        elif row.id in ("collection_first_card", "collection_complete"):
-            reached = float(owned_cards)
-        else:
-            set_id = str(row.target)
-            out[row.id] = (per_set[set_id] == len(world.CARDS_BY_SET[set_id]), False)
-            continue
         target = float(row.target)
         # Tolerance: Miles are summed floats; exactly-the-target must pass.
         earned = reached + 1e-9 >= target
@@ -184,7 +141,7 @@ def earned_count(db: Session, user_id: int) -> int:
 def serialize(achievement: Achievement, row: models.UserAchievement | None) -> dict:
     """One catalogue entry with what this account has done about it. The whole
     catalogue is visible, unearned rows included: achievements are targets,
-    the opposite of how the album hides an unfound plate."""
+    and an unearned one says what it would take."""
     return {
         "id": achievement.id,
         "kind": achievement.kind,

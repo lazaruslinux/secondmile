@@ -13,18 +13,19 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app import achievements, models, world
+from app import achievements, grove, models, species
 from app.activity import converted_miles, week_start
 from app.config import (
     BORDER_LEVELS,
-    CHEST_SPACING_MI,
+    CHEST_LADDER,
+    CHEST_SLOT_ITEMS,
+    CHEST_TIER_ODDS,
+    LEGACY_CHEST_ODDS,
     LEVEL_COSTS_MI,
     LEVEL_STEP_MI,
     MAX_DIAMOND_SPORTS,
     MAX_LEVEL,
     SERVER_TZ,
-    UNOWNED_CARD_WEIGHT,
-    WALK_BONUS_CHEST_CHANCE,
 )
 from app.models import ACTIVITIES
 from app.security import now_utc
@@ -106,7 +107,7 @@ def ensure_progress(db: Session, user_id: int) -> models.UserProgress:
         xp=0.0,
         level=0,
         chest_progress_mi=0.0,
-        next_chest_gap_mi=None,
+        cycle_pos=0,
         last_ack_at=None,
         updated_at=now_utc(),
     )
@@ -160,76 +161,183 @@ def _claim(db: Session, workout_id: int) -> bool:
 
 
 def _credit(db: Session, progress: models.UserProgress, workout: models.Workout) -> None:
-    rng = random.Random(f"{progress.user_id}:{workout.id}")
     miles = converted_miles(workout.activity, workout.distance_mi)
     # Experience is the distance itself. One converted Mile, one XP.
     progress.xp += miles
     progress.level = level_for_xp(progress.xp)
     achievements.award_badge(db, progress.user_id, workout)
-    _advance_chests(db, progress, rng, miles)
+    _advance_chests(db, progress, miles)
+    # When the workout arrived rather than when it happened, so a week of
+    # history synced this morning waters what is in the ground this morning,
+    # and so a rebuild replays to the same numbers. Falls back to the start
+    # time for a row written without an arrival stamp.
+    moment = workout.created_at or workout.start_ts
+    grove.grow(db, progress.user_id, miles, workout.activity, moment)
+    _honour_anointings(db, progress, moment)
 
-    # Walking's gathering role: per completed walked mile, a bonus chest roll
-    # on top of whatever the distance already earned.
-    if workout.activity == "walk":
-        for _ in range(int(workout.distance_mi)):
-            if rng.random() < WALK_BONUS_CHEST_CHANCE:
-                _drop_chest(db, progress.user_id, rng)
+
+# --------------------------------------------------------------------------
+# Chests
+# --------------------------------------------------------------------------
 
 
-def _advance_chests(
-    db: Session, progress: models.UserProgress, rng: random.Random, miles: float
-) -> None:
+def ladder_step(cycle_pos: int) -> tuple[str, str, float]:
+    """(tier id, tier name, cost in converted Miles) at a point in the cycle."""
+    return CHEST_LADDER[cycle_pos % len(CHEST_LADDER)]
+
+
+def tier_of(chest: models.Chest) -> tuple[str, str]:
+    """(tier id, tier name) for a chest, including one from before the ladder.
+
+    A chest that predates the ladder is treated as the first step throughout:
+    it rolls the first step's odds, so calling it anything else would be the
+    API disagreeing with itself.
+    """
+    for tier_id, name, _cost in CHEST_LADDER:
+        if chest.tier == tier_id:
+            return tier_id, name
+    return CHEST_LADDER[0][0], CHEST_LADDER[0][1]
+
+
+def next_chest(progress: models.UserProgress) -> dict:
+    """Which chest is coming and how far off it is.
+
+    tier is the name to print and tier_id is the stable one to key on, the
+    same pair every chest carries.
+    """
+    tier_id, name, cost = ladder_step(progress.cycle_pos)
+    return {
+        "tier": name,
+        "tier_id": tier_id,
+        "miles_away": round(max(cost - progress.chest_progress_mi, 0.0), 2),
+    }
+
+
+def _advance_chests(db: Session, progress: models.UserProgress, miles: float) -> None:
     """Bank converted Miles toward the next chest and drop what falls out.
-    The accumulator carries between workouts, so a short leftover is picked up
-    by the next workout rather than lost."""
+
+    The accumulator carries between workouts, so a run that ends short of a
+    chest leaves what it covered here rather than losing it, and one long
+    workout can climb several steps of the ladder at once.
+    """
     remaining = miles
     while True:
-        if progress.next_chest_gap_mi is None:
-            progress.next_chest_gap_mi = rng.uniform(*CHEST_SPACING_MI)
-            progress.chest_progress_mi = 0.0
-        room = progress.next_chest_gap_mi - progress.chest_progress_mi
+        tier_id, _name, cost = ladder_step(progress.cycle_pos)
+        room = cost - progress.chest_progress_mi
         if remaining < room - _EPSILON:
             progress.chest_progress_mi += remaining
             return
         remaining -= room
-        progress.next_chest_gap_mi = None
         progress.chest_progress_mi = 0.0
-        _drop_chest(db, progress.user_id, rng)
+        progress.cycle_pos = (progress.cycle_pos + 1) % len(CHEST_LADDER)
+        _drop_chest(db, progress.user_id, tier_id)
 
 
-def choose_set(rng: random.Random) -> world.CardSet:
-    """Pick which set a chest draws from, by the catalogue's own weights.
-    Per chest, not per activity: scarce sets are scarce for everybody."""
-    sets = tuple(world.CARD_SETS.values())
-    return rng.choices(sets, weights=[row.weight for row in sets], k=1)[0]
-
-
-def choose_card(
-    cards: tuple[world.Card, ...], owned: set[str], rng: random.Random
-) -> world.Card:
-    """Pick one card, leaning toward unowned plates. A lean, not a rule:
-    duplicates stay possible, and duplicates are what gifting is built on."""
-    weights = [1.0 if card.id in owned else UNOWNED_CARD_WEIGHT for card in cards]
-    return rng.choices(cards, weights=weights, k=1)[0]
-
-
-def _drop_chest(db: Session, user_id: int, rng: random.Random) -> models.Chest:
-    """Drop one chest carrying one card. The card is chosen at drop time, not
-    open time: opening is a reveal, never a roll, because outcomes must not
-    depend on when the player opens the app."""
-    owned = set(
-        db.execute(
-            select(models.UserCard.card_id).where(models.UserCard.user_id == user_id)
-        ).scalars()
-    )
-    card_set = choose_set(rng)
-    card = choose_card(world.CARDS_BY_SET[card_set.id], owned, rng)
+def _drop_chest(
+    db: Session, user_id: int, tier: str, from_anointing_id: int | None = None
+) -> models.Chest:
+    """Drop one chest. What is in it is rolled when it is opened, against the
+    odds of the tier stored here: the ladder decides how good a chest is, and
+    the roll happens once, on the way out."""
     chest = models.Chest(
-        user_id=user_id, card_id=card.id, dropped_at=now_utc(), opened_at=None
+        user_id=user_id,
+        tier=tier,
+        from_anointing_id=from_anointing_id,
+        dropped_at=now_utc(),
+        opened_at=None,
     )
     db.add(chest)
     db.flush()
     return chest
+
+
+def _honour_anointings(
+    db: Session, progress: models.UserProgress, moment: dt.datetime
+) -> None:
+    """Turn whatever oil has been spent on this account into chests.
+
+    At the tier the account is already working toward, and without moving it
+    along: a gift adds to somebody's day, it does not spend their miles. The
+    recipient has been told nothing until now; the chest is the first they
+    hear of it, and the letter is where it says who it came from.
+    """
+    waiting = grove.pending_anointings(db, progress.user_id)
+    if not waiting:
+        return
+    tier_id, _name, _cost = ladder_step(progress.cycle_pos)
+    for anointing in waiting:
+        chest = _drop_chest(db, progress.user_id, tier_id, from_anointing_id=anointing.id)
+        anointing.consumed_at = moment
+        anointing.consumed_chest_id = chest.id
+
+
+def roll_slot(rng: random.Random, tier: str | None) -> str:
+    """Which rarity slot a chest of this tier comes up with."""
+    odds = CHEST_TIER_ODDS.get(tier or "", LEGACY_CHEST_ODDS)
+    return rng.choices(species.RARITIES, weights=odds, k=1)[0]
+
+
+def roll_loot(
+    rng: random.Random, tier: str | None, first_ever: bool
+) -> tuple[str, str | None, str]:
+    """What one chest holds, as (kind, species id or None, rarity).
+
+    Two rolls: the tier decides the rarity slot, and the slot decides whether
+    it is a seed or the tool that shares it. Oil lives in the rare slot only,
+    which is why it is mostly a Marathon and Ultra thing.
+
+    The first chest an account ever opens ignores both rolls. That is never
+    explained anywhere, and this is the only line that knows about it.
+    """
+    if first_ever:
+        seed = species.BY_ID[species.FIRST_CHEST_SPECIES]
+        return "seed", seed.id, seed.rarity
+    rarity = roll_slot(rng, tier)
+    choices = CHEST_SLOT_ITEMS[rarity]
+    kind = rng.choices(
+        [kind for kind, _weight in choices], weights=[weight for _kind, weight in choices], k=1
+    )[0]
+    if kind != "seed":
+        return kind, None, rarity
+    return "seed", rng.choice(species.BY_RARITY[rarity]).id, rarity
+
+
+def open_chest(
+    db: Session, user_id: int, chest: models.Chest
+) -> models.SatchelItem:
+    """Roll what a chest was carrying and put it in the satchel.
+
+    Seeded on the account and the chest, so the same chest opened twice in a
+    race, or replayed by a rebuild, comes up with the same thing. Flushes but
+    never commits: the caller owns the transaction.
+    """
+    # "First" means the first chest that ever yielded an item, not the first
+    # chest row ever opened: an account migrated from the card era has opened
+    # chests but holds no items, and its mustard moment is still ahead of it.
+    first_ever = (
+        db.execute(
+            select(models.SatchelItem.id)
+            .where(models.SatchelItem.user_id == user_id)
+            .limit(1)
+        ).first()
+        is None
+    )
+    rng = random.Random(f"{user_id}:chest:{chest.id}")
+    kind, species_id, rarity = roll_loot(rng, chest.tier, first_ever)
+    now = now_utc()
+    chest.opened_at = now
+    item = models.SatchelItem(
+        user_id=user_id,
+        kind=kind,
+        species=species_id,
+        rarity=rarity,
+        chest_id=chest.id,
+        acquired_at=now,
+        used_at=None,
+    )
+    db.add(item)
+    db.flush()
+    return item
 
 
 def recompute(db: Session, user_id: int) -> models.UserProgress:
@@ -240,9 +348,20 @@ def recompute(db: Session, user_id: int) -> models.UserProgress:
 
     Race badges do go, and come straight back: they belong to individual runs
     rather than to aggregates, so replaying the runs is the only thing that
-    rebuilds them, and each one returns with the same date it had."""
-    for table in (models.Chest, models.UserCard):
-        db.execute(delete(table).where(table.user_id == user_id))
+    rebuilds them, and each one returns with the same date it had.
+
+    Nothing anybody chose is rebuilt. The satchel, what is planted, and every
+    anointing are actions rather than consequences, so they are left exactly as
+    they are; only the growth in the plot is replayed, from the same workouts.
+    Chests that came from somebody's oil stay too, for the same reason: that
+    one was a gift, not a distance.
+    """
+    db.execute(
+        delete(models.Chest).where(
+            models.Chest.user_id == user_id, models.Chest.from_anointing_id.is_(None)
+        )
+    )
+    grove.reset_growth(db, user_id)
     achievements.clear_badges(db, user_id)
     # processed_workouts is keyed by workout; the workout is what has an owner.
     db.execute(
@@ -257,7 +376,7 @@ def recompute(db: Session, user_id: int) -> models.UserProgress:
         row.xp = 0.0
         row.level = 0
         row.chest_progress_mi = 0.0
-        row.next_chest_gap_mi = None
+        row.cycle_pos = 0
     db.commit()
     return process_user(db, user_id)
 
@@ -303,11 +422,6 @@ def week_totals(db: Session, user_id: int, week_start_date: dt.date) -> dict[str
     Almanac uses, so the two screens can never disagree."""
     cutoff = dt.datetime.combine(week_start_date, dt.time.min, tzinfo=SERVER_TZ)
     return _totals(db, user_id, since=cutoff)
-
-
-def owned_card_count(db: Session, user_id: int) -> int:
-    """Distinct plates in the album, counted against the catalogue."""
-    return achievements.card_counts(db, user_id)[0]
 
 
 def streak_weeks(db: Session, user_id: int, moment: dt.datetime | None = None) -> int:

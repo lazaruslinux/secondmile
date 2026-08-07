@@ -13,8 +13,8 @@ function byName(files: Record<string, string>): Map<string, string> {
   return out
 }
 
-const cards = byName(
-  import.meta.glob('./assets/cards/*.{png,webp,svg}', {
+const grove = byName(
+  import.meta.glob('./assets/grove/*.{png,webp,svg}', {
     eager: true,
     query: '?url',
     import: 'default',
@@ -48,9 +48,15 @@ const icons = byName(
   }) as Record<string, string>,
 )
 
-export function cardArt(cardId: string | undefined): string | null {
-  if (!cardId) return null
-  return cards.get(cardId) ?? null
+// One species at one of its three stages. Files are named with hyphens,
+// strawberry-s1.svg through mustard-s3.svg, while the ids the server sends may
+// use underscores. A species whose id carries a word the files do not, such as
+// a mustard tree against mustard-s3.svg, falls back to its first word, so a
+// naming difference costs a picture rather than the screen.
+export function groveArt(species: string, stage: number): string | null {
+  const name = species.toLowerCase().replace(/_/g, '-')
+  const step = `-s${Math.min(3, Math.max(1, Math.round(stage)))}`
+  return grove.get(name + step) ?? grove.get(name.split('-')[0] + step) ?? null
 }
 
 export function borderArt(tier: number): string | null {

@@ -1,14 +1,13 @@
 """The pipeline: conversion, experience, the level curve, chests, and replay."""
 
 import datetime as dt
-import random
 
 import pytest
 from conftest import log_workout
 
 from app import achievements, models, progress, security
 from app.activity import converted_miles
-from app.config import BORDER_LEVELS, CHEST_SPACING_MI, MAX_LEVEL
+from app.config import BORDER_LEVELS, MAX_LEVEL
 
 
 def profile(client) -> dict:
@@ -186,102 +185,47 @@ def test_workouts_from_before_the_account_still_count(signed_in, db_session, mem
     assert body["lifetime"]["run"]["distance_mi"] == 8.0
 
 
-def test_chests_drop_on_the_documented_cadence(signed_in, db_session, member):
-    log_workout(signed_in, "run", 30.0, pace_min=9)
-    dropped = chests(db_session, member.id)
-    low, high = CHEST_SPACING_MI
-    assert 30.0 / high <= len(dropped) <= 30.0 / low + 1
-    assert all(row.card_id for row in dropped)
-
-
-def test_the_chest_accumulator_carries_between_workouts(signed_in, db_session, member):
-    log_workout(signed_in, "run", 1.0, offset_min=0)
-    row = db_session.get(models.UserProgress, member.id)
-    gap, banked = row.next_chest_gap_mi, row.chest_progress_mi
-    assert gap is not None and gap >= CHEST_SPACING_MI[0]
-    assert banked == 1.0
-    log_workout(signed_in, "run", 1.0, offset_min=60)
-    row = db_session.get(models.UserProgress, member.id)
-    # A mile short of a chest is a mile of credit, not a fresh roll.
-    assert row.next_chest_gap_mi == gap
-    assert abs(row.chest_progress_mi - 2.0) < 1e-6
-
-
 def test_reprocessing_the_same_history_gives_the_same_chests(signed_in, db_session, member):
     log_workout(signed_in, "walk", 6.0, offset_min=0)
     log_workout(signed_in, "run", 7.0, offset_min=200)
-    first = [row.card_id for row in chests(db_session, member.id)]
+    first = [row.tier for row in chests(db_session, member.id)]
     assert first, "the test needs at least one chest to be worth anything"
     xp = db_session.get(models.UserProgress, member.id).xp
 
-    # What recompute-progress does, and the reason every roll is seeded on the
-    # account and the workout rather than on the clock.
+    # What recompute-progress does. The ladder is fixed, so the same history
+    # climbs it the same way every time.
     rebuilt = progress.recompute(db_session, member.id)
-    assert [row.card_id for row in chests(db_session, member.id)] == first
+    assert [row.tier for row in chests(db_session, member.id)] == first
     assert rebuilt.xp == xp
 
 
-def test_walking_rolls_bonus_chests_and_running_does_not(signed_in, db_session, member):
-    """Sixty walked miles is sixty ten-percent rolls on top of the distance."""
-    for day in range(3):
-        db_session.add(
-            models.Workout(
-                user_id=member.id,
-                activity="walk",
-                start_ts=security.now_utc() - dt.timedelta(hours=3 + day * 24),
-                duration_s=6 * 3600,
-                distance_mi=20.0,
-                active_kcal=1400.0,
-                avg_hr=None,
-                source="sync",
-                flags={},
-                created_at=security.now_utc(),
-            )
-        )
-    db_session.commit()
-    progress.process_user(db_session, member.id)
-    walked = len(chests(db_session, member.id))
-
-    # The same sixty Miles run instead. Same distance credit, no gathering.
+def test_walking_and_running_the_same_distance_find_the_same_chests(
+    signed_in, db_session, member
+):
+    """The old walked-mile bonus roll is gone: the ladder is the whole cadence,
+    and a Mile is a Mile whichever way it was covered."""
     other = db_session.query(models.User).filter(models.User.username == "admin").one()
-    for day in range(3):
-        db_session.add(
-            models.Workout(
-                user_id=other.id,
-                activity="run",
-                start_ts=security.now_utc() - dt.timedelta(hours=3 + day * 24),
-                duration_s=6 * 3600,
-                distance_mi=20.0,
-                active_kcal=1400.0,
-                avg_hr=None,
-                source="sync",
-                flags={},
-                created_at=security.now_utc(),
+    for user_id, activity in ((member.id, "walk"), (other.id, "run")):
+        for day in range(3):
+            db_session.add(
+                models.Workout(
+                    user_id=user_id,
+                    activity=activity,
+                    start_ts=security.now_utc() - dt.timedelta(hours=3 + day * 24),
+                    duration_s=6 * 3600,
+                    distance_mi=20.0,
+                    active_kcal=1400.0,
+                    avg_hr=None,
+                    source="sync",
+                    flags={},
+                    created_at=security.now_utc(),
+                )
             )
-        )
-    db_session.commit()
-    progress.process_user(db_session, other.id)
-    assert walked > len(chests(db_session, other.id))
-
-
-def test_duplicate_protection_favours_the_missing_plate():
-    from app import world
-
-    cards = world.CARDS_BY_SET["hedgerow"]
-    owned = {card.id for card in cards[:-1]}
-    missing = cards[-1]
-    rng = random.Random("weighting")
-    hits = sum(1 for _ in range(2000) if progress.choose_card(cards, owned, rng).id == missing.id)
-    # One in twelve if the weighting did nothing, three in fourteen with it.
-    assert 0.14 < hits / 2000 < 0.30
-
-
-def test_every_set_can_come_out_of_a_chest():
-    rng = random.Random("sets")
-    seen = {progress.choose_set(rng).id for _ in range(2000)}
-    from app import world
-
-    assert seen == set(world.CARD_SETS)
+        db_session.commit()
+        progress.process_user(db_session, user_id)
+    assert [row.tier for row in chests(db_session, member.id)] == [
+        row.tier for row in chests(db_session, other.id)
+    ]
 
 
 # --------------------------------------------------------------------------

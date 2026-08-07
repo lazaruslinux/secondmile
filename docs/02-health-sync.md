@@ -42,8 +42,9 @@ types in the export are counted in the response but ignored.
   flag. Nothing is rejected; the flags exist so bad data never silently
   becomes progress.
 - Every imported workout is credited to your profile straight away: experience
-  toward your level, converted miles toward the next chest, a race badge if the
-  run covered one, and whatever achievements it has just earned. That happens
+  toward your level, converted miles toward the next chest on the ladder,
+  growth for everything planted in your plot, a race badge if the run covered
+  one, and whatever achievements it has just earned. That happens
   at sync time rather than when
   you next open the app, so the recap waiting for you was already written.
   Each activity converts at its own rate, which is why a mile swum is worth

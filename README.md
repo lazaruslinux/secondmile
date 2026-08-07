@@ -1,11 +1,11 @@
 # secondmile
 
 A self-hosted fitness app with a game inside it. Miles you actually walk, run,
-cycle, or swim sync from your phone and become experience, collectible cards,
-and badges on a profile you build over months. The game is early: accounts,
-workout sync, the Almanac, the profile with its levels and achievements, the
-card collection, and a feed shared with friends work today, and the rest is
-being built on top of them.
+cycle, or swim sync from your phone and become experience, badges, and things
+growing in a plot on a profile you build over months. The game is early:
+accounts, workout sync, the Almanac, the profile with its levels and
+achievements, the plot with its chests and seeds, and a feed shared with
+friends work today, and the rest is being built on top of them.
 
 Current version: **0.1.1**. Releases are tagged in git.
 
@@ -30,16 +30,22 @@ Current version: **0.1.1**. Releases are tagged in git.
   there never will be: profiles celebrate, they do not rank.
 - **Keeps an endless list of things to earn.** Race badges for a single run
   that covers 5K, 10K, half marathon, marathon, or ultra distance, earned again
-  every time you do it and counted on the profile. Achievements for a big week
-  and for finishing a set of cards. Weekly targets have a second, visibly finer
-  version, earned by voluntarily doubling the target inside the same week.
-  Achievements are never taken away.
-- **Drops chests, and chests hold cards.** Every few converted miles a chest
-  appears, carrying one card from one of four nature collections. The album is
-  a field guide: plates you have not found yet show only a number and a
-  rarity. Walked miles find extra chests, cards cannot be bought with
-  anything, chests never expire, and there is no daily anything. Moving your
-  body is the only way to fill a page.
+  every time you do it and counted on the profile. Achievements for a big week,
+  with a second, visibly finer version earned by voluntarily doubling the
+  target inside the same week. Achievements are never taken away.
+- **Drops chests on a ladder you can count.** Chests cost 5K, then 10K, then a
+  half, a marathon, an ultra, and then the ladder starts again. Converted miles
+  from every activity are the fuel, a long run climbs several steps at once,
+  what is left over carries, and nothing ever expires or decays.
+- **Fills a plot rather than an album.** Every chest holds one of three things,
+  and all three are tools: a seed to plant, water to pour into one plant, or
+  oil to spend on a friend. Plantings grow from every workout you log, all of
+  them at once, with nothing to tend and no timers; swimming brings extra
+  water. Nothing can wither and nothing can be bought.
+- **Gives you something to give away.** Water can be poured into a friend's
+  plot as easily as your own. Oil is quieter: it says nothing to the friend
+  you spend it on, and their next workout simply brings them a chest they did
+  not earn, with your name on it in their letter.
 - **Keeps a small circle.** Friends are mutual and added by username: there is
   no discovery, no suggestions, and no count of anybody's friends. The home
   feed carries your workouts and theirs, and a friend's card shows the

@@ -20,11 +20,17 @@ from app.config import (
     FLOURISH_RENOWN,
     RENOWN_CHEER,
     RENOWN_NOTE,
+    RENOWN_OIL,
+    RENOWN_WATER,
     RENOWN_WINDOW_DAYS,
 )
 from app.security import now_utc
 
 RENOWN_PER_KIND = {"cheer": RENOWN_CHEER, "note": RENOWN_NOTE}
+# What giving away something a chest gave you is worth. The same diminishing
+# window applies, kind by kind, for the same reason: two accounts trading
+# water all evening earn one pour's worth between them.
+RENOWN_PER_GIFT = {"water": RENOWN_WATER, "oil": RENOWN_OIL}
 
 
 # --------------------------------------------------------------------------
@@ -144,6 +150,53 @@ def earns_renown(
     )
 
 
+def gift_earns_renown(
+    db: Session, from_user_id: int, to_user_id: int, kind: str, moment: dt.datetime
+) -> bool:
+    """Whether giving one item away pays its giver anything.
+
+    The same seven day window the words above use, asked of the satchel: one
+    pair earns for the first water and the first oil inside it and nothing
+    after. Spending on your own plot is not giving and never asks this.
+    """
+    cutoff = moment - dt.timedelta(days=RENOWN_WINDOW_DAYS)
+    return (
+        db.execute(
+            select(models.SatchelItem.id)
+            .where(
+                models.SatchelItem.user_id == from_user_id,
+                models.SatchelItem.given_to_user_id == to_user_id,
+                models.SatchelItem.kind == kind,
+                models.SatchelItem.earned_renown.is_(True),
+                models.SatchelItem.used_at > cutoff,
+            )
+            .limit(1)
+        ).first()
+        is None
+    )
+
+
+def spend_on(
+    db: Session,
+    item: models.SatchelItem,
+    recipient_id: int,
+    kind: str,
+    moment: dt.datetime,
+) -> None:
+    """Mark one item spent on somebody else and pay whatever renown it earned.
+
+    Flushes but never commits: the caller owns the transaction, because the
+    thing the item actually did has to succeed or fail alongside this.
+    """
+    earned = gift_earns_renown(db, item.user_id, recipient_id, kind, moment)
+    item.used_at = moment
+    item.given_to_user_id = recipient_id
+    item.earned_renown = earned
+    if earned:
+        progress.ensure_progress(db, item.user_id).renown += RENOWN_PER_GIFT[kind]
+    db.flush()
+
+
 def give(
     db: Session, giver_id: int, workout: models.Workout, kind: str, body: str | None
 ) -> models.Encouragement:
@@ -179,19 +232,29 @@ def renown_since(
 ) -> int:
     """How much renown this account has earned since a moment.
 
-    Summed from the encouragements that earned it rather than stored, which is
-    what lets the recap say the flourish grew without keeping a second copy of
-    the total.
+    Summed from the things that earned it rather than stored, which is what
+    lets the recap say the flourish grew without keeping a second copy of the
+    total. Both ways of giving count: words about somebody's workout, and
+    something out of a chest handed over.
     """
-    stmt = select(models.Encouragement.kind, func.count()).where(
+    said = select(models.Encouragement.kind, func.count()).where(
         models.Encouragement.from_user_id == user_id,
         models.Encouragement.earned_renown.is_(True),
     )
+    given = select(models.SatchelItem.kind, func.count()).where(
+        models.SatchelItem.user_id == user_id,
+        models.SatchelItem.earned_renown.is_(True),
+    )
     if since is not None:
-        stmt = stmt.where(models.Encouragement.created_at > since)
-    return sum(
+        said = said.where(models.Encouragement.created_at > since)
+        given = given.where(models.SatchelItem.used_at > since)
+    total = sum(
         RENOWN_PER_KIND.get(kind, 0) * int(count)
-        for kind, count in db.execute(stmt.group_by(models.Encouragement.kind)).all()
+        for kind, count in db.execute(said.group_by(models.Encouragement.kind)).all()
+    )
+    return total + sum(
+        RENOWN_PER_GIFT.get(kind, 0) * int(count)
+        for kind, count in db.execute(given.group_by(models.SatchelItem.kind)).all()
     )
 
 

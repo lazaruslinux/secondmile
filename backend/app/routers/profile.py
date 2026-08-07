@@ -16,7 +16,7 @@ from starlette.formparsers import MultiPartException
 
 from app import achievements
 from app import activity as activity_rules
-from app import avatars, fellowship, models, progress, security, throttle, world
+from app import avatars, fellowship, grove, models, progress, security, throttle
 from app.config import MAX_AVATAR_BYTES, MAX_DIAMOND_SPORTS, MAX_DISPLAYED_BADGES
 from app.db import get_db
 from app.models import ACTIVITIES
@@ -45,7 +45,6 @@ class ProfileBody(BaseModel):
 def serialize_profile(db: Session, user: models.User, row: models.UserProgress) -> dict:
     """Everything the profile screen needs in one response."""
     level, into_level, level_span = progress.level_bounds(row.xp)
-    owned = progress.owned_card_count(db, user.id)
     return {
         "user_id": user.id,
         "username": user.username,
@@ -75,7 +74,12 @@ def serialize_profile(db: Session, user: models.User, row: models.UserProgress) 
             db, user.id, activity_rules.week_start(security.now_utc())
         ),
         "lifetime": progress.lifetime_totals(db, user.id),
-        "cards": {"owned": owned, "total": len(world.CARDS)},
+        # How much is in the plot and how much of it is grown. Not a
+        # collection: there is no total to fill, only what somebody planted.
+        "grove": grove.summary(db, user.id),
+        # Which chest is coming and how far off it is, so the banner can say
+        # so without asking a second endpoint.
+        "next_chest": progress.next_chest(row),
         "achievements": {
             "earned": achievements.earned_count(db, user.id),
             "total": len(achievements.CATALOG),

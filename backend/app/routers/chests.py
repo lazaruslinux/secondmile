@@ -1,4 +1,4 @@
-"""Chests, the card album, and the recap of everything that happened while away."""
+"""Chests, what comes out of them, and the recap of everything that happened while away."""
 
 import datetime as dt
 
@@ -6,11 +6,11 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app import achievements, fellowship, models, progress, security, world
+from app import achievements, fellowship, grove, models, progress, security
 from app.activity import converted_miles
 from app.db import get_db
 
-router = APIRouter(tags=["cards"])
+router = APIRouter(tags=["chests"])
 
 # The recap is a story, not a feed. Anything past this many pending chests is
 # almost certainly a rebuild replaying months of history, and nobody opens three
@@ -18,27 +18,19 @@ router = APIRouter(tags=["cards"])
 MAX_RECAP = 200
 
 
-def _card(card: world.Card) -> dict:
-    """A card the player owns, with everything on the plate."""
-    return {
-        "id": card.id,
-        "set_id": card.set_id,
-        "set_name": world.CARD_SETS[card.set_id].name,
-        "number": card.number,
-        "name": card.name,
-        "rarity": card.rarity,
-        "flavor": card.flavor,
-    }
-
-
 def _chest(row: models.Chest) -> dict:
-    """A closed chest, saying where its card comes from and nothing more."""
-    card_set = world.CARDS[row.card_id].set_id
+    """A closed chest, saying which step of the ladder dropped it and nothing
+    more. What is inside is rolled when it is opened.
+
+    tier is the name to print; tier_id is the stable one, which is what the
+    odds are keyed on and what the column holds.
+    """
+    tier_id, tier_name = progress.tier_of(row)
     return {
         "id": row.id,
         "dropped_at": row.dropped_at.isoformat(),
-        "set_id": card_set,
-        "set_name": world.CARD_SETS[card_set].name,
+        "tier": tier_name,
+        "tier_id": tier_id,
     }
 
 
@@ -59,9 +51,9 @@ def list_chests(
 ) -> list[dict]:
     """Every chest still closed, oldest first.
 
-    The card inside is not in this response. It is decided and stored at the
-    moment the chest drops, but the reveal belongs to opening it, and an API
-    that answers the question early takes the only surprise the game has.
+    A chest that came from somebody's oil looks exactly like one the miles
+    earned. It is told apart in the letter and nowhere else, because being
+    surprised by it is the whole of what was given.
     """
     progress.process_user(db, user.id)
     return [_chest(row) for row in _pending(db, user.id)]
@@ -73,7 +65,12 @@ def open_chest(
     db: Session = Depends(get_db),
     user: models.User = Depends(security.current_user),
 ) -> dict:
-    """Reveal what a chest was carrying and add it to the album."""
+    """Open a chest and put what was in it into the satchel.
+
+    The answer is the item itself, in the shape the satchel lists it in, with
+    the chest's tier alongside so the moment can be named. One shape for a
+    thing that is one thing.
+    """
     chest = db.get(models.Chest, chest_id)
     if chest is None or chest.user_id != user.id:
         # One answer for a chest that never existed and one that belongs to
@@ -83,74 +80,10 @@ def open_chest(
     if chest.opened_at is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "That chest is already open.")
 
-    card = world.CARDS[chest.card_id]
-    now = security.now_utc()
-    chest.opened_at = now
-    owned = db.get(models.UserCard, (user.id, card.id))
-    if owned is None:
-        owned = models.UserCard(
-            user_id=user.id, card_id=card.id, count=1, first_found_at=now
-        )
-        db.add(owned)
-    else:
-        owned.count += 1
-    db.flush()
-    # A plate can finish a set, and finishing a set is an achievement. Awarded
-    # here rather than at the next sweep so the badge arrives with the card.
-    achievements.evaluate(db, user.id)
+    tier_id, tier_name = progress.tier_of(chest)
+    item = progress.open_chest(db, user.id, chest)
     db.commit()
-    return {
-        "card": _card(card),
-        # Duplicates are meant to be kept and given away rather than hoarded,
-        # so the client is told plainly rather than left to work it out.
-        "duplicate": owned.count > 1,
-        "count": owned.count,
-    }
-
-
-@router.get("/album")
-def read_album(
-    db: Session = Depends(get_db), user: models.User = Depends(security.current_user)
-) -> dict:
-    """The field guide: every set, every plate, owned or not.
-
-    An unowned plate carries its number and its rarity and nothing else. The
-    name and the line of text under it are the reward for finding the card, and
-    an album that listed them all up front would be a shopping list.
-    """
-    held = {
-        row.card_id: row
-        for row in db.execute(
-            select(models.UserCard).where(models.UserCard.user_id == user.id)
-        ).scalars()
-    }
-    sets = []
-    for card_set in world.CARD_SETS.values():
-        cards = world.CARDS_BY_SET[card_set.id]
-        plates = []
-        for card in cards:
-            row = held.get(card.id)
-            if row is None:
-                plates.append({"number": card.number, "rarity": card.rarity, "owned": False})
-                continue
-            plates.append(
-                {
-                    **_card(card),
-                    "owned": True,
-                    "count": row.count,
-                    "first_found_at": row.first_found_at.isoformat(),
-                }
-            )
-        sets.append(
-            {
-                "id": card_set.id,
-                "name": card_set.name,
-                "size": len(cards),
-                "owned": sum(1 for card in cards if card.id in held),
-                "cards": plates,
-            }
-        )
-    return {"sets": sets}
+    return {**grove.serialize_item(item), "tier": tier_name, "tier_id": tier_id}
 
 
 @router.get("/recap")
@@ -203,9 +136,39 @@ def read_recap(
             for held in fresh
             if held.achievement_id in achievements.BY_ID
         ],
-        "chests": [_chest(chest) for chest in _pending(db, user.id, MAX_RECAP)],
+        "chests": _waiting_chests(db, user.id),
         **_flourish(db, user.id, row, since),
     }
+
+
+def _waiting_chests(db: Session, user_id: int) -> list[dict]:
+    """The chests still closed, and the one thing a letter says that a list of
+    them does not: which of them somebody else gave you, and who.
+
+    This is the whole of the reveal. Spending oil is silent when it happens,
+    silent while it waits, and silent in every other response; the first the
+    recipient hears of it is here, once the chest has actually landed.
+    """
+    rows = _pending(db, user_id, MAX_RECAP)
+    gifts = {
+        anointing_id: username
+        for anointing_id, username in db.execute(
+            select(models.Anointing.id, models.User.username)
+            .join(models.User, models.User.id == models.Anointing.from_user_id)
+            .where(
+                models.Anointing.id.in_(
+                    [row.from_anointing_id for row in rows if row.from_anointing_id]
+                )
+            )
+        ).all()
+    }
+    out = []
+    for row in rows:
+        chest = _chest(row)
+        # Null on every chest the miles themselves earned, which is most of them.
+        chest["from_username"] = gifts.get(row.from_anointing_id or 0)
+        out.append(chest)
+    return out
 
 
 def _received(db: Session, user_id: int, since: dt.datetime | None) -> dict:

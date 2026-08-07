@@ -482,7 +482,7 @@ button:disabled {
    room for. The phone keeps its own copy of the streak instead. */
 .home-left,
 .home-medals,
-.home-collection {
+.home-grove {
   display: none;
 }
 
@@ -580,7 +580,7 @@ button:disabled {
   margin: 0.4rem 0 0;
 }
 
-/* Home: the medals and the collection in the right rail */
+/* Home: the medals and the grove in the right rail */
 
 .medal-list {
   list-style: none;
@@ -626,11 +626,18 @@ button:disabled {
   color: var(--muted);
 }
 
-.collection-count {
+.grove-counts {
   display: flex;
-  align-items: baseline;
-  gap: 0.4rem;
+  gap: 1.5rem;
+  list-style: none;
   margin: 0.5rem 0 0.75rem;
+  padding: 0;
+}
+
+.grove-counts li {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 /* Home: this week's totals */
@@ -1075,9 +1082,8 @@ button:disabled {
 
 /* You */
 
-/* The band across the top of the screen. It is deliberately empty and inert:
-   this is the space the garden grows into later, held now so the layout does
-   not have to change when it arrives. */
+/* The band across the top of the screen: the grove's home, and inert. Whatever
+   is planted stands along its floor. */
 .you-band {
   height: 100px;
   background: var(--surface);
@@ -1716,12 +1722,6 @@ button:disabled {
   border-bottom: none;
 }
 
-.reveal-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
-  gap: 0.75rem;
-}
-
 /* The recap */
 
 /* A native dialog opened as a modal, so the focus trap, the page held still
@@ -1864,8 +1864,18 @@ button:disabled {
   margin-bottom: 0;
 }
 
-.recap-chest {
+/* A chest in the letter stacks: who it came from, what it was, then what came
+   out of it. The row rule above it lays the You screen's chests out instead. */
+.chests .recap-chest {
   display: block;
+}
+
+/* Said with the weight the words in this letter have: oil says nothing at all
+   until the chest it brought is on the mat. */
+.recap-chest-from {
+  margin: 0 0 0.2rem;
+  font-size: 0.95rem;
+  font-weight: 700;
 }
 
 .chest-line {
@@ -1876,128 +1886,231 @@ button:disabled {
 }
 
 .reveal {
-  width: 100%;
-  max-width: 14rem;
+  margin-top: 0.5rem;
 }
 
-.reveal .hint {
-  margin: 0.35rem 0 0;
-}
+/* The grove
+   Every plant stands on the floor of whatever holds it, so the picture is
+   bottom aligned and takes its height from the row rather than its own file. */
 
-/* Cards */
-
-.set-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.plates {
+.plot {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
   gap: 0.5rem;
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
 }
 
-.plate {
+.plant {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
   padding: 0.6rem;
-  background: var(--surface);
+  background: #17171b;
   border: 1px solid var(--line);
   border-radius: var(--radius);
 }
 
-/* A plate for a card nobody has found is left almost empty on purpose. */
-.plate-unowned {
-  background: transparent;
-  border-style: dashed;
-}
-
-/* The one place rarity is worth an accent, and it is the edge rather than the
-   word: crimson type this small does not carry enough contrast. */
-.plate-owned-rare {
-  border-color: var(--accent);
-}
-
-.plate-art {
-  aspect-ratio: 4 / 3;
+.plant-art {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
   overflow: hidden;
-  border-radius: 4px;
-  background: #17171b;
 }
 
-.plate-unowned .plate-art {
-  background: transparent;
-  border: 1px dashed var(--line);
-}
-
-.plate-art img {
+.plant-art img {
   display: block;
-  width: 100%;
+  width: auto;
   height: 100%;
-  object-fit: cover;
+  max-width: 100%;
 }
 
-.plate-slot {
+/* A species with no file yet still keeps its place in the row. */
+.plant-blank {
   display: block;
   width: 100%;
   height: 100%;
 }
 
-.plate-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.5rem;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  color: var(--muted);
+.plant-picture {
+  height: 5.5rem;
 }
 
-.plate-number {
-  font-variant-numeric: tabular-nums;
-}
-
-.plate-rarity {
-  text-transform: uppercase;
-}
-
-.rarity-uncommon,
-.rarity-rare {
-  color: var(--text);
-}
-
-.plate-name {
+.plant-name {
   margin: 0;
   font-size: 0.95rem;
 }
 
-.plate-flavor {
-  margin: 0;
-  font-size: 0.82rem;
-  color: var(--muted);
-}
-
-.plate-count {
+.plant-growth {
   margin: 0;
   font-size: 0.78rem;
-  font-weight: 700;
   color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 
-.plate-unfound {
+.plant-ready {
   margin: 0;
   font-size: 0.82rem;
   color: var(--muted);
 }
 
-.plate-large .plate-name {
-  font-size: 1.05rem;
+/* The satchel */
+
+.satchel-group + .satchel-group {
+  margin-top: 1rem;
+}
+
+.satchel-list {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+}
+
+.satchel-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.satchel-row:last-child {
+  border-bottom: 0;
+}
+
+.satchel-thumb,
+.item-thumb {
+  flex: 0 0 auto;
+  width: 2.75rem;
+  height: 2.75rem;
+  background: #17171b;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+.satchel-thumb img,
+.item-thumb img {
+  width: 100%;
+  height: 100%;
+}
+
+.satchel-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.95rem;
+}
+
+.satchel-row button {
+  flex: 0 0 auto;
+}
+
+/* What came out of a chest, with the one thing to do with it beside it. */
+
+.item-reveals {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.item-reveal {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+
+.item-body {
+  min-width: 0;
+}
+
+.item-name {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.item-line {
+  margin: 0 0 0.4rem;
+  font-size: 0.82rem;
+}
+
+/* Choosing one thing out of a list, in the same dialog the letter uses. */
+
+.chooser-body {
+  padding: 0.5rem 1rem 1rem;
+  overflow-y: auto;
+}
+
+.chooser-group {
+  margin: 0.75rem 0 0.25rem;
+}
+
+/* The first heading sits under the panel's own rule, so it does not need the
+   space that separates one owner's plants from the next one's. */
+.chooser-list li:first-child .chooser-group {
+  margin-top: 0.25rem;
+}
+
+.chooser-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.chooser-list li + li {
+  border-top: 1px solid var(--line);
+}
+
+/* A heading is a break in the list already, so the rule above it goes. */
+.chooser-list li:has(.chooser-group) {
+  border-top: 0;
+}
+
+.chooser-option {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  padding: 0.7rem 0;
+  text-align: left;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+}
+
+.chooser-name {
+  font-size: 0.95rem;
+}
+
+/* The grove in the band across the top of You. It stands along the band's
+   floor to the right of the picture, small, and is not pressable: the plot is
+   worked on the Grove screen. */
+
+.band-grove {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  height: 100%;
+  margin: 0;
+  padding: 0 0.75rem;
+  overflow: hidden;
+  list-style: none;
+}
+
+.band-plant {
+  display: flex;
+  align-items: flex-end;
+  height: 2.25rem;
+}
+
+.band-plant .plant-art {
+  height: 100%;
+}
+
+.band-plant-grown {
+  height: 3.25rem;
 }
 
 /* Small phones: the narrowest layout still has to read cleanly at 360px. */
@@ -2011,7 +2124,7 @@ button:disabled {
     padding: 0.5rem 0.75rem;
   }
 
-  .plates {
+  .plot {
     grid-template-columns: repeat(2, 1fr);
   }
 
@@ -2089,7 +2202,7 @@ button:disabled {
   }
 
   .page-home,
-  .page-cards {
+  .page-grove {
     max-width: 72rem;
   }
 
@@ -2131,19 +2244,33 @@ button:disabled {
   }
 
   /* The streak has a home inside the summary card here, so the phone's copy of
-     it stands down and the rail shows the medals and the collection instead. */
+     it stands down and the rail shows the medals and the grove instead. */
   .home-streak {
     display: none;
   }
 
   .home-medals,
-  .home-collection {
+  .home-grove {
     display: block;
   }
 
-  /* The band is taller where there is height to spare. */
+  /* The band is taller where there is height to spare, and what grows in it
+     takes the extra height with it. */
   .you-band {
     height: 140px;
+  }
+
+  .band-grove {
+    gap: 0.6rem;
+    padding: 0 1.25rem;
+  }
+
+  .band-plant {
+    height: 3rem;
+  }
+
+  .band-plant-grown {
+    height: 4.5rem;
   }
 
   .you-ident {

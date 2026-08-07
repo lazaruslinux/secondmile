@@ -12,7 +12,7 @@ import {
 } from './api.ts'
 import { recapHasNews } from './recap.ts'
 import Login from './views/Login.tsx'
-import Cards from './views/Cards.tsx'
+import Grove from './views/Grove.tsx'
 import Home from './views/Home.tsx'
 import Icon from './views/Icon.tsx'
 import Log from './views/Log.tsx'
@@ -23,12 +23,12 @@ import Settings from './views/Settings.tsx'
 // A handful of screens still do not earn a router: the whole navigation model is
 // which of them is on screen, and the URL has nothing to say about it yet.
 // Settings is not a tab; it is reached from the You screen.
-type View = 'home' | 'log' | 'cards' | 'you' | 'settings'
+type View = 'home' | 'log' | 'grove' | 'you' | 'settings'
 
 const TABS: { id: View; label: string; icon: string }[] = [
   { id: 'home', label: 'Home', icon: 'tab-home' },
   { id: 'log', label: 'Log', icon: 'tab-log' },
-  { id: 'cards', label: 'Cards', icon: 'tab-cards' },
+  { id: 'grove', label: 'Grove', icon: 'tab-grove' },
   { id: 'you', label: 'You', icon: 'tab-you' },
 ]
 
@@ -161,11 +161,11 @@ export default function App() {
             units={me.units}
             refreshToken={refreshToken}
             onOpenLog={() => setView('log')}
-            onOpenCards={() => setView('cards')}
+            onOpenGrove={() => setView('grove')}
           />
         )}
         {view === 'log' && <Log userId={me.id} units={me.units} />}
-        {view === 'cards' && <Cards userId={me.id} />}
+        {view === 'grove' && <Grove userId={me.id} />}
         {view === 'you' && (
           <Profile
             userId={me.id}

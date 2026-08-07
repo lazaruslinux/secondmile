@@ -61,6 +61,9 @@ ActivityEnum = Enum(*ACTIVITIES, name="activity", native_enum=False)
 SourceEnum = Enum("sync", "manual", name="workout_source", native_enum=False)
 FriendshipEnum = Enum("pending", "accepted", name="friendship_status", native_enum=False)
 EncouragementEnum = Enum("cheer", "note", name="encouragement_kind", native_enum=False)
+# The three things a chest can hold. Every one of them is a tool with exactly
+# one verb, which is why there is no fourth value for something to look at.
+ItemKindEnum = Enum("seed", "water", "oil", name="satchel_kind", native_enum=False)
 
 
 class User(Base):
@@ -216,10 +219,10 @@ class IngestLog(Base):
     result: Mapped[dict] = mapped_column(JSONType, nullable=False)
 
 
-# Card and achievement ids come from app.world and app.achievements rather than
-# from a table. They are strings here and no foreign key points at them, because
-# the catalogue is authored in the source and a release is the only thing that
-# changes it.
+# Species and achievement ids come from app.species and app.achievements rather
+# than from a table. They are strings here and no foreign key points at them,
+# because the catalogue is authored in the source and a release is the only
+# thing that changes it.
 _CATALOG_ID = String(48)
 
 
@@ -237,13 +240,13 @@ class UserProgress(Base):
     # and not a score. A fresh account stands at level 0 with none of it.
     xp: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     level: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    # Converted Miles banked toward the next chest, and the gap that chest is
-    # waiting on. The pair carries between workouts, so a run that ends a
-    # quarter of a mile short of a chest leaves that quarter mile here rather
-    # than starting again from a fresh roll. The gap is null until the first
-    # workout's seeded generator rolls one.
+    # Converted Miles banked toward the next chest, and which step of the chest
+    # ladder that chest is. The pair carries between workouts, so a run that
+    # ends a quarter of a mile short of a chest leaves that quarter mile here.
+    # The position wraps back to the 5K step after the Ultra one, and never
+    # decays: a quiet fortnight costs nothing.
     chest_progress_mi: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
-    next_chest_gap_mi: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cycle_pos: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     # When the player last cleared their recap. Everything that arrived after
     # it is what the recap has to tell them about. Null means they have never
     # acknowledged one, so everything counts.
@@ -309,6 +312,41 @@ class BadgeEarn(Base):
     earned_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
 
 
+class Anointing(Base):
+    __tablename__ = "anointings"
+    __table_args__ = (
+        # One waiting anointing per pair. Partial, so a pair can give to each
+        # other again and again over time and only the unspent one is unique.
+        # Both databases take this spelling, and the tests run the SQLite one.
+        Index(
+            "uq_anointing_pending",
+            "from_user_id",
+            "to_user_id",
+            unique=True,
+            postgresql_where=text("consumed_at IS NULL"),
+            sqlite_where=text("consumed_at IS NULL"),
+        ),
+    )
+
+    # One person spending oil on another. Nothing here is ever shown to the
+    # recipient while it waits: no notification, no feed event, nothing in the
+    # API. It surfaces once, in the letter, when the chest it becomes lands.
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    from_user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    to_user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    created_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
+    # Null until the recipient's next credited workout turns it into a chest.
+    consumed_at: Mapped[dt.datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    # Which chest it became. A record rather than a live pointer, and so not a
+    # foreign key: a rebuild is allowed to throw chests away, and what one
+    # person gave another is not derived from anything and must survive it.
+    consumed_chest_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
 class Chest(Base):
     __tablename__ = "chests"
 
@@ -316,25 +354,78 @@ class Chest(Base):
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    # Decided when the chest drops, revealed when it is opened. Deciding at
-    # open time would let a client learn what is inside by asking twice, and
-    # would make the seeded generator's determinism meaningless.
-    card_id: Mapped[str] = mapped_column(_CATALOG_ID, nullable=False)
+    # Which step of the ladder dropped it, which is what its odds are rolled
+    # against when it is opened. Null on a chest that predates the ladder;
+    # those roll against the first step's odds.
+    tier: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # Set when the chest is a gift rather than a distance: somebody spent oil,
+    # and this is the row that says who, so the letter can tell the player.
+    # Null for every chest the miles themselves earned. Not a foreign key, the
+    # same as the pointer back the other way: the two tables are records of
+    # each other rather than owners, and a migration that can add this column
+    # on either database is worth more here than a constraint.
+    from_anointing_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     dropped_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
     # Null means still closed. Chests never expire, so nothing else ever
     # writes this column.
     opened_at: Mapped[dt.datetime | None] = mapped_column(UtcDateTime, nullable=True)
 
 
-class UserCard(Base):
-    __tablename__ = "user_cards"
+class SatchelItem(Base):
+    __tablename__ = "satchel_items"
 
+    # What came out of a chest and has not been spent yet. Every item is a
+    # tool: a seed to plant, water to pour, oil to anoint a friend with. There
+    # is nothing here to merely own, which is why nothing counts duplicates.
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    card_id: Mapped[str] = mapped_column(_CATALOG_ID, primary_key=True)
-    count: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    first_found_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
+    kind: Mapped[str] = mapped_column(ItemKindEnum, nullable=False)
+    # The species a seed will grow into, decided when the chest was opened.
+    # Null for water and oil, which are the same wherever they came from.
+    species: Mapped[str | None] = mapped_column(_CATALOG_ID, nullable=True)
+    # The slot of the roll this came out of, which is what the item is worth.
+    rarity: Mapped[str] = mapped_column(String(16), nullable=False)
+    # Which chest it came from, or null once that chest is gone. Nulled rather
+    # than cascaded on purpose: a rebuild rerolls chests, and an item somebody
+    # is already holding is theirs whatever happens to the box it came in.
+    chest_id: Mapped[int | None] = mapped_column(
+        ForeignKey("chests.id", ondelete="SET NULL"), nullable=True
+    )
+    acquired_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
+    # Null while it is still in the satchel. Items are spent, never destroyed:
+    # the row stays so the history of what was done with it stays too.
+    used_at: Mapped[dt.datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    # Who it was spent on, when it was spent on somebody: water poured into a
+    # friend's plot, or oil. Null for anything used on your own plot. This is
+    # what makes the spent row a record of a gift rather than only of a verb.
+    given_to_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    # Whether giving it paid the giver any renown. Stored rather than worked
+    # out again later, exactly as an encouragement stores it, so the seven day
+    # window is one lookup and a replay can never pay twice.
+    earned_renown: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+
+class Planting(Base):
+    __tablename__ = "plantings"
+
+    # Something growing in the plot. It grows from every credited workout,
+    # needs no tending, and cannot die: the only thing that ever happens to it
+    # is more miles.
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    species: Mapped[str] = mapped_column(_CATALOG_ID, nullable=False)
+    rarity: Mapped[str] = mapped_column(String(16), nullable=False)
+    planted_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
+    # Converted Miles of growth banked, from workouts and from poured water.
+    growth_mi: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    # When it came to maturity, or null while it is still growing.
+    matured_at: Mapped[dt.datetime | None] = mapped_column(UtcDateTime, nullable=True)
 
 
 class Friendship(Base):

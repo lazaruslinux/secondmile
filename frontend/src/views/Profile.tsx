@@ -7,6 +7,7 @@ import {
   getProfile,
   listAchievements,
   listChests,
+  listGrove,
   openChest,
   setDiamondSports,
   setDisplayedBadges,
@@ -15,8 +16,9 @@ import {
   type ActivityStats,
   type Activity,
   type Chest,
-  type OpenedChest,
+  type Planting,
   type Profile as ProfileData,
+  type SatchelItem,
   type Units,
 } from '../api.ts'
 import {
@@ -26,20 +28,23 @@ import {
   formatDistance,
   unitName,
 } from '../format.ts'
+import { plantStage } from '../grove.ts'
 import {
   ACTIVITY_NAMES,
   ACTIVITY_ORDER,
+  chestName,
   RACE_BADGE_ORDER,
   raceBadgeName,
 } from '../labels.ts'
-import { diamondsOf, MAX_DIAMONDS, raceCountsOf } from '../profile.ts'
+import { diamondsOf, MAX_DIAMONDS, nextChestLine, raceCountsOf } from '../profile.ts'
 import Achievements from './Achievements.tsx'
 import AvatarFrame from './AvatarFrame.tsx'
 import Badge from './Badge.tsx'
-import CardPlate from './CardPlate.tsx'
+import ChestItem from './ChestItem.tsx'
 import Fellowship from './Fellowship.tsx'
 import Icon from './Icon.tsx'
 import MedalNest from './MedalNest.tsx'
+import PlantArt from './PlantArt.tsx'
 import RaceBadges, { RaceBadgeMark } from './RaceBadges.tsx'
 
 // Four, and the server says the same. The slots are drawn whether they are
@@ -134,6 +139,7 @@ interface Cached {
   profile: ProfileData
   achievements: Achievement[]
   chests: Chest[]
+  plantings: Planting[]
 }
 
 // What this tab last showed, kept by account so a second person signing in on
@@ -160,6 +166,9 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
     () => cache.get(userId)?.achievements ?? [],
   )
   const [chests, setChests] = useState<Chest[]>(() => cache.get(userId)?.chests ?? [])
+  const [plantings, setPlantings] = useState<Planting[]>(
+    () => cache.get(userId)?.plantings ?? [],
+  )
   const [loading, setLoading] = useState(() => !cache.has(userId))
   const [loadError, setLoadError] = useState('')
 
@@ -177,20 +186,22 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
   const [sportsBusy, setSportsBusy] = useState(false)
   const [sportsError, setSportsError] = useState('')
 
-  const [opened, setOpened] = useState<OpenedChest[]>([])
+  const [opened, setOpened] = useState<SatchelItem[]>([])
   const [openingChest, setOpeningChest] = useState<number | null>(null)
   const [chestError, setChestError] = useState('')
 
   const load = useCallback(async () => {
     try {
-      const [mine, catalog, waiting] = await Promise.all([
+      const [mine, catalog, waiting, plot] = await Promise.all([
         getProfile(),
         listAchievements(),
         listChests(),
+        listGrove(),
       ])
       setProfile(mine)
       setAchievements(catalog)
       setChests(waiting)
+      setPlantings(plot)
       setLoadError('')
     } catch (err) {
       setLoadError(errorText(err))
@@ -206,8 +217,8 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
   // Whatever is on the screen is what a return to this tab should show, edits
   // made here included, so the cache follows the state rather than the fetch.
   useEffect(() => {
-    if (profile) cache.set(userId, { profile, achievements, chests })
-  }, [userId, profile, achievements, chests])
+    if (profile) cache.set(userId, { profile, achievements, chests, plantings })
+  }, [userId, profile, achievements, chests, plantings])
 
   async function pickAvatar(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
@@ -314,11 +325,11 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
     setOpeningChest(chestId)
     setChestError('')
     try {
-      const result = await openChest(chestId)
-      setOpened((current) => [...current, result])
+      const item = await openChest(chestId)
+      setOpened((current) => [...current, item])
       setChests((current) => current.filter((chest) => chest.id !== chestId))
-      // A plate can finish a set, and finishing a set is a badge, so the
-      // counts and the catalogue are read again rather than guessed at.
+      // The satchel and the counts on this screen both moved, so they are read
+      // again rather than guessed at.
       void load()
     } catch (err) {
       setChestError(errorText(err))
@@ -344,6 +355,7 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
   // Race badges are held in the same four slots as achievements, so the two
   // lists are one list wherever a slot or the picker is concerned.
   const raceCounts = raceCountsOf(profile.race_badges)
+  const nextChest = nextChestLine(profile)
   const earnedRaces = RACE_BADGE_ORDER.filter((id) => (raceCounts.get(id) ?? 0) > 0)
   const slotChoices = earned.length + earnedRaces.length
 
@@ -369,11 +381,25 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
         </button>
       </div>
 
-      {/* The band across the top is inert and stays empty on purpose: it is the
-          space the garden grows into later. Nothing reads it, nothing presses
-          it, and it holds no data of its own. */}
+      {/* The band across the top is where the grove lives. Everything in it
+          stands on the band's floor at the size it has reached; nothing here is
+          pressable, and the plot itself is tended, planted, and watered on the
+          Grove screen. */}
       <div className="you-banner">
-        <div className="you-band" />
+        <div className="you-band">
+          {plantings.length > 0 && (
+            <ul className="band-grove">
+              {plantings.map((row) => (
+                <li
+                  key={row.id}
+                  className={row.mature ? 'band-plant band-plant-grown' : 'band-plant'}
+                >
+                  <PlantArt species={row.species} stage={plantStage(row)} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
         <div className="you-ident">
           <div className="avatar-block">
             <AvatarFrame
@@ -439,9 +465,9 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
               </li>
               <li>
                 <span className="count-value">
-                  {profile.cards.owned} / {profile.cards.total}
+                  {profile.grove?.mature ?? 0} / {profile.grove?.planted ?? plantings.length}
                 </span>
-                <span className="count-label">Cards</span>
+                <span className="count-label">Grown</span>
               </li>
               <li>
                 <span className="count-value">
@@ -677,6 +703,8 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
                 Nothing waiting. Chests arrive as you cover miles, and they never expire.
               </p>
             )}
+            {/* Only drawn when the server says how far off the next one is. */}
+            {nextChest !== '' && <p className="hint">{nextChest}</p>}
             {chestError && (
               <p className="error" role="alert">
                 {chestError}
@@ -686,11 +714,11 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
               <ul className="chests">
                 {chests.map((chest) => (
                   <li key={chest.id}>
-                    <span>{chest.set_name} set</span>
+                    <span>{chestName(chest.tier)}</span>
                     <button
                       type="button"
                       className="secondary"
-                      aria-label={`Open ${chest.set_name} chest`}
+                      aria-label={`Open ${chestName(chest.tier)}`}
                       disabled={openingChest === chest.id}
                       onClick={() => void open(chest.id)}
                     >
@@ -701,18 +729,9 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
               </ul>
             )}
             {opened.length > 0 && (
-              <div className="reveal-grid">
-                {opened.map((result) => (
-                  <CardPlate
-                    key={`${result.card.id}-${result.count}`}
-                    number={result.card.number}
-                    rarity={result.card.rarity}
-                    owned
-                    cardId={result.card.id}
-                    name={result.card.name}
-                    flavor={result.card.flavor}
-                    count={result.count}
-                  />
+              <div className="item-reveals">
+                {opened.map((item) => (
+                  <ChestItem key={item.id} item={item} onPlanted={() => void load()} />
                 ))}
               </div>
             )}

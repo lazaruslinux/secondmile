@@ -23,7 +23,7 @@ from sqlalchemy import select
 
 from app import achievements
 from app import activity as activity_rules
-from app import models, progress, routemaps, security
+from app import grove, models, progress, routemaps, security
 from app.config import check_deploy_config
 from app.db import SessionLocal
 from app.routers.auth import create_invite
@@ -120,20 +120,24 @@ def cmd_verify_email(args: argparse.Namespace) -> None:
 
 
 def cmd_recompute_progress(args: argparse.Namespace) -> None:
-    """Rebuild one account's experience, level, chests, and cards from its workouts.
+    """Rebuild one account's experience, level, chests, and growth from its workouts.
 
     The safety hatch for the day a constant changes, and the way to replay a
     history the migration credited in one lump without dropping its chests.
     Everything derived goes and is rebuilt: the experience, the level, the
-    chest accumulator, the chests, the album, and the race badges, which come
-    back with the dates of the runs that earned them. Earned achievements are
-    left alone, because they are never revoked and the evaluator re-awards
-    whatever the rebuilt history earns on top of them.
+    chest ladder and the chests on it, the growth in the plot, and the race
+    badges, which come back with the dates of the runs that earned them.
+    Earned achievements are left alone, because they are never revoked and the
+    evaluator re-awards whatever the rebuilt history earns on top of them.
+
+    Nothing anybody chose is rebuilt either: the satchel, what is planted, and
+    every anointing are actions rather than consequences, and chests that came
+    from somebody else's oil stay where they are.
 
     The workouts themselves are never touched, so nothing anybody actually did
-    is at risk here. A filled album is thrown away and refound, though, and the
-    cards it comes back with will not be the same ones: take a dump first if
-    that matters.
+    is at risk here. Chests already opened do come back closed, though, and
+    opening them again yields items all over again: take a dump first, and do
+    not run this casually on an account with a full satchel.
     """
     username = args.username.strip().lower()
     db = _session()
@@ -164,7 +168,7 @@ def cmd_backfill_badges(args: argparse.Namespace) -> None:
     """Award the badges one account's credited history has already earned.
 
     The gentle sibling of recompute-progress: it replays only the badge
-    awards, so chests, the album, experience, and achievements are untouched.
+    awards, so chests, the plot, experience, and achievements are untouched.
     This is the right tool after a migration adds a badge family to a
     database with real history in it. Safe to run twice: award_badge is
     idempotent per workout.
@@ -211,7 +215,7 @@ def cmd_backfill_routes(args: argparse.Namespace) -> None:
     the sync endpoint parses it, each entry is matched to its workout by the
     dedupe key, and a line is written for the workouts that have none.
 
-    Only routes are written. Workouts, progress, badges, and the album are all
+    Only routes are written. Workouts, progress, badges, and the plot are all
     untouched, and a workout that already has a line keeps it, so running this
     twice is the same as running it once.
     """
@@ -441,29 +445,47 @@ def cmd_seed_demo(args: argparse.Namespace) -> None:
         row = progress.process_user(db, user.id)
 
         # Six weeks of movement is a lot of chests, and a profile behind a wall
-        # of several dozen unopened ones shows nothing of the album or the
-        # collection badges. Most are opened here so the field guide is part
-        # filled, and the last few are left waiting so the recap has something
-        # to hand over on the first sign in.
+        # of several dozen unopened ones shows nothing of the satchel or the
+        # plot. Most are opened here, and the last few are left waiting so the
+        # recap has something to hand over on the first sign in.
         pending = (
             db.query(models.Chest)
             .filter(models.Chest.user_id == user.id, models.Chest.opened_at.is_(None))
             .order_by(models.Chest.id)
             .all()
         )
-        now = security.now_utc()
-        album: dict[str, models.UserCard] = {}
         for chest in pending[:-_DEMO_PENDING_CHESTS]:
-            chest.opened_at = now
-            owned = album.get(chest.card_id)
-            if owned is None:
-                owned = models.UserCard(
-                    user_id=user.id, card_id=chest.card_id, count=1, first_found_at=now
-                )
-                album[chest.card_id] = owned
-                db.add(owned)
-            else:
-                owned.count += 1
+            progress.open_chest(db, user.id, chest)
+
+        # Every seed found goes straight into the ground, dated to the start of
+        # the invented history, and that history is then replayed over the plot.
+        # A demo account with an empty plot would show none of this.
+        credited = (
+            db.query(models.Workout)
+            .filter(models.Workout.user_id == user.id)
+            .order_by(models.Workout.start_ts)
+            .all()
+        )
+        planted_at = credited[0].start_ts
+        seeds = (
+            db.query(models.SatchelItem)
+            .filter(
+                models.SatchelItem.user_id == user.id,
+                models.SatchelItem.kind == "seed",
+                models.SatchelItem.used_at.is_(None),
+            )
+            .all()
+        )
+        for item in seeds:
+            grove.plant(db, user.id, item, planted_at)
+        for workout in credited:
+            grove.grow(
+                db,
+                user.id,
+                activity_rules.converted_miles(workout.activity, workout.distance_mi),
+                workout.activity,
+                workout.created_at or workout.start_ts,
+            )
         db.flush()
         achievements.evaluate(db, user.id)
         db.commit()
@@ -478,6 +500,7 @@ def cmd_seed_demo(args: argparse.Namespace) -> None:
             + str(db.query(models.BadgeEarn).filter(models.BadgeEarn.user_id == user.id).count())
         )
         print(f"  chests waiting: {min(len(pending), _DEMO_PENDING_CHESTS)}")
+        print(f"  planted: {len(seeds)}")
         print("This password is shown once. It is a fictional account; delete it before")
         print("the instance is used for anything real.")
     finally:
