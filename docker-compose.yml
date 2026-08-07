@@ -41,6 +41,9 @@ services:
     # default, so nothing has to be configured for this to work.
     volumes:
       - avatar-data:/data/avatars
+      # Workout photos, on the same terms and for the same reason. The path
+      # matches PHOTO_DIR's default.
+      - photo-data:/data/photos
     # Bind to localhost only so the raw API stays on this machine, not the
     # LAN. Everything normal goes through the frontend's /api proxy.
     ports:
@@ -59,3 +62,4 @@ services:
 volumes:
   postgres-data:
   avatar-data:
+  photo-data:

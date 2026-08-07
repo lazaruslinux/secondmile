@@ -146,6 +146,14 @@ export default function Home({
     if (profile) cache.set(userId, { profile, feed, done })
   }, [userId, profile, feed, done])
 
+  // An edited card is put back where it sat. The cache is written from this
+  // state, so what was changed is still there when the tab is come back to.
+  const cardChanged = useCallback((updated: FeedItem) => {
+    setFeed((current) =>
+      current.map((row) => (row.workout_id === updated.workout_id ? updated : row)),
+    )
+  }, [])
+
   async function loadMore() {
     const last = feed[feed.length - 1]
     if (!last) return
@@ -357,6 +365,7 @@ export default function Home({
             item={item}
             units={units}
             avatarVersion={profile.avatar_version}
+            onChanged={cardChanged}
           />
         ))}
 

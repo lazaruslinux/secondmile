@@ -1,9 +1,17 @@
-"""Manual entry, the history page, and the weekly totals."""
+"""Manual entry, the history page, the weekly totals, and the words and
+pictures an owner puts on a workout."""
 
 import datetime as dt
+import io
+
+import pytest
+from PIL import Image
 
 from app import models
 from app.activity import converted_miles
+from app.config import MAX_PHOTO_BYTES
+
+pytest.importorskip("PIL")
 
 
 def manual(activity="run", start="2026-07-20T06:12:00+00:00", duration=1800, miles=3.0, **extra):
@@ -309,3 +317,246 @@ def test_weekly_totals_ignore_older_weeks(signed_in):
 def test_weekly_totals_reject_a_silly_count(signed_in):
     assert signed_in.get("/api/workouts/weeks?count=0").status_code == 400
     assert signed_in.get("/api/workouts/weeks?count=500").status_code == 400
+
+
+def patch_words(client, workout_id, **fields):
+    return client.patch(f"/api/workouts/{workout_id}", json=fields)
+
+
+def test_the_owner_can_title_a_workout_and_write_on_it(signed_in):
+    workout = signed_in.post("/api/workouts", json=manual()).json()
+    assert workout["title"] is None
+    assert workout["post"] is None
+    assert workout["photos"] == []
+
+    patched = patch_words(signed_in, workout["id"], title="Morning loop", post="Cold start.")
+    assert patched.status_code == 200, patched.text
+    assert patched.json()["title"] == "Morning loop"
+    assert patched.json()["post"] == "Cold start."
+    # The whole row comes back, not a fragment of it: the card that sent the
+    # edit redraws from this without asking for the history again.
+    assert patched.json() == signed_in.get("/api/workouts").json()[0]
+
+
+def test_words_are_trimmed_and_an_empty_one_clears_the_field(signed_in):
+    workout = signed_in.post("/api/workouts", json=manual()).json()
+    trimmed = patch_words(signed_in, workout["id"], title="  Morning loop  ", post="\n hi \n")
+    assert trimmed.json()["title"] == "Morning loop"
+    assert trimmed.json()["post"] == "hi"
+
+    # Whitespace and an explicit null are the same thing: somebody emptied it.
+    assert patch_words(signed_in, workout["id"], title="   ").json()["title"] is None
+    assert patch_words(signed_in, workout["id"], post=None).json()["post"] is None
+
+
+def test_a_field_that_was_not_sent_is_left_alone(signed_in):
+    workout = signed_in.post("/api/workouts", json=manual()).json()
+    patch_words(signed_in, workout["id"], title="Morning loop", post="Cold start.")
+    only_title = patch_words(signed_in, workout["id"], title="Evening loop")
+    assert only_title.json()["title"] == "Evening loop"
+    assert only_title.json()["post"] == "Cold start."
+
+
+def test_words_past_their_limits_are_refused(signed_in):
+    workout = signed_in.post("/api/workouts", json=manual()).json()
+    assert patch_words(signed_in, workout["id"], title="x" * 101).status_code == 400
+    assert patch_words(signed_in, workout["id"], post="x" * 2001).status_code == 400
+    # Nothing was written by either refusal.
+    assert signed_in.get("/api/workouts").json()[0]["title"] is None
+
+    at_the_line = patch_words(signed_in, workout["id"], title="x" * 100, post="x" * 2000)
+    assert at_the_line.status_code == 200
+    assert len(at_the_line.json()["title"]) == 100
+    assert len(at_the_line.json()["post"]) == 2000
+
+
+def test_an_edit_cannot_change_what_happened(signed_in):
+    """Distance, duration, and start time are not editable and never will be."""
+    workout = signed_in.post("/api/workouts", json=manual()).json()
+    patched = patch_words(
+        signed_in,
+        workout["id"],
+        title="Morning loop",
+        distance_mi=99.0,
+        duration_s=60,
+        start_ts="2020-01-01T00:00:00+00:00",
+    )
+    assert patched.status_code == 200
+    assert patched.json()["distance_mi"] == workout["distance_mi"]
+    assert patched.json()["duration_s"] == workout["duration_s"]
+    assert patched.json()["start_ts"] == workout["start_ts"]
+
+
+def test_only_the_owner_can_write_on_a_workout(signed_in, db_session, admin):
+    from conftest import ADMIN
+
+    workout = signed_in.post("/api/workouts", json=manual()).json()
+    signed_in.post("/api/auth/logout")
+    signed_in.post("/api/auth/login", json=ADMIN)
+    # The same answer a workout that does not exist gets.
+    assert patch_words(signed_in, workout["id"], title="mine now").status_code == 404
+    assert patch_words(signed_in, 9999, title="mine now").status_code == 404
+
+
+def test_editing_is_rate_limited(signed_in):
+    workout = signed_in.post("/api/workouts", json=manual()).json()
+    codes = [patch_words(signed_in, workout["id"], title="a").status_code for _ in range(31)]
+    assert codes.count(200) == 30
+    assert codes[-1] == 429
+
+
+def test_writing_on_a_workout_needs_a_session(client):
+    assert client.patch("/api/workouts/1", json={"title": "hello"}).status_code == 401
+
+
+def photo_bytes(width=2400, height=1200, fmt="JPEG", colour=(120, 60, 30)) -> bytes:
+    """A real photograph-shaped image carrying camera metadata, so the test that
+    says the metadata is gone has something to lose."""
+    exif = Image.Exif()
+    exif[0x010F] = "Test Camera"
+    out = io.BytesIO()
+    Image.new("RGB", (width, height), colour).save(out, format=fmt, exif=exif)
+    return out.getvalue()
+
+
+def attach(client, workout_id, data=None, name="photo.jpg", content_type="image/jpeg"):
+    return client.post(
+        f"/api/workouts/{workout_id}/photos",
+        files={"file": (name, photo_bytes() if data is None else data, content_type)},
+    )
+
+
+def test_an_attached_photo_becomes_a_webp_with_nothing_carried_over(
+    signed_in, photo_dir, db_session
+):
+    workout = signed_in.post("/api/workouts", json=manual()).json()
+    # The source really does carry metadata, so what follows means something.
+    with Image.open(io.BytesIO(photo_bytes())) as source:
+        assert source.info.get("exif")
+
+    created = attach(signed_in, workout["id"])
+    assert created.status_code == 201, created.text
+    photo_id = created.json()["id"]
+    assert created.json() == {"id": photo_id}
+
+    # The name on disk comes from the two ids, never from the upload.
+    stored = photo_dir / f"{workout['id']}-{photo_id}.webp"
+    assert stored.exists()
+    assert not (photo_dir / "photo.jpg").exists()
+    assert not list(photo_dir.glob("*.tmp"))
+    with Image.open(stored) as written:
+        assert written.format == "WEBP"
+        # Scaled to fit, aspect kept.
+        assert written.size == (1600, 800)
+        assert not written.info.get("exif")
+
+    row = db_session.get(models.WorkoutPhoto, photo_id)
+    assert row.workout_id == workout["id"]
+    assert row.created_at.tzinfo is not None
+
+
+def test_a_small_photo_is_not_scaled_up(signed_in, photo_dir):
+    workout = signed_in.post("/api/workouts", json=manual()).json()
+    photo_id = attach(signed_in, workout["id"], data=photo_bytes(400, 300)).json()["id"]
+    with Image.open(photo_dir / f"{workout['id']}-{photo_id}.webp") as written:
+        assert written.size == (400, 300)
+
+
+def test_a_workout_holds_six_photos_and_no_more(signed_in, db_session):
+    workout = signed_in.post("/api/workouts", json=manual()).json()
+    codes = [attach(signed_in, workout["id"]).status_code for _ in range(7)]
+    assert codes == [201] * 6 + [400]
+    full = attach(signed_in, workout["id"])
+    assert full.json()["detail"] == "A workout can hold 6 photos."
+    assert db_session.query(models.WorkoutPhoto).count() == 6
+
+
+def test_an_oversize_photo_is_refused_before_it_is_decoded(signed_in, photo_dir):
+    workout = signed_in.post("/api/workouts", json=manual()).json()
+    oversize = b"\xff\xd8\xff\xe0" + b"0" * (MAX_PHOTO_BYTES + 1024)
+    response = attach(signed_in, workout["id"], data=oversize)
+    assert response.status_code == 413
+    assert not photo_dir.exists() or list(photo_dir.glob("*")) == []
+
+
+def test_a_file_that_is_not_an_image_is_not_a_photo(signed_in, photo_dir, db_session):
+    workout = signed_in.post("/api/workouts", json=manual()).json()
+    # A convincing name and content type over bytes no decoder will accept.
+    assert attach(signed_in, workout["id"], data=b"not an image at all").status_code == 400
+    assert attach(signed_in, workout["id"], data=b"<?php system($_GET['c']); ?>",
+                  name="shell.php.jpg").status_code == 400
+    assert attach(signed_in, workout["id"], data=b"").status_code == 400
+    # Neither a row nor a file for any of them.
+    assert db_session.query(models.WorkoutPhoto).count() == 0
+    assert not photo_dir.exists() or list(photo_dir.glob("*")) == []
+
+
+def test_photos_are_listed_on_the_workout_in_the_order_they_arrived(signed_in):
+    workout = signed_in.post("/api/workouts", json=manual()).json()
+    ids = [attach(signed_in, workout["id"]).json()["id"] for _ in range(3)]
+    assert signed_in.get("/api/workouts").json()[0]["photos"] == ids
+
+
+def test_an_attached_photo_can_be_fetched_by_its_owner(signed_in):
+    workout = signed_in.post("/api/workouts", json=manual()).json()
+    photo_id = attach(signed_in, workout["id"]).json()["id"]
+    served = signed_in.get(f"/api/workouts/{workout['id']}/photos/{photo_id}")
+    assert served.status_code == 200
+    assert served.headers["content-type"] == "image/webp"
+    assert served.headers["cache-control"].startswith("private")
+    assert served.content[:4] == b"RIFF"
+
+
+def test_a_photo_that_is_not_there_is_the_same_404(signed_in, photo_dir):
+    workout = signed_in.post("/api/workouts", json=manual()).json()
+    photo_id = attach(signed_in, workout["id"]).json()["id"]
+
+    missing = signed_in.get(f"/api/workouts/{workout['id']}/photos/9999")
+    assert missing.status_code == 404
+    assert missing.json() == {"detail": "No such photo."}
+    # A photo asked for under the wrong workout is not found either.
+    assert signed_in.get(f"/api/workouts/9999/photos/{photo_id}").status_code == 404
+
+    # A volume that did not come back is not a server error to the caller.
+    (photo_dir / f"{workout['id']}-{photo_id}.webp").unlink()
+    lost = signed_in.get(f"/api/workouts/{workout['id']}/photos/{photo_id}")
+    assert lost.status_code == 404
+    assert lost.json() == {"detail": "No such photo."}
+
+
+def test_deleting_a_photo_takes_the_row_and_the_file(signed_in, photo_dir, db_session):
+    workout = signed_in.post("/api/workouts", json=manual()).json()
+    photo_id = attach(signed_in, workout["id"]).json()["id"]
+    stored = photo_dir / f"{workout['id']}-{photo_id}.webp"
+    assert stored.exists()
+
+    assert signed_in.delete(f"/api/workouts/{workout['id']}/photos/{photo_id}").status_code == 204
+    assert not stored.exists()
+    assert db_session.query(models.WorkoutPhoto).count() == 0
+    assert signed_in.get("/api/workouts").json()[0]["photos"] == []
+    # Gone twice is a 404, not a second deletion.
+    assert signed_in.delete(f"/api/workouts/{workout['id']}/photos/{photo_id}").status_code == 404
+
+
+def test_only_the_owner_can_attach_or_delete_a_photo(signed_in, admin):
+    from conftest import ADMIN
+
+    workout = signed_in.post("/api/workouts", json=manual()).json()
+    photo_id = attach(signed_in, workout["id"]).json()["id"]
+    signed_in.post("/api/auth/logout")
+    signed_in.post("/api/auth/login", json=ADMIN)
+    assert attach(signed_in, workout["id"]).status_code == 404
+    assert signed_in.delete(f"/api/workouts/{workout['id']}/photos/{photo_id}").status_code == 404
+
+
+def test_photo_uploads_are_rate_limited(signed_in):
+    workout = signed_in.post("/api/workouts", json=manual()).json()
+    small = photo_bytes(200, 200)
+    codes = [attach(signed_in, workout["id"], data=small).status_code for _ in range(11)]
+    assert codes[-1] == 429
+
+
+def test_the_photo_endpoints_need_a_session(client):
+    assert client.post("/api/workouts/1/photos", files={"file": ("a.jpg", b"x")}).status_code == 401
+    assert client.get("/api/workouts/1/photos/1").status_code == 401
+    assert client.delete("/api/workouts/1/photos/1").status_code == 401

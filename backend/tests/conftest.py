@@ -185,6 +185,15 @@ def avatar_dir(tmp_path, monkeypatch):
     return target
 
 
+@pytest.fixture(autouse=True)
+def photo_dir(tmp_path, monkeypatch):
+    """Point workout photo storage at a throwaway directory, autouse for the
+    same reason the avatar one is."""
+    target = tmp_path / "photos"
+    monkeypatch.setattr(config.settings, "photo_dir", str(target))
+    return target
+
+
 def log_workout(client, activity="run", miles=1.0, *, pace_min=12.0, offset_min=0) -> dict:
     """Post one manual workout and return it.
 

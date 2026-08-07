@@ -1,22 +1,34 @@
 """Manual entry, the workout history, and the weekly totals behind the Almanac."""
 
 import datetime as dt
+import os
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+# Straight from starlette: the multipart parser produces starlette's UploadFile,
+# and an isinstance check against fastapi's subclass would refuse every real
+# upload.
+from starlette.datastructures import UploadFile
+from starlette.formparsers import MultiPartException
+
 from app import activity as activity_rules
-from app import fellowship, models, progress, security, throttle
+from app import fellowship, images, models, photos, progress, security, throttle
 from app.config import (
+    MAX_PHOTO_BYTES,
+    MAX_PHOTOS_PER_WORKOUT,
     MAX_WORKOUT_DISTANCE_MI,
     MAX_WORKOUT_DURATION_S,
     MAX_WORKOUT_HR,
     MAX_WORKOUT_KCAL,
     MIN_WORKOUT_HR,
     NOTE_MAX_CHARS,
+    WORKOUT_POST_MAX_CHARS,
+    WORKOUT_TITLE_MAX_CHARS,
 )
 from app.db import get_db
 from app.models import ACTIVITIES
@@ -28,9 +40,20 @@ router = APIRouter(prefix="/workouts", tags=["workouts"])
 MAX_LIMIT = 200
 MAX_WEEKS = 52
 
+PHOTO_TOO_LARGE = (
+    "That photo is too large. "
+    f"The limit is {MAX_PHOTO_BYTES // (1024 * 1024)} MB."
+)
+PHOTOS_FULL = f"A workout can hold {MAX_PHOTOS_PER_WORKOUT} photos."
+NO_SUCH_WORKOUT = "No such workout."
+NO_SUCH_PHOTO = "No such photo."
+
 
 def _serialize(
-    workout: models.Workout, race_badge: str | None = None, has_route: bool = False
+    workout: models.Workout,
+    race_badge: str | None = None,
+    has_route: bool = False,
+    photo_ids: list[int] | None = None,
 ) -> dict:
     """One workout plus what it was worth, which the history shows on each row.
 
@@ -45,7 +68,7 @@ def _serialize(
     route for a view that draws none of them until it is scrolled to.
     """
     return {
-        **activity_rules.serialize(workout),
+        **activity_rules.serialize(workout, photo_ids),
         "xp": round(activity_rules.converted_miles(workout.activity, workout.distance_mi), 2),
         "race_badge": race_badge,
         "has_route": has_route,
@@ -76,6 +99,23 @@ def routes_for(db: Session, workouts: list[models.Workout]) -> set[int]:
             select(models.WorkoutRoute.workout_id).where(models.WorkoutRoute.workout_id.in_(ids))
         ).scalars()
     )
+
+
+def photos_for(db: Session, workouts: list[models.Workout]) -> dict[int, list[int]]:
+    """The photo ids on each of these workouts, oldest first. One query for the
+    page, like the two above. Ordered by id, which is the order they were added
+    in, so a card lays them out the same way twice."""
+    ids = [row.id for row in workouts]
+    if not ids:
+        return {}
+    found: dict[int, list[int]] = {}
+    for workout_id, photo_id in db.execute(
+        select(models.WorkoutPhoto.workout_id, models.WorkoutPhoto.id)
+        .where(models.WorkoutPhoto.workout_id.in_(ids))
+        .order_by(models.WorkoutPhoto.id)
+    ):
+        found.setdefault(workout_id, []).append(photo_id)
+    return found
 
 
 class ManualWorkout(BaseModel):
@@ -208,7 +248,11 @@ def list_workouts(
     rows = list(db.execute(stmt).scalars())
     badges = race_badges_for(db, rows)
     routed = routes_for(db, rows)
-    return [_serialize(row, badges.get(row.id), row.id in routed) for row in rows]
+    pictures = photos_for(db, rows)
+    return [
+        _serialize(row, badges.get(row.id), row.id in routed, pictures.get(row.id))
+        for row in rows
+    ]
 
 
 @router.get("/{workout_id}/route")
@@ -236,6 +280,210 @@ def workout_route(
     if owner_id != user.id and not fellowship.are_friends(db, user.id, owner_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No route for that workout.")
     return {"points": points}
+
+
+def _owned(db: Session, workout_id: int, user_id: int) -> models.Workout:
+    """One of your own workouts, or the same 404 a workout that does not exist
+    gets. Whose history an id belongs to is not something a caller learns by
+    asking for it."""
+    workout = db.get(models.Workout, workout_id)
+    if workout is None or workout.user_id != user_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, NO_SUCH_WORKOUT)
+    return workout
+
+
+def _clean_words(sent: str | None, limit: int, what: str) -> str | None:
+    """One optional text field: trimmed, length checked, and blank means clear.
+
+    A field somebody has emptied and one they never filled in are the same
+    thing, so an empty string is stored as null rather than as an empty string
+    every reader would then have to treat as null anyway.
+    """
+    if sent is None:
+        return None
+    cleaned = sent.strip()
+    if len(cleaned) > limit:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, f"{what} must be at most {limit} characters."
+        )
+    return cleaned or None
+
+
+class WorkoutWords(BaseModel):
+    """A patch: only the fields that are sent are changed, and an explicit null
+    clears one.
+
+    There is no distance, duration, or start time here, and there never will be.
+    What happened is not editable; the words around it are the only part a
+    person authored.
+    """
+
+    title: str | None = None
+    post: str | None = None
+
+
+@router.patch("/{workout_id}")
+def update_workout(
+    workout_id: int,
+    body: WorkoutWords,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(security.current_user),
+) -> dict:
+    """Title your own workout and write on it."""
+    if throttle.workout_edit_limiter.hit(throttle.client_address(request)):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many edits. Wait a minute.")
+    workout = _owned(db, workout_id, user.id)
+    # Read from the field set rather than the value: a sent null is somebody
+    # deleting their post, an omitted field is somebody saving only the title.
+    if "title" in body.model_fields_set:
+        workout.title = _clean_words(body.title, WORKOUT_TITLE_MAX_CHARS, "A title")
+    if "post" in body.model_fields_set:
+        workout.post = _clean_words(body.post, WORKOUT_POST_MAX_CHARS, "A post")
+    db.commit()
+    return _serialize(
+        workout,
+        race_badges_for(db, [workout]).get(workout.id),
+        workout.id in routes_for(db, [workout]),
+        photos_for(db, [workout]).get(workout.id),
+    )
+
+
+@router.post("/{workout_id}/photos", status_code=status.HTTP_201_CREATED)
+async def upload_photo(
+    workout_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(security.current_user),
+) -> dict:
+    """Attach a picture to your own workout (app/photos.py stores it).
+
+    The form is parsed by hand so the size cap sits in the parser itself: an
+    oversized body is abandoned mid-stream, not spooled to disk and measured
+    afterwards (an UploadFile parameter would spool first).
+    """
+    if throttle.photo_limiter.hit(throttle.client_address(request)):
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS, "Too many uploads. Wait a minute."
+        )
+    workout = _owned(db, workout_id, user.id)
+    held = db.execute(
+        select(func.count())
+        .select_from(models.WorkoutPhoto)
+        .where(models.WorkoutPhoto.workout_id == workout.id)
+    ).scalar_one()
+    if held >= MAX_PHOTOS_PER_WORKOUT:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, PHOTOS_FULL)
+
+    # Content-Length is a claim, checked first to refuse the obvious case
+    # cheaply; the parser below enforces the same cap on the actual bytes.
+    declared = request.headers.get("content-length")
+    if declared is not None and declared.isdigit() and int(declared) > MAX_PHOTO_BYTES:
+        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, PHOTO_TOO_LARGE)
+
+    try:
+        form = await request.form(max_files=1, max_fields=0, max_part_size=MAX_PHOTO_BYTES)
+    except MultiPartException:
+        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, PHOTO_TOO_LARGE) from None
+    try:
+        upload = form.get("file")
+        if not isinstance(upload, UploadFile):
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "No photo was uploaded.")
+        raw = await upload.read()
+    finally:
+        await form.close()
+    if not raw:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "No photo was uploaded.")
+
+    # Encoded before the row exists, so something this server will not store
+    # never burns an id.
+    try:
+        encoded = photos.encode(raw)
+    except images.RejectedImage as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from None
+
+    photo = models.WorkoutPhoto(workout_id=workout.id, created_at=security.now_utc())
+    db.add(photo)
+    db.flush()
+    try:
+        photos.store(workout.id, photo.id, encoded)
+    except OSError:
+        # No row for a picture that is not on the disk: an id in the list with
+        # nothing behind it is a broken card on every later read.
+        db.rollback()
+        raise
+    db.commit()
+    return {"id": photo.id}
+
+
+@router.delete(
+    "/{workout_id}/photos/{photo_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+def delete_photo(
+    workout_id: int,
+    photo_id: int,
+    response: Response,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(security.current_user),
+) -> Response:
+    """Take one of your own pictures back off a workout."""
+    _owned(db, workout_id, user.id)
+    photo = db.get(models.WorkoutPhoto, photo_id)
+    if photo is None or photo.workout_id != workout_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, NO_SUCH_PHOTO)
+    db.delete(photo)
+    db.commit()
+    # After the row, and never a failure: the row is what says a photo exists,
+    # so a file that will not go is an admin problem rather than the caller's.
+    photos.remove(workout_id, photo_id)
+    response.status_code = status.HTTP_204_NO_CONTENT
+    return response
+
+
+@router.get("/{workout_id}/photos/{photo_id}")
+def read_photo(
+    workout_id: int,
+    photo_id: int,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(security.current_user),
+) -> FileResponse:
+    """One stored picture, to its owner or to an accepted friend.
+
+    The reach is the feed's, the same as a route line: yours, and the people you
+    have both agreed to. A post is a deliberate share, so a friend sees all of
+    it. The same 404 answers a photo that does not exist, a stranger's, and one
+    the disk has lost; nothing here says which of the three it was.
+    """
+    owner_id = db.execute(
+        select(models.Workout.user_id)
+        .join(models.WorkoutPhoto, models.WorkoutPhoto.workout_id == models.Workout.id)
+        .where(
+            models.WorkoutPhoto.id == photo_id,
+            models.WorkoutPhoto.workout_id == workout_id,
+        )
+    ).scalar_one_or_none()
+    if owner_id is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, NO_SUCH_PHOTO)
+    if owner_id != user.id and not fellowship.are_friends(db, user.id, owner_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, NO_SUCH_PHOTO)
+    stored = photos.path_for(workout_id, photo_id)
+    if not os.path.isfile(stored):
+        # The row says there is a picture and the disk disagrees, which is what
+        # a lost or unmounted volume looks like. Handing that to FileResponse
+        # raises inside the response and answers 500.
+        raise HTTPException(status.HTTP_404_NOT_FOUND, NO_SUCH_PHOTO)
+    return FileResponse(
+        stored,
+        media_type=photos.MEDIA_TYPE,
+        headers={
+            # Private, because a shared cache must never hand one person's
+            # photograph to another request. Immutable and a year long because a
+            # photo is only ever written once: editing one is not a thing, and
+            # replacing it means a new id and a new URL.
+            "Cache-Control": "private, max-age=31536000, immutable",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
 
 
 class EncourageBody(BaseModel):

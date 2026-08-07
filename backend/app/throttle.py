@@ -101,6 +101,14 @@ avatar_limiter = RateLimiter(5, "avatar")
 # is a real thing to do, and low enough that nobody is filling a history with a
 # script through the form.
 workout_limiter = RateLimiter(30, "workout")
+# Titling a workout and writing on it. As roomy as entering one, because
+# somebody catching up on a week of posts is doing the thing the feature is for,
+# and it is a plain UPDATE of two columns on a row they already own.
+workout_edit_limiter = RateLimiter(30, "workout-edit")
+# Attaching a photo. Tighter, for the avatar's reason: every accepted call hands
+# the server up to ten megabytes to decode and re-encode, which is the most
+# expensive thing a signed-in account can ask it to do.
+photo_limiter = RateLimiter(10, "photo")
 # Spending a verification link. Its own budget because the token is the only
 # secret it checks, and without one the endpoint is a place to guess tokens at
 # whatever rate the network allows.
@@ -123,6 +131,8 @@ _ALL_LIMITERS = (
     email_change_limiter,
     avatar_limiter,
     workout_limiter,
+    workout_edit_limiter,
+    photo_limiter,
     verify_limiter,
     invite_limiter,
     encourage_limiter,

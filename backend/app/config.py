@@ -62,6 +62,12 @@ class Settings(BaseSettings):
     # the account id and never from anything the uploader sent.
     avatar_dir: str = "/data/avatars"
 
+    # Where re-encoded workout photos are written, on the same terms as the
+    # avatars above: the default is the path the compose file mounts a second
+    # named volume at, and file names come from the workout and photo ids
+    # rather than from anything the uploader sent.
+    photo_dir: str = "/data/photos"
+
     daily_cap_walk_mi: float = 40.0
     daily_cap_run_mi: float = 40.0
     daily_cap_cycle_mi: float = 200.0
@@ -230,6 +236,25 @@ MAX_AVATAR_BYTES = 5 * 1024 * 1024
 MAX_AVATAR_PIXELS = 25_000_000
 AVATAR_SIZE = 512
 
+# What an owner may write on their own workout. A title is a headline and a
+# post is the story behind it, so one is a line and the other is a few
+# paragraphs. Neither is ever suggested by the app.
+WORKOUT_TITLE_MAX_CHARS = 100
+WORKOUT_POST_MAX_CHARS = 2000
+
+# Workout photo limits, read the same way as the avatar ones above: the byte
+# cap is checked against Content-Length and again while reading, and the pixel
+# cap is the decompression-bomb guard. Roomier than an avatar because this is a
+# photograph off a phone rather than a face in a circle.
+MAX_PHOTO_BYTES = 10 * 1024 * 1024
+MAX_PHOTO_PIXELS = 25_000_000
+# The longest edge a stored photo may have. Anything smaller is left alone:
+# scaling a small picture up would invent detail and cost bytes doing it.
+PHOTO_MAX_EDGE = 1600
+# How many photos one workout may carry. A handful from a morning out, not an
+# album, and a bound on what one workout can ask the disk for.
+MAX_PHOTOS_PER_WORKOUT = 6
+
 # Request body ceilings, enforced by the app itself so an install that fronts
 # uvicorn with something other than the bundled proxy, or with nothing, still
 # has one. The default sits just above the avatar cap so that endpoint keeps
@@ -237,6 +262,10 @@ AVATAR_SIZE = 512
 # carries sample arrays and a first catch-up can cover years.
 MAX_BODY_BYTES = 6 * 1024 * 1024
 MAX_INGEST_BODY_BYTES = 15 * 1024 * 1024
+# Sits just above the photo cap for the same reason the default sits just above
+# the avatar one: the upload endpoint keeps refusing an oversized picture in its
+# own words rather than having the middleware answer first.
+MAX_PHOTO_BODY_BYTES = 11 * 1024 * 1024
 
 # How many workout entries one export may carry. The byte cap above bounds the
 # body, not the entry count, and an export of tiny entries is a request that

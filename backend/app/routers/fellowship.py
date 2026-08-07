@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app import fellowship, models, progress, security, throttle
 from app.activity import converted_miles
 from app.db import get_db
-from app.routers.workouts import parse_cursor, race_badges_for, routes_for
+from app.routers.workouts import parse_cursor, photos_for, race_badges_for, routes_for
 
 router = APIRouter(tags=["fellowship"])
 
@@ -172,6 +172,7 @@ def _row(
     own: bool,
     race_badge: str | None,
     has_route: bool,
+    photo_ids: list[int],
     encouragement: dict,
 ) -> dict:
     """One feed event.
@@ -180,6 +181,10 @@ def _row(
     carries no heart rate, no calories, no flags, and no pace field: the feed
     says what somebody did, not how their body was doing while they did it.
     Experience is on your own rows only, for the same reason.
+
+    The title, the post, and the photos are the exception, and they are on a
+    friend's row in full. Nothing here is inferred from a body: it is what the
+    person chose to say, and writing it is the act of sharing it.
     """
     row = {
         "workout_id": workout.id,
@@ -190,6 +195,9 @@ def _row(
         "duration_s": workout.duration_s,
         "race_badge": race_badge,
         "has_route": has_route,
+        "title": workout.title,
+        "post": workout.post,
+        "photos": photo_ids,
         "source": workout.source,
         "own": own,
     }
@@ -229,6 +237,7 @@ def read_feed(
 
     badges = race_badges_for(db, rows)
     routed = routes_for(db, rows)
+    pictures = photos_for(db, rows)
     people = fellowship.people(db, {row.user_id for row in rows})
     counts = fellowship.counts(db, [row.id for row in rows], user.id)
     return [
@@ -238,6 +247,7 @@ def read_feed(
             row.user_id == user.id,
             badges.get(row.id),
             row.id in routed,
+            pictures.get(row.id, []),
             counts[row.id],
         )
         for row in rows

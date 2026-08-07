@@ -10,6 +10,7 @@ from app.config import (
     APP_VERSION,
     MAX_BODY_BYTES,
     MAX_INGEST_BODY_BYTES,
+    MAX_PHOTO_BODY_BYTES,
     check_deploy_config,
 )
 from app.routers import auth, chests, fellowship, grove, ingest, profile, settings, workouts
@@ -22,6 +23,21 @@ check_deploy_config()
 app = FastAPI(title=APP_NAME, version=APP_VERSION)
 
 _BODY_CAPS = {"/api/ingest": MAX_INGEST_BODY_BYTES}
+
+
+def _cap_for(path: str) -> int:
+    """Which body ceiling this path gets.
+
+    Photo uploads are matched by shape rather than looked up, because the path
+    carries a workout id in the middle of it. Nothing else lives under that
+    shape, and a path that only nearly matches gets the smaller default, which
+    is the safe way round to be wrong.
+    """
+    if path in _BODY_CAPS:
+        return _BODY_CAPS[path]
+    if path.startswith("/api/workouts/") and path.endswith("/photos"):
+        return MAX_PHOTO_BODY_BYTES
+    return MAX_BODY_BYTES
 
 
 async def _send_too_large(send) -> None:
@@ -55,7 +71,7 @@ class BodySizeLimitMiddleware:
             await self.app(scope, receive, send)
             return
 
-        cap = _BODY_CAPS.get(scope.get("path", ""), MAX_BODY_BYTES)
+        cap = _cap_for(scope.get("path", ""))
         declared = dict(scope.get("headers") or []).get(b"content-length")
         if declared is not None:
             try:

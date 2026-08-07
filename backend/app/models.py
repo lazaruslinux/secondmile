@@ -199,9 +199,29 @@ class Workout(Base):
     # Soft flags only, never a reason to reject. JSON rather than JSONB so the
     # same migration runs on SQLite in the tests.
     flags: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
+    # What the owner called this workout and what they wrote about it. Both
+    # optional, both clearable, and both only ever typed by the person whose
+    # workout it is. Nothing is derived from either: the numbers on a workout
+    # are not editable, only the words around them.
+    title: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    post: Mapped[str | None] = mapped_column(String(2000), nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(
         UtcDateTime, nullable=False, server_default=func.now()
     )
+
+
+class WorkoutPhoto(Base):
+    __tablename__ = "workout_photos"
+
+    # One row per stored picture. The file is <workout_id>-<id>.webp under
+    # PHOTO_DIR, named from these two ids and never from the upload, so there is
+    # nothing here a caller could have chosen. Rows carry no caption and no
+    # order column: the id is the order they were added in.
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workout_id: Mapped[int] = mapped_column(
+        ForeignKey("workouts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    created_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
 
 
 class WorkoutRoute(Base):

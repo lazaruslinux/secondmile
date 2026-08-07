@@ -171,3 +171,34 @@ def test_the_account_columns_arrive_empty_and_disturb_nothing(migrated):
             )
         ).one()
         assert row == ("runner", None, None, None, None, None)
+
+
+def test_the_workout_words_and_photos_arrive_empty(migrated):
+    """0011 is purely additive too: a workout that existed before it keeps
+    working with both columns empty and no pictures on it."""
+    engine, upgrade = migrated
+    with engine.connect() as connection:
+        _fill(connection)
+        connection.execute(
+            sa.text(
+                "INSERT INTO workouts (id, user_id, activity, start_ts, duration_s,"
+                " distance_mi, active_kcal, source, flags, created_at)"
+                " VALUES (1, 1, 'run', '2026-07-01 06:00:00', 1800, 3.0, 300.0,"
+                " 'manual', '{}', '2026-07-01 07:00:00')"
+            )
+        )
+        connection.commit()
+
+    upgrade()
+
+    with engine.connect() as connection:
+        tables = set(
+            connection.execute(
+                sa.text("SELECT name FROM sqlite_master WHERE type = 'table'")
+            ).scalars()
+        )
+        assert "workout_photos" in tables
+        row = connection.execute(
+            sa.text("SELECT distance_mi, title, post FROM workouts")
+        ).one()
+        assert row == (3.0, None, None)

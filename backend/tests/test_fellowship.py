@@ -15,6 +15,10 @@ from app import config, fellowship, models, security
 from app.main import app as fastapi_app
 from conftest import make_user
 
+# The photo upload helper, borrowed rather than written twice: what a friend
+# sees of a picture is tested here, and how one is stored is tested there.
+from test_workouts import attach
+
 # What a feed row is allowed to carry for somebody else's workout. Asserted as
 # a whole set: a new field leaking heart rate or pace has to fail this.
 FRIEND_ROW_KEYS = {
@@ -26,6 +30,11 @@ FRIEND_ROW_KEYS = {
     "duration_s",
     "race_badge",
     "has_route",
+    # The words and the pictures are on a friend's row in full: a post is
+    # something somebody chose to write, not something read off their body.
+    "title",
+    "post",
+    "photos",
     "source",
     "own",
     "encouragement",
@@ -643,3 +652,76 @@ def test_the_email_change_limiter_is_registered_for_the_reset():
     names = {limiter.name for limiter in throttle._ALL_LIMITERS}
     assert "email-change" in names
     assert throttle.email_change_limiter.max_attempts == 3
+
+
+# --------------------------------------------------------------------------
+# What a friend sees of a post
+
+
+def test_a_friend_sees_the_title_the_post_and_the_photos(signed_in, db_session, member, mate):
+    """A post is a deliberate share, so all three cross to a friend's feed in
+    full. This is the one part of somebody else's workout that does."""
+    other, theirs = mate
+    befriend(db_session, member, other)
+    workout = post_workout(theirs, miles=4.0)
+    theirs.patch(
+        f"/api/workouts/{workout['id']}",
+        json={"title": "Round the reservoir", "post": "Wind the whole way back."},
+    )
+    photo_id = attach(theirs, workout["id"]).json()["id"]
+
+    row = signed_in.get("/api/feed").json()[0]
+    assert row["workout_id"] == workout["id"]
+    assert row["own"] is False
+    assert row["title"] == "Round the reservoir"
+    assert row["post"] == "Wind the whole way back."
+    assert row["photos"] == [photo_id]
+    # And the picture itself is readable, which is what the ids are for.
+    served = signed_in.get(f"/api/workouts/{workout['id']}/photos/{photo_id}")
+    assert served.status_code == 200
+    assert served.headers["content-type"] == "image/webp"
+
+
+def test_your_own_feed_row_carries_them_too(signed_in, member):
+    workout = post_workout(signed_in, miles=2.0)
+    signed_in.patch(f"/api/workouts/{workout['id']}", json={"title": "Before work"})
+    photo_id = attach(signed_in, workout["id"]).json()["id"]
+    row = signed_in.get("/api/feed").json()[0]
+    assert row["own"] is True
+    assert row["title"] == "Before work"
+    assert row["post"] is None
+    assert row["photos"] == [photo_id]
+
+
+def test_a_stranger_cannot_read_a_photo(signed_in, db_session, member, mate):
+    """No friendship, so the same 404 a photo that does not exist gets. A
+    pending invite is not a friendship either."""
+    other, theirs = mate
+    workout = post_workout(theirs, miles=3.0)
+    photo_id = attach(theirs, workout["id"]).json()["id"]
+
+    stranger = signed_in.get(f"/api/workouts/{workout['id']}/photos/{photo_id}")
+    assert stranger.status_code == 404
+    assert stranger.json() == {"detail": "No such photo."}
+
+    befriend(db_session, member, other, status="pending")
+    assert signed_in.get(f"/api/workouts/{workout['id']}/photos/{photo_id}").status_code == 404
+
+
+def test_a_friend_still_cannot_write_on_your_workout(signed_in, db_session, member, mate):
+    other, theirs = mate
+    befriend(db_session, member, other)
+    workout = post_workout(signed_in, miles=2.0)
+    assert theirs.patch(
+        f"/api/workouts/{workout['id']}", json={"title": "mine now"}
+    ).status_code == 404
+    assert attach(theirs, workout["id"]).status_code == 404
+
+
+def test_the_photo_limiters_are_registered_for_the_reset():
+    from app import throttle
+
+    names = {limiter.name for limiter in throttle._ALL_LIMITERS}
+    assert {"workout-edit", "photo"} <= names
+    assert throttle.workout_edit_limiter.max_attempts == 30
+    assert throttle.photo_limiter.max_attempts == 10

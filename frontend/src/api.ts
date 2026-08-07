@@ -58,6 +58,14 @@ export interface Workout {
   // Whether the server holds a route for this workout. Optional so the app
   // still renders against a server that predates the field.
   has_route?: boolean
+  // What the person who did it called it and what they wrote about it. Both are
+  // optional, both are cleared by sending a null, and both are absent from a
+  // server that predates them.
+  title?: string | null
+  post?: string | null
+  // The pictures on it, oldest first, as ids. Each one is fetched by its own
+  // address rather than carried here.
+  photos?: number[]
 }
 
 // One point of a route, latitude then longitude, as the server sends it.
@@ -109,6 +117,12 @@ export interface FeedItem {
   own: boolean
   // Own rows only. What the workout was worth, in converted miles.
   xp?: number
+  // What the person wrote on it and the pictures they put with it. Friends' rows
+  // carry them too: a post is something deliberately shared, unlike the pace
+  // figures above. All three are optional, the same way they are on a workout.
+  title?: string | null
+  post?: string | null
+  photos?: number[]
   encouragement: Encouragement
 }
 
@@ -557,6 +571,48 @@ export function listWeeks(count: number): Promise<Week[]> {
 export async function createWorkout(workout: NewWorkout): Promise<Workout> {
   const res = await sendJson('/workouts', 'POST', workout)
   return (await res.json()) as Workout
+}
+
+// The parts of a workout the person who did it types in themselves. A field
+// left out is left alone; a null empties it. What the body actually covered is
+// not here and is not editable anywhere: miles are earned.
+export interface WorkoutEdit {
+  title?: string | null
+  post?: string | null
+}
+
+export async function updateWorkout(workoutId: number, edit: WorkoutEdit): Promise<Workout> {
+  const res = await sendJson(`/workouts/${workoutId}`, 'PATCH', edit)
+  return (await res.json()) as Workout
+}
+
+// What the server accepts, checked here as well so an oversized picture is
+// answered at once instead of after a whole upload.
+export const MAX_PHOTO_BYTES = 10 * 1024 * 1024
+export const PHOTO_TOO_LARGE = 'That picture is too large. The limit is 10 MB.'
+
+// One part, named "file", and nothing else in the form, the same as the avatar
+// upload. Answers with the id of the picture that was stored.
+export async function uploadWorkoutPhoto(workoutId: number, file: File): Promise<number> {
+  // Refused here rather than sent and refused, so a picture too big to keep
+  // never costs an upload. Thrown as the status the server would have answered
+  // with, so callers have one sentence to show either way.
+  if (file.size > MAX_PHOTO_BYTES) throw new ApiError(413, PHOTO_TOO_LARGE)
+  const body = new FormData()
+  body.append('file', file)
+  const res = await send(`/workouts/${workoutId}/photos`, { method: 'POST', body })
+  const created = (await res.json()) as { id: number }
+  return created.id
+}
+
+export async function deleteWorkoutPhoto(workoutId: number, photoId: number): Promise<void> {
+  await send(`/workouts/${workoutId}/photos/${photoId}`, { method: 'DELETE' })
+}
+
+// Read by the owner and by their accepted friends, on the cookie that is
+// already there, which is why this is an address rather than a fetch.
+export function workoutPhotoUrl(workoutId: number, photoId: number): string {
+  return `${BASE}/workouts/${workoutId}/photos/${photoId}`
 }
 
 // Asks for an address to be put on the account, or for the one there to be

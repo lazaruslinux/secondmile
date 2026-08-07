@@ -363,6 +363,9 @@ export default function Log({ userId, units }: Props) {
                         </span>
                         <span className="muted">{formatStart(workout.start_ts)}</span>
                       </div>
+                      {/* What it was called, when it was given a name. Naming
+                          one and writing about it happen on its feed card. */}
+                      {workout.title && <p className="workout-title">{workout.title}</p>}
                       <div className="workout-body">
                         <span>{formatDistance(workout.distance_mi, units)}</span>
                         <span>{formatDuration(workout.duration_s)}</span>

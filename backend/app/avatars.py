@@ -7,22 +7,16 @@ import logging
 import os
 import tempfile
 
-from PIL import Image, UnidentifiedImageError
+from PIL import Image
 
 from app.config import AVATAR_SIZE, MAX_AVATAR_PIXELS, settings
+from app.images import decode
 
 log = logging.getLogger("secondmile.avatars")
 
 # The server decides the stored format; it is never negotiated with the uploader.
 SUFFIX = ".webp"
 MEDIA_TYPE = "image/webp"
-
-# Past this Pillow only warns by default; the checks below refuse outright.
-Image.MAX_IMAGE_PIXELS = MAX_AVATAR_PIXELS
-
-
-class RejectedImage(Exception):
-    """The upload is not an image this server is willing to store."""
 
 
 def _directory() -> str:
@@ -63,37 +57,10 @@ def _square(image: Image.Image) -> Image.Image:
 def encode(raw: bytes) -> bytes:
     """Turn uploaded bytes into the webp this server serves.
 
-    Decoding IS the validation: extensions and Content-Type are claims, a
-    decoder either produces pixels or it does not.
+    Decoding IS the validation, and app/images.py is where that happens; what is
+    left here is the shape an avatar has to be.
     """
-    try:
-        # verify() leaves the object unusable, hence opening twice.
-        probe = Image.open(io.BytesIO(raw))
-        probe.verify()
-        image = Image.open(io.BytesIO(raw))
-    except (
-        Image.DecompressionBombError,
-        UnidentifiedImageError,
-        OSError,
-        ValueError,
-        SyntaxError,
-    ) as exc:
-        raise RejectedImage("That file is not an image this server can read.") from exc
-
-    # Declared size comes from the header, so a small file claiming an
-    # enormous canvas is refused before load() decodes a single pixel.
-    width, height = image.size
-    if width < 1 or height < 1:
-        raise RejectedImage("That image has no size.")
-    if width * height > MAX_AVATAR_PIXELS:
-        raise RejectedImage("That image is too large to process.")
-
-    try:
-        image.load()
-    except (OSError, ValueError, SyntaxError) as exc:
-        raise RejectedImage("That file is not an image this server can read.") from exc
-
-    square = _square(image.convert("RGB"))
+    square = _square(decode(raw, MAX_AVATAR_PIXELS))
     # Pasted onto a blank canvas: a converted image still carries its source's
     # info dict, and Pillow writes parts of it back out. A fresh canvas has
     # nothing to carry, so EXIF, colour profile, and GPS stop here.

@@ -133,19 +133,22 @@ workouts that have no line yet. Both are safe to run twice.
 
 ## Profile pictures
 
-Avatars are files, not database rows. They live in the container at the path
-`AVATAR_DIR` names, and the compose file mounts a named volume there so they
-survive a rebuild. They are not in the Postgres dump: back the volume up
-separately if you want to keep them.
+Avatars and workout photos are files, not database rows. They live in the
+container at the paths `AVATAR_DIR` and `PHOTO_DIR` name, and the compose file
+mounts named volumes there so they survive a rebuild. They are not in the
+Postgres dump: back both volumes up separately if you want to keep them.
 
 ```
 docker compose cp backend:/data/avatars ./avatars-backup
+docker compose cp backend:/data/photos ./photos-backup
 ```
 
-Every upload is capped at 5 MB, decoded to prove it is really an image, and
-re-encoded from its pixels into a 512 by 512 webp. What lands on disk is never
-the file that was uploaded, carries no metadata or location, and is named after
-the account rather than after anything the uploader chose.
+Every avatar upload is capped at 5 MB, decoded to prove it is really an image,
+and re-encoded from its pixels into a 512 by 512 webp. Workout photos get the
+same treatment at 10 MB and a 1600 pixel longest edge, six per workout. What
+lands on disk is never the file that was uploaded, carries no metadata or
+location, and is named by the server rather than after anything the uploader
+chose.
 
 ## Putting it behind a domain
 

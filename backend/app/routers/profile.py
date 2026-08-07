@@ -17,7 +17,7 @@ from starlette.formparsers import MultiPartException
 
 from app import achievements
 from app import activity as activity_rules
-from app import avatars, fellowship, grove, models, progress, security, throttle
+from app import avatars, fellowship, grove, images, models, progress, security, throttle
 from app.config import MAX_AVATAR_BYTES, MAX_DIAMOND_SPORTS, MAX_DISPLAYED_BADGES
 from app.db import get_db
 from app.models import ACTIVITIES
@@ -282,7 +282,7 @@ async def upload_avatar(
 
     try:
         stored = avatars.store(user.id, raw)
-    except avatars.RejectedImage as exc:
+    except images.RejectedImage as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from None
 
     user.avatar_path = stored
