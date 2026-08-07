@@ -1,4 +1,4 @@
-import { groveArt } from '../art.ts'
+import { gildArt, groveArt } from '../art.ts'
 import { speciesName } from '../labels.ts'
 
 interface Props {
@@ -7,6 +7,8 @@ interface Props {
   name?: string | null
   // 1 seedling, 2 growing, 3 grown.
   stage: number
+  // Fully grown: the shared gild is laid over the picture.
+  gilded?: boolean
   // Extra class for the places that size the picture themselves.
   className?: string
   // True where the picture stands on its own and has to carry its own name.
@@ -20,11 +22,15 @@ export default function PlantArt({
   species,
   name: given,
   stage,
+  gilded = false,
   className,
   labelled = false,
 }: Props) {
   const art = groveArt(species, stage)
   const name = speciesName(species, given)
+  // One placeholder file for every species. Real gilded artwork per species is
+  // a later pass, and this comes off when it lands.
+  const gild = gilded ? gildArt() : null
 
   return (
     <span className={className ? `plant-art ${className}` : 'plant-art'} title={name}>
@@ -33,6 +39,7 @@ export default function PlantArt({
       ) : (
         <span className="plant-blank" aria-hidden="true" />
       )}
+      {gild && <img className="plant-gild" src={gild} alt="" aria-hidden="true" />}
     </span>
   )
 }

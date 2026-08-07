@@ -59,6 +59,12 @@ export function groveArt(species: string, stage: number): string | null {
   return grove.get(name + step) ?? grove.get(name.split('-')[0] + step) ?? null
 }
 
+// The one gild treatment, laid over anything fully grown. Every species shares
+// it until each gets artwork of its own.
+export function gildArt(): string | null {
+  return grove.get('gild') ?? null
+}
+
 export function borderArt(tier: number): string | null {
   return borders.get(`border-t${tier}`) ?? null
 }

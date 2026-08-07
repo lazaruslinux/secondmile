@@ -283,8 +283,8 @@ export interface SatchelItem {
   acquired_at: string
 }
 
-// One thing growing in the plot. growth_mi and maturity_mi are converted miles:
-// the same miles the level bar counts, spent here as well.
+// One thing growing in the plot. growth_mi is in converted miles: the same
+// miles the level bar counts, spent here as well.
 export interface Planting {
   id: number
   species: string
@@ -296,13 +296,15 @@ export interface Planting {
   rarity: Rarity
   planted_at: string
   growth_mi: number
-  // Zero for anything that levels instead of maturing.
-  maturity_mi: number
+  // Everything levels. level_mi is what one level of this species costs, and
+  // level is how many it has, which stops at the last one.
+  level: number
+  level_mi: number
+  // Grown at level one, and finished at the last level, where it is gilded.
   mature: boolean
-  // A plant that levels counts them from zero and never stops; level_mi is
-  // what one of them costs. Null for everything that matures.
-  level?: number | null
-  level_mi?: number | null
+  gilded: boolean
+  // 1 seedling, 2 growing, 3 grown, worked out by the server.
+  stage?: number
 }
 
 // A friend's plot, which is theirs to grow and only ours to water. Enough to
@@ -312,10 +314,11 @@ export interface FriendPlanting {
   species: string
   name?: string
   plant_name?: string | null
-  // 1 seedling, 2 growing, 3 grown. Read defensively: either field may be
-  // missing, and a plant already grown takes no more water.
+  // 1 seedling, 2 growing, 3 grown. Read defensively: any of these may be
+  // missing, and a plant that is finished takes no more water.
   stage?: number
   mature?: boolean
+  gilded?: boolean
 }
 
 // What is inside is deliberately not in this response: the reveal belongs to

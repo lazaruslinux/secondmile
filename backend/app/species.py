@@ -10,18 +10,29 @@ art files are named after them, so renaming one orphans whatever is planted.
 Four of each rarity, twelve in all. The numbers are the shape of the thing and
 are never explained anywhere.
 
+Everything planted levels, and the miles are the only thing that levels it. One
+level costs what that species used to cost to come of age: a common bush fifteen
+Miles, an uncommon forty, a rare a hundred. Level one is maturity. Level
+thirty three is as far as anything goes, and there it is gilded and finished.
+
 The mustard tree is the exception in every way but one. It comes out of the
-first chest an account ever opens and nowhere else, it never matures at all but
-levels instead, and the reveal explains that single mechanical fact and nothing
-more: why it is the one seed like that stays unsaid.
+first chest an account ever opens and nowhere else, and the reveal explains that
+single mechanical fact and nothing more: why it is the one seed like that stays
+unsaid.
 """
 
 from dataclasses import dataclass
 
 RARITIES = ("common", "uncommon", "rare")
 
-# Converted Miles one level of a levelling species costs.
-MUSTARD_LEVEL_MI = 100.0
+# Converted Miles one level costs, by rarity. What each species once needed to
+# come to maturity it now needs for every level it puts on.
+LEVEL_MI: dict[str, float] = {"common": 15.0, "uncommon": 40.0, "rare": 100.0}
+
+# The level a plant is grown at, and the last level there is. Both numbers are
+# structural and neither is explained anywhere in the app.
+MATURE_LEVEL = 1
+MAX_LEVEL = 33
 
 # The one line the game explains about itself, said at the reveal and nowhere
 # else. What it means is still never said.
@@ -40,16 +51,12 @@ class Species:
     # for this purpose so that nothing about it reads as unusual; it is never
     # actually rolled.
     rarity: str
-    # Converted Miles of growth this species needs to come to maturity. Zero
-    # means it never matures, which is the mustard tree and only it.
-    maturity_mi: float
+    # Converted Miles one level of this species costs. Always its rarity's step.
+    level_mi: float
     # What it bears once it is grown. Fruit is the word for the category
     # everywhere in the game; this is what this one species calls its own
     # harvest. Nothing bears anything this round, so nothing reads it yet.
     produce: str
-    # Converted Miles per level for a species that levels instead of maturing.
-    # Zero for everything that simply grows up and stops.
-    level_mi: float = 0.0
     # Said once, when the seed comes out of the chest. Empty for every species
     # that has nothing about it to explain, which is all but one.
     reveal: str = ""
@@ -71,18 +78,9 @@ _CATALOG: tuple[Species, ...] = (
     Species("dates", "Date seed", "Date palm", "rare", 100.0, "dates"),
     Species("coffee", "Coffee seed", "Coffee plant", "rare", 100.0, "coffee cherries"),
     Species("pomegranate", "Pomegranate seed", "Pomegranate tree", "rare", 100.0, "pomegranates"),
-    # The first chest, and only the first chest. It has no maturity: it levels,
-    # a hundred Miles at a time, for as long as the miles keep coming.
-    Species(
-        "mustard",
-        "Mustard seed",
-        "Mustard",
-        "rare",
-        0.0,
-        "mustard seed",
-        level_mi=MUSTARD_LEVEL_MI,
-        reveal=MUSTARD_REVEAL,
-    ),
+    # The first chest, and only the first chest. It levels like everything else
+    # and the only thing said about it is that there is one of it.
+    Species("mustard", "Mustard seed", "Mustard", "rare", 100.0, "mustard seed", MUSTARD_REVEAL),
 )
 
 BY_ID: dict[str, Species] = {row.id: row for row in _CATALOG}

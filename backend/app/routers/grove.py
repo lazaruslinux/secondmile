@@ -99,11 +99,11 @@ def pour_water(
         # A stranger's planting and one that never existed answer the same
         # way: whose plot an id belongs to is not a thing to learn by asking.
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such planting.")
-    if planting.matured_at is not None:
-        # Grown is grown. Refusing rather than wasting the water is the whole
-        # point of saying so.
+    if grove.is_gilded(planting):
+        # Water helps until there are no levels left. Refusing rather than
+        # wasting it is the whole point of saying so.
         raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, "That one is grown. There is nothing left to grow."
+            status.HTTP_400_BAD_REQUEST, "That one is fully grown. There is nothing left to grow."
         )
     now = security.now_utc()
     grove.pour(planting, now)

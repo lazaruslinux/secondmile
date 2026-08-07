@@ -41,7 +41,8 @@ Current version: **0.1.1**. Releases are tagged in git.
   and all three are tools: a seed to plant, water to pour into one plant, or
   oil to spend on a friend. Plantings grow from every workout you log, all of
   them at once, with nothing to tend and no timers; swimming brings extra
-  water. Nothing can wither and nothing can be bought.
+  water. Everything levels on the miles, is grown at level one, and is fully
+  grown at the last one. Nothing can wither and nothing can be bought.
 - **Gives you something to give away.** Water can be poured into a friend's
   plot as easily as your own. Oil is quieter: it says nothing to the friend
   you spend it on, and their next workout simply brings them a chest they did

@@ -18,60 +18,69 @@ from app import models, species
 from app.config import SWIM_GROWTH_BONUS, WATER_POUR_MI
 
 # Three drawings per species: a seedling, something growing, and the grown
-# thing. The first third of the way is the seedling.
+# thing. The first third of the way to level one is the seedling; from level one
+# on it is drawn grown, however many levels it goes on to put on.
 _SEEDLING_FRACTION = 1.0 / 3.0
 
 
-def maturity_mi(species_id: str) -> float:
-    """What one species costs to grow, in converted Miles. Zero for anything
-    that never matures."""
-    row = species.BY_ID.get(species_id)
-    return row.maturity_mi if row is not None else 0.0
-
-
 def level_step_mi(species_id: str) -> float:
-    """What one level costs a species that levels, and zero for the rest."""
+    """What one level of a species costs, in converted Miles."""
     row = species.BY_ID.get(species_id)
     return row.level_mi if row is not None else 0.0
 
 
-def level_of(row: models.Planting) -> int | None:
-    """Which level a levelling planting has reached, counting from zero and
-    never stopping. None for everything that matures instead."""
-    step = level_step_mi(row.species)
+def level_for(species_id: str, growth_mi: float) -> int:
+    """How many levels that much growth is worth, and never more than the last.
+
+    The miles keep adding up past the cap, which is honest bookkeeping and
+    nothing more: a plant at the top is finished and stays there.
+    """
+    step = level_step_mi(species_id)
     if step <= 0:
-        return None
-    return int(row.growth_mi // step)
+        return 0
+    # The tolerance is for float addition: fifteen miles arrived in pieces
+    # should be level one, not a hair under it.
+    return min(species.MAX_LEVEL, int((growth_mi + 1e-9) // step))
+
+
+def level_of(row: models.Planting) -> int:
+    """Which level a planting has reached, counting from zero."""
+    return level_for(row.species, row.growth_mi)
+
+
+def is_mature(row: models.Planting) -> bool:
+    """Grown enough to bear fruit, which is level one for everything."""
+    return level_of(row) >= species.MATURE_LEVEL
+
+
+def is_gilded(row: models.Planting) -> bool:
+    """Fully grown: the last level, and nothing left to add to it."""
+    return level_of(row) >= species.MAX_LEVEL
 
 
 def growth_fraction(row: models.Planting) -> float:
-    """How full the bar is: toward maturity, or through the level it is in."""
+    """How full the bar is: the way through the level it is in, and full at the
+    top, where there is no next level to fill."""
     step = level_step_mi(row.species)
-    if step > 0:
-        return round((row.growth_mi % step) / step, 4)
-    target = maturity_mi(row.species)
-    if target <= 0:
+    if step <= 0 or is_gilded(row):
         return 1.0
-    return round(min(row.growth_mi / target, 1.0), 4)
+    return round((row.growth_mi % step) / step, 4)
 
 
 def stage(row: models.Planting) -> int:
     """Which of the three drawings a planting is at, from 1 to 3."""
-    level = level_of(row)
-    if level is not None:
-        # Plant, shrub, tree. It keeps levelling past the last drawing.
-        return min(3, level + 1)
-    target = maturity_mi(row.species)
-    if target <= 0 or row.growth_mi + 1e-9 >= target:
+    if is_mature(row):
         return 3
-    return 1 if row.growth_mi < target * _SEEDLING_FRACTION else 2
+    step = level_step_mi(row.species)
+    if step <= 0:
+        return 1
+    return 1 if row.growth_mi < step * _SEEDLING_FRACTION else 2
 
 
 def _advance(row: models.Planting, amount: float, moment: dt.datetime) -> None:
-    """Add growth and note the day it came to maturity, once."""
+    """Add growth and note the day it came of age, once."""
     row.growth_mi += amount
-    target = maturity_mi(row.species)
-    if row.matured_at is None and target > 0 and row.growth_mi + 1e-9 >= target:
+    if row.matured_at is None and is_mature(row):
         row.matured_at = moment
 
 
@@ -201,8 +210,6 @@ def serialize_item(row: models.SatchelItem) -> dict:
 def serialize_planting(row: models.Planting) -> dict:
     """One thing growing, with how far along it is."""
     kind = species.BY_ID.get(row.species)
-    target = maturity_mi(row.species)
-    grown = row.matured_at is not None
     level = level_of(row)
     return {
         "id": row.id,
@@ -213,18 +220,17 @@ def serialize_planting(row: models.Planting) -> dict:
         "plant_name": kind.plant_name if kind is not None else row.species,
         "rarity": row.rarity,
         "planted_at": row.planted_at.isoformat(),
+        # What it has taken in, which keeps counting past the last level.
         "growth_mi": round(row.growth_mi, 2),
-        # Zero for anything that levels rather than maturing.
-        "maturity_mi": target,
-        # The bar, already worked out, and never past full.
+        # The bar, already worked out: the way through the level it is in.
         "growth": growth_fraction(row),
         "stage": stage(row),
-        "mature": grown,
-        "matured_at": row.matured_at.isoformat() if grown else None,
-        # Null for everything that matures. A levelling planting counts levels
-        # instead and never reads as grown.
+        # Level one is grown, and the last level is gilded and finished.
         "level": level,
-        "level_mi": level_step_mi(row.species) if level is not None else None,
+        "level_mi": level_step_mi(row.species),
+        "mature": level >= species.MATURE_LEVEL,
+        "gilded": level >= species.MAX_LEVEL,
+        "matured_at": row.matured_at.isoformat() if row.matured_at is not None else None,
         # What it will bear when fruit arrives. Nothing bears anything yet.
         "produce": kind.produce if kind is not None else None,
     }
@@ -247,18 +253,24 @@ def serialize_for_friend(row: models.Planting) -> dict:
         "rarity": row.rarity,
         "growth": growth_fraction(row),
         "stage": stage(row),
-        "mature": row.matured_at is not None,
+        "mature": is_mature(row),
+        # Finished, so a friend knows there is no point pouring water into it.
+        "gilded": is_gilded(row),
     }
 
 
 def summary(db: Session, user_id: int) -> dict:
     """What the profile says about the plot: how much is in it, how much grown."""
-    rows = list(
-        db.execute(
-            select(models.Planting.matured_at).where(models.Planting.user_id == user_id)
-        ).scalars()
-    )
+    rows = db.execute(
+        select(models.Planting.species, models.Planting.growth_mi).where(
+            models.Planting.user_id == user_id
+        )
+    ).all()
     return {
         "planted": len(rows),
-        "mature": sum(1 for matured_at in rows if matured_at is not None),
+        "mature": sum(
+            1
+            for species_id, growth_mi in rows
+            if level_for(species_id, growth_mi) >= species.MATURE_LEVEL
+        ),
     }

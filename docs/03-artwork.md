@@ -185,20 +185,16 @@ thirty nine files:
 
 | Stage | File ends | What it shows |
 | --- | --- | --- |
-| Seedling | `-s1` | Just up, the first days after planting |
-| Growing | `-s2` | Half way to full size or better |
-| Grown | `-s3` | Full size, and the only stage that bears fruit |
+| Seedling | `-s1` | Just up, the first third of the first level |
+| Growing | `-s2` | The rest of the way to level one |
+| Grown | `-s3` | Full size, from level one on |
 
-The mustard is the one that reads its stage differently. It has no maturity: it
-levels, one level per hundred converted miles, and keeps going. Its three files
-are read by level rather than by growth, so draw them as the parable does, a
-plant, then a shrub, then a tree:
-
-| Level | File | What it shows |
-| --- | --- | --- |
-| 0 | `mustard-s1.svg` | A plant, the first hundred miles |
-| 1 | `mustard-s2.svg` | A shrub |
-| 2 and up | `mustard-s3.svg` | A tree, and it stays the tree |
+Every species levels. One level costs what that species costs: fifteen converted
+miles for a common, forty for an uncommon, a hundred for a rare and for the
+mustard. Level one is grown, which is where the third drawing starts, and a
+plant goes on levelling from there without changing what it is drawn as. The
+mustard is drawn the way the parable tells it, a plant, then a shrub, then a
+tree, at the same three points as everything else.
 
 The species and the file each one reads:
 
@@ -239,6 +235,19 @@ missing file costs a picture rather than a screen.
 - **Distinct at a glance.** Thirteen species share one plot, so shape carries
   more than colour: a vine on a wire, an arching bramble, a flat olive crown, a
   round pomegranate crown, banana paddles, a date palm's bare trunk and fronds.
+
+### The gild
+
+`frontend/src/assets/grove/gild.svg`
+
+A plant that reaches the last level is fully grown and gilded, and stays that
+way. One file is laid over the grown drawing wherever it appears, in the plot
+and in the band across the top of the profile, so every species shares the same
+treatment for now: a plain gold ring in the same 64 by 64 viewBox, centred on
+the picture, with nothing solid in the middle to hide the plant behind it.
+
+Gilded artwork per species is a later pass and is not built. When each species
+has its own, this file comes out and the drawings replace it.
 
 ## Profile pictures
 

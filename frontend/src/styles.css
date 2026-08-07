@@ -1945,6 +1945,7 @@ button:disabled {
 }
 
 .plant-art {
+  position: relative;
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -1956,6 +1957,16 @@ button:disabled {
   width: auto;
   height: 100%;
   max-width: 100%;
+}
+
+/* The gild lies over anything fully grown, one file for every species until
+   each has artwork of its own. It is drawn on top and never resizes the plant
+   underneath it. */
+.plant-gild {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  pointer-events: none;
 }
 
 /* A species with no file yet still keeps its place in the row. */

@@ -374,6 +374,7 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
                     species={row.species}
                     name={plantingName(row)}
                     stage={plantStage(row)}
+                    gilded={row.gilded}
                   />
                 </li>
               ))}

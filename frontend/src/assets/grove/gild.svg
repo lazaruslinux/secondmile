@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" fill="none">
+  <!-- Placeholder gild: one gold ring behind whatever is fully grown. Real
+       per-species gilded artwork is a later pass; this file is all thirteen
+       of them share until then. -->
+  <circle cx="32" cy="34" r="26" stroke="#caa24a" stroke-width="2" fill="none" opacity="0.85"/>
+  <circle cx="32" cy="34" r="21" stroke="#e6c66f" stroke-width="1" fill="none" opacity="0.5"/>
+  <g fill="#e6c66f">
+    <circle cx="32" cy="8" r="2.6"/>
+    <circle cx="9" cy="47" r="2"/>
+    <circle cx="55" cy="47" r="2"/>
+  </g>
+</svg>

@@ -15,7 +15,7 @@ import {
   type SatchelItem,
 } from '../api.ts'
 import { convertedValue } from '../format.ts'
-import { plantStage } from '../grove.ts'
+import { levelProgress, plantStage } from '../grove.ts'
 import { itemName, personName, plantingName, rarityWord } from '../labels.ts'
 import Chooser, { type Choice } from './Chooser.tsx'
 import PlantArt from './PlantArt.tsx'
@@ -42,19 +42,24 @@ const ANOINTED = 'Done. Nothing is said to them.'
 
 // A friend's plot comes back with a stage rather than miles, so the quiet half
 // of the row says how far along it is in words.
-const STAGE_WORDS = ['Seedling', 'Growing']
+const STAGE_WORDS = ['Seedling', 'Growing', 'Grown']
 
-// Whether a friend's plant can still take water. Anything grown is left out;
-// a plant that levels rather than maturing never is, however big it is drawn.
+// Said under anything that has reached the last level.
+const FULLY_GROWN = 'Fully grown.'
+
+// Whether a plant can still take water: everything but the ones that have run
+// out of levels to put on.
 function friendGrowing(row: FriendPlanting): boolean {
-  return row.mature !== true
+  return row.gilded !== true
 }
 
-// How far along one planting is, in the words its own kind uses: a level for
-// anything that levels, and miles toward maturity for the rest.
+// How far along one planting is. Everything levels, so this is the same line
+// for all of them.
 function growthLine(row: Planting): string {
-  if (row.level != null) return `Level ${row.level}`
-  return `${convertedValue(row.growth_mi)} of ${convertedValue(row.maturity_mi)} mi`
+  if (row.gilded) return `Level ${row.level}, fully grown`
+  return `Level ${row.level}, ${convertedValue(levelProgress(row).into)} of ${convertedValue(
+    row.level_mi,
+  )} mi`
 }
 
 interface Cached {
@@ -181,10 +186,10 @@ export default function Grove({ userId }: Props) {
     }
   }
 
-  const growing = plantings.filter((row) => !row.mature)
+  const growing = plantings.filter((row) => !row.gilded)
 
   // This account's plot first, then each friend's under their own name. Nothing
-  // already grown is offered: it has all the growth it needs.
+  // fully grown is offered: it has all the growth there is.
   const plantingChoices: Choice[] = [
     ...growing.map((row) => ({
       id: row.id,
@@ -235,33 +240,32 @@ export default function Grove({ userId }: Props) {
         {plantings.length > 0 && (
           <ul className="plot">
             {plantings.map((row) => {
-              const stage = plantStage(row)
-              // A plant that levels fills its bar over and over, one level at
-              // a time; the rest fill theirs once, on the way to maturity.
-              const step = row.level != null ? (row.level_mi ?? 0) : row.maturity_mi
-              const into =
-                row.level != null && row.level_mi
-                  ? row.growth_mi - row.level * row.level_mi
-                  : Math.min(row.growth_mi, row.maturity_mi)
+              // Every plant fills the same bar over and over, one level at a
+              // time, until the last level, where there is nothing left to fill.
+              const { into, step } = levelProgress(row)
               const line = growthLine(row)
               return (
                 <li key={row.id} className="plant">
                   <PlantArt
                     species={row.species}
                     name={plantingName(row)}
-                    stage={stage}
+                    stage={plantStage(row)}
+                    gilded={row.gilded}
                     className="plant-picture"
                   />
                   <p className="plant-name">{plantingName(row)}</p>
                   {/* A progress element rather than a div with a width on it:
                       the content security policy allows no inline styles, and
                       this one reads correctly to a screen reader as well. */}
-                  <progress className="xp-meter" value={into} max={step > 0 ? step : 1}>
-                    {line}
-                  </progress>
+                  {!row.gilded && (
+                    <progress className="xp-meter" value={into} max={step}>
+                      {line}
+                    </progress>
+                  )}
                   <p className="plant-growth">{line}</p>
-                  {row.mature && (
-                    <p className="plant-ready">Fully grown. It waits here to bear fruit.</p>
+                  {row.gilded && <p className="plant-ready">{FULLY_GROWN}</p>}
+                  {row.mature && !row.gilded && (
+                    <p className="plant-ready">Grown. It waits here to bear fruit.</p>
                   )}
                 </li>
               )
