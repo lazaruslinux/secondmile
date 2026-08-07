@@ -1,10 +1,11 @@
 """Registration, sign in, sign out, and password changes."""
 
 import datetime as dt
+from zoneinfo import ZoneInfo
 
 from conftest import MEMBER, make_invite
 
-from app import models, security
+from app import config, models, security
 from app.config import APP_VERSION
 
 
@@ -18,7 +19,17 @@ def test_status_is_public(client):
         "name": "secondmile",
         "version": APP_VERSION,
         "registration_open": False,
+        # The zone the server groups days in, which is what the app renders
+        # times in. Read from config for the same reason the version is.
+        "timezone": str(config.SERVER_TZ),
     }
+
+
+def test_status_reports_the_configured_timezone(client, monkeypatch):
+    # The app renders every workout time in this zone, so the answer has to
+    # follow the setting rather than be whatever the process happens to run in.
+    monkeypatch.setattr(config, "SERVER_TZ", ZoneInfo("America/Phoenix"))
+    assert client.get("/api/status").json()["timezone"] == "America/Phoenix"
 
 
 def test_register_with_invite_asks_for_verification(client, invite, outbox):

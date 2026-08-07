@@ -124,6 +124,11 @@ def read_status() -> dict:
     The registration mode is in here because the sign-in screen has to know
     whether to ask for an invite code before anyone has signed in, and it is
     not a secret: anyone can learn it by sending the form once.
+
+    The timezone is here because the app has to render times in it. A browser
+    that reports a zone of its own is not to be trusted with this: privacy
+    settings that pin the browser to UTC are common, and a workout started at
+    05:44 would read as 12:44.
     """
     return {
         "name": APP_NAME,
@@ -131,6 +136,10 @@ def read_status() -> dict:
         # Read through the module rather than bound at import, so the settings
         # object is the one source of the answer.
         "registration_open": config.settings.registration_open,
+        # The zone that actually loaded rather than the raw setting, so a name
+        # this server could not resolve is never handed to a client that then
+        # has to resolve it too.
+        "timezone": str(config.SERVER_TZ),
     }
 
 

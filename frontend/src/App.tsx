@@ -4,12 +4,14 @@ import {
   ApiError,
   getMe,
   getRecap,
+  getStatus,
   setUnauthorizedHandler,
   verifyEmail,
   type Me,
   type RecapState,
   type Units,
 } from './api.ts'
+import { setInstanceTimezone } from './format.ts'
 import { recapHasNews } from './recap.ts'
 import Login from './views/Login.tsx'
 import Grove from './views/Grove.tsx'
@@ -67,11 +69,16 @@ export default function App() {
         // someone screenshots, and a spent one is only confusing on reload.
         window.history.replaceState(null, '', window.location.pathname)
       }
-      try {
-        setMe(await getMe())
-      } catch {
-        setMe(null)
-      }
+      // The instance's zone has to be in hand before the first screen draws,
+      // since every time on it is read in that zone rather than the browser's.
+      // A status call that fails says nothing useful here: the app falls back
+      // to the browser's zone and carries on.
+      const [status, user] = await Promise.all([
+        getStatus().catch(() => null),
+        getMe().catch(() => null),
+      ])
+      setInstanceTimezone(status?.timezone)
+      setMe(user)
       setCheckingSession(false)
     }
 
@@ -162,6 +169,7 @@ export default function App() {
             refreshToken={refreshToken}
             onOpenLog={() => setView('log')}
             onOpenGrove={() => setView('grove')}
+            onOpenProfile={() => setView('you')}
           />
         )}
         {view === 'log' && <Log userId={me.id} units={me.units} />}

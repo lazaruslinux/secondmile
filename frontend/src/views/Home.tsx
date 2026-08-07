@@ -8,7 +8,14 @@ import {
   type Profile as ProfileData,
   type Units,
 } from '../api.ts'
-import { convertedValue, distanceValue, formatStart, unitName } from '../format.ts'
+import {
+  convertedValue,
+  distanceValue,
+  formatStart,
+  unitName,
+  weekStartKey,
+  zonedDay,
+} from '../format.ts'
 import { ACTIVITY_NAMES, RACE_BADGE_ORDER, raceBadgeName } from '../labels.ts'
 import { displayNameOf, lifetimeWorkouts, raceCountsOf, weekTotals } from '../profile.ts'
 import AvatarFrame from './AvatarFrame.tsx'
@@ -31,26 +38,17 @@ const DAY_NAMES = [
   'Sunday',
 ]
 
-// Midnight on the Monday of the week a moment falls in, browser timezone.
-function weekStartOf(date: Date): Date {
-  const start = new Date(date)
-  start.setHours(0, 0, 0, 0)
-  start.setDate(start.getDate() - ((start.getDay() + 6) % 7))
-  return start
-}
-
 // Which days of this week already have something on them. Own rows only: the
-// streak counts this account's miles, never anybody else's. Compared week by
-// week rather than by subtracting milliseconds, so the hour a clock change takes
-// away cannot move a workout into the wrong day.
+// streak counts this account's miles, never anybody else's. Days and weeks are
+// read in the instance's zone, which is the zone the server counted them in.
 function daysThisWeek(feed: FeedItem[]): boolean[] {
   const days = [false, false, false, false, false, false, false]
-  const monday = weekStartOf(new Date()).getTime()
+  const monday = weekStartKey(zonedDay(new Date()))
   for (const item of feed) {
     if (!item.own) continue
-    const when = new Date(item.start_ts)
-    if (weekStartOf(when).getTime() !== monday) continue
-    days[(when.getDay() + 6) % 7] = true
+    const day = zonedDay(item.start_ts)
+    if (weekStartKey(day) !== monday) continue
+    days[day.weekday] = true
   }
   return days
 }
@@ -103,9 +101,17 @@ interface Props {
   // the switch rather than reaching for it.
   onOpenLog: () => void
   onOpenGrove: () => void
+  onOpenProfile: () => void
 }
 
-export default function Home({ userId, units, refreshToken, onOpenLog, onOpenGrove }: Props) {
+export default function Home({
+  userId,
+  units,
+  refreshToken,
+  onOpenLog,
+  onOpenGrove,
+  onOpenProfile,
+}: Props) {
   // Coming back to the tab draws what was here before and asks the server again
   // underneath, so switching tabs is not a blank screen every time.
   const [profile, setProfile] = useState<ProfileData | null>(
@@ -197,21 +203,25 @@ export default function Home({ userId, units, refreshToken, onOpenLog, onOpenGro
     <div className="home">
       <aside className="home-col home-left">
         <section className="card summary">
-          <AvatarFrame
-            name={shownName || profile.username}
-            src={
-              profile.has_avatar ? avatarUrl(profile.user_id, profile.avatar_version) : null
-            }
-            borderTier={profile.border_tier}
-            flourish={flourish}
-            frameClass="summary-frame"
-            labelled
-          >
-            <MedalNest items={nestMedals} />
-          </AvatarFrame>
+          {/* The picture and the name are the way to the You screen, which is
+              where everything under them is said at length. */}
+          <button type="button" className="summary-identity" onClick={onOpenProfile}>
+            <AvatarFrame
+              name={shownName || profile.username}
+              src={
+                profile.has_avatar ? avatarUrl(profile.user_id, profile.avatar_version) : null
+              }
+              borderTier={profile.border_tier}
+              flourish={flourish}
+              frameClass="summary-frame"
+              labelled
+            >
+              <MedalNest items={nestMedals} />
+            </AvatarFrame>
 
-          <h2 className="summary-name">{shownName || profile.username}</h2>
-          {shownName !== '' && <p className="summary-username">{profile.username}</p>}
+            <h2 className="summary-name">{shownName || profile.username}</h2>
+            {shownName !== '' && <p className="summary-username">{profile.username}</p>}
+          </button>
 
           <ul className="summary-stats">
             <li>

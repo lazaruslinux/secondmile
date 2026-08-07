@@ -25,6 +25,10 @@ export interface Status {
   version: string
   // Whether the sign-up form should ask for an invite code.
   registration_open: boolean
+  // The IANA zone the instance groups days and weeks in, which is the zone
+  // every time on screen is read in. Optional: a server that predates the
+  // field leaves the app on the browser's own zone.
+  timezone?: string
 }
 
 // Soft flags: the server imports the workout either way and marks what looked

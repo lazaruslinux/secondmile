@@ -15,9 +15,12 @@ import {
   formatDistance,
   formatDuration,
   formatStart,
+  instantFromZonedInput,
   KM_PER_MILE,
-  pad,
   unitName,
+  weekStartKey,
+  zonedDay,
+  zonedInputValue,
 } from '../format.ts'
 import { ACTIVITY_NAMES, ACTIVITY_ORDER, raceBadgeName } from '../labels.ts'
 import RouteLine from './RouteLine.tsx'
@@ -25,20 +28,14 @@ import RouteLine from './RouteLine.tsx'
 const WORKOUT_PAGE = 50
 const WEEK_COUNT = 8
 
-function localDateInput(date: Date): string {
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
-}
-
-// The Monday that starts a workout's week, in the browser's timezone. The
-// server groups by its own timezone; the two agree unless a workout sits within
-// a few hours of a week boundary.
+// The Monday that starts a workout's week, read in the instance's zone, which
+// is the zone the weekly totals below it were added up in.
 function weekKeyOf(iso: string): string {
-  const date = new Date(iso)
-  date.setHours(0, 0, 0, 0)
-  date.setDate(date.getDate() - ((date.getDay() + 6) % 7))
-  return localDateInput(date)
+  return weekStartKey(zonedDay(iso))
 }
 
+// A plain calendar date rather than a moment, so no zone comes into it: the
+// date is built and read in the same one.
 function formatWeekStart(key: string): string {
   const [year, month, day] = key.split('-').map(Number)
   return new Date(year, month - 1, day).toLocaleDateString(undefined, {
@@ -67,10 +64,10 @@ function flagNotes(flags: WorkoutFlags): string[] {
 
 // What the datetime field starts on. Read when the form is opened rather than
 // once at mount, since an app left running overnight would otherwise offer
-// yesterday.
+// yesterday. On the instance's clock, which is the clock the history beneath
+// the form is written in.
 function nowInput(): string {
-  const now = new Date()
-  return `${localDateInput(now)}T${pad(now.getHours())}:${pad(now.getMinutes())}`
+  return zonedInputValue(new Date())
 }
 
 interface Cached {
@@ -144,7 +141,9 @@ export default function Log({ userId, units }: Props) {
     try {
       await createWorkout({
         activity,
-        start_ts: new Date(start).toISOString(),
+        // What was typed means the instance's clock, the same one the field
+        // was filled from and the same one the history reads in.
+        start_ts: instantFromZonedInput(start).toISOString(),
         duration_s: Math.round(Number(minutes) * 60),
         distance_mi: units === 'metric' ? entered / KM_PER_MILE : entered,
         ...(calories === '' ? {} : { active_kcal: Number(calories) }),

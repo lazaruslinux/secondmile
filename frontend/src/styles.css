@@ -513,6 +513,21 @@ button:disabled {
 
 /* Home: the profile summary in the left column */
 
+/* The picture and the name are one control that opens the You screen. Stripped
+   back to nothing so it looks exactly as it did before it became a button. */
+.summary-identity {
+  display: block;
+  width: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: inherit;
+  text-align: center;
+}
+
 /* Bottom margin enough for the half of a medal that hangs off the frame. */
 .summary-frame {
   width: 6rem;
@@ -763,11 +778,16 @@ button:disabled {
   gap: 0.7rem;
 }
 
+/* Square, the same corner the framed pictures beside a friend's workout have.
+   The outline stands in for the border artwork those carry: a squared-off crop
+   with nothing around it reads as an unfinished image rather than a picture in
+   a frame, and it is the placeholder letter that shows it worst. */
 .feed-avatar {
   width: 2.5rem;
   height: 2.5rem;
   flex: 0 0 auto;
-  border-radius: 999px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
   object-fit: cover;
   background: #17171b;
 }

@@ -105,7 +105,12 @@ def test_unknown_user_and_wrong_password_are_indistinguishable(client, member):
 
 
 def test_status_endpoint_leaks_nothing(client):
-    assert set(client.get("/api/status").json()) == {"name", "version", "registration_open"}
+    assert set(client.get("/api/status").json()) == {
+        "name",
+        "version",
+        "registration_open",
+        "timezone",
+    }
 
 
 def test_placeholder_database_password_refuses_startup(monkeypatch):

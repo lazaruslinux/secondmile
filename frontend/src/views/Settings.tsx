@@ -10,6 +10,7 @@ import {
   type IngestTokenStatus,
   type Units,
 } from '../api.ts'
+import { instanceTimezone } from '../format.ts'
 
 // Said whatever happened. Whether that address belongs to anybody already is
 // not this screen's news to give, so the sentence is the same either way.
@@ -311,7 +312,10 @@ export default function Settings({
               {tokenStatus.exists
                 ? `A token exists${
                     tokenStatus.rotated_at
-                      ? `, last rotated ${new Date(tokenStatus.rotated_at).toLocaleDateString()}`
+                      ? `, last rotated ${new Date(tokenStatus.rotated_at).toLocaleDateString(
+                          undefined,
+                          { timeZone: instanceTimezone() },
+                        )}`
                       : ''
                   }.`
                 : 'No token yet.'}

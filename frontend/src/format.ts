@@ -37,8 +37,37 @@ export function convertedValue(miles: number): string {
   return miles.toFixed(1)
 }
 
+// The zone the instance keeps, learned from GET /api/status when the app boots.
+// Times are read in it rather than in the browser's, because the browser's is
+// not to be trusted: a fingerprint-protection setting that pins the browser to
+// UTC turns a run started at 05:44 into one started at 12:44, and moves the
+// workouts either side of midnight into the wrong day and the wrong week.
+// undefined means the browser's own zone, which is the fallback.
+let zone: string | undefined
+
+export function setInstanceTimezone(name: string | null | undefined): void {
+  if (!name) {
+    zone = undefined
+    return
+  }
+  try {
+    // Throws on a zone this browser does not know, and hands back the
+    // canonical spelling of one it does.
+    zone = new Intl.DateTimeFormat('en-US', { timeZone: name }).resolvedOptions().timeZone
+  } catch {
+    // A zone this browser's date library does not carry is no better than
+    // none, and passing it on would throw on every date drawn.
+    zone = undefined
+  }
+}
+
+export function instanceTimezone(): string | undefined {
+  return zone
+}
+
 export function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
+    timeZone: zone,
     month: 'long',
     day: 'numeric',
     year: 'numeric',
@@ -47,12 +76,98 @@ export function formatDate(iso: string): string {
 
 export function formatStart(iso: string): string {
   return new Date(iso).toLocaleString(undefined, {
+    timeZone: zone,
     weekday: 'short',
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
   })
+}
+
+// Monday first, which is how the weeks are counted here and on the server.
+const WEEKDAY_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
+// The calendar day a moment lands on in the instance's zone. Date's own getters
+// answer in the browser's zone and there is no setter that takes another, so
+// the parts come from Intl instead.
+export interface ZonedDay {
+  // yyyy-mm-dd, which is the same shape the server sends a week start in.
+  key: string
+  // Monday 0 through Sunday 6.
+  weekday: number
+}
+
+export function zonedDay(value: Date | string): ZonedDay {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: zone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    weekday: 'short',
+  }).formatToParts(typeof value === 'string' ? new Date(value) : value)
+  const found = new Map(parts.map((part) => [part.type, part.value]))
+  return {
+    key: `${found.get('year')}-${found.get('month')}-${found.get('day')}`,
+    weekday: Math.max(0, WEEKDAY_ORDER.indexOf(found.get('weekday') ?? '')),
+  }
+}
+
+// The Monday that starts the week a day falls in, yyyy-mm-dd. Counted back over
+// calendar dates in UTC rather than over milliseconds, so the hour a clock
+// change takes away cannot move a workout into the wrong week.
+export function weekStartKey(day: ZonedDay): string {
+  const [year, month, date] = day.key.split('-').map(Number)
+  return new Date(Date.UTC(year, month - 1, date - day.weekday)).toISOString().slice(0, 10)
+}
+
+// What the instance's clock read at a moment, expressed as the milliseconds a
+// UTC clock would need to show the same figures. The gap between that and the
+// moment itself is the zone's offset, which is the only way to say which
+// instant a wall-clock reading names.
+function zonedReading(at: Date): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: zone,
+    // h23 rather than hour12: false, which renders midnight as 24 in some
+    // browsers and would put the reading on the wrong day.
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(at)
+  const found = new Map(parts.map((part) => [part.type, Number(part.value)]))
+  return Date.UTC(
+    found.get('year') ?? 0,
+    (found.get('month') ?? 1) - 1,
+    found.get('day') ?? 1,
+    found.get('hour') ?? 0,
+    found.get('minute') ?? 0,
+    found.get('second') ?? 0,
+  )
+}
+
+// A moment in the shape a datetime-local input reads and writes, yyyy-mm-ddThh:mm,
+// on the instance's clock rather than the browser's.
+export function zonedInputValue(at: Date): string {
+  return new Date(zonedReading(at)).toISOString().slice(0, 16)
+}
+
+// The moment a datetime-local reading names, taken as the instance's clock.
+// Corrected twice: the offset at the first guess is the wrong one for a reading
+// that falls the far side of a clock change.
+export function instantFromZonedInput(reading: string): Date {
+  // Trimmed to yyyy-mm-ddThh:mm: some browsers hand back seconds as well, and
+  // the suffix below already supplies them.
+  const naive = Date.parse(`${reading.slice(0, 16)}:00Z`)
+  if (isNaN(naive)) return new Date(NaN)
+  let at = new Date(naive)
+  for (let pass = 0; pass < 2; pass += 1) {
+    at = new Date(at.getTime() + (naive - zonedReading(at)))
+  }
+  return at
 }
 
 // Rounded to the minute, which is how a history reads.
