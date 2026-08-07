@@ -181,6 +181,22 @@ class Workout(Base):
     )
 
 
+class WorkoutRoute(Base):
+    __tablename__ = "workout_routes"
+
+    # The line drawn on a workout's card, as [[lat, lon], ...] rounded to five
+    # decimals. A separate table rather than a column on workouts because it is
+    # the one part of a workout the history views never read, and the history is
+    # read on every page.
+    #
+    # Never the raw trace: both ends are trimmed away before anything gets here,
+    # so a stored route cannot say where its owner lives. See app/routemaps.py.
+    workout_id: Mapped[int] = mapped_column(
+        ForeignKey("workouts.id", ondelete="CASCADE"), primary_key=True
+    )
+    points: Mapped[list] = mapped_column(JSONType, nullable=False)
+
+
 class IngestLog(Base):
     __tablename__ = "ingest_log"
 

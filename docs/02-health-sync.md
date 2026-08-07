@@ -18,6 +18,8 @@ it.
    - Headers: `Authorization: Bearer <your token>`
    - Data type: Workouts
    - Format: JSON
+   - Include Route Data: on, if you want the map line on your workout
+     cards. It is optional; everything else works the same without it.
 
 3. Set the automation to run on a schedule (daily is plenty) or trigger it
    manually after a workout.
@@ -46,6 +48,35 @@ types in the export are counted in the response but ignored.
   you next open the app, so the recap waiting for you was already written.
   Each activity converts at its own rate, which is why a mile swum is worth
   more than a mile cycled.
+
+## Route data
+
+If the automation sends route data, each workout carries a GPS trace and the
+workout card draws it as a plain line. No map tiles are fetched, from here or
+from anywhere: the line is the whole picture, and nothing about your workouts
+leaves the server.
+
+What is stored is never the trace as it arrived:
+
+- Everything within 200 metres of the first point and within 200 metres of
+  the last point is thrown away before anything is written. A stored route
+  therefore starts and ends somewhere along the way rather than at a door.
+  A loop that starts and ends at home can lose so much that nothing is left,
+  and then nothing is stored, which is the right answer rather than a fault.
+- The rest is thinned to at most 200 points and rounded to five decimal
+  places, which is roughly a metre. A real run arrives with a few thousand
+  points and is stored as a few kilobytes.
+- A route is never a reason a workout fails to import. If the trace is
+  missing, malformed, or unreadable, the workout lands as usual with no line.
+
+Turning route data on later does not lose the earlier maps. The raw payload of
+every sync is kept, so the lines for workouts already in your history can be
+drawn from it:
+
+    docker compose exec backend python manage.py backfill-routes yourname
+
+It only fills in workouts that have no line yet, and it changes nothing else,
+so running it twice is the same as running it once.
 
 ## Manual entry
 

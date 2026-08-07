@@ -5,6 +5,8 @@
     python manage.py create-invite [--expires-days N]
     python manage.py verify-email <username>
     python manage.py recompute-progress <username>
+    python manage.py backfill-badges <username>
+    python manage.py backfill-routes <username>
     python manage.py seed-demo
 
 The first account has to be made here: registration needs either an invite or
@@ -21,7 +23,7 @@ from sqlalchemy import select
 
 from app import achievements
 from app import activity as activity_rules
-from app import models, progress, security
+from app import models, progress, routemaps, security
 from app.config import check_deploy_config
 from app.db import SessionLocal
 from app.routers.auth import create_invite
@@ -196,6 +198,82 @@ def cmd_backfill_badges(args: argparse.Namespace) -> None:
         print(f"Replayed {len(credited)} credited workouts for {username}.")
         print(f"  badges newly awarded: {awarded}")
         print(f"  badges held now: {total}")
+    finally:
+        db.close()
+
+
+def cmd_backfill_routes(args: argparse.Namespace) -> None:
+    """Draw the route lines one account's stored syncs already carry.
+
+    Every payload the phone ever posted is kept, traces included, so the maps
+    for a history that predates this feature are sitting in the ingest log
+    waiting to be read. This replays them: a stored payload is parsed the way
+    the sync endpoint parses it, each entry is matched to its workout by the
+    dedupe key, and a line is written for the workouts that have none.
+
+    Only routes are written. Workouts, progress, badges, and the album are all
+    untouched, and a workout that already has a line keeps it, so running this
+    twice is the same as running it once.
+    """
+    username = args.username.strip().lower()
+    db = _session()
+    try:
+        user = db.execute(
+            select(models.User).where(models.User.username == username)
+        ).scalar_one_or_none()
+        if user is None:
+            sys.exit(f"There is no account called {username}.")
+
+        # The workouts still missing a line, keyed the way the payload names
+        # them. Aware timestamps compare and hash by instant, so a payload
+        # written in local time still finds its row.
+        missing = {
+            (workout.start_ts, workout.duration_s): workout.id
+            for workout in db.execute(
+                select(models.Workout)
+                .outerjoin(
+                    models.WorkoutRoute,
+                    models.WorkoutRoute.workout_id == models.Workout.id,
+                )
+                .where(
+                    models.Workout.user_id == user.id,
+                    models.WorkoutRoute.workout_id.is_(None),
+                )
+            ).scalars()
+        }
+
+        payloads = db.execute(
+            select(models.IngestLog.payload)
+            .where(models.IngestLog.user_id == user.id)
+            .order_by(models.IngestLog.id)
+        ).scalars().all()
+
+        written = 0
+        for payload in payloads:
+            parsed, _ = activity_rules.parse_payload(payload)
+            for item in parsed:
+                if item.route is None:
+                    continue
+                workout_id = missing.get((item.start_ts, item.duration_s))
+                if workout_id is None:
+                    continue
+                if routemaps.store_route(db, workout_id, item.route):
+                    # Dropped from the map so a later payload carrying the same
+                    # workout does not try to write a second line for it.
+                    del missing[(item.start_ts, item.duration_s)]
+                    written += 1
+        db.commit()
+
+        total = (
+            db.query(models.WorkoutRoute)
+            .join(models.Workout, models.Workout.id == models.WorkoutRoute.workout_id)
+            .filter(models.Workout.user_id == user.id)
+            .count()
+        )
+        print(f"Replayed {len(payloads)} stored syncs for {username}.")
+        print(f"  routes newly written: {written}")
+        print(f"  workouts still without one: {len(missing)}")
+        print(f"  routes held now: {total}")
     finally:
         db.close()
 
@@ -433,6 +511,12 @@ def main() -> None:
     )
     backfill.add_argument("username")
     backfill.set_defaults(func=cmd_backfill_badges)
+
+    routes = sub.add_parser(
+        "backfill-routes", help="draw the route lines an account's stored syncs already carry"
+    )
+    routes.add_argument("username")
+    routes.set_defaults(func=cmd_backfill_routes)
 
     demo = sub.add_parser("seed-demo", help="fill an empty database with a fictional account")
     demo.set_defaults(func=cmd_seed_demo)

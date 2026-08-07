@@ -48,6 +48,18 @@ export interface Workout {
   // The race badge this one run earned, if it earned any. At most one per
   // workout: the longest distance it qualified for.
   race_badge?: string | null
+  // Whether the server holds a route for this workout. Optional so the app
+  // still renders against a server that predates the field.
+  has_route?: boolean
+}
+
+// One point of a route, latitude then longitude, as the server sends it.
+export type RoutePoint = [number, number]
+
+export interface WorkoutRoute {
+  // At most a couple of hundred points. The server trims both ends before
+  // storing, so a route never shows where somebody set off from.
+  points: RoutePoint[]
 }
 
 export interface ActivityTotals {
@@ -339,6 +351,12 @@ export async function changePassword(
 export function listWorkouts(limit: number, before?: string): Promise<Workout[]> {
   const cursor = before === undefined ? '' : `&before=${encodeURIComponent(before)}`
   return getJson<Workout[]>(`/workouts?limit=${limit}${cursor}`)
+}
+
+// Own workouts only. A workout with no stored route answers 404, which is the
+// ordinary case rather than a failure.
+export function getWorkoutRoute(workoutId: number): Promise<WorkoutRoute> {
+  return getJson<WorkoutRoute>(`/workouts/${workoutId}/route`)
 }
 
 export function listWeeks(count: number): Promise<Week[]> {

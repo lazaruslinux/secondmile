@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app import activity, models, progress, security, throttle
+from app import activity, models, progress, routemaps, security, throttle
 from app.config import MAX_INGEST_WORKOUTS
 from app.db import get_db
 
@@ -78,7 +78,7 @@ async def ingest(request: Request, db: Session = Depends(get_db)) -> dict:
 
     parsed, ignored = activity.parse_payload(payload)
 
-    imported = skipped = flagged = 0
+    imported = skipped = flagged = routes = 0
     for item in parsed:
         flags = {}
         if activity.impossible_pace(item.activity, item.duration_s, item.distance_mi):
@@ -104,6 +104,9 @@ async def ingest(request: Request, db: Session = Depends(get_db)) -> dict:
                 db.add(workout)
                 db.flush()
         except IntegrityError:
+            # A workout already known keeps the route it already has. Re-writing
+            # it would be work for no change, and this is the common case: every
+            # overlapping export window arrives full of them.
             skipped += 1
             continue
 
@@ -114,6 +117,8 @@ async def ingest(request: Request, db: Session = Depends(get_db)) -> dict:
         imported += 1
         if workout.flags:
             flagged += 1
+        if routemaps.store_route(db, workout.id, item.route):
+            routes += 1
 
     result = {"imported": imported, "skipped": skipped, "flagged": flagged, "ignored": len(ignored)}
     db.add(
@@ -123,8 +128,10 @@ async def ingest(request: Request, db: Session = Depends(get_db)) -> dict:
             payload=payload,
             # The log keeps the reasons; the response keeps the count. A sync
             # that quietly drops half an export is otherwise impossible to
-            # diagnose after the fact.
-            result={**result, "ignored_detail": ignored},
+            # diagnose after the fact. The route tally rides here rather than in
+            # the response because the response shape is a frozen contract and
+            # nothing on the phone would do anything with the number.
+            result={**result, "ignored_detail": ignored, "routes_stored": routes},
         )
     )
     db.commit()

@@ -111,6 +111,18 @@ clock. A filled album is still thrown away and refound, though, and the cards
 that come back will not be the ones that went in. Take a dump first if that
 matters to the person whose account it is.
 
+There are two narrower commands for the cases where a rebuild is more than you
+need. Neither touches chests, cards, or experience:
+
+```
+docker compose exec backend python manage.py backfill-badges theirname
+docker compose exec backend python manage.py backfill-routes theirname
+```
+
+The first awards the race badges an already-credited history has earned. The
+second draws the route lines out of the payloads the ingest log kept, for
+workouts that have no line yet. Both are safe to run twice.
+
 ## Profile pictures
 
 Avatars are files, not database rows. They live in the container at the path

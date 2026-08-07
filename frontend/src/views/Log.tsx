@@ -20,6 +20,7 @@ import {
   unitName,
 } from '../format.ts'
 import { ACTIVITY_NAMES, ACTIVITY_ORDER, raceBadgeName } from '../labels.ts'
+import RouteLine from './RouteLine.tsx'
 
 const WORKOUT_PAGE = 50
 const WEEK_COUNT = 8
@@ -384,6 +385,7 @@ export default function Log({ userId, units }: Props) {
                           </span>
                         )}
                       </div>
+                      {workout.has_route && <RouteLine workoutId={workout.id} compact />}
                       {notes.length > 0 && <p className="flag-note">{notes.join(' ')}</p>}
                     </li>
                   )

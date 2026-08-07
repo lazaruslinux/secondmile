@@ -85,6 +85,10 @@ class ParsedWorkout:
     distance_mi: float
     active_kcal: float
     avg_hr: float | None
+    # The export's GPS trace, exactly as it arrived, or None. Carried rather
+    # than parsed here so the pairing of a workout with its own trace is made
+    # once, in the one place that reads the export.
+    route: object | None = None
 
 
 def classify(name: str | None) -> str | None:
@@ -293,6 +297,7 @@ def parse_payload(payload) -> tuple[list[ParsedWorkout], list[dict]]:
                 # rather than taking the workout with it: nothing is scored from
                 # it, and the session still happened.
                 avg_hr=avg_hr if avg_hr and MIN_WORKOUT_HR <= avg_hr <= MAX_WORKOUT_HR else None,
+                route=entry.get("route"),
             )
         )
     return parsed, ignored

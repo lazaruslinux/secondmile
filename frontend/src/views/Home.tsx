@@ -20,6 +20,7 @@ import {
 import { ACTIVITY_NAMES, raceBadgeName } from '../labels.ts'
 import { diamondsOf, weekTotals } from '../profile.ts'
 import Icon from './Icon.tsx'
+import RouteLine from './RouteLine.tsx'
 
 const PAGE = 20
 
@@ -293,6 +294,8 @@ export default function Home({ userId, units, refreshToken }: Props) {
             </header>
 
             <h2 className="feed-title">{ACTIVITY_NAMES[workout.activity]}</h2>
+
+            {workout.has_route && <RouteLine workoutId={workout.id} />}
 
             <div className="stat-row">
               <div className="stat">

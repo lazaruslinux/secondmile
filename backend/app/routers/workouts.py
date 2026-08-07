@@ -28,7 +28,9 @@ MAX_LIMIT = 200
 MAX_WEEKS = 52
 
 
-def _serialize(workout: models.Workout, race_badge: str | None = None) -> dict:
+def _serialize(
+    workout: models.Workout, race_badge: str | None = None, has_route: bool = False
+) -> dict:
     """One workout plus what it was worth, which the history shows on each row.
 
     The experience is the converted distance the pipeline credited, computed
@@ -36,11 +38,16 @@ def _serialize(workout: models.Workout, race_badge: str | None = None) -> dict:
     number the account was not given. The race badge is read from the table
     instead, because earning one is a fact about what happened rather than a
     number that can be recomputed from the row.
+
+    The route itself is not here, only whether there is one: a list has a couple
+    of hundred coordinate pairs on it, and a page of history would be mostly
+    route for a view that draws none of them until it is scrolled to.
     """
     return {
         **activity_rules.serialize(workout),
         "xp": round(activity_rules.converted_miles(workout.activity, workout.distance_mi), 2),
         "race_badge": race_badge,
+        "has_route": has_route,
     }
 
 
@@ -55,6 +62,18 @@ def _race_badges(db: Session, workouts: list[models.Workout]) -> dict[int, str]:
                 models.BadgeEarn.workout_id.in_(ids)
             )
         ).all()
+    )
+
+
+def _routed(db: Session, workouts: list[models.Workout]) -> set[int]:
+    """Which of these workouts have a stored route line. One query for the page."""
+    ids = [row.id for row in workouts]
+    if not ids:
+        return set()
+    return set(
+        db.execute(
+            select(models.WorkoutRoute.workout_id).where(models.WorkoutRoute.workout_id.in_(ids))
+        ).scalars()
     )
 
 
@@ -149,6 +168,7 @@ def create_workout(
     # so it goes through the same pipeline on the same terms, race badge
     # included.
     progress.process_user(db, user.id)
+    # No route: a workout typed into a form never carried a trace.
     return _serialize(workout, _race_badges(db, [workout]).get(workout.id))
 
 
@@ -186,7 +206,32 @@ def list_workouts(
     stmt = stmt.order_by(models.Workout.start_ts.desc(), models.Workout.id.desc()).limit(limit)
     rows = list(db.execute(stmt).scalars())
     badges = _race_badges(db, rows)
-    return [_serialize(row, badges.get(row.id)) for row in rows]
+    routed = _routed(db, rows)
+    return [_serialize(row, badges.get(row.id), row.id in routed) for row in rows]
+
+
+@router.get("/{workout_id}/route")
+def workout_route(
+    workout_id: int,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(security.current_user),
+) -> dict:
+    """The stored line for one of your own workouts.
+
+    Fetched on its own rather than with the history because a card only needs it
+    once it is on screen. The join on the owner is what keeps it yours: a route
+    is a map of where somebody has been, so the same 404 answers a workout that
+    has no line, a workout that does not exist, and a workout belonging to
+    somebody else. Nothing here tells a caller which of the three it was.
+    """
+    points = db.execute(
+        select(models.WorkoutRoute.points)
+        .join(models.Workout, models.Workout.id == models.WorkoutRoute.workout_id)
+        .where(models.WorkoutRoute.workout_id == workout_id, models.Workout.user_id == user.id)
+    ).scalar_one_or_none()
+    if points is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No route for that workout.")
+    return {"points": points}
 
 
 @router.get("/weeks")
