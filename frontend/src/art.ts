@@ -62,6 +62,12 @@ export function iconArt(name: string): string | null {
   return icons.get(name) ?? null
 }
 
+// Race badge files are named with hyphens, race-5k.svg through race-ultra.svg,
+// while the ids the server sends use underscores.
+export function raceBadgeArt(badgeId: string): string | null {
+  return badges.get(badgeId.replace(/_/g, '-')) ?? null
+}
+
 export interface BadgeArt {
   url: string | null
   // True only when the file being drawn is the achievement's own gilded

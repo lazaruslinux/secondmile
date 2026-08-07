@@ -710,8 +710,13 @@ button:disabled {
   color: var(--muted);
 }
 
-/* A thin strip along the bottom of a feed card, flush with its edges. */
+/* A thin strip along the bottom of a feed card, flush with its edges. It holds
+   what the workout was worth and the medal it earned, if it earned one. */
 .feed-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
   margin: 0.9rem -1rem -1rem;
   padding: 0.5rem 1rem;
   border-top: 1px solid var(--line);
@@ -723,6 +728,21 @@ button:disabled {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--accent);
+}
+
+/* The accent behind the letters rather than in them: crimson type this small
+   does not carry enough contrast, which is the rule the plate edges follow too. */
+.feed-badge {
+  display: inline-block;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
 }
 
 /* History */
@@ -1181,6 +1201,63 @@ button:disabled {
   font-weight: 700;
 }
 
+/* Medals
+   Five race distances in one row at every width, each with its count under the
+   art and its distance under that. A distance never run keeps its column and
+   its nought rather than leaving a hole in the ladder. */
+.race-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+}
+
+.race-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+  text-align: center;
+}
+
+/* The artwork takes its size from the column rather than a fixed width, so the
+   same row fits a phone and a desktop column. */
+.race-item .badge {
+  width: 100%;
+  max-width: 3.5rem;
+  height: auto;
+}
+
+.race-item .badge img,
+.race-item .badge-blank {
+  height: auto;
+  aspect-ratio: 1 / 1;
+}
+
+.race-count {
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.race-count-none {
+  color: var(--muted);
+}
+
+/* Slightly tighter than the app's usual caption, because MARATHON has to fit a
+   fifth of a phone screen. */
+.race-name {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
 /* Achievements */
 
 .achievements {
@@ -1543,6 +1620,16 @@ button:disabled {
   .stats td {
     padding: 0.35rem 0.15rem;
     font-size: 0.85rem;
+  }
+
+  /* Five columns on a 360px screen: the row gives up its gaps and its letter
+     spacing before it gives up fitting on one line. */
+  .race-strip {
+    gap: 0.35rem;
+  }
+
+  .race-name {
+    letter-spacing: 0.02em;
   }
 }
 

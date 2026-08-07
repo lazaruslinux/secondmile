@@ -19,18 +19,20 @@ Current version: **0.1.1**. Releases are tagged in git.
   week, with totals per activity. Manually entered workouts are marked as
   such, and workouts with impossible numbers (a four minute mile, a fifty
   mile walk) are imported but flagged rather than trusted.
-- **Turns those miles into a profile.** Distance and time both earn
-  experience, and each activity converts at its own rate, so an hour in the
-  pool is not an hour on a bike and a swimmer is never shortchanged. Levels
-  grow the border around your picture, and the badges you have chosen sit in
-  fixed slots around it. Weekly and lifetime totals are worn on the profile.
-  There are no leaderboards of raw miles and there never will be: profiles
-  celebrate, they do not rank.
-- **Keeps an endless list of things to earn.** Achievements for one long
-  workout, for a big week, for a lifetime total, for the first of each
-  activity, and for finishing a set of cards. Weekly targets have a second,
-  visibly finer version, earned by voluntarily doubling the target inside the
-  same week. Achievements are never taken away.
+- **Turns those miles into a profile.** Experience is the distance itself, and
+  each activity converts at its own rate, so an hour in the pool is not an hour
+  on a bike and a swimmer is never shortchanged. The levels are the race
+  ladder: a 5K, then a 10K, then a half, then a marathon, and a marathon more
+  every level after that. Levels grow the border around your picture, and the
+  badges you have chosen sit in fixed slots around it. Weekly and lifetime
+  totals are worn on the profile. There are no leaderboards of raw miles and
+  there never will be: profiles celebrate, they do not rank.
+- **Keeps an endless list of things to earn.** Race badges for a single run
+  that covers 5K, 10K, half marathon, marathon, or ultra distance, earned again
+  every time you do it and counted on the profile. Achievements for a big week
+  and for finishing a set of cards. Weekly targets have a second, visibly finer
+  version, earned by voluntarily doubling the target inside the same week.
+  Achievements are never taken away.
 - **Drops chests, and chests hold cards.** Every few converted miles a chest
   appears, carrying one card from one of four nature collections. The album is
   a field guide: plates you have not found yet show only a number and a
@@ -155,9 +157,9 @@ Two of them decide how people get accounts:
   their pixels to a 512 by 512 webp. The original bytes are never stored or
   served, all metadata including location is dropped, and the file name comes
   from the account rather than from the upload.
-- Experience, levels, achievements, and chest drops are computed on the server
-  from synced workouts alone. There is no client input that can grant any of
-  them.
+- Experience, levels, badges, achievements, and chest drops are computed on the
+  server from synced workouts alone. There is no client input that can grant
+  any of them.
 - The containers run unprivileged, base images are digest-pinned, Python
   dependencies are hash-locked, and CI runs a known-vulnerability audit on
   every push.

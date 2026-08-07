@@ -1,5 +1,7 @@
 """Chests, the card album, and the recap of everything that happened while away."""
 
+import datetime as dt
+
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -198,7 +200,38 @@ def read_recap(
             for held in fresh
             if held.achievement_id in achievements.BY_ID
         ],
+        "race_badges": _fresh_race_badges(db, user.id, since),
     }
+
+
+def _fresh_race_badges(db: Session, user_id: int, since: dt.datetime | None) -> list[dict]:
+    """Race badges to tell the player about, newest last.
+
+    Selected by when the workout arrived rather than by when it happened, the
+    same rule the miles above follow. A badge's own earned_at is the date of
+    the run, which is what the profile should show and exactly the wrong thing
+    to filter a recap by: a fortnight of history synced this morning would then
+    hand over nothing.
+    """
+    stmt = (
+        select(models.BadgeEarn)
+        .join(models.Workout, models.Workout.id == models.BadgeEarn.workout_id)
+        .where(models.BadgeEarn.user_id == user_id)
+    )
+    if since is not None:
+        stmt = stmt.where(models.Workout.created_at > since)
+    rows = db.execute(stmt.order_by(models.BadgeEarn.earned_at, models.BadgeEarn.id))
+    return [
+        {
+            "id": row.badge_id,
+            "name": achievements.BADGES_BY_ID[row.badge_id].name,
+            "distance_mi": achievements.BADGES_BY_ID[row.badge_id].distance_mi,
+            "workout_id": row.workout_id,
+            "earned_at": row.earned_at.isoformat(),
+        }
+        for row in rows.scalars()
+        if row.badge_id in achievements.BADGES_BY_ID
+    ]
 
 
 @router.post("/recap/ack", status_code=status.HTTP_204_NO_CONTENT)

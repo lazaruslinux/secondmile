@@ -213,8 +213,10 @@ class UserProgress(Base):
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
     )
-    xp: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    level: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    # Experience is lifetime converted Miles, one for one, so it is a distance
+    # and not a score. A fresh account stands at level 0 with none of it.
+    xp: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    level: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     # Converted Miles banked toward the next chest, and the gap that chest is
     # waiting on. The pair carries between workouts, so a run that ends a
     # quarter of a mile short of a chest leaves that quarter mile here rather
@@ -253,6 +255,34 @@ class UserAchievement(Base):
     # the badge in place. Achievements are never revoked and gilding is never
     # taken back, so this column only ever goes from false to true.
     gilded: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+
+class BadgeEarn(Base):
+    __tablename__ = "badge_earns"
+
+    # One row every time a workout earns a badge. Repeatable on purpose, which
+    # is the whole difference from user_achievements: a marathon is not a thing
+    # you do once and tick off, so this counts them.
+    #
+    # Every badge family lives in this one table, keyed by the catalogue id.
+    # The race family is the only one today; another is catalogue rows and an
+    # awarding rule in app/achievements.py, never a second table.
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    badge_id: Mapped[str] = mapped_column(_CATALOG_ID, nullable=False)
+    # Required and unique while every badge is earned by one workout. That
+    # makes a replay of the same history idempotent for free: the second
+    # attempt to award the same workout collides and is dropped. A family
+    # earned over a period rather than in a session relaxes both in its own
+    # migration.
+    workout_id: Mapped[int] = mapped_column(
+        ForeignKey("workouts.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+    # The workout's own start time, never the clock, so a rebuild writes the
+    # same row it wrote the first time.
+    earned_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
 
 
 class Chest(Base):

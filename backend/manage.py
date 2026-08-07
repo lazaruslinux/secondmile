@@ -123,9 +123,10 @@ def cmd_recompute_progress(args: argparse.Namespace) -> None:
     The safety hatch for the day a constant changes, and the way to replay a
     history the migration credited in one lump without dropping its chests.
     Everything derived goes and is rebuilt: the experience, the level, the
-    chest accumulator, the chests, and the album. Earned achievements are left
-    alone, because they are never revoked and the evaluator re-awards whatever
-    the rebuilt history earns on top of them.
+    chest accumulator, the chests, the album, and the race badges, which come
+    back with the dates of the runs that earned them. Earned achievements are
+    left alone, because they are never revoked and the evaluator re-awards
+    whatever the rebuilt history earns on top of them.
 
     The workouts themselves are never touched, so nothing anybody actually did
     is at risk here. A filled album is thrown away and refound, though, and the
@@ -145,10 +146,56 @@ def cmd_recompute_progress(args: argparse.Namespace) -> None:
         chests = (
             db.query(models.Chest).filter(models.Chest.user_id == user.id).count()
         )
+        badges = (
+            db.query(models.BadgeEarn).filter(models.BadgeEarn.user_id == user.id).count()
+        )
         print(f"Rebuilt {username} from their workout history.")
-        print(f"  level: {row.level} ({row.xp} XP)")
+        print(f"  level: {row.level} ({row.xp:.1f} XP)")
         print(f"  chests: {chests}")
         print(f"  achievements: {achievements.earned_count(db, user.id)}")
+        print(f"  badges: {badges}")
+    finally:
+        db.close()
+
+
+def cmd_backfill_badges(args: argparse.Namespace) -> None:
+    """Award the badges one account's credited history has already earned.
+
+    The gentle sibling of recompute-progress: it replays only the badge
+    awards, so chests, the album, experience, and achievements are untouched.
+    This is the right tool after a migration adds a badge family to a
+    database with real history in it. Safe to run twice: award_badge is
+    idempotent per workout.
+    """
+    username = args.username.strip().lower()
+    db = _session()
+    try:
+        user = db.execute(
+            select(models.User).where(models.User.username == username)
+        ).scalar_one_or_none()
+        if user is None:
+            sys.exit(f"There is no account called {username}.")
+
+        credited = db.execute(
+            select(models.Workout)
+            .join(
+                models.ProcessedWorkout,
+                models.ProcessedWorkout.workout_id == models.Workout.id,
+            )
+            .where(models.Workout.user_id == user.id)
+            .order_by(models.Workout.start_ts)
+        ).scalars().all()
+        awarded = 0
+        for workout in credited:
+            if achievements.award_badge(db, user.id, workout) is not None:
+                awarded += 1
+        db.commit()
+        total = (
+            db.query(models.BadgeEarn).filter(models.BadgeEarn.user_id == user.id).count()
+        )
+        print(f"Replayed {len(credited)} credited workouts for {username}.")
+        print(f"  badges newly awarded: {awarded}")
+        print(f"  badges held now: {total}")
     finally:
         db.close()
 
@@ -346,8 +393,12 @@ def cmd_seed_demo(args: argparse.Namespace) -> None:
         print("Seeded the demo account.")
         print("  username: demo")
         print(f"  password: {password}")
-        print(f"  level: {row.level} ({row.xp} XP)")
+        print(f"  level: {row.level} ({row.xp:.1f} XP)")
         print(f"  achievements: {achievements.earned_count(db, user.id)}")
+        print(
+            "  badges: "
+            + str(db.query(models.BadgeEarn).filter(models.BadgeEarn.user_id == user.id).count())
+        )
         print(f"  chests waiting: {min(len(pending), _DEMO_PENDING_CHESTS)}")
         print("This password is shown once. It is a fictional account; delete it before")
         print("the instance is used for anything real.")
@@ -376,6 +427,12 @@ def main() -> None:
     )
     recompute.add_argument("username")
     recompute.set_defaults(func=cmd_recompute_progress)
+
+    backfill = sub.add_parser(
+        "backfill-badges", help="award the badges an account's history already earned"
+    )
+    backfill.add_argument("username")
+    backfill.set_defaults(func=cmd_backfill_badges)
 
     demo = sub.add_parser("seed-demo", help="fill an empty database with a fictional account")
     demo.set_defaults(func=cmd_seed_demo)

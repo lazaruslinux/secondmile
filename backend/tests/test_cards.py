@@ -1,8 +1,10 @@
 """Chests, the album, the recap, and what an unowned plate may say about itself."""
 
+import datetime as dt
+
 from conftest import log_workout
 
-from app import models, security, world
+from app import models, progress, security, world
 
 
 def give_chest(db_session, user_id: int, card_id: str) -> models.Chest:
@@ -114,21 +116,58 @@ def test_the_album_starts_empty_and_still_lists_every_plate(signed_in):
 
 
 def test_the_recap_carries_chests_badges_and_miles_then_clears(signed_in):
-    log_workout(signed_in, "run", 8.0, pace_min=9)
+    log_workout(signed_in, "run", 11.0, pace_min=9)
     recap = signed_in.get("/api/recap").json()
     assert recap["since"] is None
-    assert recap["miles"] == 8.0
-    assert recap["chests"], "eight Miles should have dropped at least one chest"
+    assert recap["miles"] == 11.0
+    assert recap["chests"], "eleven Miles should have dropped at least one chest"
     assert set(recap["chests"][0]) == {"id", "dropped_at", "set_id", "set_name"}
-    assert [row["id"] for row in recap["achievements"]]
+    assert [row["id"] for row in recap["achievements"]] == ["week_10"]
+    # Eleven miles run is a 10K, which is a badge earned rather than a target
+    # reached, so it rides alongside the achievements.
+    assert [row["id"] for row in recap["race_badges"]] == ["race_10k"]
+    assert set(recap["race_badges"][0]) == {
+        "id",
+        "name",
+        "distance_mi",
+        "workout_id",
+        "earned_at",
+    }
 
     assert signed_in.post("/api/recap/ack").status_code == 204
     cleared = signed_in.get("/api/recap").json()
     assert cleared["since"] is not None
     assert cleared["miles"] == 0.0
     assert cleared["achievements"] == []
+    assert cleared["race_badges"] == []
     # Chests are not cleared by acknowledging: they wait to be opened.
     assert cleared["chests"] == recap["chests"]
+
+
+def test_a_badge_from_a_backdated_run_still_reaches_the_recap(signed_in, db_session, member):
+    """The run happened last month; the sync happened this morning. What makes
+    it news is when it arrived, which is the same rule the miles follow."""
+    signed_in.post("/api/recap/ack")
+    db_session.add(
+        models.Workout(
+            user_id=member.id,
+            activity="run",
+            start_ts=security.now_utc() - dt.timedelta(days=40),
+            duration_s=50 * 60,
+            distance_mi=6.4,
+            active_kcal=600.0,
+            avg_hr=None,
+            source="sync",
+            flags={},
+            created_at=security.now_utc(),
+        )
+    )
+    db_session.commit()
+    progress.process_user(db_session, member.id)
+    recap = signed_in.get("/api/recap").json()
+    assert [row["id"] for row in recap["race_badges"]] == ["race_10k"]
+    # The date on it is the day of the run, not the day it was synced.
+    assert recap["race_badges"][0]["earned_at"] < recap["since"]
 
 
 def test_a_pending_chest_in_the_recap_never_names_the_card(signed_in):

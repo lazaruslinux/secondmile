@@ -139,21 +139,25 @@ WALK_BONUS_CHEST_CHANCE = 0.10
 UNOWNED_CARD_WEIGHT = 3.0
 
 
-# Experience. A workout is worth its converted Miles at this rate plus a point
-# for every active minute, so an hour in the pool and an hour on a bike are
-# both worth an hour even before the distance conversion has its say. Nothing
-# but synced or manually entered movement ever produces any of it.
-XP_PER_MILE = 10.0
-XP_PER_MINUTE = 1.0
+# Experience is converted Miles, one for one. Nothing but synced or manually
+# entered movement ever produces any of it, and the number on the profile is
+# the distance itself rather than a score derived from it.
 
-# The level curve. Reaching level n costs LEVEL_STEP_XP * n beyond level n - 1,
-# so the levels get further apart forever and the border tiers below are spaced
-# to match. Everyone starts at level 1 with nothing.
-LEVEL_STEP_XP = 100
+# The level curve, in converted Miles. The first four levels are the race
+# ladder every runner already knows, so reaching level one is running a 5K.
+# From level five on, each level costs one more marathon than the last.
+LEVEL_COSTS_MI = (3.1, 6.2, 13.1, 26.2)
+LEVEL_STEP_MI = 26.2
+
+# Where the loop that walks the curve stops. Reaching it takes a few million
+# miles, so it is not a ceiling anybody meets; it is there so a corrupted total
+# can never hold a request open.
+MAX_LEVEL = 500
 
 # The level each border tier arrives at, in order. Six files, six tiers, and a
-# player is on the highest tier whose level they have passed.
-BORDER_LEVELS = (1, 5, 10, 20, 35, 50)
+# player is on the highest tier whose level they have passed. A fresh account
+# stands at level 0, so the first tier starts there.
+BORDER_LEVELS = (0, 6, 10, 15, 25, 35)
 
 # How many badges a player may wear around their avatar. Fixed slots, and the
 # picture is never covered, so this is a layout constant as much as a rule.

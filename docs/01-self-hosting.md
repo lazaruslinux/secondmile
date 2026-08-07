@@ -84,8 +84,8 @@ first and have the person use the resend button on the sign-in screen.
 
 ## Progress, and rebuilding it
 
-Experience, levels, chests, and achievements are all derived from the workout
-history. Nothing is typed in and nothing is trusted from a browser: every
+Experience, levels, chests, badges, and achievements are all derived from the
+workout history. Nothing is typed in and nothing is trusted from a browser: every
 workout is credited exactly once, whether it arrived from a phone, from the
 manual entry form, or was written straight into the database.
 
@@ -98,10 +98,12 @@ docker compose exec backend python manage.py recompute-progress theirname
 ```
 
 This clears that account's experience, level, chest counter, unopened chests,
-and card album, and builds them again from the workouts. The workouts
-themselves are never touched, so nothing anybody actually did is at risk.
-Earned achievements are left exactly where they are: they are never revoked,
-and anything the rebuilt history earns is added on top.
+card album, and race badges, and builds them again from the workouts. The
+workouts themselves are never touched, so nothing anybody actually did is at
+risk. Race badges come back with the dates of the runs that earned them, so
+running this is also how a history that predates the badges earns them. Earned
+achievements are left exactly where they are: they are never revoked, and
+anything the rebuilt history earns is added on top.
 
 Replaying the same workouts produces the same chests in the same order,
 because every roll is seeded on the account and the workout rather than on the

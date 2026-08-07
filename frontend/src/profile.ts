@@ -2,7 +2,7 @@
 // form of the You screen in its side column, so the rules for what appears there
 // are written once here rather than twice in the views.
 
-import type { Activity, Profile } from './api.ts'
+import type { Activity, Profile, RaceBadge } from './api.ts'
 import { ACTIVITY_ORDER } from './labels.ts'
 
 // How many sports get a diamond. The server enforces the same number.
@@ -19,6 +19,12 @@ export function diamondsOf(profile: Profile): Activity[] {
         (profile.lifetime[right]?.distance_mi ?? 0) - (profile.lifetime[left]?.distance_mi ?? 0),
     )
     .slice(0, MAX_DIAMONDS)
+}
+
+// How many times each race distance has been run, by badge id. A server that
+// predates the field, or a recap entry that carries no count, reads as none.
+export function raceCountsOf(badges: RaceBadge[] | undefined): Map<string, number> {
+  return new Map((badges ?? []).map((row) => [row.id, row.count ?? 0]))
 }
 
 // This week across every activity. The profile carries per-activity rows and no

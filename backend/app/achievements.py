@@ -1,31 +1,26 @@
-"""The achievements catalogue and the evaluator that awards it.
+"""The badges: the achievements catalogue, the race badges, and their awarding.
 
-Data-driven: a new achievement is a row in CATALOG and nothing else. Ids are
-the stable part; they appear in user_achievements and badge slots. The
-evaluator is stateless and aggregate-based, so it is idempotent, safe on every
-sweep, and self-healing for history that predates a release. Achievements are
-never revoked.
+Two kinds of thing live here. Achievements are aggregate-based and awarded once
+ever: the evaluator is stateless, so it is idempotent, safe on every sweep, and
+self-healing for history that predates a release, and an achievement is never
+revoked. Race badges are the opposite: one run earns one, and running the same
+distance next month earns another. Both are data-driven, and the ids are the
+stable part because they appear in the database and in the badge slots.
 """
 
 import datetime as dt
 from dataclasses import dataclass
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app import models, world
 from app.activity import converted_miles, week_start
-from app.models import ACTIVITIES
 from app.security import now_utc
 
-# The five kinds; the frontend groups by these and each has a fallback badge.
-KINDS = (
-    "duration-single",
-    "week-distance",
-    "lifetime-distance",
-    "firsts",
-    "collection",
-)
+# The two kinds; the frontend groups by these and each has a fallback badge.
+KINDS = ("week-distance", "collection")
 
 
 @dataclass(frozen=True)
@@ -57,57 +52,11 @@ def _week(threshold: int) -> Achievement:
     )
 
 
-_ACTIVITY_NAMES = {"walk": "Walk", "run": "Run", "cycle": "Ride", "swim": "Swim"}
-
-
 CATALOG: tuple[Achievement, ...] = (
-    # The first rung is deliberately low: starting counts.
-    Achievement(
-        "duration_15", "duration-single", "Quarter Hour",
-        "A single workout of fifteen minutes or more.", 15.0,
-    ),
-    Achievement(
-        "duration_30", "duration-single", "Half Hour",
-        "A single workout of thirty minutes or more.", 30.0,
-    ),
-    Achievement(
-        "duration_60", "duration-single", "The Full Hour",
-        "A single workout of an hour or more.", 60.0,
-    ),
-    Achievement(
-        "duration_90", "duration-single", "Ninety Minutes",
-        "A single workout of ninety minutes or more.", 90.0,
-    ),
     _week(10),
     _week(15),
     _week(25),
     _week(40),
-    Achievement(
-        "lifetime_50", "lifetime-distance", "Fifty Miles",
-        "Fifty Miles covered, across every activity.", 50.0,
-    ),
-    Achievement(
-        "lifetime_100", "lifetime-distance", "One Hundred Miles",
-        "One hundred Miles covered, across every activity.", 100.0,
-    ),
-    Achievement(
-        "lifetime_250", "lifetime-distance", "Two Hundred and Fifty Miles",
-        "Two hundred and fifty Miles covered, across every activity.", 250.0,
-    ),
-    Achievement(
-        "lifetime_500", "lifetime-distance", "Five Hundred Miles",
-        "Five hundred Miles covered, across every activity.", 500.0,
-    ),
-    *(
-        Achievement(
-            f"first_{name}",
-            "firsts",
-            f"First {_ACTIVITY_NAMES[name]}",
-            f"Your first {name} recorded here.",
-            name,
-        )
-        for name in ACTIVITIES
-    ),
     Achievement(
         "collection_first_card", "collection", "First Plate",
         "The first card in your guide.", 1.0,
@@ -131,46 +80,21 @@ CATALOG: tuple[Achievement, ...] = (
 BY_ID: dict[str, Achievement] = {row.id: row for row in CATALOG}
 
 
-@dataclass
-class _Totals:
-    """Everything the catalogue is measured against, read in one pass."""
+def best_week_mi(db: Session, user_id: int) -> float:
+    """The most converted Miles this account has ever covered inside one week.
 
-    longest_minutes: float = 0.0
-    best_week_mi: float = 0.0
-    lifetime_mi: float = 0.0
-    activities: frozenset[str] = frozenset()
-
-
-def _totals(db: Session, user_id: int) -> _Totals:
+    The best week ever rather than the current one: a weekly badge stays
+    happened, and a quiet fortnight does not take it back.
+    """
     rows = db.execute(
-        select(
-            models.Workout.activity,
-            models.Workout.start_ts,
-            models.Workout.duration_s,
-            models.Workout.distance_mi,
-        ).where(models.Workout.user_id == user_id)
+        select(models.Workout.activity, models.Workout.start_ts, models.Workout.distance_mi)
+        .where(models.Workout.user_id == user_id)
     ).all()
-    if not rows:
-        return _Totals()
-
     weeks: dict[dt.date, float] = {}
-    lifetime = 0.0
-    longest = 0.0
-    seen: set[str] = set()
-    for activity, start_ts, duration_s, distance_mi in rows:
-        miles = converted_miles(activity, distance_mi)
-        lifetime += miles
-        longest = max(longest, duration_s / 60.0)
-        seen.add(activity)
+    for activity, start_ts, distance_mi in rows:
         monday = week_start(start_ts)
-        weeks[monday] = weeks.get(monday, 0.0) + miles
-    return _Totals(
-        longest_minutes=longest,
-        # Best week ever, not the current one: a weekly badge stays happened.
-        best_week_mi=max(weeks.values()),
-        lifetime_mi=lifetime,
-        activities=frozenset(seen),
-    )
+        weeks[monday] = weeks.get(monday, 0.0) + converted_miles(activity, distance_mi)
+    return max(weeks.values(), default=0.0)
 
 
 def card_counts(db: Session, user_id: int) -> tuple[int, dict[str, int]]:
@@ -191,22 +115,13 @@ def card_counts(db: Session, user_id: int) -> tuple[int, dict[str, int]]:
 
 def _state(db: Session, user_id: int) -> dict[str, tuple[bool, bool]]:
     """(earned, gilded) for every achievement in the catalogue."""
-    totals = _totals(db, user_id)
+    best_week = best_week_mi(db, user_id)
     owned_cards, per_set = card_counts(db, user_id)
     out: dict[str, tuple[bool, bool]] = {}
     for row in CATALOG:
-        if row.kind == "duration-single":
-            reached = totals.longest_minutes
-        elif row.kind == "week-distance":
-            reached = totals.best_week_mi
-        elif row.kind == "lifetime-distance":
-            reached = totals.lifetime_mi
-        elif row.kind == "firsts":
-            out[row.id] = (row.target in totals.activities, False)
-            continue
-        elif row.id == "collection_first_card":
-            reached = float(owned_cards)
-        elif row.id == "collection_complete":
+        if row.kind == "week-distance":
+            reached = best_week
+        elif row.id in ("collection_first_card", "collection_complete"):
             reached = float(owned_cards)
         else:
             set_id = str(row.target)
@@ -280,3 +195,162 @@ def serialize(achievement: Achievement, row: models.UserAchievement | None) -> d
         "gilded": bool(row is not None and row.gilded),
         "earned_at": row.earned_at.isoformat() if row is not None else None,
     }
+
+
+# --------------------------------------------------------------------------
+# Badges
+#
+# Repeatable, unlike the achievements above: one workout earns one, and doing
+# it again next month earns another. The race family is the only one today.
+# Adding a family is catalogue rows and one awarding rule appended to
+# _WORKOUT_RULES; it is never a second table or a second pipeline.
+# --------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Badge:
+    id: str
+    # Which family the badge belongs to, which is how the profile groups them
+    # and how a rule finds its own rows.
+    family: str
+    name: str
+    # Raw miles in a single workout, not converted Miles: a 5K is a distance on
+    # the ground, and no conversion rate has any business changing what it is.
+    distance_mi: float
+
+
+# Ascending, which is what makes "the highest one this run qualifies for" a
+# single pass. Every threshold sits a hair under the metric truth on purpose,
+# because a GPS trace of a measured 5K rarely reads 3.107.
+RACE_BADGES: tuple[Badge, ...] = (
+    Badge("race_5k", "race", "5K", 3.1),
+    Badge("race_10k", "race", "10K", 6.2),
+    Badge("race_half", "race", "Half Marathon", 13.1),
+    Badge("race_marathon", "race", "Marathon", 26.2),
+    Badge("race_ultra", "race", "Ultra", 31.1),
+)
+
+# Every family, in the order they are shown. One entry today.
+BADGES: tuple[Badge, ...] = RACE_BADGES
+
+BADGES_BY_ID: dict[str, Badge] = {row.id: row for row in BADGES}
+
+
+def _race_badge_for(workout: models.Workout) -> Badge | None:
+    """The race badge one workout earns, or None.
+
+    Running only this round, and the highest one only: a marathon is a
+    marathon, not also a 5K and a 10K and a half. A workout the pace flag has
+    already called impossible earns nothing at all, because a distance nobody
+    covered is not a distance worth a badge.
+    """
+    if workout.activity != "run":
+        return None
+    if (workout.flags or {}).get("impossible_pace"):
+        return None
+    best = None
+    for badge in RACE_BADGES:
+        # Tolerance: distances are floats, and exactly-the-threshold must pass.
+        if workout.distance_mi + 1e-9 >= badge.distance_mi:
+            best = badge
+    return best
+
+
+# One rule per family, each returning at most one badge for a workout.
+_WORKOUT_RULES = (_race_badge_for,)
+
+
+def badge_for_workout(workout: models.Workout) -> Badge | None:
+    """The badge a workout earns, or None.
+
+    One badge per workout, because badge_earns holds one row per workout. That
+    is deliberate while every family is earned in a single session: it is what
+    makes a replay idempotent without a second key. The first family that has
+    to share a workout with another relaxes the constraint in its own
+    migration, and this returns a list on the same day.
+    """
+    for rule in _WORKOUT_RULES:
+        badge = rule(workout)
+        if badge is not None:
+            return badge
+    return None
+
+
+def award_badge(db: Session, user_id: int, workout: models.Workout) -> Badge | None:
+    """Record the badge a freshly credited workout earned, if it earned one.
+
+    earned_at is the workout's start time rather than the clock, so a rebuild
+    from the same history writes the same row. The unique workout id is what
+    makes a replay idempotent even when the marker table has been lost.
+    """
+    badge = badge_for_workout(workout)
+    if badge is None:
+        return None
+    try:
+        with db.begin_nested():
+            db.add(
+                models.BadgeEarn(
+                    user_id=user_id,
+                    badge_id=badge.id,
+                    workout_id=workout.id,
+                    earned_at=workout.start_ts,
+                )
+            )
+            db.flush()
+    except IntegrityError:
+        return None
+    return badge
+
+
+def clear_badges(db: Session, user_id: int) -> None:
+    """Throw away one account's badges, for the rebuild to earn them again."""
+    db.execute(delete(models.BadgeEarn).where(models.BadgeEarn.user_id == user_id))
+
+
+def badge_summary(db: Session, user_id: int, family: str) -> list[dict]:
+    """One family's badges with how many times this account has earned each.
+
+    Every badge in the family, zeroes included: the strip on the profile shows
+    what is still to come as much as what has been done, the same way the
+    achievements catalogue does.
+    """
+    rows = {
+        badge_id: (count, first, last)
+        for badge_id, count, first, last in db.execute(
+            select(
+                models.BadgeEarn.badge_id,
+                func.count(),
+                func.min(models.BadgeEarn.earned_at),
+                func.max(models.BadgeEarn.earned_at),
+            )
+            .where(models.BadgeEarn.user_id == user_id)
+            .group_by(models.BadgeEarn.badge_id)
+        ).all()
+    }
+    out = []
+    for badge in BADGES:
+        if badge.family != family:
+            continue
+        count, first, last = rows.get(badge.id, (0, None, None))
+        out.append(
+            {
+                "id": badge.id,
+                "name": badge.name,
+                "distance_mi": badge.distance_mi,
+                "count": int(count),
+                "first_earned_at": first.isoformat() if first is not None else None,
+                "last_earned_at": last.isoformat() if last is not None else None,
+            }
+        )
+    return out
+
+
+def earned_badge_ids(db: Session, user_id: int) -> set[str]:
+    """The badges this account has earned at least once, any family."""
+    return set(
+        db.execute(
+            select(models.BadgeEarn.badge_id)
+            .where(models.BadgeEarn.user_id == user_id)
+            .distinct()
+        ).scalars()
+    )

@@ -30,6 +30,13 @@ export function distanceValue(miles: number, units: Units): string {
   return toDisplayDistance(miles, units).toFixed(2)
 }
 
+// Adjusted miles on screen: one decimal, and never converted, whether the word
+// beside it is miles on the profile or XP on a workout card. They are the same
+// number in every account.
+export function convertedValue(miles: number): string {
+  return miles.toFixed(1)
+}
+
 export function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
     month: 'long',

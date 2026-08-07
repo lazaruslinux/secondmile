@@ -20,13 +20,25 @@ import {
   type Units,
 } from '../api.ts'
 import { borderArt } from '../art.ts'
-import { distanceValue, formatDate, formatDistance, unitName } from '../format.ts'
-import { ACTIVITY_NAMES, ACTIVITY_ORDER } from '../labels.ts'
-import { diamondsOf, MAX_DIAMONDS } from '../profile.ts'
+import {
+  convertedValue,
+  distanceValue,
+  formatDate,
+  formatDistance,
+  unitName,
+} from '../format.ts'
+import {
+  ACTIVITY_NAMES,
+  ACTIVITY_ORDER,
+  RACE_BADGE_ORDER,
+  raceBadgeName,
+} from '../labels.ts'
+import { diamondsOf, MAX_DIAMONDS, raceCountsOf } from '../profile.ts'
 import Achievements from './Achievements.tsx'
 import Badge from './Badge.tsx'
 import CardPlate from './CardPlate.tsx'
 import Icon from './Icon.tsx'
+import RaceBadges, { RaceBadgeMark } from './RaceBadges.tsx'
 
 // Four, and the server says the same. The slots are drawn whether they are
 // filled or not, because an empty slot is the invitation to fill it.
@@ -328,6 +340,19 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
   const nextLevel = profile.level + 1
   const diamonds = diamondsOf(profile)
 
+  // Race badges are held in the same four slots as achievements, so the two
+  // lists are one list wherever a slot or the picker is concerned.
+  const raceCounts = raceCountsOf(profile.race_badges)
+  const earnedRaces = RACE_BADGE_ORDER.filter((id) => (raceCounts.get(id) ?? 0) > 0)
+  const slotChoices = earned.length + earnedRaces.length
+
+  function slotBadge(id: string) {
+    const achievement = byId.get(id)
+    if (achievement) return <Badge achievement={achievement} standalone />
+    if ((raceCounts.get(id) ?? 0) > 0) return <RaceBadgeMark id={id} earned standalone />
+    return <span className="badge badge-empty" aria-hidden="true" />
+  }
+
   return (
     <>
       <div className="view-head">
@@ -365,29 +390,25 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
                   {border && <img className="avatar-border" src={border} alt="" />}
                 </div>
 
-                {SLOTS.map((slot) => {
-                  const badge = byId.get(profile.displayed_badges[slot] ?? '')
-                  return (
-                    <span key={slot} className={`badge-slot badge-slot-${slot + 1}`}>
-                      {badge ? (
-                        <Badge achievement={badge} standalone />
-                      ) : (
-                        <span className="badge badge-empty" aria-hidden="true" />
-                      )}
-                    </span>
-                  )
-                })}
+                {SLOTS.map((slot) => (
+                  <span key={slot} className={`badge-slot badge-slot-${slot + 1}`}>
+                    {slotBadge(profile.displayed_badges[slot] ?? '')}
+                  </span>
+                ))}
               </div>
 
               <div className="profile-meta">
                 <h2 className="profile-name">{profile.username}</h2>
                 <p className="hint">Member since {formatDate(profile.created_at)}</p>
 
+                {/* Miles rather than points on this screen. They are the same
+                    number the feed counts as XP; the profile is where the app
+                    says what it is really about. */}
                 <p className="level-line">
                   <span className="level-tag">Level {profile.level}</span>
                   <span className="muted">
-                    {profile.xp_into_level} of {profile.xp_for_next_level} XP toward level{' '}
-                    {nextLevel}
+                    {convertedValue(profile.xp_into_level)} of{' '}
+                    {convertedValue(profile.xp_for_next_level)} mi toward level {nextLevel}
                   </span>
                 </p>
                 {/* A progress element rather than a div with a width on it: the
@@ -398,13 +419,14 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
                   value={profile.xp_into_level}
                   max={profile.xp_for_next_level}
                 >
-                  {profile.xp_into_level} of {profile.xp_for_next_level}
+                  {convertedValue(profile.xp_into_level)} of{' '}
+                  {convertedValue(profile.xp_for_next_level)}
                 </progress>
 
                 <ul className="profile-counts">
                   <li>
-                    <span className="count-value">{profile.xp}</span>
-                    <span className="count-label">XP earned</span>
+                    <span className="count-value">{convertedValue(profile.xp)}</span>
+                    <span className="count-label">Miles</span>
                   </li>
                   <li>
                     <span className="count-value">
@@ -530,10 +552,10 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
                 <button
                   type="button"
                   className="secondary"
-                  disabled={earned.length === 0}
+                  disabled={slotChoices === 0}
                   onClick={() => (picking ? setPicking(false) : startPicking())}
                 >
-                  {picking ? 'Close badges' : 'Choose badges'}
+                  {picking ? 'Close medals' : 'Choose medals'}
                 </button>
               </div>
               {avatarBusy === 'upload' && (
@@ -546,8 +568,8 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
                   {avatarError}
                 </p>
               )}
-              {earned.length === 0 && (
-                <p className="hint">Badges fill the slots once you have earned some.</p>
+              {slotChoices === 0 && (
+                <p className="hint">Medals fill the slots once you have earned some.</p>
               )}
             </div>
 
@@ -557,6 +579,26 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
                   Up to {SLOTS.length}, in the slots around your picture. {chosen.length} chosen.
                 </p>
                 <ul className="picker-list">
+                  {earnedRaces.map((id) => {
+                    const held = chosen.includes(id)
+                    return (
+                      <li key={id}>
+                        <label className="picker-option">
+                          <input
+                            type="checkbox"
+                            checked={held}
+                            disabled={!held && chosen.length >= SLOTS.length}
+                            onChange={() => toggleBadge(id)}
+                          />
+                          <RaceBadgeMark id={id} earned />
+                          <span>
+                            {raceBadgeName(id)}
+                            <span className="muted"> {raceCounts.get(id) ?? 0} earned</span>
+                          </span>
+                        </label>
+                      </li>
+                    )
+                  })}
                   {earned.map((row) => {
                     const held = chosen.includes(row.id)
                     return (
@@ -587,7 +629,7 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
                     disabled={badgeBusy}
                     onClick={() => void saveBadges()}
                   >
-                    Save badges
+                    Save medals
                   </button>
                   <button type="button" className="secondary" onClick={() => setPicking(false)}>
                     Cancel
@@ -666,6 +708,10 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
               </div>
             )}
           </section>
+
+          {/* The centrepiece: the race ladder sits above the rest of the
+              badges, since it is the one every run is measured against. */}
+          <RaceBadges badges={profile.race_badges} />
 
           <Achievements achievements={achievements} />
         </div>

@@ -7,7 +7,6 @@ deterministic.
 """
 
 import datetime as dt
-import math
 import random
 
 from sqlalchemy import delete, func, select
@@ -19,13 +18,13 @@ from app.activity import converted_miles, week_start
 from app.config import (
     BORDER_LEVELS,
     CHEST_SPACING_MI,
-    LEVEL_STEP_XP,
+    LEVEL_COSTS_MI,
+    LEVEL_STEP_MI,
     MAX_DIAMOND_SPORTS,
+    MAX_LEVEL,
     SERVER_TZ,
     UNOWNED_CARD_WEIGHT,
     WALK_BONUS_CHEST_CHANCE,
-    XP_PER_MILE,
-    XP_PER_MINUTE,
 )
 from app.models import ACTIVITIES
 from app.security import now_utc
@@ -39,46 +38,51 @@ _EPSILON = 1e-9
 # --------------------------------------------------------------------------
 
 
-def workout_xp(activity: str, distance_mi: float, duration_s: int) -> int:
-    """What one workout is worth. Distance and time both count; rounded once
-    at the end so the stored total is always whole."""
-    miles = converted_miles(activity, distance_mi)
-    return round(miles * XP_PER_MILE + (duration_s / 60.0) * XP_PER_MINUTE)
+def level_cost(level: int) -> float:
+    """What one level costs, in converted Miles, beyond the level below it.
 
-
-def xp_to_reach(level: int) -> int:
-    """Total experience needed to stand at `level`. Level n costs
-    LEVEL_STEP_XP * n beyond n - 1, so the total is triangular, less the
-    level-one step nobody pays."""
-    if level <= 1:
-        return 0
-    return LEVEL_STEP_XP * (level * (level + 1) // 2 - 1)
-
-
-def level_for_xp(xp: int) -> int:
-    """The level a total of experience stands at. Endless by design.
-
-    xp_to_reach is triangular, so this inverts it rather than counting up to it.
-    Same answer for every total, in one step instead of one step per level: the
-    curve is endless, and a scan over an absurd total would hold a request open
-    for as long as the total is large. Integer arithmetic throughout, because a
-    square root in floating point lands on the wrong side of an exact boundary.
-
-    level(level + 1) * LEVEL_STEP_XP <= 2 * (xp + LEVEL_STEP_XP) is the same
-    condition the loop tested; isqrt solves it for level.
+    The first four are the race ladder: 5K, 10K, half, marathon. After that
+    each level costs one more marathon than the last, so level five is two
+    marathons, level six is three, and the climb keeps its shape forever.
     """
-    if xp < LEVEL_STEP_XP * 2:  # the cost of level two, and the whole of level one
-        return 1
-    room = (2 * xp + 2 * LEVEL_STEP_XP) // LEVEL_STEP_XP
-    return (math.isqrt(4 * room + 1) - 1) // 2
+    if level <= 0:
+        return 0.0
+    if level <= len(LEVEL_COSTS_MI):
+        return LEVEL_COSTS_MI[level - 1]
+    return LEVEL_STEP_MI * (level - 3)
 
 
-def level_bounds(xp: int) -> tuple[int, int, int]:
+def xp_to_reach(level: int) -> float:
+    """Total converted Miles needed to stand at `level`. Level 0 is free."""
+    return sum(level_cost(step) for step in range(1, max(level, 0) + 1))
+
+
+def level_for_xp(xp: float) -> int:
+    """The level a total of experience stands at. A fresh account is level 0.
+
+    Walked rather than solved: the costs are a short table and then an
+    arithmetic series, and a closed form over the two of them is more ways to
+    be subtly wrong than it is worth. The walk stops at MAX_LEVEL so a
+    corrupted total cannot hold a request open.
+    """
+    level = 0
+    spent = 0.0
+    while level < MAX_LEVEL:
+        cost = spent + level_cost(level + 1)
+        # Tolerance: a total summed from floats must still clear a level it
+        # has exactly paid for.
+        if xp + _EPSILON < cost:
+            break
+        spent = cost
+        level += 1
+    return level
+
+
+def level_bounds(xp: float) -> tuple[int, float, float]:
     """(level, experience into this level, experience this level is worth)."""
     level = level_for_xp(xp)
     floor = xp_to_reach(level)
-    ceiling = xp_to_reach(level + 1)
-    return level, xp - floor, ceiling - floor
+    return level, max(xp - floor, 0.0), level_cost(level + 1)
 
 
 def border_tier(level: int) -> int:
@@ -99,8 +103,8 @@ def ensure_progress(db: Session, user_id: int) -> models.UserProgress:
         return row
     row = models.UserProgress(
         user_id=user_id,
-        xp=0,
-        level=1,
+        xp=0.0,
+        level=0,
         chest_progress_mi=0.0,
         next_chest_gap_mi=None,
         last_ack_at=None,
@@ -157,11 +161,12 @@ def _claim(db: Session, workout_id: int) -> bool:
 
 def _credit(db: Session, progress: models.UserProgress, workout: models.Workout) -> None:
     rng = random.Random(f"{progress.user_id}:{workout.id}")
-    progress.xp += workout_xp(workout.activity, workout.distance_mi, workout.duration_s)
+    miles = converted_miles(workout.activity, workout.distance_mi)
+    # Experience is the distance itself. One converted Mile, one XP.
+    progress.xp += miles
     progress.level = level_for_xp(progress.xp)
-    _advance_chests(
-        db, progress, rng, converted_miles(workout.activity, workout.distance_mi)
-    )
+    achievements.award_badge(db, progress.user_id, workout)
+    _advance_chests(db, progress, rng, miles)
 
     # Walking's gathering role: per completed walked mile, a bonus chest roll
     # on top of whatever the distance already earned.
@@ -231,9 +236,14 @@ def recompute(db: Session, user_id: int) -> models.UserProgress:
     """Throw away one account's derived progress and rebuild it from the
     workouts. Workouts are never touched. Earned achievements stay: they are
     never revoked, and the evaluator re-awards on top of them, so a badge
-    keeps the day it was first earned."""
+    keeps the day it was first earned.
+
+    Race badges do go, and come straight back: they belong to individual runs
+    rather than to aggregates, so replaying the runs is the only thing that
+    rebuilds them, and each one returns with the same date it had."""
     for table in (models.Chest, models.UserCard):
         db.execute(delete(table).where(table.user_id == user_id))
+    achievements.clear_badges(db, user_id)
     # processed_workouts is keyed by workout; the workout is what has an owner.
     db.execute(
         delete(models.ProcessedWorkout).where(
@@ -244,8 +254,8 @@ def recompute(db: Session, user_id: int) -> models.UserProgress:
     )
     row = db.get(models.UserProgress, user_id)
     if row is not None:
-        row.xp = 0
-        row.level = 1
+        row.xp = 0.0
+        row.level = 0
         row.chest_progress_mi = 0.0
         row.next_chest_gap_mi = None
     db.commit()

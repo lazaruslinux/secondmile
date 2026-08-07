@@ -146,7 +146,10 @@ export default function App() {
       {/* Nothing to read is not worth interrupting anyone for, so the letter
           only appears when it says something. */}
       {recap !== null &&
-        (recap.chests.length > 0 || recap.achievements.length > 0 || recap.miles > 0) && (
+        (recap.chests.length > 0 ||
+          recap.achievements.length > 0 ||
+          (recap.race_badges?.length ?? 0) > 0 ||
+          recap.miles > 0) && (
           <Recap recap={recap} onDismiss={() => void dismissRecap()} />
         )}
 

@@ -19,7 +19,7 @@ import {
   pad,
   unitName,
 } from '../format.ts'
-import { ACTIVITY_NAMES, ACTIVITY_ORDER } from '../labels.ts'
+import { ACTIVITY_NAMES, ACTIVITY_ORDER, raceBadgeName } from '../labels.ts'
 
 const WORKOUT_PAGE = 50
 const WEEK_COUNT = 8
@@ -371,6 +371,11 @@ export default function Log({ userId, units }: Props) {
                         )}
                         {workout.avg_hr !== null && (
                           <span>{Math.round(workout.avg_hr)} bpm</span>
+                        )}
+                        {workout.race_badge && (
+                          <span className="feed-badge">
+                            {raceBadgeName(workout.race_badge)}
+                          </span>
                         )}
                         {workout.source === 'manual' && <span className="tag">Manual</span>}
                         {notes.length > 0 && (

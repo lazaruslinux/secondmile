@@ -30,12 +30,22 @@ def test_a_fresh_profile_reports_the_whole_shape(signed_in, member):
     assert body["created_at"]
     assert body["has_avatar"] is False
     assert body["avatar_version"] is None
-    assert body["level"] == 1
-    assert body["xp"] == 0
-    assert body["xp_into_level"] == 0
-    assert body["xp_for_next_level"] == 200
+    # Nobody has run a 5K yet, so nobody is level one yet.
+    assert body["level"] == 0
+    assert body["xp"] == 0.0
+    assert body["xp_into_level"] == 0.0
+    # The first level costs a 5K, in converted miles.
+    assert body["xp_for_next_level"] == 3.1
     assert body["border_tier"] == 1
     assert body["displayed_badges"] == []
+    assert [row["id"] for row in body["race_badges"]] == [
+        "race_5k",
+        "race_10k",
+        "race_half",
+        "race_marathon",
+        "race_ultra",
+    ]
+    assert all(row["count"] == 0 for row in body["race_badges"])
     assert body["diamond_sports"] == []
     assert body["streak_weeks"] == 0
     assert body["week"] == {}
@@ -58,15 +68,21 @@ def test_the_profile_carries_week_and_lifetime_totals(signed_in):
     assert body["week"]["run"]["distance_mi"] == 4.0
 
 
+def owned_badges(client) -> list[str]:
+    """Everything this account may put in a slot: achievements and race badges."""
+    held = [row["id"] for row in client.get("/api/achievements").json() if row["earned"]]
+    return held + [
+        row["id"] for row in client.get("/api/profile").json()["race_badges"] if row["count"]
+    ]
+
+
 def test_badge_slots_take_only_badges_the_account_owns(signed_in, db_session, member):
-    refused = signed_in.patch(
-        "/api/profile", json={"displayed_badges": ["lifetime_500"]}
-    )
+    refused = signed_in.patch("/api/profile", json={"displayed_badges": ["week_40"]})
     assert refused.status_code == 400
     assert "not earned" in refused.json()["detail"]
 
-    log_workout(signed_in, "run", 4.0, pace_min=15)
-    owned = [row["id"] for row in signed_in.get("/api/achievements").json() if row["earned"]]
+    log_workout(signed_in, "run", 11.0, pace_min=9)
+    owned = owned_badges(signed_in)
     assert owned
 
     accepted = signed_in.patch("/api/profile", json={"displayed_badges": owned[:1]})
@@ -76,8 +92,8 @@ def test_badge_slots_take_only_badges_the_account_owns(signed_in, db_session, me
 
 
 def test_badge_slots_are_limited_and_cannot_repeat(signed_in):
-    log_workout(signed_in, "run", 4.0, pace_min=15)
-    owned = [row["id"] for row in signed_in.get("/api/achievements").json() if row["earned"]]
+    log_workout(signed_in, "run", 11.0, pace_min=9)
+    owned = owned_badges(signed_in)
     assert len(owned) >= 2
 
     too_many = signed_in.patch("/api/profile", json={"displayed_badges": owned[:1] * 5})
@@ -341,8 +357,8 @@ def test_diamonds_refuse_too_many_repeats_and_unknown_sports(signed_in, db_sessi
 
 
 def test_patching_one_part_of_the_profile_leaves_the_other_alone(signed_in, db_session, member):
-    log_workout(signed_in, "run", 4.0, pace_min=15)
-    owned = [row["id"] for row in signed_in.get("/api/achievements").json() if row["earned"]]
+    log_workout(signed_in, "run", 11.0, pace_min=9)
+    owned = owned_badges(signed_in)
     assert signed_in.patch("/api/profile", json={"displayed_badges": owned[:1]}).status_code == 200
 
     body = signed_in.patch("/api/profile", json={"diamond_sports": ["swim"]}).json()

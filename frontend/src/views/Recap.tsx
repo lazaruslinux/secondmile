@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { errorText, openChest, type OpenedChest, type RecapState } from '../api.ts'
 import { formatDate } from '../format.ts'
+import { RACE_BADGE_DETAILS, raceBadgeName } from '../labels.ts'
 import Badge from './Badge.tsx'
 import CardPlate from './CardPlate.tsx'
+import { RaceBadgeMark } from './RaceBadges.tsx'
 
 interface Props {
   recap: RecapState
@@ -40,6 +42,17 @@ export default function Recap({ recap, onDismiss }: Props) {
 
   const chests = recap.chests.length
 
+  // The recap lists one entry per earning, so two 5K runs arrive as two rows
+  // naming the same medal. Grouping them is what turns that into one line with
+  // a number on it, and an entry that already carries a count is counted as it
+  // says rather than as one.
+  const medals: { id: string; count: number }[] = []
+  for (const row of recap.race_badges ?? []) {
+    const held = medals.find((one) => one.id === row.id)
+    if (held) held.count += row.count ?? 1
+    else medals.push({ id: row.id, count: row.count ?? 1 })
+  }
+
   return (
     <dialog
       className="overlay"
@@ -66,6 +79,28 @@ export default function Recap({ recap, onDismiss }: Props) {
             <span className="recap-miles-value">{recap.miles.toFixed(1)}</span>
             <span className="label">Miles counted</span>
           </p>
+
+          {medals.length > 0 && (
+            <section className="recap-section">
+              <h3>New medals</h3>
+              <ul className="achievements">
+                {medals.map((row) => {
+                  const times = row.count > 1 ? ` ${row.count} times` : ''
+                  return (
+                    <li key={row.id} className="achievement">
+                      <RaceBadgeMark id={row.id} earned />
+                      <div className="achievement-body">
+                        <p className="achievement-name">
+                          You earned the {raceBadgeName(row.id)} medal{times}.
+                        </p>
+                        <p className="achievement-detail">{RACE_BADGE_DETAILS[row.id]}</p>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            </section>
+          )}
 
           {recap.achievements.length > 0 && (
             <section className="recap-section">

@@ -54,11 +54,15 @@ def serialize_profile(db: Session, user: models.User, row: models.UserProgress) 
         # Cache buster for GET /api/profile/avatar/<user_id>; null without one.
         "avatar_version": avatars.version(user.id) if user.avatar_path else None,
         "level": level,
-        "xp": row.xp,
-        "xp_into_level": into_level,
-        "xp_for_next_level": level_span,
+        # Converted Miles, one for one, so these are distances rather than
+        # scores. Rounded because the client prints them and a float summed
+        # over hundreds of workouts otherwise arrives with a tail on it.
+        "xp": round(row.xp, 2),
+        "xp_into_level": round(into_level, 2),
+        "xp_for_next_level": round(level_span, 2),
         "border_tier": progress.border_tier(level),
         "displayed_badges": list(user.displayed_badges or []),
+        "race_badges": achievements.badge_summary(db, user.id, "race"),
         # The effective list, never the stored one: the client renders diamonds
         # and should not have to work out what null means.
         "diamond_sports": progress.diamond_sports(db, user.id, user.diamond_sports),
@@ -85,7 +89,7 @@ def read_profile(
 
 def _set_badges(db: Session, user: models.User, sent: list[str]) -> None:
     """Checked against what the account actually owns; this function is the only
-    thing enforcing that."""
+    thing enforcing that. Achievements and race badges share the slots."""
     chosen = [str(value) for value in sent]
     if len(chosen) > MAX_DISPLAYED_BADGES:
         raise HTTPException(
@@ -100,7 +104,7 @@ def _set_badges(db: Session, user: models.User, sent: list[str]) -> None:
                 models.UserAchievement.user_id == user.id
             )
         ).scalars()
-    )
+    ) | achievements.earned_badge_ids(db, user.id)
     for badge in chosen:
         if badge not in owned:
             raise HTTPException(

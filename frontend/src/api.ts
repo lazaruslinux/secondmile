@@ -41,10 +41,13 @@ export interface Workout {
   avg_hr: number | null
   source: Source
   flags: WorkoutFlags
-  // What this workout was worth. Computed by the server from the same formula
-  // the pipeline uses; optional here so the app still renders against a server
-  // that predates the field.
+  // What this workout was worth, in converted miles. Computed by the server
+  // from the same formula the pipeline uses; optional here so the app still
+  // renders against a server that predates the field.
   xp?: number
+  // The race badge this one run earned, if it earned any. At most one per
+  // workout: the longest distance it qualified for.
+  race_badge?: string | null
 }
 
 export interface ActivityTotals {
@@ -86,6 +89,18 @@ export interface ActivityStats {
   workouts: number
 }
 
+// One race distance and how many times it has been run. The server sends all
+// five whether they have been earned or not, so a count of zero is a badge
+// still to come rather than a missing row.
+export interface RaceBadge {
+  id: string
+  // Absent from the recap, which is only reporting what arrived rather than
+  // what the account holds.
+  count?: number
+  first_earned_at?: string | null
+  last_earned_at?: string | null
+}
+
 export interface Profile {
   user_id: number
   username: string
@@ -95,11 +110,17 @@ export interface Profile {
   // the picture's URL so a new one is seen straight away.
   avatar_version: number | null
   level: number
+  // Miles, not points: xp and the two level figures are converted miles, one
+  // decimal on screen. The field names are the server's.
   xp: number
   xp_into_level: number
   xp_for_next_level: number
   border_tier: number
+  // Achievement ids and earned race badge ids together, at most four.
   displayed_badges: string[]
+  // All five race distances with their counts. Optional so the app still
+  // renders against a server that predates the field.
+  race_badges?: RaceBadge[]
   // The sports shown as diamonds, at most three. The server sends the effective
   // list, which is the player's own pick or its best guess when they have not
   // made one. Optional so the app still renders against a server that predates
@@ -120,12 +141,7 @@ export interface AvatarState {
   avatar_version: number
 }
 
-export type AchievementKind =
-  | 'duration-single'
-  | 'week-distance'
-  | 'lifetime-distance'
-  | 'firsts'
-  | 'collection'
+export type AchievementKind = 'week-distance' | 'collection'
 
 export interface Achievement {
   id: string
@@ -201,6 +217,9 @@ export interface RecapState {
   miles: number
   chests: Chest[]
   achievements: Achievement[]
+  // Race badges earned since the last time this was read. Optional, and each
+  // entry may carry nothing but its id.
+  race_badges?: RaceBadge[]
 }
 
 export class ApiError extends Error {

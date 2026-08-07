@@ -10,13 +10,14 @@ import {
 } from '../api.ts'
 import { borderArt } from '../art.ts'
 import {
+  convertedValue,
   distanceValue,
   formatClock,
   formatPace,
   formatStart,
   unitName,
 } from '../format.ts'
-import { ACTIVITY_NAMES } from '../labels.ts'
+import { ACTIVITY_NAMES, raceBadgeName } from '../labels.ts'
 import { diamondsOf, weekTotals } from '../profile.ts'
 import Icon from './Icon.tsx'
 
@@ -182,11 +183,14 @@ export default function Home({ userId, units, refreshToken }: Props) {
             value={profile.xp_into_level}
             max={profile.xp_for_next_level}
           >
-            {profile.xp_into_level} of {profile.xp_for_next_level}
+            {convertedValue(profile.xp_into_level)} of{' '}
+            {convertedValue(profile.xp_for_next_level)}
           </progress>
+          {/* Miles here as on the You screen. The feed below still counts the
+              same number as XP on each card. */}
           <p className="hint summary-xp">
-            {profile.xp_into_level} of {profile.xp_for_next_level} XP toward level{' '}
-            {profile.level + 1}
+            {convertedValue(profile.xp_into_level)} of{' '}
+            {convertedValue(profile.xp_for_next_level)} mi toward level {profile.level + 1}
           </p>
 
           {diamonds.length > 0 && (
@@ -310,9 +314,16 @@ export default function Home({ userId, units, refreshToken }: Props) {
               </div>
             </div>
 
-            {workout.xp !== undefined && (
+            {/* The strip along the bottom: what the workout was worth, and the
+                race badge it earned if it earned one. */}
+            {(workout.xp !== undefined || workout.race_badge) && (
               <p className="feed-foot">
-                <span className="feed-xp">+{workout.xp} XP</span>
+                {workout.xp !== undefined && (
+                  <span className="feed-xp">+{convertedValue(workout.xp)} XP</span>
+                )}
+                {workout.race_badge && (
+                  <span className="feed-badge">{raceBadgeName(workout.race_badge)}</span>
+                )}
               </p>
             )}
           </article>

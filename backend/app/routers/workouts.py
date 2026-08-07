@@ -28,17 +28,34 @@ MAX_LIMIT = 200
 MAX_WEEKS = 52
 
 
-def _serialize(workout: models.Workout) -> dict:
+def _serialize(workout: models.Workout, race_badge: str | None = None) -> dict:
     """One workout plus what it was worth, which the history shows on each row.
 
-    The experience comes from the pipeline's own function rather than a copy of
-    the formula, so a row can never claim a number the account was not credited.
-    Computed rather than stored: nothing about a workout changes after it lands.
+    The experience is the converted distance the pipeline credited, computed
+    from the same function rather than a copy of it, so a row can never claim a
+    number the account was not given. The race badge is read from the table
+    instead, because earning one is a fact about what happened rather than a
+    number that can be recomputed from the row.
     """
     return {
         **activity_rules.serialize(workout),
-        "xp": progress.workout_xp(workout.activity, workout.distance_mi, workout.duration_s),
+        "xp": round(activity_rules.converted_miles(workout.activity, workout.distance_mi), 2),
+        "race_badge": race_badge,
     }
+
+
+def _race_badges(db: Session, workouts: list[models.Workout]) -> dict[int, str]:
+    """Which of these workouts earned a race badge, keyed by workout id."""
+    ids = [row.id for row in workouts]
+    if not ids:
+        return {}
+    return dict(
+        db.execute(
+            select(models.BadgeEarn.workout_id, models.BadgeEarn.badge_id).where(
+                models.BadgeEarn.workout_id.in_(ids)
+            )
+        ).all()
+    )
 
 
 class ManualWorkout(BaseModel):
@@ -129,9 +146,10 @@ def create_workout(
     db.commit()
 
     # A workout typed in by hand counts exactly as much as one from a watch,
-    # so it goes through the same pipeline on the same terms.
+    # so it goes through the same pipeline on the same terms, race badge
+    # included.
     progress.process_user(db, user.id)
-    return _serialize(workout)
+    return _serialize(workout, _race_badges(db, [workout]).get(workout.id))
 
 
 def _parse_cursor(before: str) -> dt.datetime:
@@ -166,7 +184,9 @@ def list_workouts(
     # keep a stable order between pages; without it, paging can show one twice
     # and skip another.
     stmt = stmt.order_by(models.Workout.start_ts.desc(), models.Workout.id.desc()).limit(limit)
-    return [_serialize(row) for row in db.execute(stmt).scalars()]
+    rows = list(db.execute(stmt).scalars())
+    badges = _race_badges(db, rows)
+    return [_serialize(row, badges.get(row.id)) for row in rows]
 
 
 @router.get("/weeks")

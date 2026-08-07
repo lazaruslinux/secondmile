@@ -75,12 +75,12 @@ draws the highest tier the player's level has reached:
 
 | File | Earned at level |
 | --- | --- |
-| `border-t1.svg` | 1 |
-| `border-t2.svg` | 5 |
+| `border-t1.svg` | 0 |
+| `border-t2.svg` | 6 |
 | `border-t3.svg` | 10 |
-| `border-t4.svg` | 20 |
-| `border-t5.svg` | 35 |
-| `border-t6.svg` | 50 |
+| `border-t4.svg` | 15 |
+| `border-t5.svg` | 25 |
+| `border-t6.svg` | 35 |
 
 Each file needs a `viewBox` and nothing else: no ids, no particular size. The
 border is drawn over a square avatar and scaled to it, so **the picture sits
@@ -91,7 +91,32 @@ safe way to make a higher tier feel more substantial.
 The levels are defined in `backend/app/config.py` as `BORDER_LEVELS`, and the
 number of files has to match the length of that list.
 
-## Badges
+## Medals
+
+`frontend/src/assets/badges/race-5k.svg` through `race-ultra.svg`
+
+The five race distances, the row of art at the top of the You screen. One file
+each, and the interface calls them medals:
+
+| File | Distance | Earned by |
+| --- | --- | --- |
+| `race-5k.svg` | 5K | One run of 3.1 miles or more |
+| `race-10k.svg` | 10K | One run of 6.2 miles or more |
+| `race-half.svg` | Half | One run of 13.1 miles or more |
+| `race-marathon.svg` | Marathon | One run of 26.2 miles or more |
+| `race-ultra.svg` | Ultra | One run of 31.1 miles or more |
+
+They are repeatable, so each one is drawn once with a count under it rather
+than once per earning, and a distance not yet run is the same file drawn dim.
+Draw them as a set: the same size and weight, with the distance readable at a
+glance, because five of them share the width of a phone screen. The placeholder
+art puts the distance in a band across the middle and counts the rank in marks
+above it.
+
+The file names are fixed; the ids behind them are `race_5k` through
+`race_ultra` in the backend, with underscores rather than hyphens.
+
+## Achievement badges
 
 `frontend/src/assets/badges/<achievement-id>.svg`
 
@@ -99,14 +124,12 @@ Drop a file in named after an achievement id and it becomes that achievement's
 badge. There is no list to edit and no import to add. An achievement with no
 file of its own falls back to a generic badge for its kind:
 
-`frontend/src/assets/badges/kind-duration-single.svg`,
-`kind-week-distance.svg`, `kind-lifetime-distance.svg`, `kind-firsts.svg`,
+`frontend/src/assets/badges/kind-week-distance.svg`,
 `kind-collection.svg`
 
 The achievement ids are in `backend/app/achievements.py`, in the catalogue near
-the top of the file. They read like `week_10`, `lifetime_250`, `first_swim`,
-and `collection_set_hedgerow`, so the file for the first of those is
-`week_10.svg`.
+the top of the file. They read like `week_10` and `collection_set_hedgerow`, so
+the file for the first of those is `week_10.svg`.
 
 Badges are drawn small: in the slots around the avatar they are roughly 48
 pixels across, and in the achievements list roughly 64. Anything that depends

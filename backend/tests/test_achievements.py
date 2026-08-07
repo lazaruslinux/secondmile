@@ -57,38 +57,13 @@ def test_the_whole_catalogue_is_listed_earned_or_not(signed_in):
     }
 
 
-def test_a_single_workout_earns_the_duration_rungs_it_passed(signed_in):
-    log_workout(signed_in, "run", 3.0, pace_min=12)  # 36 minutes
-    held = earned(signed_in)
-    assert "duration_15" in held
-    assert "duration_30" in held
-    assert "duration_60" not in held
-    assert held["duration_30"]["earned_at"]
-
-
-def test_first_of_each_activity_is_its_own_badge(signed_in):
-    log_workout(signed_in, "run", 1.0, offset_min=0)
-    held = earned(signed_in)
-    assert "first_run" in held
-    assert "first_swim" not in held
-    log_workout(signed_in, "swim", 0.5, pace_min=60, offset_min=200)
-    assert "first_swim" in earned(signed_in)
-
-
-def test_lifetime_distance_counts_converted_miles(signed_in, db_session, member):
-    # A hundred and fifty cycled miles is fifty Miles.
-    for day in range(5):
-        add_workout(
-            db_session,
-            member.id,
-            "cycle",
-            security.now_utc() - dt.timedelta(days=day * 3),
-            miles=30.0,
-            duration_s=2 * 3600,
-        )
-    held = earned(signed_in)
-    assert "lifetime_50" in held
-    assert "lifetime_100" not in held
+def test_the_dropped_kinds_are_gone_from_the_catalogue(signed_in):
+    """Single-workout duration, lifetime distance, and the firsts are replaced
+    by the race badges; only the weekly and collection families remain."""
+    ids = {row.id for row in achievements.CATALOG}
+    for gone in ("duration_30", "lifetime_50", "first_run"):
+        assert gone not in ids
+    assert {row["id"] for row in signed_in.get("/api/achievements").json()} == ids
 
 
 def test_a_weekly_badge_gilds_when_the_same_week_doubles_it(signed_in, db_session, member):
@@ -121,28 +96,31 @@ def test_a_week_is_a_server_timezone_monday_week(signed_in, db_session, member):
 
     add_workout(db_session, member.id, "run", last_week, miles=8.0)
     add_workout(db_session, member.id, "run", this_week, miles=8.0)
-    held = earned(signed_in)
     # Sixteen Miles in total, but never more than eight inside one week.
-    assert "week_10" not in held
-    assert "lifetime_50" not in held
+    assert "week_10" not in earned(signed_in)
 
     add_workout(db_session, member.id, "run", this_week + dt.timedelta(hours=6), miles=3.0)
     assert "week_10" in earned(signed_in)
 
 
 def test_a_badge_is_never_revoked_and_never_reissued(signed_in, db_session, member):
-    log_workout(signed_in, "run", 3.0, pace_min=12)
-    row = db_session.get(models.UserAchievement, (member.id, "duration_30"))
-    assert row is not None
+    monday = week_start(security.now_utc())
+    add_workout(
+        db_session,
+        member.id,
+        "run",
+        dt.datetime.combine(monday, dt.time(7, 0), tzinfo=SERVER_TZ),
+        miles=11.0,
+    )
+    assert "week_10" in earned(signed_in)
+    row = db_session.get(models.UserAchievement, (member.id, "week_10"))
     first_earned = row.earned_at
 
     # The history goes away entirely. The badge does not.
     db_session.query(models.Workout).filter(models.Workout.user_id == member.id).delete()
     db_session.commit()
-    assert "duration_30" in earned(signed_in)
-    assert db_session.get(models.UserAchievement, (member.id, "duration_30")).earned_at == (
-        first_earned
-    )
+    assert "week_10" in earned(signed_in)
+    assert db_session.get(models.UserAchievement, (member.id, "week_10")).earned_at == first_earned
 
 
 def test_collection_badges_arrive_with_the_card(signed_in, db_session, member):
@@ -179,7 +157,7 @@ def test_collection_badges_arrive_with_the_card(signed_in, db_session, member):
 
 
 def test_evaluating_twice_writes_nothing_the_second_time(signed_in, db_session, member):
-    log_workout(signed_in, "run", 3.0, pace_min=12)
+    log_workout(signed_in, "run", 11.0, pace_min=9)
     progress.process_user(db_session, member.id)
     before = (
         db_session.query(models.UserAchievement)
@@ -217,7 +195,4 @@ def test_history_that_predates_the_release_is_picked_up_on_the_first_read(
         )
     )
     db_session.commit()
-    held = earned(signed_in)
-    assert "lifetime_50" in held
-    assert "week_40" in held
-    assert "duration_90" in held
+    assert "week_40" in earned(signed_in)
