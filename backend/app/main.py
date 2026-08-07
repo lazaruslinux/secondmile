@@ -12,7 +12,7 @@ from app.config import (
     MAX_INGEST_BODY_BYTES,
     check_deploy_config,
 )
-from app.routers import auth, cards, ingest, profile, settings, workouts
+from app.routers import auth, cards, fellowship, ingest, profile, settings, workouts
 
 # Run before anything else imports an engine. Failing during import stops
 # uvicorn before it binds a port, so a misconfigured install never serves a
@@ -140,3 +140,4 @@ app.include_router(workouts.router, prefix="/api")
 app.include_router(settings.router, prefix="/api")
 app.include_router(profile.router, prefix="/api")
 app.include_router(cards.router, prefix="/api")
+app.include_router(fellowship.router, prefix="/api")

@@ -19,7 +19,6 @@ import {
   type Profile as ProfileData,
   type Units,
 } from '../api.ts'
-import { borderArt } from '../art.ts'
 import {
   convertedValue,
   distanceValue,
@@ -35,8 +34,10 @@ import {
 } from '../labels.ts'
 import { diamondsOf, MAX_DIAMONDS, raceCountsOf } from '../profile.ts'
 import Achievements from './Achievements.tsx'
+import AvatarFrame from './AvatarFrame.tsx'
 import Badge from './Badge.tsx'
 import CardPlate from './CardPlate.tsx'
+import Fellowship from './Fellowship.tsx'
 import Icon from './Icon.tsx'
 import MedalNest from './MedalNest.tsx'
 import RaceBadges, { RaceBadgeMark } from './RaceBadges.tsx'
@@ -337,7 +338,6 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
 
   const byId = new Map(achievements.map((row) => [row.id, row]))
   const earned = achievements.filter((row) => row.earned)
-  const border = borderArt(profile.border_tier)
   const nextLevel = profile.level + 1
   const diamonds = diamondsOf(profile)
 
@@ -376,26 +376,22 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
         <div className="you-band" />
         <div className="you-ident">
           <div className="avatar-block">
-            <div className="avatar-frame">
-              {profile.has_avatar ? (
-                <img
-                  className="avatar-shot"
-                  src={avatarUrl(profile.user_id, profile.avatar_version)}
-                  alt={`${profile.username}'s picture`}
-                />
-              ) : (
-                <span className="avatar-shot avatar-empty" aria-hidden="true">
-                  {profile.username.slice(0, 1).toUpperCase()}
-                </span>
-              )}
-              {border && <img className="avatar-border" src={border} alt="" />}
+            <AvatarFrame
+              username={profile.username}
+              src={
+                profile.has_avatar ? avatarUrl(profile.user_id, profile.avatar_version) : null
+              }
+              borderTier={profile.border_tier}
+              flourish={profile.flourish}
+              labelled
+            >
               {/* All four positions, filled or not: an empty one here is the
                   invitation to fill it, and this is the only screen that offers
                   the choice. */}
               <MedalNest
                 items={SLOTS.map((slot) => slotBadge(profile.displayed_badges[slot] ?? ''))}
               />
-            </div>
+            </AvatarFrame>
           </div>
 
           <div className="you-ident-text">
@@ -649,6 +645,8 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
               </div>
             )}
           </section>
+
+          <Fellowship userId={userId} />
         </div>
 
         <div className="you-col you-right">

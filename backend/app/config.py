@@ -167,6 +167,27 @@ MAX_DISPLAYED_BADGES = 4
 # same number whether the player picked them or the server did.
 MAX_DIAMOND_SPORTS = 3
 
+
+# Renown: what encouraging somebody else is worth to the person who did it.
+# Never to the person it was said to, because a number that grew from being
+# admired would reward posting rather than caring.
+RENOWN_CHEER = 1
+RENOWN_NOTE = 3
+
+# The diminishing window. Inside this many days, one pair earns renown for the
+# first cheer and the first note only; everything after still arrives, and is
+# still worth as much to the person who receives it, but pays its sender
+# nothing. Two accounts cheering each other all evening earn one cheer's worth.
+RENOWN_WINDOW_DAYS = 7
+
+# Renown at which each flourish stage arrives, in order. A player is at the
+# highest stage they have passed, so stage 0 is where everybody starts.
+FLOURISH_RENOWN = (10, 40, 120)
+
+# How long a note may be. Long enough for something meant, short enough that
+# the feed stays a dinner table rather than a message board.
+NOTE_MAX_CHARS = 500
+
 # Avatar upload limits. The byte cap is checked against Content-Length and then
 # again while reading, because a client is free to lie in the header. The pixel
 # cap is the decompression-bomb guard: a small file can declare an enormous

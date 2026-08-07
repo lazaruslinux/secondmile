@@ -877,6 +877,108 @@ button:disabled {
   stroke-width: 2px;
 }
 
+/* Two figures rather than three: a friend's card shows what they covered and
+   how long they were out, and nothing that measures how hard it was. */
+.stat-row-pair {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+/* Encouragement
+   Under a friend's workout, and nowhere else. The place to write is the wide
+   part of the row, because words are the point of it; the cheer is the small
+   button beside it for when there is nothing to say. */
+.encourage {
+  margin: 0.85rem -0.85rem -0.85rem;
+  padding: 0.6rem 0.85rem;
+  border-top: 1px solid var(--line);
+}
+
+.encourage-form {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.encourage-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.9rem;
+}
+
+/* No word on it on purpose: a cheer carries no message. */
+.cheer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 2.75rem;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.cheer .icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+/* Given, and quiet about it. */
+.cheer-on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Plain words, not a scoreboard. A workout nobody has said anything about
+   shows nothing here at all. */
+.encourage-counts {
+  display: block;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  min-height: 0;
+  background: none;
+  border: none;
+  border-radius: 0;
+  text-align: left;
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.encourage-counts-open {
+  text-decoration: underline;
+}
+
+.encourage-notes {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+}
+
+.encourage-notes li {
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.encourage-notes li:last-child {
+  border-bottom: none;
+}
+
+.encourage-note-who {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.encourage-note-body {
+  display: block;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
 /* History */
 
 /* One week of history is one card, the same as everything else in the column. */
@@ -1017,6 +1119,21 @@ button:disabled {
   height: 8rem;
 }
 
+/* The same frame at the size the small places use it: beside a friend's workout
+   in the feed, and in the friends list. Written here rather than with those
+   blocks because the size above would otherwise win on source order. */
+.feed-frame,
+.friend-frame {
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: 0 0 auto;
+}
+
+.feed-frame .avatar-empty,
+.friend-frame .avatar-empty {
+  font-size: 1rem;
+}
+
 /* The artwork is drawn over the whole square and the picture is inset inside
    it, so a heavier border tier frames the same picture rather than cropping
    it. Borders keep their middle empty; see docs/03-artwork.md. */
@@ -1042,6 +1159,18 @@ button:disabled {
 .avatar-border {
   position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* The growth earned by encouraging other people, lying over the border rather
+   than replacing it: the level is still readable underneath. It keeps to the
+   edges of the frame, so it never covers a face. */
+.avatar-flourish {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
   width: 100%;
   height: 100%;
   pointer-events: none;
@@ -1285,6 +1414,62 @@ button:disabled {
   font-size: 0.7rem;
   font-weight: 700;
   color: var(--muted);
+}
+
+/* Friends
+   A list of people and a field to invite one more. There are no counts on this
+   card, here or anywhere: how many friends somebody has is not a score. */
+
+.fellowship-head {
+  margin: 0.9rem 0 0;
+}
+
+.friend-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+}
+
+.friend-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.friend-row:last-child {
+  border-bottom: none;
+}
+
+.friend-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.friend-buttons {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.friend-buttons button {
+  min-height: 2.25rem;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.75rem;
+}
+
+.invite {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.invite .hint {
+  margin: 0;
 }
 
 .profile-edit {
@@ -1628,6 +1813,49 @@ button:disabled {
   color: var(--accent);
 }
 
+/* The words somebody wrote, given the weight of the thing they are: the name of
+   whoever wrote them small above, and the words themselves at full size. */
+.recap-notes {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+}
+
+.recap-note {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.recap-note:last-child {
+  border-bottom: none;
+}
+
+.recap-note-who {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.recap-note-body {
+  margin: 0.15rem 0 0;
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.recap-cheers {
+  margin: 0.5rem 0 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+/* Said once, quietly, at the foot of the letter. */
+.recap-grew {
+  margin: 1rem 0 0;
+}
+
 .recap-section {
   margin-bottom: 1rem;
 }
@@ -1792,12 +2020,13 @@ button:disabled {
   }
 
   /* The picture and its medals shrink together, so the nest stays inside the
-     width of the frame it hangs from. */
+     width of the frame it hangs from. Only the big frame on You: the small ones
+     in the feed and the friends list set their own size and keep it. */
   .avatar-block {
     padding: 0 0 1.25rem;
   }
 
-  .avatar-frame {
+  .avatar-block .avatar-frame {
     width: 7rem;
     height: 7rem;
   }

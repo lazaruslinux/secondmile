@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" fill="none">
+  <!-- Stage two: the growth has crossed the foot of the frame and started up
+       both sides. -->
+  <g stroke="#5f8f4e" stroke-width="2.4" stroke-linecap="round" fill="none">
+    <path d="M50 97 C 26 97 9 94 6 84 C 3 74 5 62 6 52"/>
+    <path d="M8 82 C 12 80 14 77 14 73"/>
+    <path d="M62 96 C 80 95 92 92 94 84 C 95 78 94 72 94 66"/>
+    <path d="M92 80 C 88 78 86 75 86 71"/>
+  </g>
+  <g fill="#86bd6b">
+    <ellipse cx="42" cy="93" rx="4.6" ry="2.4" transform="rotate(-12 42 93)"/>
+    <ellipse cx="28" cy="92" rx="4.6" ry="2.4" transform="rotate(-22 28 92)"/>
+    <ellipse cx="16" cy="90" rx="4.2" ry="2.2" transform="rotate(-38 16 90)"/>
+    <ellipse cx="7" cy="76" rx="4.4" ry="2.3" transform="rotate(-72 7 76)"/>
+    <ellipse cx="14" cy="72" rx="3.8" ry="2" transform="rotate(-52 14 72)"/>
+    <ellipse cx="6" cy="60" rx="4.2" ry="2.2" transform="rotate(-104 6 60)"/>
+    <ellipse cx="70" cy="93" rx="4.6" ry="2.4" transform="rotate(14 70 93)"/>
+    <ellipse cx="84" cy="91" rx="4.2" ry="2.2" transform="rotate(32 84 91)"/>
+    <ellipse cx="94" cy="76" rx="4.4" ry="2.3" transform="rotate(72 94 76)"/>
+    <ellipse cx="86" cy="70" rx="3.8" ry="2" transform="rotate(52 86 70)"/>
+  </g>
+</svg>

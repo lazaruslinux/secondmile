@@ -10,6 +10,7 @@ import {
   type RecapState,
   type Units,
 } from './api.ts'
+import { recapHasNews } from './recap.ts'
 import Login from './views/Login.tsx'
 import Cards from './views/Cards.tsx'
 import Home from './views/Home.tsx'
@@ -145,13 +146,9 @@ export default function App() {
 
       {/* Nothing to read is not worth interrupting anyone for, so the letter
           only appears when it says something. */}
-      {recap !== null &&
-        (recap.chests.length > 0 ||
-          recap.achievements.length > 0 ||
-          (recap.race_badges?.length ?? 0) > 0 ||
-          recap.miles > 0) && (
-          <Recap recap={recap} onDismiss={() => void dismissRecap()} />
-        )}
+      {recap !== null && recapHasNews(recap) && (
+        <Recap recap={recap} onDismiss={() => void dismissRecap()} />
+      )}
 
       {/* The view names its own column, which is all the wide layouts need to
           differ: one grid per screen, one width per screen. */}

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { errorText, openChest, type OpenedChest, type RecapState } from '../api.ts'
 import { formatDate } from '../format.ts'
 import { RACE_BADGE_DETAILS, raceBadgeName } from '../labels.ts'
+import { flourishLine, noteAuthor, recapCheers, recapNotes } from '../recap.ts'
 import Badge from './Badge.tsx'
 import CardPlate from './CardPlate.tsx'
 import { RaceBadgeMark } from './RaceBadges.tsx'
@@ -53,6 +54,10 @@ export default function Recap({ recap, onDismiss }: Props) {
     else medals.push({ id: row.id, count: row.count ?? 1 })
   }
 
+  const notes = recapNotes(recap.encouragement)
+  const cheers = recapCheers(recap.encouragement)
+  const grew = flourishLine(recap)
+
   return (
     <dialog
       className="overlay"
@@ -79,6 +84,32 @@ export default function Recap({ recap, onDismiss }: Props) {
             <span className="recap-miles-value">{recap.miles.toFixed(1)}</span>
             <span className="label">Miles counted</span>
           </p>
+
+          {/* What other people said comes before anything the app worked out.
+              The words are the event; the counting is not. */}
+          {(notes.length > 0 || cheers > 0) && (
+            <section className="recap-section">
+              <h3>Words for you</h3>
+              {notes.length > 0 && (
+                <ul className="recap-notes">
+                  {notes.map((note, index) => {
+                    const who = noteAuthor(note)
+                    return (
+                      <li key={index} className="recap-note">
+                        {who !== '' && <p className="recap-note-who">{who}</p>}
+                        <p className="recap-note-body">{note.body}</p>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+              {cheers > 0 && (
+                <p className="recap-cheers">
+                  {cheers} {cheers === 1 ? 'cheer' : 'cheers'}.
+                </p>
+              )}
+            </section>
+          )}
 
           {medals.length > 0 && (
             <section className="recap-section">
@@ -177,6 +208,10 @@ export default function Recap({ recap, onDismiss }: Props) {
               </ul>
             </section>
           )}
+
+          {/* One line, said once. Growth comes from encouraging other people,
+              so this is the only place the app mentions it. */}
+          {grew !== '' && <p className="hint recap-grew">{grew}</p>}
         </div>
 
         <footer className="overlay-foot">

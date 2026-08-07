@@ -3,8 +3,9 @@
 A self-hosted fitness app with a game inside it. Miles you actually walk, run,
 cycle, or swim sync from your phone and become experience, collectible cards,
 and badges on a profile you build over months. The game is early: accounts,
-workout sync, the Almanac, the profile with its levels and achievements, and
-the card collection work today, and the rest is being built on top of them.
+workout sync, the Almanac, the profile with its levels and achievements, the
+card collection, and a feed shared with friends work today, and the rest is
+being built on top of them.
 
 Current version: **0.1.1**. Releases are tagged in git.
 
@@ -39,6 +40,12 @@ Current version: **0.1.1**. Releases are tagged in git.
   rarity. Walked miles find extra chests, cards cannot be bought with
   anything, chests never expire, and there is no daily anything. Moving your
   body is the only way to fill a page.
+- **Keeps a small circle.** Friends are mutual and added by username: there is
+  no discovery, no suggestions, and no count of anybody's friends. The home
+  feed carries your workouts and theirs, and a friend's card shows the
+  distance, the time, the medal, and the route line, never a pace or a heart
+  rate. You can cheer a workout without words or write a note about it, and
+  nothing in the app ever suggests what to say.
 - **Multi-user from day one.** Accounts are invite-only out of the box: the
   server admin creates invites from the command line. Flip `REGISTRATION_OPEN`
   and anyone who can reach the site can sign up instead. Either way a new
@@ -51,8 +58,6 @@ Current version: **0.1.1**. Releases are tagged in git.
 The synced miles are the fuel for a game in active development. The short
 version of the design:
 
-- Friends and a home feed, so the week you had is something you share rather
-  than something you rank.
 - Each activity has its own role, and no activity substitutes for another.
 - The economy is built so that giving feels better than keeping. Serving
   others is meant to be the winning strategy, and the best things in the

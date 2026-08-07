@@ -57,6 +57,13 @@ export function borderArt(tier: number): string | null {
   return borders.get(`border-t${tier}`) ?? null
 }
 
+// The growth that lies over a border, one file per stage. Stage 0 is bare frame
+// and has no file, which is why nothing is drawn for it.
+export function flourishArt(stage: number): string | null {
+  if (!(stage > 0)) return null
+  return borders.get(`flourish-f${stage}`) ?? null
+}
+
 // The markup of one interface icon, named after its file without the extension.
 export function iconArt(name: string): string | null {
   return icons.get(name) ?? null

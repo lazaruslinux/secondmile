@@ -48,6 +48,7 @@ both.
 | `tab-you.svg` | You in the bottom bar |
 | `gear.svg` | The settings button in the You header |
 | `diamond.svg` | The week strip on Home, and the sport diamonds on You |
+| `cheer.svg` | The cheer button under a friend's workout on Home |
 
 Three rules on top of the two above, because these files are placed straight
 into the page:
@@ -90,6 +91,33 @@ safe way to make a higher tier feel more substantial.
 
 The levels are defined in `backend/app/config.py` as `BORDER_LEVELS`, and the
 number of files has to match the length of that list.
+
+## Border flourishes
+
+`frontend/src/assets/borders/flourish-f1.svg` through `flourish-f3.svg`
+
+Growth that wraps the border, drawn on top of whichever tier the player has.
+Where the border is earned by covering miles, the flourish is earned by
+encouraging other people, so the two are separate drawings over the same frame
+and either one can change without the other:
+
+| File | Stage |
+| --- | --- |
+| none | 0, a bare border |
+| `flourish-f1.svg` | 1 |
+| `flourish-f2.svg` | 2 |
+| `flourish-f3.svg` | 3 |
+
+The same rules as the borders apply: a `viewBox` and nothing else, drawn over
+the whole square, **middle left empty** so nobody's face is covered. The
+placeholder art is a vine that starts in one corner at stage 1, crosses the
+foot of the frame and climbs both sides at stage 2, and closes over the top at
+stage 3, so the stages read as one plant growing rather than three drawings.
+Keep the covered length increasing from file to file for the same reason.
+
+They are drawn everywhere a border is: the You banner, the summary card on
+Home, friends' cards in the feed, and the friends list. Each is shown as small
+as 40 pixels across in the feed, so keep the shapes bold enough to read there.
 
 ## Medals
 

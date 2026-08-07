@@ -3,26 +3,19 @@ import {
   avatarUrl,
   errorText,
   getProfile,
-  listWorkouts,
+  listFeed,
+  type FeedItem,
   type Profile as ProfileData,
   type Units,
-  type Workout,
 } from '../api.ts'
-import { borderArt } from '../art.ts'
-import {
-  convertedValue,
-  distanceValue,
-  formatClock,
-  formatPace,
-  formatStart,
-  unitName,
-} from '../format.ts'
+import { convertedValue, distanceValue, formatStart, unitName } from '../format.ts'
 import { ACTIVITY_NAMES, RACE_BADGE_ORDER, raceBadgeName } from '../labels.ts'
 import { lifetimeWorkouts, raceCountsOf, weekTotals } from '../profile.ts'
+import AvatarFrame from './AvatarFrame.tsx'
+import FeedCard from './FeedCard.tsx'
 import Icon from './Icon.tsx'
 import MedalNest from './MedalNest.tsx'
 import { RaceBadgeMark } from './RaceBadges.tsx'
-import RouteLine from './RouteLine.tsx'
 
 const PAGE = 20
 
@@ -38,11 +31,6 @@ const DAY_NAMES = [
   'Sunday',
 ]
 
-const SOURCE_NAMES = {
-  sync: 'Apple Health',
-  manual: 'Manual entry',
-}
-
 // Midnight on the Monday of the week a moment falls in, browser timezone.
 function weekStartOf(date: Date): Date {
   const start = new Date(date)
@@ -51,14 +39,16 @@ function weekStartOf(date: Date): Date {
   return start
 }
 
-// Which days of this week already have something on them. Compared week by week
-// rather than by subtracting milliseconds, so the hour a clock change takes away
-// cannot move a workout into the wrong day.
-function daysThisWeek(workouts: Workout[]): boolean[] {
+// Which days of this week already have something on them. Own rows only: the
+// streak counts this account's miles, never anybody else's. Compared week by
+// week rather than by subtracting milliseconds, so the hour a clock change takes
+// away cannot move a workout into the wrong day.
+function daysThisWeek(feed: FeedItem[]): boolean[] {
   const days = [false, false, false, false, false, false, false]
   const monday = weekStartOf(new Date()).getTime()
-  for (const workout of workouts) {
-    const when = new Date(workout.start_ts)
+  for (const item of feed) {
+    if (!item.own) continue
+    const when = new Date(item.start_ts)
     if (weekStartOf(when).getTime() !== monday) continue
     days[(when.getDay() + 6) % 7] = true
   }
@@ -95,7 +85,7 @@ function Streak({ streak, days }: { streak: number; days: boolean[] }) {
 
 interface Cached {
   profile: ProfileData
-  workouts: Workout[]
+  feed: FeedItem[]
   done: boolean
 }
 
@@ -121,7 +111,7 @@ export default function Home({ userId, units, refreshToken, onOpenLog, onOpenCar
   const [profile, setProfile] = useState<ProfileData | null>(
     () => cache.get(userId)?.profile ?? null,
   )
-  const [workouts, setWorkouts] = useState<Workout[]>(() => cache.get(userId)?.workouts ?? [])
+  const [feed, setFeed] = useState<FeedItem[]>(() => cache.get(userId)?.feed ?? [])
   const [done, setDone] = useState(() => cache.get(userId)?.done ?? false)
   const [loading, setLoading] = useState(() => !cache.has(userId))
   const [loadError, setLoadError] = useState('')
@@ -130,10 +120,10 @@ export default function Home({ userId, units, refreshToken, onOpenLog, onOpenCar
 
   const load = useCallback(async () => {
     try {
-      const [mine, history] = await Promise.all([getProfile(), listWorkouts(PAGE)])
+      const [mine, events] = await Promise.all([getProfile(), listFeed()])
       setProfile(mine)
-      setWorkouts(history)
-      setDone(history.length < PAGE)
+      setFeed(events)
+      setDone(events.length < PAGE)
       setLoadError('')
     } catch (err) {
       setLoadError(errorText(err))
@@ -147,21 +137,21 @@ export default function Home({ userId, units, refreshToken, onOpenLog, onOpenCar
   }, [load, refreshToken])
 
   useEffect(() => {
-    if (profile) cache.set(userId, { profile, workouts, done })
-  }, [userId, profile, workouts, done])
+    if (profile) cache.set(userId, { profile, feed, done })
+  }, [userId, profile, feed, done])
 
   async function loadMore() {
-    const last = workouts[workouts.length - 1]
+    const last = feed[feed.length - 1]
     if (!last) return
     setMoreBusy(true)
     setMoreError('')
     try {
-      const next = await listWorkouts(PAGE, last.start_ts)
+      const next = await listFeed(last.start_ts)
       // The cursor is exclusive, so a repeat is not expected; filtering by id
       // anyway means a change under our feet cannot draw the same card twice.
-      setWorkouts((current) => {
-        const held = new Set(current.map((row) => row.id))
-        return [...current, ...next.filter((row) => !held.has(row.id))]
+      setFeed((current) => {
+        const held = new Set(current.map((row) => row.workout_id))
+        return [...current, ...next.filter((row) => !held.has(row.workout_id))]
       })
       if (next.length < PAGE) setDone(true)
     } catch (err) {
@@ -181,12 +171,16 @@ export default function Home({ userId, units, refreshToken, onOpenLog, onOpenCar
   }
 
   const streak = profile.streak_weeks ?? 0
-  const days = daysThisWeek(workouts)
-  const border = borderArt(profile.border_tier)
+  const days = daysThisWeek(feed)
   const week = weekTotals(profile)
   const activities = lifetimeWorkouts(profile)
-  const latest = workouts[0]
+  // The summary card is about this account, so the line under it names this
+  // account's last workout rather than whatever is at the top of the feed.
+  const mine = feed.find((item) => item.own)
   const raceCounts = raceCountsOf(profile.race_badges)
+  // Own growth stage, from the profile when the server puts it there and from
+  // this account's own feed row when it does not.
+  const flourish = profile.flourish ?? mine?.user.flourish ?? 0
 
   // Only the race medals among the chosen four are drawn here. This screen does
   // not fetch the achievement catalogue, so an achievement badge has no artwork
@@ -202,21 +196,18 @@ export default function Home({ userId, units, refreshToken, onOpenLog, onOpenCar
     <div className="home">
       <aside className="home-col home-left">
         <section className="card summary">
-          <div className="avatar-frame summary-frame">
-            {profile.has_avatar ? (
-              <img
-                className="avatar-shot"
-                src={avatarUrl(profile.user_id, profile.avatar_version)}
-                alt={`${profile.username}'s picture`}
-              />
-            ) : (
-              <span className="avatar-shot avatar-empty" aria-hidden="true">
-                {profile.username.slice(0, 1).toUpperCase()}
-              </span>
-            )}
-            {border && <img className="avatar-border" src={border} alt="" />}
+          <AvatarFrame
+            username={profile.username}
+            src={
+              profile.has_avatar ? avatarUrl(profile.user_id, profile.avatar_version) : null
+            }
+            borderTier={profile.border_tier}
+            flourish={flourish}
+            frameClass="summary-frame"
+            labelled
+          >
             <MedalNest items={nestMedals} />
-          </div>
+          </AvatarFrame>
 
           <h2 className="summary-name">{profile.username}</h2>
 
@@ -235,11 +226,11 @@ export default function Home({ userId, units, refreshToken, onOpenLog, onOpenCar
             </li>
           </ul>
 
-          {latest && (
+          {mine && (
             <p className="summary-latest">
               <span className="label">Latest activity</span>
               <span className="summary-latest-line">
-                {ACTIVITY_NAMES[latest.activity]}, {formatStart(latest.start_ts)}
+                {ACTIVITY_NAMES[mine.activity]}, {formatStart(mine.start_ts)}
               </span>
             </p>
           )}
@@ -340,68 +331,17 @@ export default function Home({ userId, units, refreshToken, onOpenLog, onOpenCar
           </p>
         )}
 
-        {workouts.length === 0 && !loadError && (
+        {feed.length === 0 && !loadError && (
           <p className="notice">Nothing recorded yet. Sync your phone or add a workout in Log.</p>
         )}
 
-        {workouts.map((workout) => (
-          <article className="card feed" key={workout.id}>
-            <header className="feed-head">
-              {profile.has_avatar ? (
-                <img
-                  className="feed-avatar"
-                  src={avatarUrl(profile.user_id, profile.avatar_version)}
-                  alt=""
-                />
-              ) : (
-                <span className="feed-avatar feed-avatar-empty" aria-hidden="true">
-                  {profile.username.slice(0, 1).toUpperCase()}
-                </span>
-              )}
-              <div className="feed-who">
-                <p className="feed-name">{profile.username}</p>
-                <p className="feed-when">{formatStart(workout.start_ts)}</p>
-                <p className="feed-source">{SOURCE_NAMES[workout.source]}</p>
-              </div>
-            </header>
-
-            <h2 className="feed-title">{ACTIVITY_NAMES[workout.activity]}</h2>
-
-            {workout.has_route && <RouteLine workoutId={workout.id} />}
-
-            <div className="stat-row">
-              <div className="stat">
-                <span className="label">Distance</span>
-                <span className="stat-value">
-                  {distanceValue(workout.distance_mi, units)}
-                  <span className="stat-unit">{unitName(units)}</span>
-                </span>
-              </div>
-              <div className="stat">
-                <span className="label">Pace</span>
-                <span className="stat-value">
-                  {formatPace(workout.activity, workout.distance_mi, workout.duration_s, units)}
-                </span>
-              </div>
-              <div className="stat">
-                <span className="label">Time</span>
-                <span className="stat-value">{formatClock(workout.duration_s)}</span>
-              </div>
-            </div>
-
-            {/* The strip along the bottom: what the workout was worth, and the
-                race badge it earned if it earned one. */}
-            {(workout.xp !== undefined || workout.race_badge) && (
-              <p className="feed-foot">
-                {workout.xp !== undefined && (
-                  <span className="feed-xp">+{convertedValue(workout.xp)} XP</span>
-                )}
-                {workout.race_badge && (
-                  <span className="feed-badge">{raceBadgeName(workout.race_badge)}</span>
-                )}
-              </p>
-            )}
-          </article>
+        {feed.map((item) => (
+          <FeedCard
+            key={item.workout_id}
+            item={item}
+            units={units}
+            avatarVersion={profile.avatar_version}
+          />
         ))}
 
         {moreError && (
@@ -410,7 +350,7 @@ export default function Home({ userId, units, refreshToken, onOpenLog, onOpenCar
           </p>
         )}
 
-        {workouts.length > 0 && !done && (
+        {feed.length > 0 && !done && (
           <button
             type="button"
             className="secondary"

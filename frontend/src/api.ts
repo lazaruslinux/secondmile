@@ -62,6 +62,55 @@ export interface WorkoutRoute {
   points: RoutePoint[]
 }
 
+// Somebody as they appear next to a workout or in a friends list: enough to draw
+// them and nothing else. No counts, no totals, nothing to compare against.
+export interface Person {
+  user_id: number
+  username: string
+  has_avatar: boolean
+  border_tier: number
+  // How far the border's growth has come, 0 to 3. Earned by encouraging other
+  // people, and the only outward sign of it: the number behind it is never sent.
+  flourish: number
+}
+
+// What a workout has been given, from everyone, plus whether this account is one
+// of them. Bodies are not here: words go to the person they were written for.
+export interface Encouragement {
+  cheers: number
+  notes: number
+  cheered_by_me: boolean
+}
+
+// One event in the feed: this account's workouts and its friends' together.
+// Friends' rows deliberately carry no pace-precision fields and no heart rate;
+// distance and time are the whole headline.
+export interface FeedItem {
+  workout_id: number
+  user: Person
+  activity: Activity
+  start_ts: string
+  distance_mi: number
+  duration_s: number
+  race_badge: string | null
+  has_route: boolean
+  source: Source
+  own: boolean
+  // Own rows only. What the workout was worth, in converted miles.
+  xp?: number
+  encouragement: Encouragement
+}
+
+// Mutual only: a friendship exists when one side asked and the other agreed.
+// Counts appear nowhere, here or anywhere else.
+export interface Friends {
+  friends: Person[]
+  pending_in: Person[]
+  pending_out: Person[]
+}
+
+export type EncouragementKind = 'cheer' | 'note'
+
 export interface ActivityTotals {
   distance_mi: number
   active_kcal: number
@@ -128,6 +177,10 @@ export interface Profile {
   xp_into_level: number
   xp_for_next_level: number
   border_tier: number
+  // How far this account's own border growth has come, 0 to 3. Optional: the
+  // stage is carried on every person in the feed, so a server that does not put
+  // it here as well simply leaves the profile's own frame plain.
+  flourish?: number
   // Achievement ids and earned race badge ids together, at most four.
   displayed_badges: string[]
   // All five race distances with their counts. Optional so the app still
@@ -224,6 +277,27 @@ export interface Album {
 // Everything that happened while the app was shut. The chests were dropped and
 // the badges were earned before anyone looked; this is the letter, not the
 // event.
+// One note somebody wrote. Read defensively: the sender's name and the words
+// are what matter, and every field is optional so a row missing one still
+// renders the rest of it.
+export interface RecapNote {
+  from_username?: string
+  username?: string
+  from?: string
+  body?: string
+  created_at?: string
+  workout_id?: number
+}
+
+// What arrived from other people since the last time the letter was read.
+// Cheers may come back as one number or as a row per workout, so both are
+// allowed for and the reader adds up whatever it was given.
+export interface RecapEncouragement {
+  notes?: RecapNote[]
+  cheers?: number | { cheers?: number; count?: number; workout_id?: number }[]
+  cheer_count?: number
+}
+
 export interface RecapState {
   since: string | null
   miles: number
@@ -232,6 +306,12 @@ export interface RecapState {
   // Race badges earned since the last time this was read. Optional, and each
   // entry may carry nothing but its id.
   race_badges?: RaceBadge[]
+  // Words and cheers received since the last read. Optional throughout.
+  encouragement?: RecapEncouragement
+  // Whether the border's growth moved on, and how far it got. Either may be
+  // absent; a stage on its own is read as a rise.
+  flourish_rose?: boolean
+  flourish_stage?: number
 }
 
 export class ApiError extends Error {
@@ -353,8 +433,50 @@ export function listWorkouts(limit: number, before?: string): Promise<Workout[]>
   return getJson<Workout[]>(`/workouts?limit=${limit}${cursor}`)
 }
 
-// Own workouts only. A workout with no stored route answers 404, which is the
-// ordinary case rather than a failure.
+// The home feed: this account's workouts and its accepted friends', newest
+// first. The cursor is the start_ts of the last row already shown, encoded for
+// the same reason the history's is.
+export function listFeed(before?: string): Promise<FeedItem[]> {
+  const cursor = before === undefined ? '' : `?before=${encodeURIComponent(before)}`
+  return getJson<FeedItem[]>(`/feed${cursor}`)
+}
+
+export function getFriends(): Promise<Friends> {
+  return getJson<Friends>('/friends')
+}
+
+// Answers the same whether the name belongs to anybody or not, so nothing here
+// can be used to find out who has an account.
+export async function inviteFriend(username: string): Promise<void> {
+  await sendJson('/friends/invite', 'POST', { username })
+}
+
+export async function acceptFriend(userId: number): Promise<void> {
+  await send(`/friends/${userId}/accept`, { method: 'POST' })
+}
+
+// Declining an invitation, taking one back, and ending a friendship are the
+// same act to the server, and there is one verb for all three.
+export async function removeFriend(userId: number): Promise<void> {
+  await send(`/friends/${userId}`, { method: 'DELETE' })
+}
+
+// A cheer carries no words and a note carries nothing but the ones typed into
+// it. A second cheer on the same workout answers 409, which means it is already
+// there rather than that anything went wrong.
+export async function encourage(
+  workoutId: number,
+  kind: EncouragementKind,
+  body?: string,
+): Promise<void> {
+  await sendJson(`/workouts/${workoutId}/encourage`, 'POST', {
+    kind,
+    ...(body === undefined ? {} : { body }),
+  })
+}
+
+// This account's workouts and its accepted friends'. A workout with no stored
+// route answers 404, which is the ordinary case rather than a failure.
 export function getWorkoutRoute(workoutId: number): Promise<WorkoutRoute> {
   return getJson<WorkoutRoute>(`/workouts/${workoutId}/route`)
 }

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app import achievements, models, progress, security, world
+from app import achievements, fellowship, models, progress, security, world
 from app.activity import converted_miles
 from app.db import get_db
 
@@ -191,17 +191,85 @@ def read_recap(
         ).all()
     )
 
+    # Ordered as the letter reads: the miles, then what people said about them,
+    # then the medals, the achievements, and the chests still waiting.
     return {
         "since": since.isoformat() if since is not None else None,
         "miles": round(miles, 2),
-        "chests": [_chest(chest) for chest in _pending(db, user.id, MAX_RECAP)],
+        "encouragement": _received(db, user.id, since),
+        "race_badges": _fresh_race_badges(db, user.id, since),
         "achievements": [
             achievements.serialize(achievements.BY_ID[held.achievement_id], held)
             for held in fresh
             if held.achievement_id in achievements.BY_ID
         ],
-        "race_badges": _fresh_race_badges(db, user.id, since),
+        "chests": [_chest(chest) for chest in _pending(db, user.id, MAX_RECAP)],
+        **_flourish(db, user.id, row, since),
     }
+
+
+def _received(db: Session, user_id: int, since: dt.datetime | None) -> dict:
+    """What friends said since the last recap was cleared.
+
+    Notes arrive whole, with the name of whoever wrote them, because a note is
+    the point of the whole feature and a summary of one is worth nothing.
+    Cheers are wordless, so they are counted per workout instead.
+    """
+    stmt = select(models.Encouragement).where(models.Encouragement.to_user_id == user_id)
+    if since is not None:
+        stmt = stmt.where(models.Encouragement.created_at > since)
+    # Capped like the chests are, and for the same reason: a letter is read in
+    # one sitting. Somebody who comes back to more than this has a very good
+    # week's worth either way.
+    rows = list(
+        db.execute(stmt.order_by(models.Encouragement.created_at).limit(MAX_RECAP)).scalars()
+    )
+    senders = {
+        sender_id: username
+        for sender_id, username in db.execute(
+            select(models.User.id, models.User.username).where(
+                models.User.id.in_({row.from_user_id for row in rows})
+            )
+        ).all()
+    }
+
+    cheers: dict[int, int] = {}
+    notes = []
+    for row in rows:
+        if row.kind == "cheer":
+            cheers[row.workout_id] = cheers.get(row.workout_id, 0) + 1
+            continue
+        notes.append(
+            {
+                "workout_id": row.workout_id,
+                "from_user_id": row.from_user_id,
+                "username": senders.get(row.from_user_id, ""),
+                "body": row.body or "",
+                "created_at": row.created_at.isoformat(),
+            }
+        )
+    return {
+        "cheers": [
+            {"workout_id": workout_id, "count": count}
+            for workout_id, count in sorted(cheers.items())
+        ],
+        "cheer_count": sum(cheers.values()),
+        "notes": notes,
+    }
+
+
+def _flourish(
+    db: Session, user_id: int, row: models.UserProgress, since: dt.datetime | None
+) -> dict:
+    """The flourish stage, and whether it grew since the last recap.
+
+    Worked out by taking back the renown earned since that moment rather than
+    by storing the old stage, so nothing has to be written down to answer it.
+    The renown itself never leaves this function.
+    """
+    stage = fellowship.flourish_stage(row.renown)
+    before = fellowship.flourish_stage(row.renown - fellowship.renown_since(db, user_id, since))
+    return {"flourish_stage": stage, "flourish_rose": stage > before}
 
 
 def _fresh_race_badges(db: Session, user_id: int, since: dt.datetime | None) -> list[dict]:

@@ -9,11 +9,13 @@ from sqlalchemy import (
     Enum,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     TypeDecorator,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy import JSON as JSONType
 from sqlalchemy.orm import Mapped, mapped_column
@@ -57,6 +59,8 @@ class UtcDateTime(TypeDecorator):
 # of those later is a migration chore out of all proportion to the benefit.
 ActivityEnum = Enum(*ACTIVITIES, name="activity", native_enum=False)
 SourceEnum = Enum("sync", "manual", name="workout_source", native_enum=False)
+FriendshipEnum = Enum("pending", "accepted", name="friendship_status", native_enum=False)
+EncouragementEnum = Enum("cheer", "note", name="encouragement_kind", native_enum=False)
 
 
 class User(Base):
@@ -244,6 +248,10 @@ class UserProgress(Base):
     # it is what the recap has to tell them about. Null means they have never
     # acknowledged one, so everything counts.
     last_ack_at: Mapped[dt.datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    # Earned by encouraging other people, never by being encouraged. It is not
+    # a score anybody sees: no response carries the number, and the only thing
+    # it drives is which flourish grows on the avatar's border.
+    renown: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     updated_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
 
 
@@ -327,3 +335,67 @@ class UserCard(Base):
     card_id: Mapped[str] = mapped_column(_CATALOG_ID, primary_key=True)
     count: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     first_found_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
+
+
+class Friendship(Base):
+    __tablename__ = "friendships"
+    # One row per direction asked in, so the invite keeps the memory of who
+    # asked. A pair is friends when an accepted row exists either way round,
+    # which is why nothing here reads a single "friend of" column.
+    __table_args__ = (
+        UniqueConstraint("requester_id", "addressee_id", name="uq_friendship"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    requester_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    addressee_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    status: Mapped[str] = mapped_column(FriendshipEnum, nullable=False, default="pending")
+    created_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
+    # Null while the invite is still waiting.
+    responded_at: Mapped[dt.datetime | None] = mapped_column(UtcDateTime, nullable=True)
+
+
+class Encouragement(Base):
+    __tablename__ = "encouragements"
+    __table_args__ = (
+        # One cheer per person per workout, enforced by the database rather than
+        # by a read-then-write. Partial because notes have no such limit: a
+        # conversation is allowed to be longer than one line. Both databases
+        # take a partial unique index, and the tests run the SQLite spelling.
+        Index(
+            "uq_encouragement_cheer",
+            "workout_id",
+            "from_user_id",
+            unique=True,
+            postgresql_where=text("kind = 'cheer'"),
+            sqlite_where=text("kind = 'cheer'"),
+        ),
+        # The renown window: the newest earning row for one pair and one kind.
+        Index("ix_encouragement_pair", "from_user_id", "to_user_id", "kind", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workout_id: Mapped[int] = mapped_column(
+        ForeignKey("workouts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    from_user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # The workout's owner, kept here as well so the recap can find everything
+    # said to one person without joining the whole history to do it.
+    to_user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    kind: Mapped[str] = mapped_column(EncouragementEnum, nullable=False)
+    # Plain text, and only ever typed by a person: nothing in this app suggests
+    # a phrase to send. Null for a cheer, which is wordless by design.
+    body: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # Whether this one paid its giver any renown. Stored rather than worked out
+    # again later so the seven day window is one indexed lookup, and so a
+    # deleted or replayed row can never pay twice.
+    earned_renown: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)

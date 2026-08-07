@@ -16,7 +16,7 @@ from starlette.formparsers import MultiPartException
 
 from app import achievements
 from app import activity as activity_rules
-from app import avatars, models, progress, security, throttle, world
+from app import avatars, fellowship, models, progress, security, throttle, world
 from app.config import MAX_AVATAR_BYTES, MAX_DIAMOND_SPORTS, MAX_DISPLAYED_BADGES
 from app.db import get_db
 from app.models import ACTIVITIES
@@ -61,6 +61,10 @@ def serialize_profile(db: Session, user: models.User, row: models.UserProgress) 
         "xp_into_level": round(into_level, 2),
         "xp_for_next_level": round(level_span, 2),
         "border_tier": progress.border_tier(level),
+        # The stage only, never the renown behind it: every avatar frame draws
+        # this, including your own, and the number is not something the game
+        # shows anybody.
+        "flourish": fellowship.flourish_stage(row.renown),
         "displayed_badges": list(user.displayed_badges or []),
         "race_badges": achievements.badge_summary(db, user.id, "race"),
         # The effective list, never the stored one: the client renders diamonds

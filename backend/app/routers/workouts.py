@@ -9,13 +9,14 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app import activity as activity_rules
-from app import models, progress, security, throttle
+from app import fellowship, models, progress, security, throttle
 from app.config import (
     MAX_WORKOUT_DISTANCE_MI,
     MAX_WORKOUT_DURATION_S,
     MAX_WORKOUT_HR,
     MAX_WORKOUT_KCAL,
     MIN_WORKOUT_HR,
+    NOTE_MAX_CHARS,
 )
 from app.db import get_db
 from app.models import ACTIVITIES
@@ -51,7 +52,7 @@ def _serialize(
     }
 
 
-def _race_badges(db: Session, workouts: list[models.Workout]) -> dict[int, str]:
+def race_badges_for(db: Session, workouts: list[models.Workout]) -> dict[int, str]:
     """Which of these workouts earned a race badge, keyed by workout id."""
     ids = [row.id for row in workouts]
     if not ids:
@@ -65,7 +66,7 @@ def _race_badges(db: Session, workouts: list[models.Workout]) -> dict[int, str]:
     )
 
 
-def _routed(db: Session, workouts: list[models.Workout]) -> set[int]:
+def routes_for(db: Session, workouts: list[models.Workout]) -> set[int]:
     """Which of these workouts have a stored route line. One query for the page."""
     ids = [row.id for row in workouts]
     if not ids:
@@ -169,10 +170,10 @@ def create_workout(
     # included.
     progress.process_user(db, user.id)
     # No route: a workout typed into a form never carried a trace.
-    return _serialize(workout, _race_badges(db, [workout]).get(workout.id))
+    return _serialize(workout, race_badges_for(db, [workout]).get(workout.id))
 
 
-def _parse_cursor(before: str) -> dt.datetime:
+def parse_cursor(before: str) -> dt.datetime:
     """The paging cursor, which is the start_ts of the last row of the page.
 
     The second attempt exists because a timestamp carrying a "+00:00" offset has
@@ -198,15 +199,15 @@ def list_workouts(
 ) -> list[dict]:
     stmt = select(models.Workout).where(models.Workout.user_id == user.id)
     if before:
-        cutoff = _parse_cursor(before)
+        cutoff = parse_cursor(before)
         stmt = stmt.where(models.Workout.start_ts < cutoff)
     # Ordered by id as well as time so that two workouts sharing a start time
     # keep a stable order between pages; without it, paging can show one twice
     # and skip another.
     stmt = stmt.order_by(models.Workout.start_ts.desc(), models.Workout.id.desc()).limit(limit)
     rows = list(db.execute(stmt).scalars())
-    badges = _race_badges(db, rows)
-    routed = _routed(db, rows)
+    badges = race_badges_for(db, rows)
+    routed = routes_for(db, rows)
     return [_serialize(row, badges.get(row.id), row.id in routed) for row in rows]
 
 
@@ -216,22 +217,90 @@ def workout_route(
     db: Session = Depends(get_db),
     user: models.User = Depends(security.current_user),
 ) -> dict:
-    """The stored line for one of your own workouts.
+    """The stored line for your own workout, or an accepted friend's.
 
     Fetched on its own rather than with the history because a card only needs it
-    once it is on screen. The join on the owner is what keeps it yours: a route
-    is a map of where somebody has been, so the same 404 answers a workout that
-    has no line, a workout that does not exist, and a workout belonging to
-    somebody else. Nothing here tells a caller which of the three it was.
+    once it is on screen. A route is a map of where somebody has been, so the
+    reach is exactly the feed's: yours, and the people you have both agreed to.
+    The same 404 answers a workout with no line, a workout that does not exist,
+    and a stranger's. Nothing here says which of the three it was.
     """
-    points = db.execute(
-        select(models.WorkoutRoute.points)
+    row = db.execute(
+        select(models.WorkoutRoute.points, models.Workout.user_id)
         .join(models.Workout, models.Workout.id == models.WorkoutRoute.workout_id)
-        .where(models.WorkoutRoute.workout_id == workout_id, models.Workout.user_id == user.id)
-    ).scalar_one_or_none()
-    if points is None:
+        .where(models.WorkoutRoute.workout_id == workout_id)
+    ).first()
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No route for that workout.")
+    points, owner_id = row
+    if owner_id != user.id and not fellowship.are_friends(db, user.id, owner_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No route for that workout.")
     return {"points": points}
+
+
+class EncourageBody(BaseModel):
+    kind: str
+    body: str | None = None
+
+
+@router.post("/{workout_id}/encourage", status_code=status.HTTP_201_CREATED)
+def encourage(
+    workout_id: int,
+    body: EncourageBody,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(security.current_user),
+) -> dict:
+    """Cheer a friend's workout, or write them a note about it.
+
+    Only a friend's, and never your own: this is the one place the game asks
+    something of a person rather than of their miles, and applauding yourself
+    is not it. A cheer is wordless on purpose and a note is typed by whoever
+    sends it. Nothing here suggests either one.
+    """
+    if throttle.encourage_limiter.hit(throttle.client_address(request)):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many. Wait a minute.")
+    if body.kind not in ("cheer", "note"):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Kind must be cheer or note.")
+
+    workout = db.get(models.Workout, workout_id)
+    if workout is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such workout.")
+    if workout.user_id == user.id:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "You cannot encourage your own workout."
+        )
+    if not fellowship.are_friends(db, user.id, workout.user_id):
+        # The same answer a workout that does not exist gets: whose feed an id
+        # belongs to is not something a stranger gets to learn by asking.
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such workout.")
+
+    note = None
+    if body.kind == "note":
+        note = (body.body or "").strip()
+        if not note:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "A note needs something in it.")
+        if len(note) > NOTE_MAX_CHARS:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                f"A note can be at most {NOTE_MAX_CHARS} characters.",
+            )
+
+    try:
+        fellowship.give(db, user.id, workout, body.kind, note)
+    except IntegrityError:
+        # The partial unique index. One cheer each, and the second one is told
+        # so rather than quietly counted again.
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "You have already cheered that workout."
+        ) from None
+
+    return {
+        "workout_id": workout.id,
+        "kind": body.kind,
+        # Handed back so the card can settle without fetching the page again.
+        "encouragement": fellowship.counts(db, [workout.id], user.id)[workout.id],
+    }
 
 
 @router.get("/weeks")

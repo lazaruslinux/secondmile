@@ -100,6 +100,14 @@ workout_limiter = RateLimiter(30, "workout")
 # secret it checks, and without one the endpoint is a place to guess tokens at
 # whatever rate the network allows.
 verify_limiter = RateLimiter(10, "verify")
+# Asking to be somebody's friend. Roomy enough to add a family in one sitting,
+# tight enough that nobody walks the username space with it: the endpoint
+# answers the same way whoever it is asked about, and this is what stops the
+# timing of a thousand attempts saying anything either.
+invite_limiter = RateLimiter(10, "invite")
+# Cheering and writing notes. The most generous of the lot, because reading a
+# morning's feed and answering all of it is the behaviour this app is for.
+encourage_limiter = RateLimiter(30, "encourage")
 
 _ALL_LIMITERS = (
     login_limiter,
@@ -110,6 +118,8 @@ _ALL_LIMITERS = (
     avatar_limiter,
     workout_limiter,
     verify_limiter,
+    invite_limiter,
+    encourage_limiter,
 )
 
 
