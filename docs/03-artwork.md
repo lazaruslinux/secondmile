@@ -188,23 +188,34 @@ thirty nine files:
 | Growing | `-s2` | Half way to full size or better |
 | Grown | `-s3` | Full size, and the only stage that bears fruit |
 
+The mustard is the one that reads its stage differently. It has no maturity: it
+levels, one level per hundred converted miles, and keeps going. Its three files
+are read by level rather than by growth, so draw them as the parable does, a
+plant, then a shrub, then a tree:
+
+| Level | File | What it shows |
+| --- | --- | --- |
+| 0 | `mustard-s1.svg` | A plant, the first hundred miles |
+| 1 | `mustard-s2.svg` | A shrub |
+| 2 and up | `mustard-s3.svg` | A tree, and it stays the tree |
+
 The species and the file each one reads:
 
-| Species | Files |
-| --- | --- |
-| Strawberry | `strawberry-s1.svg`, `-s2`, `-s3` |
-| Tomato | `tomato-s1.svg`, `-s2`, `-s3` |
-| Mint | `mint-s1.svg`, `-s2`, `-s3` |
-| Grapevine | `grapevine-s1.svg`, `-s2`, `-s3` |
-| Blackberry | `blackberry-s1.svg`, `-s2`, `-s3` |
-| Fig bush | `fig-bush-s1.svg`, `-s2`, `-s3` |
-| Coffee | `coffee-s1.svg`, `-s2`, `-s3` |
-| Olive | `olive-s1.svg`, `-s2`, `-s3` |
-| Pomegranate | `pomegranate-s1.svg`, `-s2`, `-s3` |
-| Apple | `apple-s1.svg`, `-s2`, `-s3` |
-| Banana | `banana-s1.svg`, `-s2`, `-s3` |
-| Mango | `mango-s1.svg`, `-s2`, `-s3` |
-| Mustard | `mustard-s1.svg`, `-s2`, `-s3` |
+| Species | Rarity | Files |
+| --- | --- | --- |
+| Strawberry bush | Common | `strawberry-s1.svg`, `-s2`, `-s3` |
+| Banana tree | Common | `banana-s1.svg`, `-s2`, `-s3` |
+| Raspberry bush | Common | `raspberry-s1.svg`, `-s2`, `-s3` |
+| Blueberry bush | Common | `blueberry-s1.svg`, `-s2`, `-s3` |
+| Blackberry bush | Uncommon | `blackberry-s1.svg`, `-s2`, `-s3` |
+| Mango tree | Uncommon | `mango-s1.svg`, `-s2`, `-s3` |
+| Grapevine | Uncommon | `grapevine-s1.svg`, `-s2`, `-s3` |
+| Fig bush | Uncommon | `fig-bush-s1.svg`, `-s2`, `-s3` |
+| Olives | Rare | `olive-s1.svg`, `-s2`, `-s3` |
+| Dates | Rare | `dates-s1.svg`, `-s2`, `-s3` |
+| Coffee | Rare | `coffee-s1.svg`, `-s2`, `-s3` |
+| Pomegranate | Rare | `pomegranate-s1.svg`, `-s2`, `-s3` |
+| Mustard | Rare | `mustard-s1.svg`, `-s2`, `-s3` |
 
 The species ids are in `backend/app/species.py`. An id written with an
 underscore reads as a hyphen here, so `fig_bush` is `fig-bush-s1.svg`. A species
@@ -218,15 +229,15 @@ missing file costs a picture rather than a screen.
   the same height in all thirty nine files. The placeholder art puts it at 58
   in a 64 by 64 viewBox.
 - **Scale is the story.** The three stages are read side by side down the plot
-  and along the band on the profile, and a grown apple tree standing next to a
+  and along the band on the profile, and a grown olive tree standing next to a
   seedling is how growth shows. Make each stage plainly bigger than the last,
-  and let a rare tree tower over a common herb.
+  and let a rare tree tower over a common bush.
 - **They are drawn small.** Roughly 88 pixels tall in the plot, 36 to 52 in the
   band across the top of the profile, and 44 in the satchel and a chest reveal.
   Silhouettes read at that size; fine detail does not.
 - **Distinct at a glance.** Thirteen species share one plot, so shape carries
   more than colour: a vine on a wire, an arching bramble, a flat olive crown, a
-  round apple crown, banana paddles.
+  round pomegranate crown, banana paddles, a date palm's bare trunk and fronds.
 
 ## Profile pictures
 

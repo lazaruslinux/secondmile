@@ -394,7 +394,7 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
                   key={row.id}
                   className={row.mature ? 'band-plant band-plant-grown' : 'band-plant'}
                 >
-                  <PlantArt species={row.species} stage={plantStage(row)} />
+                  <PlantArt species={row.species} name={row.name} stage={plantStage(row)} />
                 </li>
               ))}
             </ul>

@@ -50,7 +50,7 @@ export default function ChestItem({ item, onPlanted }: Props) {
       {/* A seed is drawn as what it grows into. Water and oil have nothing to
           draw, so nothing is drawn for them. */}
       {seed && item.species !== null && (
-        <PlantArt species={item.species} stage={1} className="item-thumb" />
+        <PlantArt species={item.species} name={item.name} stage={1} className="item-thumb" />
       )}
 
       <div className="item-body">
@@ -58,6 +58,9 @@ export default function ChestItem({ item, onPlanted }: Props) {
         <p className="hint item-line">
           {seed ? seedLine : (KIND_LINES[item.kind] ?? 'In your satchel.')}
         </p>
+        {/* The one species with a rule of its own says it here, and the app
+            explains nothing else about it anywhere. */}
+        {item.reveal && <p className="hint item-line">{item.reveal}</p>}
 
         {seed && !planted && (
           <button type="button" className="secondary" disabled={busy} onClick={() => void plant()}>

@@ -5,7 +5,10 @@ import type { Planting } from './api.ts'
 
 // Which of the three drawings a planting is at: a seedling, something growing,
 // or the grown thing. Half way to maturity is where the middle picture starts.
+// A plant that levels reads its stage off the level instead and stops at the
+// last drawing it has, however far past it the levels go.
 export function plantStage(planting: Planting): number {
+  if (planting.level != null) return Math.min(3, planting.level + 1)
   if (planting.mature) return 3
   const maturity = planting.maturity_mi
   if (!(maturity > 0)) return 1

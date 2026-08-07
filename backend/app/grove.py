@@ -23,13 +23,44 @@ _SEEDLING_FRACTION = 1.0 / 3.0
 
 
 def maturity_mi(species_id: str) -> float:
-    """What one species costs to grow, in converted Miles."""
+    """What one species costs to grow, in converted Miles. Zero for anything
+    that never matures."""
     row = species.BY_ID.get(species_id)
     return row.maturity_mi if row is not None else 0.0
 
 
+def level_step_mi(species_id: str) -> float:
+    """What one level costs a species that levels, and zero for the rest."""
+    row = species.BY_ID.get(species_id)
+    return row.level_mi if row is not None else 0.0
+
+
+def level_of(row: models.Planting) -> int | None:
+    """Which level a levelling planting has reached, counting from zero and
+    never stopping. None for everything that matures instead."""
+    step = level_step_mi(row.species)
+    if step <= 0:
+        return None
+    return int(row.growth_mi // step)
+
+
+def growth_fraction(row: models.Planting) -> float:
+    """How full the bar is: toward maturity, or through the level it is in."""
+    step = level_step_mi(row.species)
+    if step > 0:
+        return round((row.growth_mi % step) / step, 4)
+    target = maturity_mi(row.species)
+    if target <= 0:
+        return 1.0
+    return round(min(row.growth_mi / target, 1.0), 4)
+
+
 def stage(row: models.Planting) -> int:
     """Which of the three drawings a planting is at, from 1 to 3."""
+    level = level_of(row)
+    if level is not None:
+        # Plant, shrub, tree. It keeps levelling past the last drawing.
+        return min(3, level + 1)
     target = maturity_mi(row.species)
     if target <= 0 or row.growth_mi + 1e-9 >= target:
         return 3
@@ -158,6 +189,8 @@ def serialize_item(row: models.SatchelItem) -> dict:
         # Null for water and oil, which are the same wherever they came from.
         "name": kind.name if kind is not None else None,
         "rarity": row.rarity,
+        # The one species with something about it to explain says it here.
+        "reveal": kind.reveal or None if kind is not None else None,
         "acquired_at": row.acquired_at.isoformat(),
     }
 
@@ -167,6 +200,7 @@ def serialize_planting(row: models.Planting) -> dict:
     kind = species.BY_ID.get(row.species)
     target = maturity_mi(row.species)
     grown = row.matured_at is not None
+    level = level_of(row)
     return {
         "id": row.id,
         "species": row.species,
@@ -174,12 +208,17 @@ def serialize_planting(row: models.Planting) -> dict:
         "rarity": row.rarity,
         "planted_at": row.planted_at.isoformat(),
         "growth_mi": round(row.growth_mi, 2),
+        # Zero for anything that levels rather than maturing.
         "maturity_mi": target,
         # The bar, already worked out, and never past full.
-        "growth": round(min(row.growth_mi / target, 1.0), 4) if target > 0 else 1.0,
+        "growth": growth_fraction(row),
         "stage": stage(row),
         "mature": grown,
         "matured_at": row.matured_at.isoformat() if grown else None,
+        # Null for everything that matures. A levelling planting counts levels
+        # instead and never reads as grown.
+        "level": level,
+        "level_mi": level_step_mi(row.species) if level is not None else None,
         # What it will bear when fruit arrives. Nothing bears anything yet.
         "produce": kind.produce if kind is not None else None,
     }
@@ -194,13 +233,12 @@ def serialize_for_friend(row: models.Planting) -> dict:
     a page of somebody's statistics.
     """
     kind = species.BY_ID.get(row.species)
-    target = maturity_mi(row.species)
     return {
         "id": row.id,
         "species": row.species,
         "name": kind.name if kind is not None else row.species,
         "rarity": row.rarity,
-        "growth": round(min(row.growth_mi / target, 1.0), 4) if target > 0 else 1.0,
+        "growth": growth_fraction(row),
         "stage": stage(row),
         "mature": row.matured_at is not None,
     }

@@ -46,10 +46,11 @@ export function raceBadgeName(id: string): string {
   return RACE_BADGE_NAMES[id] ?? id
 }
 
-// Species ids are words with an underscore or a hyphen between them, so the
-// name on screen is the id tidied up rather than a list to keep in step with
-// the server's. A species this build has never heard of still reads properly.
-export function speciesName(species: string): string {
+// The server names every species it sends, so a rename there is a rename here
+// with nothing to keep in step. Where a name is missing the id is tidied up
+// instead, which is enough for a species this build has never heard of.
+export function speciesName(species: string, name?: string | null): string {
+  if (name) return name
   const words = species.replace(/[_-]+/g, ' ').trim()
   return words === '' ? 'Plant' : words.slice(0, 1).toUpperCase() + words.slice(1)
 }
@@ -76,7 +77,9 @@ const KIND_NAMES: Record<ItemKind, string> = {
 // What one thing in the satchel is called. A seed is named after what it grows
 // into, since that is the whole of what it is.
 export function itemName(item: SatchelItem): string {
-  if (item.kind === 'seed' && item.species) return `${speciesName(item.species)} seed`
+  if (item.kind === 'seed' && item.species) {
+    return `${speciesName(item.species, item.name)} seed`
+  }
   return KIND_NAMES[item.kind] ?? item.kind
 }
 

@@ -44,10 +44,17 @@ const ANOINTED = 'Done. Nothing is said to them.'
 // of the row says how far along it is in words.
 const STAGE_WORDS = ['Seedling', 'Growing']
 
-// Whether a friend's plant can still take water. Either field may be missing,
-// so both are read and anything already grown is left out.
+// Whether a friend's plant can still take water. Anything grown is left out;
+// a plant that levels rather than maturing never is, however big it is drawn.
 function friendGrowing(row: FriendPlanting): boolean {
-  return row.mature !== true && (row.stage ?? 1) < 3
+  return row.mature !== true
+}
+
+// How far along one planting is, in the words its own kind uses: a level for
+// anything that levels, and miles toward maturity for the rest.
+function growthLine(row: Planting): string {
+  if (row.level != null) return `Level ${row.level}`
+  return `${convertedValue(row.growth_mi)} of ${convertedValue(row.maturity_mi)} mi`
 }
 
 interface Cached {
@@ -182,15 +189,15 @@ export default function Grove({ userId }: Props) {
     ...growing.map((row) => ({
       id: row.id,
       group: 'You',
-      label: speciesName(row.species),
-      detail: `${convertedValue(row.growth_mi)} of ${convertedValue(row.maturity_mi)} mi`,
+      label: speciesName(row.species, row.name),
+      detail: growthLine(row),
     })),
     ...friendPlots.flatMap(([person, plot]) =>
       plot.filter(friendGrowing).map((row) => ({
         id: row.id,
         group: person.username,
-        label: speciesName(row.species),
-        detail: STAGE_WORDS[(row.stage ?? 1) - 1] ?? STAGE_WORDS[0],
+        label: speciesName(row.species, row.name),
+        detail: STAGE_WORDS[(row.stage ?? 1) - 1] ?? 'Growing',
       })),
     ),
   ]
@@ -229,23 +236,30 @@ export default function Grove({ userId }: Props) {
           <ul className="plot">
             {plantings.map((row) => {
               const stage = plantStage(row)
+              // A plant that levels fills its bar over and over, one level at
+              // a time; the rest fill theirs once, on the way to maturity.
+              const step = row.level != null ? (row.level_mi ?? 0) : row.maturity_mi
+              const into =
+                row.level != null && row.level_mi
+                  ? row.growth_mi - row.level * row.level_mi
+                  : Math.min(row.growth_mi, row.maturity_mi)
+              const line = growthLine(row)
               return (
                 <li key={row.id} className="plant">
-                  <PlantArt species={row.species} stage={stage} className="plant-picture" />
-                  <p className="plant-name">{speciesName(row.species)}</p>
+                  <PlantArt
+                    species={row.species}
+                    name={row.name}
+                    stage={stage}
+                    className="plant-picture"
+                  />
+                  <p className="plant-name">{speciesName(row.species, row.name)}</p>
                   {/* A progress element rather than a div with a width on it:
                       the content security policy allows no inline styles, and
                       this one reads correctly to a screen reader as well. */}
-                  <progress
-                    className="xp-meter"
-                    value={Math.min(row.growth_mi, row.maturity_mi)}
-                    max={row.maturity_mi > 0 ? row.maturity_mi : 1}
-                  >
-                    {convertedValue(row.growth_mi)} of {convertedValue(row.maturity_mi)}
+                  <progress className="xp-meter" value={into} max={step > 0 ? step : 1}>
+                    {line}
                   </progress>
-                  <p className="plant-growth">
-                    {convertedValue(row.growth_mi)} of {convertedValue(row.maturity_mi)} mi
-                  </p>
+                  <p className="plant-growth">{line}</p>
                   {row.mature && (
                     <p className="plant-ready">Fully grown. It waits here to bear fruit.</p>
                   )}
@@ -284,7 +298,12 @@ export default function Grove({ userId }: Props) {
                     {/* A seed is drawn as what it grows into. Water and oil
                         have nothing to draw, so nothing is drawn for them. */}
                     {item.kind === 'seed' && item.species !== null && (
-                      <PlantArt species={item.species} stage={1} className="satchel-thumb" />
+                      <PlantArt
+                        species={item.species}
+                        name={item.name}
+                        stage={1}
+                        className="satchel-thumb"
+                      />
                     )}
                     <span className="satchel-name">
                       {itemName(item)}

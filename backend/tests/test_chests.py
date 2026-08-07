@@ -170,12 +170,16 @@ def test_the_first_chest_an_account_opens_holds_the_mustard_seed(
     body = signed_in.post(f"/api/chests/{first.id}/open").json()
     assert body["species"] == "mustard"
     assert body["kind"] == "seed"
-    # Nothing anywhere says it is unusual: it is a rare seed like any other.
+    # It rolls in the rare slot like any other seed there.
     assert body["rarity"] == "rare"
+    # The one rule the game explains, said here and nowhere else.
+    assert body["reveal"] == "You will only ever receive one."
 
     # And never again, however many chests follow.
     later = [open_one(signed_in, db_session, member.id) for _ in range(6)]
     assert all(row["species"] != "mustard" for row in later)
+    # Nothing else has a word to say about itself.
+    assert all(row["reveal"] is None for row in later)
 
 
 def test_opening_a_chest_puts_the_item_in_the_satchel(signed_in, db_session, member):
@@ -183,7 +187,7 @@ def test_opening_a_chest_puts_the_item_in_the_satchel(signed_in, db_session, mem
     body = signed_in.post(f"/api/chests/{chest.id}/open").json()
     # The item itself, in the shape the satchel lists it in, and the tier.
     assert set(body) == {
-        "id", "kind", "species", "name", "rarity", "acquired_at", "tier", "tier_id"
+        "id", "kind", "species", "name", "rarity", "reveal", "acquired_at", "tier", "tier_id"
     }
     assert (body["tier"], body["tier_id"]) == ("Marathon", "marathon")
 

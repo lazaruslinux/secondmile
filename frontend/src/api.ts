@@ -242,7 +242,12 @@ export interface SatchelItem {
   id: number
   kind: ItemKind
   species: string | null
+  // What the species is called on screen. Null for water and oil.
+  name: string | null
   rarity: Rarity
+  // The one line a species has to explain about itself, said at the reveal.
+  // Null for all but one of them.
+  reveal?: string | null
   acquired_at: string
 }
 
@@ -251,11 +256,17 @@ export interface SatchelItem {
 export interface Planting {
   id: number
   species: string
+  name: string
   rarity: Rarity
   planted_at: string
   growth_mi: number
+  // Zero for anything that levels instead of maturing.
   maturity_mi: number
   mature: boolean
+  // A plant that levels counts them from zero and never stops; level_mi is
+  // what one of them costs. Null for everything that matures.
+  level?: number | null
+  level_mi?: number | null
 }
 
 // A friend's plot, which is theirs to grow and only ours to water. Enough to
@@ -263,6 +274,7 @@ export interface Planting {
 export interface FriendPlanting {
   id: number
   species: string
+  name?: string
   // 1 seedling, 2 growing, 3 grown. Read defensively: either field may be
   // missing, and a plant already grown takes no more water.
   stage?: number

@@ -90,7 +90,7 @@ def test_the_satchel_lists_what_is_waiting_and_nothing_spent(signed_in, db_sessi
     assert len(rows) == 1
     assert rows[0]["kind"] == "seed"
     assert rows[0]["species"] == "olive"
-    assert rows[0]["name"] == "Olive"
+    assert rows[0]["name"] == "Olives"
     assert rows[0]["rarity"] == "rare"
 
 
@@ -119,7 +119,7 @@ def test_planting_a_seed_puts_it_in_the_ground(signed_in, db_session, member):
 
 
 def test_a_seed_cannot_be_planted_twice(signed_in, db_session, member):
-    item = give_item(db_session, member.id, "seed", "mint")
+    item = give_item(db_session, member.id, "seed", "blueberry")
     assert signed_in.post(f"/api/satchel/{item.id}/plant").status_code == 201
     assert signed_in.post(f"/api/satchel/{item.id}/plant").status_code == 404
     assert len(signed_in.get("/api/grove").json()) == 1
@@ -128,7 +128,7 @@ def test_a_seed_cannot_be_planted_twice(signed_in, db_session, member):
 def test_somebody_elses_item_answers_like_one_that_never_existed(
     signed_in, db_session, admin, member
 ):
-    theirs = give_item(db_session, admin.id, "seed", "mint")
+    theirs = give_item(db_session, admin.id, "seed", "blueberry")
     mine = signed_in.post(f"/api/satchel/{theirs.id}/plant")
     missing = signed_in.post("/api/satchel/999999/plant")
     assert mine.status_code == missing.status_code == 404
@@ -148,7 +148,7 @@ def test_an_item_only_does_its_own_verb(signed_in, db_session, member, mate):
         ).status_code
         == 400
     )
-    seed = give_item(db_session, member.id, "seed", "mint")
+    seed = give_item(db_session, member.id, "seed", "blueberry")
     assert (
         signed_in.post(
             f"/api/satchel/{seed.id}/pour", json={"planting_id": planting.id}
@@ -164,7 +164,7 @@ def test_an_item_only_does_its_own_verb(signed_in, db_session, member, mate):
 
 def test_pouring_water_grows_one_chosen_planting(signed_in, db_session, member):
     chosen = give_planting(db_session, member.id, "strawberry")
-    other = give_planting(db_session, member.id, "tomato")
+    other = give_planting(db_session, member.id, "raspberry")
     item = give_item(db_session, member.id, "water")
 
     body = signed_in.post(f"/api/satchel/{item.id}/pour", json={"planting_id": chosen.id})
@@ -250,7 +250,7 @@ def test_a_second_pour_on_the_same_friend_still_grows_but_earns_nothing(
 def test_a_friends_grown_plant_refuses_water_too(signed_in, db_session, member, mate):
     other, _ = mate
     befriend(db_session, member, other)
-    grown = give_planting(db_session, other.id, "mint", growth=15.0)
+    grown = give_planting(db_session, other.id, "blueberry", growth=15.0)
     grown.matured_at = security.now_utc()
     db_session.commit()
     item = give_item(db_session, member.id, "water")
@@ -302,8 +302,8 @@ def test_swimming_brings_extra_water(signed_in, db_session, member):
 
 
 def test_a_planting_matures_at_its_own_threshold(signed_in, db_session, member):
-    quick = give_planting(db_session, member.id, "mint")
-    slow = give_planting(db_session, member.id, "apple")
+    quick = give_planting(db_session, member.id, "blueberry")
+    slow = give_planting(db_session, member.id, "olive")
     log_workout(signed_in, "run", 20.0, pace_min=9)
 
     rows = {row["id"]: row for row in signed_in.get("/api/grove").json()}
@@ -318,40 +318,97 @@ def test_a_planting_matures_at_its_own_threshold(signed_in, db_session, member):
     assert rows[slow.id]["growth_mi"] == 20.0
 
 
-def test_the_catalogue_is_the_whole_list(signed_in):
+@pytest.mark.parametrize(("grown_mi", "level"), [(0.0, 0), (99.9, 0), (100.0, 1), (250.0, 2)])
+def test_the_mustard_tree_levels_instead_of_maturing(
+    signed_in, db_session, member, grown_mi, level
+):
+    give_planting(db_session, member.id, "mustard", growth=grown_mi)
+    row = signed_in.get("/api/grove").json()[0]
+    assert row["level"] == level
+    assert row["level_mi"] == 100.0
+    # It never comes to maturity, however many levels it puts on.
+    assert row["mature"] is False
+    assert row["matured_at"] is None
+    assert row["maturity_mi"] == 0.0
+    # Plant, then shrub, then tree, and it stays the tree.
+    assert row["stage"] == min(3, level + 1)
+    # The bar reads the way through the level it is in, not a lifetime.
+    assert row["growth"] == pytest.approx((grown_mi % 100.0) / 100.0, abs=1e-4)
+
+
+def test_a_levelled_mustard_tree_still_takes_water(signed_in, db_session, member):
+    grown = give_planting(db_session, member.id, "mustard", growth=250.0)
+    item = give_item(db_session, member.id, "water")
+    body = signed_in.post(f"/api/satchel/{item.id}/pour", json={"planting_id": grown.id})
+    assert body.status_code == 200, body.text
+    assert body.json()["growth_mi"] == 250.0 + WATER_POUR_MI
+
+
+def test_nothing_but_the_mustard_tree_carries_a_level(signed_in, db_session, member):
+    give_planting(db_session, member.id, "olive", growth=50.0)
+    row = signed_in.get("/api/grove").json()[0]
+    assert row["level"] is None
+    assert row["level_mi"] is None
+
+
+def test_the_catalogue_is_four_of_each_and_the_one_that_is_given():
     by_rarity: dict[str, list[str]] = {"common": [], "uncommon": [], "rare": []}
     for row in species.BY_ID.values():
         by_rarity[row.rarity].append(row.id)
-    assert sorted(by_rarity["common"]) == ["mint", "strawberry", "tomato"]
-    assert sorted(by_rarity["uncommon"]) == ["blackberry", "coffee", "fig_bush", "grapevine"]
-    assert sorted(by_rarity["rare"]) == [
-        "apple",
+    assert sorted(by_rarity["common"]) == [
         "banana",
-        "mango",
+        "blueberry",
+        "raspberry",
+        "strawberry",
+    ]
+    assert sorted(by_rarity["uncommon"]) == ["blackberry", "fig_bush", "grapevine", "mango"]
+    assert sorted(by_rarity["rare"]) == [
+        "coffee",
+        "dates",
         "mustard",
         "olive",
         "pomegranate",
     ]
-    # Every one of them has somewhere for its own harvest to be named.
+    # Four to a slot, twelve in all, and the mustard tree outside the count.
+    assert [len(species.BY_RARITY[rarity]) for rarity in species.RARITIES] == [4, 4, 4]
+    assert len(species.BY_ID) == 13
+
+
+def test_the_ones_he_named_are_where_he_put_them():
+    assert species.BY_ID["coffee"].rarity == "rare"
+    assert species.BY_ID["banana"].rarity == "common"
+    assert species.BY_ID["mango"].rarity == "uncommon"
+
+
+def test_every_species_names_its_own_harvest():
     assert all(row.produce.strip() for row in species.BY_ID.values())
     assert species.BY_ID["coffee"].produce == "coffee cherries"
-    # And the maturity ladder is by rarity, the mustard tree aside.
+    assert species.BY_ID["dates"].produce == "dates"
+
+
+def test_the_maturity_ladder_is_by_rarity():
     assert {row.maturity_mi for row in species.BY_RARITY["common"]} == {15.0}
     assert {row.maturity_mi for row in species.BY_RARITY["uncommon"]} == {40.0}
     assert {row.maturity_mi for row in species.BY_RARITY["rare"]} == {100.0}
 
 
-def test_the_mustard_tree_takes_the_longest_of_anything():
-    assert species.BY_ID["mustard"].maturity_mi == 150.0
-    assert max(row.maturity_mi for row in species.BY_ID.values()) == 150.0
-    # And says nothing about itself that the rare trees do not.
-    assert species.BY_ID["mustard"].rarity == "rare"
+def test_the_mustard_tree_never_matures_and_is_never_rolled():
+    mustard = species.BY_ID["mustard"]
+    assert mustard.maturity_mi == 0.0
+    assert mustard.level_mi == 100.0
+    # A rare like any other to a chest, and never in the bag it rolls from.
+    assert mustard.rarity == "rare"
     assert "mustard" not in {row.id for row in species.BY_RARITY["rare"]}
+
+
+def test_only_the_mustard_seed_explains_anything_about_itself():
+    assert species.BY_ID["mustard"].reveal == "You will only ever receive one."
+    assert [row.id for row in species.BY_ID.values() if row.reveal] == ["mustard"]
 
 
 def test_nothing_planted_after_a_workout_grows_from_it(signed_in, db_session, member):
     log_workout(signed_in, "run", 5.0)
-    later = give_planting(db_session, member.id, "mint", days_ago=0)
+    later = give_planting(db_session, member.id, "blueberry", days_ago=0)
     assert signed_in.get("/api/grove").json()[0]["growth_mi"] == 0.0
     assert later.growth_mi == 0.0
 
@@ -401,7 +458,7 @@ def test_a_stranger_sees_nothing_of_somebody_elses_plot(signed_in, db_session, m
 
 
 def test_the_profile_counts_the_plot_and_never_a_total(signed_in, db_session, member):
-    give_planting(db_session, member.id, "mint", growth=15.0).matured_at = security.now_utc()
+    give_planting(db_session, member.id, "blueberry", growth=15.0).matured_at = security.now_utc()
     give_planting(db_session, member.id, "olive")
     db_session.commit()
     assert signed_in.get("/api/profile").json()["grove"] == {"planted": 2, "mature": 1}
