@@ -11,7 +11,7 @@ log = logging.getLogger("secondmile.config")
 
 # Reported at GET /api/status and kept in step with the frontend's package.json
 # and the README whenever a release round bumps it.
-APP_VERSION = "0.1.0"
+APP_VERSION = "0.1.1"
 APP_NAME = "secondmile"
 
 

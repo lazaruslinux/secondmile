@@ -6,7 +6,7 @@ and badges on a profile you build over months. The game is early: accounts,
 workout sync, the Almanac, the profile with its levels and achievements, and
 the card collection work today, and the rest is being built on top of them.
 
-Current version: **0.1.0**. Releases are tagged in git.
+Current version: **0.1.1**. Releases are tagged in git.
 
 ## What it does
 
