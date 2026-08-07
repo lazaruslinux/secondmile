@@ -2,7 +2,10 @@ import type { ReactNode } from 'react'
 import { borderArt, flourishArt } from '../art.ts'
 
 interface Props {
-  username: string
+  // What to call this person on screen: the name they gave if they gave one.
+  // Used for the letter that stands in for a missing picture and for the
+  // picture's own description, nothing else.
+  name: string
   // The picture, or null when there is none and the first letter stands in.
   src: string | null
   borderTier: number
@@ -20,7 +23,7 @@ interface Props {
 // border drawn over it. Every screen that shows somebody's face uses this, so
 // the frame is the same thing in the feed, the friends list, and on You.
 export default function AvatarFrame({
-  username,
+  name,
   src,
   borderTier,
   flourish = 0,
@@ -37,11 +40,11 @@ export default function AvatarFrame({
         <img
           className="avatar-shot"
           src={src}
-          alt={labelled ? `${username}'s picture` : ''}
+          alt={labelled ? `${name}'s picture` : ''}
         />
       ) : (
         <span className="avatar-shot avatar-empty" aria-hidden="true">
-          {username.slice(0, 1).toUpperCase()}
+          {name.slice(0, 1).toUpperCase()}
         </span>
       )}
       {border && <img className="avatar-border" src={border} alt="" />}

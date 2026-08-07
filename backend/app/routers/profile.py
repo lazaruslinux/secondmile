@@ -1,5 +1,6 @@
 """The profile: the trophy room, its picture, its badge slots, and the catalogue."""
 
+import datetime as dt
 import os
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -28,18 +29,77 @@ TOO_LARGE = (
     f"The limit is {MAX_AVATAR_BYTES // (1024 * 1024)} MB."
 )
 
+MAX_NAME_LENGTH = 40
+MAX_GENDER_LENGTH = 32
+# Old enough for anybody alive, and a floor that catches the typed year that
+# lost a digit. A birthdate is only ever used to work out an age.
+EARLIEST_BIRTHDATE = dt.date(1900, 1, 1)
+
 
 class ProfileBody(BaseModel):
     """A patch: only the fields that are sent are changed.
 
-    diamond_sports takes an explicit null, which is the reset to the automatic
-    pick, so whether it was sent is read from the model's field set rather than
-    from its value. Badge slots have no meaning for null, so an omitted one and
-    a null one both leave the slots alone.
+    Every field here takes an explicit null, which is how each one is cleared,
+    so whether it was sent is read from the model's field set rather than from
+    its value. Badge slots are the exception: null has no meaning for them, so
+    an omitted one and a null one both leave the slots alone.
     """
 
     displayed_badges: list[str] | None = None
     diamond_sports: list[str] | None = None
+    first_name: str | None = None
+    last_name: str | None = None
+    # A plain string, parsed below, so a date that is not one is answered with
+    # the same sentence-shaped 400 as everything else here rather than with the
+    # framework's field report.
+    birthdate: str | None = None
+    gender: str | None = None
+
+
+def computed_age(birthdate: dt.date | None, today: dt.date | None = None) -> int | None:
+    """Full years lived, or null for an account that has not given a birthdate.
+
+    Worked out on every read rather than stored, which is the whole reason there
+    is no age column: a stored age is right for one year and wrong afterwards.
+    """
+    if birthdate is None:
+        return None
+    day = today or dt.date.today()
+    had_birthday = (day.month, day.day) >= (birthdate.month, birthdate.day)
+    return day.year - birthdate.year - (0 if had_birthday else 1)
+
+
+def _clean_text(sent: str | None, limit: int, what: str) -> str | None:
+    """One optional text field: trimmed, length checked, and blank means clear.
+
+    A field somebody has emptied and one they never filled in are the same
+    thing, so an empty string is stored as null rather than as an empty string
+    that every reader would then have to treat as null anyway.
+    """
+    if sent is None:
+        return None
+    cleaned = sent.strip()
+    if len(cleaned) > limit:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, f"{what} must be at most {limit} characters."
+        )
+    return cleaned or None
+
+
+def _clean_birthdate(sent: str | None) -> dt.date | None:
+    if sent is None or not sent.strip():
+        return None
+    try:
+        value = dt.date.fromisoformat(sent.strip())
+    except ValueError:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "That is not a date. Use YYYY-MM-DD."
+        ) from None
+    if value >= dt.date.today():
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "A birthdate has to be in the past.")
+    if value <= EARLIEST_BIRTHDATE:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "That birthdate is too long ago.")
+    return value
 
 
 def serialize_profile(db: Session, user: models.User, row: models.UserProgress) -> dict:
@@ -48,6 +108,15 @@ def serialize_profile(db: Session, user: models.User, row: models.UserProgress) 
     return {
         "user_id": user.id,
         "username": user.username,
+        # The name they go by, in halves and joined. Null in all three places
+        # for an account that has given neither half.
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "display_name": fellowship.display_name(user.first_name, user.last_name),
+        "birthdate": user.birthdate.isoformat() if user.birthdate else None,
+        # Derived from the birthdate on every read, never stored beside it.
+        "age": computed_age(user.birthdate),
+        "gender": user.gender,
         "created_at": user.created_at.isoformat(),
         "has_avatar": user.avatar_path is not None,
         # Cache buster for GET /api/profile/avatar/<user_id>; null without one.
@@ -149,11 +218,25 @@ def set_profile(
     db: Session = Depends(get_db),
     user: models.User = Depends(security.current_user),
 ) -> dict:
-    """Choose which badges sit in the slots and which sports wear diamonds."""
+    """Choose which badges sit in the slots, which sports wear diamonds, and
+    what this account calls itself.
+
+    Sending a field as null clears it, which is why a sent null and an omitted
+    field have to be told apart: the first is somebody deleting their birthdate
+    and the second is somebody saving a different part of the form.
+    """
     if body.displayed_badges is not None:
         _set_badges(db, user, body.displayed_badges)
     if "diamond_sports" in body.model_fields_set:
         _set_diamonds(user, body.diamond_sports)
+    if "first_name" in body.model_fields_set:
+        user.first_name = _clean_text(body.first_name, MAX_NAME_LENGTH, "A first name")
+    if "last_name" in body.model_fields_set:
+        user.last_name = _clean_text(body.last_name, MAX_NAME_LENGTH, "A last name")
+    if "birthdate" in body.model_fields_set:
+        user.birthdate = _clean_birthdate(body.birthdate)
+    if "gender" in body.model_fields_set:
+        user.gender = _clean_text(body.gender, MAX_GENDER_LENGTH, "Gender")
     db.commit()
     return serialize_profile(db, user, progress.ensure_progress(db, user.id))
 

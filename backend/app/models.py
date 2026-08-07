@@ -5,6 +5,7 @@ import datetime as dt
 
 from sqlalchemy import (
     Boolean,
+    Date,
     DateTime,
     Enum,
     Float,
@@ -79,6 +80,21 @@ class User(Base):
     # around with a capital letter.
     email: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True, index=True)
     email_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # An address asked for and not yet confirmed. Deliberately not unique: two
+    # accounts may both ask for the same address, and only the one that answers
+    # its mail first gets it, checked when the swap happens.
+    pending_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # The name a person goes by, shown as "First Last" beside the username. Both
+    # optional, both clearable, and neither is an identity: the username is
+    # still what you sign in with and what an invite is sent to.
+    first_name: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    last_name: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    # A date, never an age. The age is worked out from this whenever it is
+    # shown, so the two can never drift apart.
+    birthdate: Mapped[dt.date | None] = mapped_column(Date, nullable=True)
+    # Free text on purpose. This is a private instance and a fixed list of
+    # options would be a decision the app has no business making for anybody.
+    gender: Mapped[str | None] = mapped_column(String(32), nullable=True)
     is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     units: Mapped[str] = mapped_column(String(16), nullable=False, default="imperial")
     # The file name of the re-encoded profile picture, or null for none. A name

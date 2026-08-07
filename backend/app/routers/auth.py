@@ -61,7 +61,10 @@ class PasswordBody(BaseModel):
     new_password: str
 
 
-def _validate_email(raw: str) -> str:
+def validate_email(raw: str) -> str:
+    """The cleaned, lower-cased address, or a 400. Shared with the settings
+    router, so an address is checked and stored the same way whichever door it
+    came in through."""
     cleaned = raw.strip().lower()
     if len(cleaned) > security.MAX_EMAIL_LENGTH or not security.EMAIL_PATTERN.match(cleaned):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "That does not look like an email address.")
@@ -107,7 +110,7 @@ def register(
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, TOO_MANY)
 
     username = _validate_credentials(body.username, body.password)
-    email = _validate_email(body.email)
+    email = validate_email(body.email)
     now = security.now_utc()
 
     # One message for a code that is unknown, spent, or stale. Telling the
@@ -190,14 +193,24 @@ def register(
 def verify_email(
     body: VerifyBody, request: Request, response: Response, db: Session = Depends(get_db)
 ) -> Response:
+    """Spend an emailed link: the one that finishes a signup, or the one that
+    moves an account to another address.
+
+    One endpoint for both because the person clicking cannot tell them apart and
+    should not have to. What the link does is decided by the purpose stored with
+    the token, never by anything the caller sends.
+    """
     # The token is the only thing this endpoint checks, so without a limiter it
     # is somewhere to guess tokens at network speed.
     if throttle.verify_limiter.hit(throttle.client_address(request)):
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, TOO_MANY)
+    stale = HTTPException(
+        status.HTTP_400_BAD_REQUEST,
+        "That verification link is not valid any more. Ask for a new one.",
+    )
     row = db.execute(
         select(models.EmailToken).where(
             models.EmailToken.token_hash == security.hash_token(body.token.strip()),
-            models.EmailToken.purpose == "verify",
         )
     ).scalar_one_or_none()
     if row is None or row.expires_at <= security.now_utc():
@@ -206,17 +219,34 @@ def verify_email(
             # table until someone thinks to clean it out.
             db.delete(row)
             db.commit()
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            "That verification link is not valid any more. Ask for a new one.",
-        )
+        raise stale
 
     user = db.get(models.User, row.user_id)
-    # The token goes whether or not the account is still there, which is what
-    # makes the link single use.
+    # The token goes whether or not the account is still there, and whether or
+    # not the swap below can happen, which is what makes the link single use.
     db.delete(row)
-    if user is not None:
-        user.email_verified = True
+    if user is None:
+        db.commit()
+        response.status_code = status.HTTP_204_NO_CONTENT
+        return response
+
+    if row.purpose == "change-email":
+        wanted = user.pending_email
+        # The request is never refused for an address somebody else holds, so
+        # the address can have been taken in the meantime. Checked here, where
+        # saying so tells the account holder about their own request rather than
+        # telling a stranger who else has an account.
+        taken = wanted is not None and db.execute(
+            select(models.User.id).where(
+                models.User.email == wanted, models.User.id != user.id
+            )
+        ).scalar_one_or_none()
+        user.pending_email = None
+        if wanted is None or taken:
+            db.commit()
+            raise stale
+        user.email = wanted
+    user.email_verified = True
     db.commit()
     response.status_code = status.HTTP_204_NO_CONTENT
     return response
@@ -308,6 +338,9 @@ def me(user: models.User = Depends(security.current_user)) -> dict:
         "username": user.username,
         "email": user.email,
         "email_verified": user.email_verified,
+        # The address asked for and not yet confirmed, so Settings can say one
+        # is waiting. Null whenever nothing is.
+        "pending_email": user.pending_email,
         "units": user.units,
         "is_admin": user.is_admin,
     }

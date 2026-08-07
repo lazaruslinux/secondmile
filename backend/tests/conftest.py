@@ -98,6 +98,21 @@ def outbox(monkeypatch) -> list[tuple[str, str]]:
     return sent
 
 
+@pytest.fixture()
+def change_outbox(monkeypatch) -> list[tuple[str, str]]:
+    """Every address-change link the app tried to send, as (address, token).
+
+    A list of its own rather than the verification one: the two messages go to
+    different places for different reasons, and a test that means to check one
+    of them should not pass because the other was sent.
+    """
+    sent: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        mail, "send_email_change", lambda address, token: sent.append((address, token))
+    )
+    return sent
+
+
 def make_user(
     db_session,
     username: str,

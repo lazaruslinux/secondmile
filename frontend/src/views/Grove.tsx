@@ -16,7 +16,7 @@ import {
 } from '../api.ts'
 import { convertedValue } from '../format.ts'
 import { plantStage } from '../grove.ts'
-import { itemName, rarityWord, speciesName } from '../labels.ts'
+import { itemName, personName, plantingName, rarityWord } from '../labels.ts'
 import Chooser, { type Choice } from './Chooser.tsx'
 import PlantArt from './PlantArt.tsx'
 
@@ -189,14 +189,14 @@ export default function Grove({ userId }: Props) {
     ...growing.map((row) => ({
       id: row.id,
       group: 'You',
-      label: speciesName(row.species, row.name),
+      label: plantingName(row),
       detail: growthLine(row),
     })),
     ...friendPlots.flatMap(([person, plot]) =>
       plot.filter(friendGrowing).map((row) => ({
         id: row.id,
-        group: person.username,
-        label: speciesName(row.species, row.name),
+        group: personName(person),
+        label: plantingName(row),
         detail: STAGE_WORDS[(row.stage ?? 1) - 1] ?? 'Growing',
       })),
     ),
@@ -204,7 +204,7 @@ export default function Grove({ userId }: Props) {
 
   const friendChoices: Choice[] = friends.map((person) => ({
     id: person.user_id,
-    label: person.username,
+    label: personName(person),
   }))
 
   return (
@@ -248,11 +248,11 @@ export default function Grove({ userId }: Props) {
                 <li key={row.id} className="plant">
                   <PlantArt
                     species={row.species}
-                    name={row.name}
+                    name={plantingName(row)}
                     stage={stage}
                     className="plant-picture"
                   />
-                  <p className="plant-name">{speciesName(row.species, row.name)}</p>
+                  <p className="plant-name">{plantingName(row)}</p>
                   {/* A progress element rather than a div with a width on it:
                       the content security policy allows no inline styles, and
                       this one reads correctly to a screen reader as well. */}
@@ -300,7 +300,7 @@ export default function Grove({ userId }: Props) {
                     {item.kind === 'seed' && item.species !== null && (
                       <PlantArt
                         species={item.species}
-                        name={item.name}
+                        name={itemName(item)}
                         stage={1}
                         className="satchel-thumb"
                       />

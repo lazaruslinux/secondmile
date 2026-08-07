@@ -186,8 +186,11 @@ def serialize_item(row: models.SatchelItem) -> dict:
         "id": row.id,
         "kind": row.kind,
         "species": row.species,
-        # Null for water and oil, which are the same wherever they came from.
-        "name": kind.name if kind is not None else None,
+        # Both names on every seed, so nothing on the client composes one: the
+        # satchel says the seed and the plot says what it becomes. Null for
+        # water and oil, which are the same wherever they came from.
+        "seed_name": kind.seed_name if kind is not None else None,
+        "plant_name": kind.plant_name if kind is not None else None,
         "rarity": row.rarity,
         # The one species with something about it to explain says it here.
         "reveal": kind.reveal or None if kind is not None else None,
@@ -204,7 +207,10 @@ def serialize_planting(row: models.Planting) -> dict:
     return {
         "id": row.id,
         "species": row.species,
-        "name": kind.name if kind is not None else row.species,
+        # The planted form is what a plot is read in, and the seed name rides
+        # along so a reveal and a plot row never disagree about one species.
+        "seed_name": kind.seed_name if kind is not None else row.species,
+        "plant_name": kind.plant_name if kind is not None else row.species,
         "rarity": row.rarity,
         "planted_at": row.planted_at.isoformat(),
         "growth_mi": round(row.growth_mi, 2),
@@ -236,7 +242,8 @@ def serialize_for_friend(row: models.Planting) -> dict:
     return {
         "id": row.id,
         "species": row.species,
-        "name": kind.name if kind is not None else row.species,
+        "seed_name": kind.seed_name if kind is not None else row.species,
+        "plant_name": kind.plant_name if kind is not None else row.species,
         "rarity": row.rarity,
         "growth": growth_fraction(row),
         "stage": stage(row),

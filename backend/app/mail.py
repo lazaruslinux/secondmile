@@ -1,5 +1,10 @@
-"""The one message this app sends, and the log line it writes instead when no
-mail server is configured."""
+"""The two messages this app sends, and the log line it writes instead when no
+mail server is configured.
+
+Both are a link and nothing else, both links land on the same page of the
+frontend, and both carry their token in the fragment so no proxy log along the
+way ever holds a working credential.
+"""
 
 import logging
 import smtplib
@@ -22,6 +27,18 @@ The link works once and stops working after {hours} hours. If this was not you,
 nothing happens: ignore this message and no account is created.
 """
 
+_CHANGE_SUBJECT = f"Confirm this address for your {APP_NAME} account"
+
+_CHANGE_BODY = """Someone asked to use this address for their {app} account.
+
+Open this link to confirm it:
+
+{url}
+
+The link works once and stops working after {hours} hours. If this was not you,
+nothing happens: ignore this message and the account keeps the address it has.
+"""
+
 
 def verification_url(token: str) -> str:
     """The link that lands on the frontend, which reads the token and calls the API.
@@ -35,11 +52,26 @@ def verification_url(token: str) -> str:
 
 
 def send_verification(address: str, token: str) -> None:
-    """Mail a verification link, or log it when there is nowhere to mail it.
+    """Mail a link that finishes a signup."""
+    _send(address, token, _SUBJECT, _BODY)
+
+
+def send_email_change(address: str, token: str) -> None:
+    """Mail a link that confirms an address somebody has asked to move to.
+
+    Sent to the new address and never to the old one, because the new address is
+    the only thing this proves anything about: whoever answers it is the person
+    holding that inbox.
+    """
+    _send(address, token, _CHANGE_SUBJECT, _CHANGE_BODY)
+
+
+def _send(address: str, token: str, subject: str, body: str) -> None:
+    """Mail one link, or log it when there is nowhere to mail it.
 
     Called from a background task, so it runs after the response has already
     been sent and a slow or unreachable mail server never becomes a slow
-    registration. Nothing here raises: the caller is gone by this point, and the
+    request. Nothing here raises: the caller is gone by this point, and the
     person waiting can always ask for another link.
     """
     url = verification_url(token)
@@ -51,10 +83,10 @@ def send_verification(address: str, token: str) -> None:
         return
 
     message = EmailMessage()
-    message["Subject"] = _SUBJECT
+    message["Subject"] = subject
     message["From"] = settings.smtp_from or settings.smtp_user
     message["To"] = address
-    message.set_content(_BODY.format(app=APP_NAME, url=url, hours=VERIFY_TOKEN_HOURS))
+    message.set_content(body.format(app=APP_NAME, url=url, hours=VERIFY_TOKEN_HOURS))
 
     try:
         # Port 465 speaks TLS from the first byte and 587 negotiates it with

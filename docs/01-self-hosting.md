@@ -68,8 +68,13 @@ docker compose logs backend | grep "Verification link"
 ```
 
 That is a supported way to run a small instance: you register someone, read
-their link out of the log, and send it to them however you already talk. If
-even that is more than you want, mark the account verified directly:
+their link out of the log, and send it to them however you already talk.
+
+Adding or changing the address on an account, from Settings, works the same
+way. The link goes to the new address, it lands in the same log line without a
+mail server, and the account keeps the address it has until somebody opens it.
+
+If even that is more than you want, mark the account verified directly:
 
 ```
 docker compose exec backend python manage.py verify-email theirname

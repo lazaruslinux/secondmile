@@ -179,6 +179,7 @@ export default function App() {
             username={me.username}
             email={me.email}
             emailVerified={me.email_verified}
+            pendingEmail={me.pending_email ?? null}
             units={me.units}
             onUnitsChanged={changeUnits}
             onSignedOut={() => setMe(null)}

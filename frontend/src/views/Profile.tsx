@@ -1,8 +1,6 @@
-import { useCallback, useEffect, useState, type ChangeEvent } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
-  ApiError,
   avatarUrl,
-  deleteAvatar,
   errorText,
   getProfile,
   listAchievements,
@@ -11,7 +9,6 @@ import {
   openChest,
   setDiamondSports,
   setDisplayedBadges,
-  uploadAvatar,
   type Achievement,
   type ActivityStats,
   type Activity,
@@ -33,14 +30,23 @@ import {
   ACTIVITY_NAMES,
   ACTIVITY_ORDER,
   chestName,
+  plantingName,
   RACE_BADGE_ORDER,
   raceBadgeName,
 } from '../labels.ts'
-import { diamondsOf, MAX_DIAMONDS, nextChestLine, raceCountsOf } from '../profile.ts'
+import {
+  ageOf,
+  diamondsOf,
+  displayNameOf,
+  MAX_DIAMONDS,
+  nextChestLine,
+  raceCountsOf,
+} from '../profile.ts'
 import Achievements from './Achievements.tsx'
 import AvatarFrame from './AvatarFrame.tsx'
 import Badge from './Badge.tsx'
 import ChestItem from './ChestItem.tsx'
+import EditProfile from './EditProfile.tsx'
 import Fellowship from './Fellowship.tsx'
 import Icon from './Icon.tsx'
 import MedalNest from './MedalNest.tsx'
@@ -50,23 +56,6 @@ import RaceBadges, { RaceBadgeMark } from './RaceBadges.tsx'
 // Four, and the server says the same. The slots are drawn whether they are
 // filled or not, because an empty slot is the invitation to fill it.
 const SLOTS = [0, 1, 2, 3]
-
-// What the server accepts, checked here as well so an oversized picture is
-// answered at once instead of after a whole upload.
-const MAX_AVATAR_BYTES = 5 * 1024 * 1024
-const TOO_LARGE = 'That picture is too large. The limit is 5 MB.'
-
-// The upload endpoint refuses things for reasons a person can act on, and two
-// of them can be answered by the proxy in front of the app rather than by the
-// server, so the sentence is written here rather than read off the response.
-function uploadErrorText(err: unknown): string {
-  if (err instanceof ApiError) {
-    if (err.status === 413) return TOO_LARGE
-    if (err.status === 429) return 'Too many uploads just now. Wait a minute and try again.'
-    return err.message
-  }
-  return 'Something went wrong. Try again.'
-}
 
 function totalsOf(stats: Partial<Record<Activity, ActivityStats>>) {
   let converted = 0
@@ -172,9 +161,7 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
   const [loading, setLoading] = useState(() => !cache.has(userId))
   const [loadError, setLoadError] = useState('')
 
-  // Which avatar call is in flight, so the note can say what is happening.
-  const [avatarBusy, setAvatarBusy] = useState<'' | 'upload' | 'remove'>('')
-  const [avatarError, setAvatarError] = useState('')
+  const [editing, setEditing] = useState(false)
 
   const [picking, setPicking] = useState(false)
   const [chosen, setChosen] = useState<string[]>([])
@@ -220,45 +207,12 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
     if (profile) cache.set(userId, { profile, achievements, chests, plantings })
   }, [userId, profile, achievements, chests, plantings])
 
-  async function pickAvatar(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
-    // Cleared either way, so choosing the same file twice still counts as a
-    // change and the picker does not sit there naming a spent upload.
-    event.target.value = ''
-    if (!file) return
-    if (file.size > MAX_AVATAR_BYTES) {
-      setAvatarError(TOO_LARGE)
-      return
-    }
-    setAvatarBusy('upload')
-    setAvatarError('')
-    try {
-      const state = await uploadAvatar(file)
-      setProfile((current) =>
-        current
-          ? { ...current, has_avatar: state.has_avatar, avatar_version: state.avatar_version }
-          : current,
-      )
-    } catch (err) {
-      setAvatarError(uploadErrorText(err))
-    } finally {
-      setAvatarBusy('')
-    }
-  }
-
-  async function removeAvatar() {
-    setAvatarBusy('remove')
-    setAvatarError('')
-    try {
-      await deleteAvatar()
-      setProfile((current) =>
-        current ? { ...current, has_avatar: false, avatar_version: null } : current,
-      )
-    } catch (err) {
-      setAvatarError(uploadErrorText(err))
-    } finally {
-      setAvatarBusy('')
-    }
+  // The picture is uploaded from the edit panel and saved there and then, so
+  // this only has to redraw what is already on the server.
+  function avatarChanged(hasAvatar: boolean, version: number | null) {
+    setProfile((current) =>
+      current ? { ...current, has_avatar: hasAvatar, avatar_version: version } : current,
+    )
   }
 
   function startPicking() {
@@ -356,6 +310,8 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
   // lists are one list wherever a slot or the picker is concerned.
   const raceCounts = raceCountsOf(profile.race_badges)
   const nextChest = nextChestLine(profile)
+  const shownName = displayNameOf(profile)
+  const age = ageOf(profile)
   const earnedRaces = RACE_BADGE_ORDER.filter((id) => (raceCounts.get(id) ?? 0) > 0)
   const slotChoices = earned.length + earnedRaces.length
 
@@ -370,16 +326,36 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
     <>
       <div className="view-head">
         <h1 className="view-title">You</h1>
-        <button
-          type="button"
-          className="icon-button"
-          aria-label="Settings"
-          onClick={onOpenSettings}
-        >
-          <Icon name="gear" />
-          <span className="tab-label">Settings</span>
-        </button>
+        <div className="head-buttons">
+          <button
+            type="button"
+            className="icon-button"
+            aria-label="Edit profile"
+            onClick={() => setEditing(true)}
+          >
+            <Icon name="pencil" />
+            <span className="tab-label">Edit</span>
+          </button>
+          <button
+            type="button"
+            className="icon-button"
+            aria-label="Settings"
+            onClick={onOpenSettings}
+          >
+            <Icon name="gear" />
+            <span className="tab-label">Settings</span>
+          </button>
+        </div>
       </div>
+
+      {editing && (
+        <EditProfile
+          profile={profile}
+          onAvatarChanged={avatarChanged}
+          onSaved={setProfile}
+          onClose={() => setEditing(false)}
+        />
+      )}
 
       {/* The band across the top is where the grove lives. Everything in it
           stands on the band's floor at the size it has reached; nothing here is
@@ -394,7 +370,11 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
                   key={row.id}
                   className={row.mature ? 'band-plant band-plant-grown' : 'band-plant'}
                 >
-                  <PlantArt species={row.species} name={row.name} stage={plantStage(row)} />
+                  <PlantArt
+                    species={row.species}
+                    name={plantingName(row)}
+                    stage={plantStage(row)}
+                  />
                 </li>
               ))}
             </ul>
@@ -403,7 +383,7 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
         <div className="you-ident">
           <div className="avatar-block">
             <AvatarFrame
-              username={profile.username}
+              name={shownName || profile.username}
               src={
                 profile.has_avatar ? avatarUrl(profile.user_id, profile.avatar_version) : null
               }
@@ -421,7 +401,11 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
           </div>
 
           <div className="you-ident-text">
-            <h2 className="profile-name">{profile.username}</h2>
+            {/* The name they gave, with the name they sign in with under it.
+                Where no name was given the username stands on its own, exactly
+                as it always has. */}
+            <h2 className="profile-name">{shownName || profile.username}</h2>
+            {shownName !== '' && <p className="profile-username">{profile.username}</p>}
             <p className="you-level">
               Level {profile.level}, {convertedValue(profile.xp)} mi
             </p>
@@ -435,6 +419,15 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
         <div className="you-col you-left">
           <section className="card">
             <p className="hint">Member since {formatDate(profile.created_at)}</p>
+            {/* Yours to see and nobody else's: neither of these is sent with
+                anything a friend can read. */}
+            {(age !== null || (profile.gender ?? '') !== '') && (
+              <p className="hint">
+                {[age === null ? '' : `Age ${age}`, profile.gender ?? '']
+                  .filter((part) => part !== '')
+                  .join(', ')}
+              </p>
+            )}
 
             {/* Miles rather than points on this screen. They are the same number
                 the feed counts as XP; the profile is where the app says what it
@@ -562,26 +555,10 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
             )}
 
             <div className="profile-edit">
-              <label className="file-field">
-                Profile picture
-                <input
-                  type="file"
-                  accept="image/*"
-                  disabled={avatarBusy !== ''}
-                  onChange={pickAvatar}
-                />
-              </label>
               <div className="choice">
-                {profile.has_avatar && (
-                  <button
-                    type="button"
-                    className="secondary"
-                    disabled={avatarBusy !== ''}
-                    onClick={() => void removeAvatar()}
-                  >
-                    Remove picture
-                  </button>
-                )}
+                <button type="button" className="secondary" onClick={() => setEditing(true)}>
+                  Edit profile
+                </button>
                 <button
                   type="button"
                   className="secondary"
@@ -591,16 +568,6 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
                   {picking ? 'Close medals' : 'Choose medals'}
                 </button>
               </div>
-              {avatarBusy === 'upload' && (
-                <p className="hint" role="status">
-                  Uploading.
-                </p>
-              )}
-              {avatarError && (
-                <p className="error" role="alert">
-                  {avatarError}
-                </p>
-              )}
               {slotChoices === 0 && (
                 <p className="hint">Medals fill the slots once you have earned some.</p>
               )}

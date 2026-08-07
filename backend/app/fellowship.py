@@ -263,6 +263,19 @@ def renown_since(
 # --------------------------------------------------------------------------
 
 
+def display_name(first_name: str | None, last_name: str | None) -> str | None:
+    """The name somebody goes by, or null when they have not given one.
+
+    Composed here rather than on the client so every screen that shows a person
+    joins the halves the same way, and so an account with only one of the two
+    reads as that one rather than as a name with a hole in it. The username is
+    untouched by all of this: it is still the login and the invite identity, and
+    it is what a card falls back to.
+    """
+    joined = " ".join(part.strip() for part in (first_name, last_name) if part and part.strip())
+    return joined or None
+
+
 def people(db: Session, user_ids) -> dict[int, dict]:
     """The little card a person appears as beside a workout or in a list.
 
@@ -285,16 +298,23 @@ def people(db: Session, user_ids) -> dict[int, dict]:
         ).all()
     }
     rows = db.execute(
-        select(models.User.id, models.User.username, models.User.avatar_path).where(
-            models.User.id.in_(ids)
-        )
+        select(
+            models.User.id,
+            models.User.username,
+            models.User.avatar_path,
+            models.User.first_name,
+            models.User.last_name,
+        ).where(models.User.id.in_(ids))
     ).all()
     cards = {}
-    for user_id, username, avatar_path in rows:
+    for user_id, username, avatar_path, first_name, last_name in rows:
         level, renown = state.get(user_id, (0, 0))
         cards[user_id] = {
             "user_id": user_id,
             "username": username,
+            # Null unless they have given a name; the card falls back to the
+            # username, which every account has.
+            "display_name": display_name(first_name, last_name),
             "has_avatar": avatar_path is not None,
             "border_tier": progress.border_tier(level),
             "flourish": flourish_stage(renown),

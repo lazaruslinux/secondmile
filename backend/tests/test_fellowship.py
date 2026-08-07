@@ -128,7 +128,15 @@ def test_a_friend_card_carries_no_counts_and_no_renown(signed_in, db_session, me
     db_session.commit()
 
     card = signed_in.get("/api/friends").json()["friends"][0]
-    assert set(card) == {"user_id", "username", "has_avatar", "border_tier", "flourish"}
+    assert set(card) == {
+        "user_id",
+        "username",
+        "display_name",
+        "has_avatar",
+        "border_tier",
+        "flourish",
+    }
+    assert card["display_name"] is None
     assert card["flourish"] == 2
 
 
@@ -584,3 +592,54 @@ def test_the_new_limiters_are_registered_for_the_reset():
     assert {"invite", "encourage"} <= names
     assert throttle.invite_limiter.max_attempts == 10
     assert throttle.encourage_limiter.max_attempts == 30
+
+
+# --------------------------------------------------------------------------
+# The name a person appears under
+# --------------------------------------------------------------------------
+
+
+def test_a_feed_row_carries_the_display_name_of_whoever_ran(signed_in, db_session, member, mate):
+    other, theirs = mate
+    befriend(db_session, member, other)
+    other.first_name, other.last_name = "Sam", "Fields"
+    db_session.commit()
+    post_workout(theirs, miles=4.0)
+
+    row = signed_in.get("/api/feed").json()[0]
+    assert set(row) == FRIEND_ROW_KEYS
+    # The username stays: it is the login and the invite identity, and it is
+    # what a card falls back to when nobody has given a name.
+    assert row["user"]["username"] == "mate"
+    assert row["user"]["display_name"] == "Sam Fields"
+
+
+def test_a_person_with_no_name_given_has_none(signed_in, db_session, member, mate):
+    other, theirs = mate
+    befriend(db_session, member, other)
+    post_workout(theirs, miles=2.0)
+    assert signed_in.get("/api/feed").json()[0]["user"]["display_name"] is None
+
+
+def test_the_friends_list_carries_the_same_name(signed_in, db_session, member, mate):
+    other, _ = mate
+    befriend(db_session, member, other)
+    other.first_name = "Sam"
+    db_session.commit()
+    assert signed_in.get("/api/friends").json()["friends"][0]["display_name"] == "Sam"
+
+
+def test_a_display_name_is_the_halves_that_are_there():
+    assert fellowship.display_name("Justin", "Case") == "Justin Case"
+    assert fellowship.display_name("Justin", None) == "Justin"
+    assert fellowship.display_name(None, "Case") == "Case"
+    assert fellowship.display_name(None, None) is None
+    assert fellowship.display_name("  ", "") is None
+
+
+def test_the_email_change_limiter_is_registered_for_the_reset():
+    from app import throttle
+
+    names = {limiter.name for limiter in throttle._ALL_LIMITERS}
+    assert "email-change" in names
+    assert throttle.email_change_limiter.max_attempts == 3

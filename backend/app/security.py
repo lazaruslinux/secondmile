@@ -100,12 +100,19 @@ def create_session(db: Session, user_id: int) -> str:
     return token
 
 
-def create_email_token(db: Session, user_id: int) -> str:
-    """Issue a verification token and return the plaintext, which is never stored.
+def create_email_token(db: Session, user_id: int, purpose: str = "verify") -> str:
+    """Issue an emailed token and return the plaintext, which is never stored.
 
-    Any earlier token for the same account is dropped first. Otherwise every
-    resend leaves another working link behind, and the oldest mail in the inbox
-    stays as good as the newest one for a day.
+    Two purposes exist: "verify" for a new account and "change-email" for an
+    address somebody has asked to move to. What the token authorises is stored
+    with it, so the endpoint that spends one knows which of the two it is
+    holding and cannot be handed the wrong one.
+
+    Any earlier token for the same account is dropped first, whatever it was
+    for. Otherwise every resend leaves another working link behind, and the
+    oldest mail in the inbox stays as good as the newest one for a day; it is
+    also what makes a second change request replace the first rather than leave
+    two addresses each one click from being taken.
     """
     db.execute(delete(models.EmailToken).where(models.EmailToken.user_id == user_id))
     token = generate_token()
@@ -113,7 +120,7 @@ def create_email_token(db: Session, user_id: int) -> str:
         models.EmailToken(
             token_hash=hash_token(token),
             user_id=user_id,
-            purpose="verify",
+            purpose=purpose,
             created_at=now_utc(),
             expires_at=now_utc() + dt.timedelta(hours=VERIFY_TOKEN_HOURS),
         )

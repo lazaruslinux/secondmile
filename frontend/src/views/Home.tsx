@@ -10,7 +10,7 @@ import {
 } from '../api.ts'
 import { convertedValue, distanceValue, formatStart, unitName } from '../format.ts'
 import { ACTIVITY_NAMES, RACE_BADGE_ORDER, raceBadgeName } from '../labels.ts'
-import { lifetimeWorkouts, raceCountsOf, weekTotals } from '../profile.ts'
+import { displayNameOf, lifetimeWorkouts, raceCountsOf, weekTotals } from '../profile.ts'
 import AvatarFrame from './AvatarFrame.tsx'
 import FeedCard from './FeedCard.tsx'
 import Icon from './Icon.tsx'
@@ -178,6 +178,7 @@ export default function Home({ userId, units, refreshToken, onOpenLog, onOpenGro
   // account's last workout rather than whatever is at the top of the feed.
   const mine = feed.find((item) => item.own)
   const raceCounts = raceCountsOf(profile.race_badges)
+  const shownName = displayNameOf(profile)
   // Own growth stage, from the profile when the server puts it there and from
   // this account's own feed row when it does not.
   const flourish = profile.flourish ?? mine?.user.flourish ?? 0
@@ -197,7 +198,7 @@ export default function Home({ userId, units, refreshToken, onOpenLog, onOpenGro
       <aside className="home-col home-left">
         <section className="card summary">
           <AvatarFrame
-            username={profile.username}
+            name={shownName || profile.username}
             src={
               profile.has_avatar ? avatarUrl(profile.user_id, profile.avatar_version) : null
             }
@@ -209,7 +210,8 @@ export default function Home({ userId, units, refreshToken, onOpenLog, onOpenGro
             <MedalNest items={nestMedals} />
           </AvatarFrame>
 
-          <h2 className="summary-name">{profile.username}</h2>
+          <h2 className="summary-name">{shownName || profile.username}</h2>
+          {shownName !== '' && <p className="summary-username">{profile.username}</p>}
 
           <ul className="summary-stats">
             <li>

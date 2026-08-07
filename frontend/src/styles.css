@@ -259,6 +259,12 @@ code {
   letter-spacing: 0.08em;
 }
 
+/* The buttons on the right of a view heading, side by side. */
+.head-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
 /* An icon with a word next to it, used for the gear in the You header. */
 .icon-button {
   display: inline-flex;
@@ -461,6 +467,19 @@ button:disabled {
   border-radius: var(--radius);
   padding: 0.5rem;
   font-size: 0.85rem;
+}
+
+/* Settings is two named groups of cards: what the account is, and how the
+   phone talks to it. The heading sits on the page's own black rather than
+   inside a card, so it reads as a divider between the two. */
+.settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.settings-title {
+  margin: 0.75rem 0 0;
 }
 
 /* The columns of Home and You
@@ -1302,6 +1321,19 @@ button:disabled {
   font-size: 1.2rem;
 }
 
+/* The name signed in with, under the name given. Quiet: it is the identity
+   rather than the label, and the label is what the eye wants first. */
+.profile-username,
+.summary-username {
+  margin: 0 0 0.15rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.summary-username {
+  text-align: center;
+}
+
 .level-line {
   display: flex;
   flex-wrap: wrap;
@@ -2035,6 +2067,34 @@ button:disabled {
 }
 
 /* Choosing one thing out of a list, in the same dialog the letter uses. */
+
+/* The edit panel, in the same modal the letter and the chooser use. The form is
+   the scrolling part, so a long panel on a phone keeps its heading in view. */
+.edit-form {
+  flex: 1;
+  padding: 0.75rem 1rem 1rem;
+  overflow-y: auto;
+}
+
+/* The picture saves itself as soon as one is chosen, so it stands apart from
+   the fields that wait for Save. */
+.edit-avatar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.edit-avatar .hint,
+.edit-avatar .error {
+  margin: 0;
+}
+
+/* Worked out from the box above it, and it belongs to that box. */
+.edit-age {
+  margin: -0.25rem 0 0;
+}
 
 .chooser-body {
   padding: 0.5rem 1rem 1rem;

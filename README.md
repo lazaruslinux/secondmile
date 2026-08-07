@@ -148,8 +148,10 @@ Two of them decide how people get accounts:
 - Passwords are hashed with Argon2id. Sessions are opaque random tokens
   stored server-side and delivered in an httpOnly, secure, same-site cookie,
   so a leaked database dump does not contain usable sessions.
-- Login, registration, ingest, password changes, and verification resends are
-  rate limited per address.
+- Login, registration, ingest, password changes, address changes, and
+  verification resends are rate limited per address.
+- Changing the address on an account asks for the current password, mails the
+  link to the new address, and moves nothing until that link is opened.
 - The ingest endpoint authenticates with a per-user bearer token that can be
   rotated from Settings at any time. Tokens are stored hashed.
 - Registration is invite-only unless you open it, and either way an account

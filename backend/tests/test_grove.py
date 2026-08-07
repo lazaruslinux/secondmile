@@ -90,7 +90,9 @@ def test_the_satchel_lists_what_is_waiting_and_nothing_spent(signed_in, db_sessi
     assert len(rows) == 1
     assert rows[0]["kind"] == "seed"
     assert rows[0]["species"] == "olive"
-    assert rows[0]["name"] == "Olives"
+    # The satchel says the seed; what it becomes rides along for the plot.
+    assert rows[0]["seed_name"] == "Olive seed"
+    assert rows[0]["plant_name"] == "Olive tree"
     assert rows[0]["rarity"] == "rare"
 
 
@@ -98,7 +100,8 @@ def test_water_carries_no_species(signed_in, db_session, member):
     give_item(db_session, member.id, "water", rarity="uncommon")
     row = signed_in.get("/api/satchel").json()[0]
     assert row["species"] is None
-    assert row["name"] is None
+    assert row["seed_name"] is None
+    assert row["plant_name"] is None
 
 
 def test_planting_a_seed_puts_it_in_the_ground(signed_in, db_session, member):
@@ -199,7 +202,16 @@ def test_watering_a_friends_plot_grows_it_and_pays_the_giver(
     body = signed_in.post(f"/api/satchel/{item.id}/pour", json={"planting_id": theirs.id})
     assert body.status_code == 200, body.text
     # Answered in the shape a friend's plot is allowed to be seen in.
-    assert set(body.json()) == {"id", "species", "name", "rarity", "growth", "stage", "mature"}
+    assert set(body.json()) == {
+        "id",
+        "species",
+        "seed_name",
+        "plant_name",
+        "rarity",
+        "growth",
+        "stage",
+        "mature",
+    }
     db_session.refresh(theirs)
     assert theirs.growth_mi == WATER_POUR_MI
 
@@ -444,7 +456,16 @@ def test_a_friend_sees_the_plants_and_not_one_number(signed_in, db_session, memb
     rows = other_client.get(f"/api/grove/{member.id}").json()
     assert len(rows) == 1
     # Enough to pick one and water it, and no miles and no dates behind that.
-    assert set(rows[0]) == {"id", "species", "name", "rarity", "growth", "stage", "mature"}
+    assert set(rows[0]) == {
+        "id",
+        "species",
+        "seed_name",
+        "plant_name",
+        "rarity",
+        "growth",
+        "stage",
+        "mature",
+    }
     assert rows[0]["species"] == "pomegranate"
     assert rows[0]["stage"] == 2
     assert rows[0]["growth"] == 0.5
@@ -630,3 +651,51 @@ def test_the_grove_endpoints_need_a_session(client):
     assert client.post("/api/satchel/1/plant").status_code == 401
     assert client.post("/api/satchel/1/pour", json={"planting_id": 1}).status_code == 401
     assert client.post("/api/satchel/1/anoint", json={"user_id": 1}).status_code == 401
+
+
+# --------------------------------------------------------------------------
+# What each species is called, as a seed and as the thing it becomes
+# --------------------------------------------------------------------------
+
+# His catalogue, both names, written out rather than derived: the whole point of
+# the pair is that the planted form is not the seed name with a word swapped.
+NAMES = {
+    "strawberry": ("Strawberry seed", "Strawberry bush"),
+    "banana": ("Banana seed", "Banana tree"),
+    "raspberry": ("Raspberry seed", "Raspberry bush"),
+    "blueberry": ("Blueberry seed", "Blueberry bush"),
+    "blackberry": ("Blackberry seed", "Blackberry bush"),
+    "mango": ("Mango seed", "Mango tree"),
+    "grapevine": ("Grape seed", "Grapevine"),
+    "fig_bush": ("Fig seed", "Fig bush"),
+    "olive": ("Olive seed", "Olive tree"),
+    "dates": ("Date seed", "Date palm"),
+    "coffee": ("Coffee seed", "Coffee plant"),
+    "pomegranate": ("Pomegranate seed", "Pomegranate tree"),
+    "mustard": ("Mustard seed", "Mustard"),
+}
+
+
+def test_every_species_has_both_names():
+    assert set(species.BY_ID) == set(NAMES)
+    for species_id, (seed_name, plant_name) in NAMES.items():
+        row = species.BY_ID[species_id]
+        assert (row.seed_name, row.plant_name) == (seed_name, plant_name), species_id
+
+
+def test_the_satchel_says_the_seed_and_the_plot_says_the_plant(signed_in, db_session, member):
+    item = give_item(db_session, member.id, "seed", "dates", rarity="rare")
+    listed = signed_in.get("/api/satchel").json()[0]
+    assert listed["seed_name"] == "Date seed"
+
+    planted = signed_in.post(f"/api/satchel/{item.id}/plant").json()
+    assert planted["plant_name"] == "Date palm"
+    assert planted["seed_name"] == "Date seed"
+
+
+def test_a_friends_plot_says_the_planted_form_too(signed_in, db_session, member, mate):
+    other, other_client = mate
+    befriend(db_session, member, other)
+    give_planting(db_session, member.id, "coffee")
+    row = other_client.get(f"/api/grove/{member.id}").json()[0]
+    assert (row["seed_name"], row["plant_name"]) == ("Coffee seed", "Coffee plant")

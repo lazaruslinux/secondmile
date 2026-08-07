@@ -8,6 +8,34 @@ import { ACTIVITY_ORDER, chestName } from './labels.ts'
 // How many sports get a diamond. The server enforces the same number.
 export const MAX_DIAMONDS = 3
 
+// The name on the profile header, or nothing at all. The server composes it;
+// where it has not, the two halves are put together here so a profile just
+// saved reads right before the next fetch lands.
+export function displayNameOf(profile: Profile): string {
+  const given = profile.display_name?.trim()
+  if (given) return given
+  return [profile.first_name, profile.last_name]
+    .map((part) => part?.trim() ?? '')
+    .filter((part) => part !== '')
+    .join(' ')
+}
+
+// Whole years since a birthdate, worked out here only when the server has not
+// done it. Nothing is stored either way: an age that was stored would be wrong
+// by tomorrow.
+export function ageOf(profile: Profile): number | null {
+  if (typeof profile.age === 'number') return profile.age
+  const born = profile.birthdate
+  if (!born) return null
+  const date = new Date(`${born}T00:00:00`)
+  if (isNaN(date.getTime())) return null
+  const now = new Date()
+  let years = now.getFullYear() - date.getFullYear()
+  const month = now.getMonth() - date.getMonth()
+  if (month < 0 || (month === 0 && now.getDate() < date.getDate())) years -= 1
+  return years >= 0 && years < 150 ? years : null
+}
+
 // Which sports get a diamond. The server sends the effective list; a server that
 // predates the field leaves the same choice to be made here, which is the three
 // sports with the most lifetime distance behind them.

@@ -2,7 +2,15 @@
 // interface uses for them. Kept in one place so the feed, the log, and the You
 // screen never disagree about what to call a bike ride.
 
-import type { Activity, ItemKind, Rarity, SatchelItem } from './api.ts'
+import type {
+  Activity,
+  FriendPlanting,
+  ItemKind,
+  Person,
+  Planting,
+  Rarity,
+  SatchelItem,
+} from './api.ts'
 
 export const ACTIVITY_ORDER: Activity[] = ['walk', 'run', 'cycle', 'swim']
 
@@ -55,6 +63,26 @@ export function speciesName(species: string, name?: string | null): string {
   return words === '' ? 'Plant' : words.slice(0, 1).toUpperCase() + words.slice(1)
 }
 
+// What to call somebody: the name they gave if they gave one, and the name they
+// sign in with otherwise. The username is the identity; this is only the label.
+export function personName(person: Person): string {
+  const given = person.display_name?.trim()
+  return given ? given : person.username
+}
+
+// A species has two names, and which one is right depends on where it is said.
+// In the hand it is a seed; in the ground it is what it grew into. Servers that
+// send only one name still read correctly: the seed form adds the word itself
+// when the name it was given does not already carry it.
+export function seedName(item: SatchelItem): string {
+  const shown = speciesName(item.species ?? '', item.seed_name ?? item.name)
+  return /seed$/i.test(shown) ? shown : `${shown} seed`
+}
+
+export function plantingName(row: Planting | FriendPlanting): string {
+  return speciesName(row.species, row.plant_name ?? row.name)
+}
+
 const RARITY_NAMES: Record<Rarity, string> = {
   common: 'Common',
   uncommon: 'Uncommon',
@@ -77,9 +105,7 @@ const KIND_NAMES: Record<ItemKind, string> = {
 // What one thing in the satchel is called. A seed is named after what it grows
 // into, since that is the whole of what it is.
 export function itemName(item: SatchelItem): string {
-  if (item.kind === 'seed' && item.species) {
-    return `${speciesName(item.species, item.name)} seed`
-  }
+  if (item.kind === 'seed' && item.species) return seedName(item)
   return KIND_NAMES[item.kind] ?? item.kind
 }
 

@@ -143,3 +143,31 @@ def test_the_migration_steps_back_down_again(migrated):
         )
         assert "user_cards" in tables
         assert "satchel_items" not in tables
+
+
+def test_the_account_columns_arrive_empty_and_disturb_nothing(migrated):
+    """0010 is purely additive, which is what lets it run on a live database:
+    an account that existed before it keeps working with all five empty."""
+    engine, upgrade = migrated
+    with engine.connect() as connection:
+        _fill(connection)
+
+    upgrade()
+
+    with engine.connect() as connection:
+        columns = {row[1] for row in connection.execute(sa.text("PRAGMA table_info(users)"))}
+        assert {
+            "first_name",
+            "last_name",
+            "birthdate",
+            "gender",
+            "pending_email",
+        } <= columns
+
+        row = connection.execute(
+            sa.text(
+                "SELECT username, first_name, last_name, birthdate, gender, pending_email"
+                " FROM users"
+            )
+        ).one()
+        assert row == ("runner", None, None, None, None, None)

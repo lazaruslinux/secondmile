@@ -239,3 +239,145 @@ def test_verify_email_refuses_an_unknown_account(db_session, monkeypatch):
     monkeypatch.setattr(manage, "_session", lambda: db_session)
     with pytest.raises(SystemExit):
         manage.cmd_verify_email(argparse.Namespace(username="nobody"))
+
+
+# --------------------------------------------------------------------------
+# Adding or changing the address on an account
+# --------------------------------------------------------------------------
+
+# The member fixture's password, and an address nobody holds yet.
+MEMBER_PASSWORD = "runner-password-1"
+WANTED = "runner@example.com"
+
+
+def _ask_for(client, email=WANTED, password=MEMBER_PASSWORD):
+    return client.post("/api/settings/email", json={"password": password, "email": email})
+
+
+def test_adding_an_address_waits_for_the_link_before_anything_moves(
+    signed_in, db_session, member, change_outbox
+):
+    assert _ask_for(signed_in).status_code == 204
+
+    # Nothing has moved yet: the address is only waiting.
+    db_session.refresh(member)
+    assert member.pending_email == WANTED
+    assert member.email is None
+    assert [address for address, _ in change_outbox] == [WANTED]
+    assert signed_in.get("/api/auth/me").json()["pending_email"] == WANTED
+
+    assert _verify(signed_in, change_outbox[0][1]).status_code == 204
+    db_session.refresh(member)
+    assert member.email == WANTED
+    assert member.email_verified is True
+    assert member.pending_email is None
+    me = signed_in.get("/api/auth/me").json()
+    assert (me["email"], me["pending_email"]) == (WANTED, None)
+
+
+def test_a_change_link_is_stored_as_a_hash_with_its_own_purpose(
+    signed_in, db_session, member, change_outbox
+):
+    assert _ask_for(signed_in).status_code == 204
+    row = db_session.query(models.EmailToken).one()
+    assert row.purpose == "change-email"
+    assert row.token_hash == security.hash_token(change_outbox[0][1])
+
+
+def test_changing_the_address_needs_the_current_password(
+    signed_in, db_session, member, change_outbox
+):
+    refused = _ask_for(signed_in, password="not-the-password-1")
+    assert refused.status_code == 403
+    assert refused.json() == {"detail": "Current password is not correct."}
+    db_session.refresh(member)
+    assert member.pending_email is None
+    assert change_outbox == []
+
+
+def test_an_address_another_account_holds_is_answered_exactly_the_same(
+    signed_in, db_session, member, change_outbox
+):
+    make_user(db_session, "somebody", "somebody-password-1", email="taken@example.com")
+
+    free = _ask_for(signed_in, email="free@example.com")
+    taken = _ask_for(signed_in, email="taken@example.com")
+    assert free.status_code == taken.status_code == 204
+    assert free.content == taken.content
+    # The second one stored nothing and mailed nobody: the person who really
+    # owns that address hears nothing about a request they did not make.
+    db_session.refresh(member)
+    assert member.pending_email == "free@example.com"
+    assert [address for address, _ in change_outbox] == ["free@example.com"]
+
+
+def test_an_address_taken_while_the_link_was_waiting_cannot_be_swapped_in(
+    signed_in, db_session, member, change_outbox
+):
+    assert _ask_for(signed_in).status_code == 204
+    make_user(db_session, "quicker", "quicker-password-1", email=WANTED)
+
+    refused = _verify(signed_in, change_outbox[0][1])
+    assert refused.status_code == 400
+    db_session.refresh(member)
+    assert member.email is None
+    # The request is spent either way, so the stale pending address does not sit
+    # on the account waiting to be swapped in by a link that no longer exists.
+    assert member.pending_email is None
+    assert db_session.query(models.EmailToken).count() == 0
+
+
+def test_only_one_address_may_be_waiting_at_a_time(
+    signed_in, db_session, member, change_outbox
+):
+    assert _ask_for(signed_in, email="first@example.com").status_code == 204
+    assert _ask_for(signed_in, email="second@example.com").status_code == 204
+    assert db_session.query(models.EmailToken).count() == 1
+
+    first_token, second_token = change_outbox[0][1], change_outbox[1][1]
+    assert _verify(signed_in, first_token).status_code == 400
+    assert _verify(signed_in, second_token).status_code == 204
+    db_session.refresh(member)
+    assert member.email == "second@example.com"
+
+
+def test_the_address_form_refuses_something_that_is_not_an_address(
+    signed_in, db_session, member, change_outbox
+):
+    assert _ask_for(signed_in, email="not-an-address").status_code == 400
+    db_session.refresh(member)
+    assert member.pending_email is None
+    assert change_outbox == []
+
+
+def test_a_changed_address_is_stored_lower_case(signed_in, db_session, member, change_outbox):
+    assert _ask_for(signed_in, email="Runner@Example.COM").status_code == 204
+    db_session.refresh(member)
+    assert member.pending_email == WANTED
+
+
+def test_address_changes_are_rate_limited(signed_in, change_outbox):
+    codes = [_ask_for(signed_in, email=f"one{n}@example.com").status_code for n in range(4)]
+    assert codes == [204, 204, 204, 429]
+
+
+def test_without_smtp_the_change_link_is_logged_instead(signed_in, caplog):
+    """The same no-mail setup the signup link has. change_outbox is deliberately
+    not used here: this exercises the real send path with nowhere to send to."""
+    with caplog.at_level(logging.WARNING, logger="secondmile.mail"):
+        assert _ask_for(signed_in).status_code == 204
+
+    logged = [record for record in caplog.records if record.name == "secondmile.mail"]
+    assert len(logged) == 1
+    message = logged[0].getMessage()
+    # In the fragment, like every emailed link here, so no proxy log along the
+    # way holds a working credential.
+    assert "/verify#token=" in message
+    assert "?token=" not in message
+    assert WANTED in message
+
+
+def test_changing_an_address_needs_a_session(client, member):
+    assert client.post(
+        "/api/settings/email", json={"password": MEMBER_PASSWORD, "email": WANTED}
+    ).status_code == 401

@@ -9,6 +9,7 @@ import {
   type Friends,
   type Person,
 } from '../api.ts'
+import { personName } from '../labels.ts'
 import AvatarFrame from './AvatarFrame.tsx'
 
 // Said whatever happened. Whether that name belongs to anybody is not this
@@ -32,13 +33,13 @@ function PersonRow({ person, children }: RowProps) {
   return (
     <li className="friend-row">
       <AvatarFrame
-        username={person.username}
+        name={personName(person)}
         src={person.has_avatar ? avatarUrl(person.user_id, null) : null}
         borderTier={person.border_tier}
         flourish={person.flourish}
         frameClass="friend-frame"
       />
-      <span className="friend-name">{person.username}</span>
+      <span className="friend-name">{personName(person)}</span>
       {children}
     </li>
   )

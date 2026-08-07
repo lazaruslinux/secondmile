@@ -31,7 +31,11 @@ MUSTARD_REVEAL = "You will only ever receive one."
 @dataclass(frozen=True)
 class Species:
     id: str
-    name: str
+    # What the seed is called, in the satchel and at the reveal, and what the
+    # grown thing is called, in the plot and on the band. Two names because they
+    # are two things: you are given an olive seed and you plant an olive tree.
+    seed_name: str
+    plant_name: str
     # Which slot of a chest roll drops this seed. The mustard tree is a rare
     # for this purpose so that nothing about it reads as unusual; it is never
     # actually rolled.
@@ -53,24 +57,25 @@ class Species:
 
 _CATALOG: tuple[Species, ...] = (
     # Common: small plants and quick growers, modest fruit.
-    Species("strawberry", "Strawberry bush", "common", 15.0, "strawberries"),
-    Species("banana", "Banana tree", "common", 15.0, "bananas"),
-    Species("raspberry", "Raspberry bush", "common", 15.0, "raspberries"),
-    Species("blueberry", "Blueberry bush", "common", 15.0, "blueberries"),
+    Species("strawberry", "Strawberry seed", "Strawberry bush", "common", 15.0, "strawberries"),
+    Species("banana", "Banana seed", "Banana tree", "common", 15.0, "bananas"),
+    Species("raspberry", "Raspberry seed", "Raspberry bush", "common", 15.0, "raspberries"),
+    Species("blueberry", "Blueberry seed", "Blueberry bush", "common", 15.0, "blueberries"),
     # Uncommon: bushes and vines.
-    Species("blackberry", "Blackberry bush", "uncommon", 40.0, "blackberries"),
-    Species("mango", "Mango tree", "uncommon", 40.0, "mangoes"),
-    Species("grapevine", "Grapevine", "uncommon", 40.0, "grapes"),
-    Species("fig_bush", "Fig bush", "uncommon", 40.0, "figs"),
+    Species("blackberry", "Blackberry seed", "Blackberry bush", "uncommon", 40.0, "blackberries"),
+    Species("mango", "Mango seed", "Mango tree", "uncommon", 40.0, "mangoes"),
+    Species("grapevine", "Grape seed", "Grapevine", "uncommon", 40.0, "grapes"),
+    Species("fig_bush", "Fig seed", "Fig bush", "uncommon", 40.0, "figs"),
     # Rare: trees, slow, and the best of it.
-    Species("olive", "Olives", "rare", 100.0, "olives"),
-    Species("dates", "Dates", "rare", 100.0, "dates"),
-    Species("coffee", "Coffee", "rare", 100.0, "coffee cherries"),
-    Species("pomegranate", "Pomegranate", "rare", 100.0, "pomegranates"),
+    Species("olive", "Olive seed", "Olive tree", "rare", 100.0, "olives"),
+    Species("dates", "Date seed", "Date palm", "rare", 100.0, "dates"),
+    Species("coffee", "Coffee seed", "Coffee plant", "rare", 100.0, "coffee cherries"),
+    Species("pomegranate", "Pomegranate seed", "Pomegranate tree", "rare", 100.0, "pomegranates"),
     # The first chest, and only the first chest. It has no maturity: it levels,
     # a hundred Miles at a time, for as long as the miles keep coming.
     Species(
         "mustard",
+        "Mustard seed",
         "Mustard",
         "rare",
         0.0,

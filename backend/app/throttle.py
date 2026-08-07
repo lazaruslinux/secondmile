@@ -88,6 +88,11 @@ password_limiter = RateLimiter(5, "password")
 # that will mail a stranger on demand is a way to use this server to bother
 # them.
 resend_limiter = RateLimiter(3, "resend")
+# Asking to move an account to another address. As tight as a resend, for both
+# of its reasons at once: every accepted call mails an address the caller typed
+# in, and every call checks a password, which is the other thing that must never
+# be guessable in a burst.
+email_change_limiter = RateLimiter(3, "email-change")
 # Uploading a profile picture. Tight, because every accepted call hands the
 # server several megabytes to decode and re-encode, which is by far the most
 # expensive thing a signed-in account can ask it to do.
@@ -115,6 +120,7 @@ _ALL_LIMITERS = (
     ingest_limiter,
     password_limiter,
     resend_limiter,
+    email_change_limiter,
     avatar_limiter,
     workout_limiter,
     verify_limiter,

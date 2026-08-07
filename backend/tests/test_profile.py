@@ -371,3 +371,140 @@ def test_patching_one_part_of_the_profile_leaves_the_other_alone(signed_in, db_s
     assert back["displayed_badges"] == []
     assert back["diamond_sports"] == ["swim"]
     assert db_session.get(models.User, member.id).diamond_sports == ["swim"]
+
+
+# --------------------------------------------------------------------------
+# The name somebody goes by, and the age worked out from their birthdate
+# --------------------------------------------------------------------------
+
+
+def test_a_fresh_profile_has_no_name_and_no_age(signed_in):
+    body = signed_in.get("/api/profile").json()
+    assert body["first_name"] is None
+    assert body["last_name"] is None
+    assert body["display_name"] is None
+    assert body["birthdate"] is None
+    assert body["age"] is None
+    assert body["gender"] is None
+
+
+def test_the_name_fields_are_saved_and_composed_into_one(signed_in, db_session, member):
+    body = signed_in.patch(
+        "/api/profile", json={"first_name": " Justin ", "last_name": "Case"}
+    ).json()
+    assert (body["first_name"], body["last_name"]) == ("Justin", "Case")
+    assert body["display_name"] == "Justin Case"
+    db_session.refresh(member)
+    assert (member.first_name, member.last_name) == ("Justin", "Case")
+
+
+def test_half_a_name_is_still_a_name(signed_in):
+    first = signed_in.patch("/api/profile", json={"first_name": "Justin"}).json()
+    assert first["display_name"] == "Justin"
+    both = signed_in.patch("/api/profile", json={"last_name": "Case"}).json()
+    assert both["display_name"] == "Justin Case"
+    # Cleared back to half, and the half that is left is the whole of it.
+    last = signed_in.patch("/api/profile", json={"first_name": None}).json()
+    assert last["display_name"] == "Case"
+
+
+def test_every_new_field_can_be_cleared_again(signed_in, db_session, member):
+    signed_in.patch(
+        "/api/profile",
+        json={
+            "first_name": "Justin",
+            "last_name": "Case",
+            "birthdate": "1990-05-04",
+            "gender": "man",
+        },
+    )
+    cleared = signed_in.patch(
+        "/api/profile",
+        json={"first_name": None, "last_name": "", "birthdate": None, "gender": "   "},
+    ).json()
+    assert cleared["display_name"] is None
+    assert cleared["birthdate"] is None
+    assert cleared["age"] is None
+    assert cleared["gender"] is None
+    db_session.refresh(member)
+    # Blank is stored as nothing, so no reader has to treat "" as null too.
+    assert (member.first_name, member.last_name) == (None, None)
+    assert (member.birthdate, member.gender) == (None, None)
+
+
+def test_a_birthdate_is_saved_and_reported_with_the_age_it_gives(signed_in, db_session, member):
+    # The first of January, so this reads the same whatever day the suite runs:
+    # that birthday has always already happened this year.
+    born = dt.date(dt.date.today().year - 34, 1, 1)
+    body = signed_in.patch("/api/profile", json={"birthdate": born.isoformat()}).json()
+    assert body["birthdate"] == born.isoformat()
+    assert body["age"] == 34
+    db_session.refresh(member)
+    assert member.birthdate == born
+
+
+def test_the_age_counts_full_years_only():
+    from app.routers.profile import computed_age
+
+    born = dt.date(1990, 5, 4)
+    assert computed_age(born, dt.date(2026, 5, 3)) == 35
+    assert computed_age(born, dt.date(2026, 5, 4)) == 36
+    assert computed_age(born, dt.date(2026, 5, 5)) == 36
+    # A birthday on the 29th of February in a year that has no such day.
+    assert computed_age(dt.date(2000, 2, 29), dt.date(2026, 2, 28)) == 25
+    assert computed_age(None) is None
+
+
+def test_a_birthdate_has_to_be_a_real_date_in_the_past(signed_in, db_session, member):
+    today = dt.date.today()
+    for sent in (
+        "not-a-date",
+        "1990-13-01",
+        "1990-02-30",
+        today.isoformat(),
+        (today + dt.timedelta(days=1)).isoformat(),
+        "1900-01-01",
+        "1876-04-01",
+    ):
+        response = signed_in.patch("/api/profile", json={"birthdate": sent})
+        assert response.status_code == 400, sent
+        assert response.json()["detail"][-1] == "."
+    db_session.refresh(member)
+    assert member.birthdate is None
+
+
+def test_a_birthdate_the_day_before_today_is_allowed(signed_in):
+    yesterday = dt.date.today() - dt.timedelta(days=1)
+    body = signed_in.patch("/api/profile", json={"birthdate": yesterday.isoformat()}).json()
+    assert body["birthdate"] == yesterday.isoformat()
+    assert body["age"] == 0
+
+
+def test_the_name_and_gender_fields_have_limits(signed_in, db_session, member):
+    too_long = signed_in.patch("/api/profile", json={"first_name": "j" * 41})
+    assert too_long.status_code == 400
+    assert signed_in.patch("/api/profile", json={"last_name": "c" * 41}).status_code == 400
+    assert signed_in.patch("/api/profile", json={"gender": "g" * 33}).status_code == 400
+    # The longest each one will take is stored.
+    assert signed_in.patch("/api/profile", json={"first_name": "j" * 40}).status_code == 200
+    assert signed_in.patch("/api/profile", json={"gender": "g" * 32}).status_code == 200
+    db_session.refresh(member)
+    assert len(member.first_name) == 40
+    assert len(member.gender) == 32
+
+
+def test_gender_is_free_text(signed_in):
+    body = signed_in.patch("/api/profile", json={"gender": "prefer not to say"}).json()
+    assert body["gender"] == "prefer not to say"
+
+
+def test_patching_a_name_leaves_the_badge_slots_and_diamonds_alone(signed_in):
+    log_workout(signed_in, "run", 11.0, pace_min=9)
+    owned = owned_badges(signed_in)
+    signed_in.patch("/api/profile", json={"displayed_badges": owned[:1]})
+    signed_in.patch("/api/profile", json={"diamond_sports": ["swim"]})
+
+    body = signed_in.patch("/api/profile", json={"first_name": "Justin"}).json()
+    assert body["displayed_badges"] == owned[:1]
+    assert body["diamond_sports"] == ["swim"]
+    assert body["display_name"] == "Justin"

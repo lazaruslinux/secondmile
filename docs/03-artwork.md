@@ -47,6 +47,7 @@ both.
 | `tab-grove.svg` | Grove in the bottom bar |
 | `tab-you.svg` | You in the bottom bar |
 | `gear.svg` | The settings button in the You header |
+| `pencil.svg` | The edit button in the You header |
 | `diamond.svg` | The week strip on Home, and the sport diamonds on You |
 | `cheer.svg` | The cheer button under a friend's workout on Home |
 

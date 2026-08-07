@@ -50,7 +50,12 @@ export default function ChestItem({ item, onPlanted }: Props) {
       {/* A seed is drawn as what it grows into. Water and oil have nothing to
           draw, so nothing is drawn for them. */}
       {seed && item.species !== null && (
-        <PlantArt species={item.species} name={item.name} stage={1} className="item-thumb" />
+        <PlantArt
+          species={item.species}
+          name={itemName(item)}
+          stage={1}
+          className="item-thumb"
+        />
       )}
 
       <div className="item-body">

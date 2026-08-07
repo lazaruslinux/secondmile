@@ -13,6 +13,9 @@ export interface Me {
   // Null on accounts made from the command line, which never needed an address.
   email: string | null
   email_verified: boolean
+  // An address that has been asked for but not yet confirmed from its own
+  // inbox. Optional: a server that predates the change simply never sends it.
+  pending_email?: string | null
   units: Units
   is_admin: boolean
 }
@@ -67,6 +70,10 @@ export interface WorkoutRoute {
 export interface Person {
   user_id: number
   username: string
+  // The name they go by, "First Last", composed by the server. Null when they
+  // have not given one, and absent from a server that predates the field, in
+  // which case the username is the only name there is.
+  display_name?: string | null
   has_avatar: boolean
   border_tier: number
   // How far the border's growth has come, 0 to 3. Earned by encouraging other
@@ -162,9 +169,28 @@ export interface RaceBadge {
   last_earned_at?: string | null
 }
 
+// The parts of a profile a person types in themselves. All optional, all
+// clearable: a null is how a field is emptied rather than left alone.
+export interface ProfileDetails {
+  first_name: string | null
+  last_name: string | null
+  // ISO date, yyyy-mm-dd, which is what the native date input reads and writes.
+  birthdate: string | null
+  gender: string | null
+}
+
 export interface Profile {
   user_id: number
   username: string
+  // Whatever was typed in, and the "First Last" the server makes of it. Every
+  // one of them is optional, so an older server simply shows a username.
+  first_name?: string | null
+  last_name?: string | null
+  display_name?: string | null
+  birthdate?: string | null
+  gender?: string | null
+  // Worked out from the birthdate rather than stored, so the two cannot drift.
+  age?: number | null
   created_at: string
   has_avatar: boolean
   // Changes with every upload, and null when there is no picture. Appended to
@@ -242,8 +268,14 @@ export interface SatchelItem {
   id: number
   kind: ItemKind
   species: string | null
-  // What the species is called on screen. Null for water and oil.
-  name: string | null
+  // What the species is called on screen, where the server sends one plain
+  // name rather than the two below. Null for water and oil.
+  name?: string | null
+  // A species has two names: what it is called in the hand and what it is
+  // called in the ground. A seed says the first one. Both are optional, so a
+  // server that sends one name for both is read as it always was.
+  seed_name?: string | null
+  plant_name?: string | null
   rarity: Rarity
   // The one line a species has to explain about itself, said at the reveal.
   // Null for all but one of them.
@@ -256,7 +288,11 @@ export interface SatchelItem {
 export interface Planting {
   id: number
   species: string
-  name: string
+  // The planted form is what a plot is read in. name is the older single-name
+  // shape and is only read when plant_name is not there.
+  plant_name?: string | null
+  seed_name?: string | null
+  name?: string | null
   rarity: Rarity
   planted_at: string
   growth_mi: number
@@ -275,6 +311,7 @@ export interface FriendPlanting {
   id: number
   species: string
   name?: string
+  plant_name?: string | null
   // 1 seedling, 2 growing, 3 grown. Read defensively: either field may be
   // missing, and a plant already grown takes no more water.
   stage?: number
@@ -515,6 +552,14 @@ export async function createWorkout(workout: NewWorkout): Promise<Workout> {
   return (await res.json()) as Workout
 }
 
+// Asks for an address to be put on the account, or for the one there to be
+// replaced. The current password is the proof it is really this person. The
+// answer is the same whatever happened, so nothing here says whether an address
+// is already somebody else's.
+export async function changeEmail(password: string, email: string): Promise<void> {
+  await sendJson('/settings/email', 'POST', { password, email })
+}
+
 export function getIngestTokenStatus(): Promise<IngestTokenStatus> {
   return getJson<IngestTokenStatus>('/settings/ingest-token')
 }
@@ -541,6 +586,14 @@ export function getProfile(): Promise<Profile> {
 // redrawn from the server's word rather than from what was just sent to it.
 export async function setDisplayedBadges(badges: string[]): Promise<Profile> {
   const res = await sendJson('/profile', 'PATCH', { displayed_badges: badges })
+  return (await res.json()) as Profile
+}
+
+// Name, birthdate, and the rest, sent together and answered with the whole
+// profile. An empty field goes as a null, which is how the server is told to
+// clear it rather than to leave it alone.
+export async function setProfileDetails(details: ProfileDetails): Promise<Profile> {
+  const res = await sendJson('/profile', 'PATCH', details)
   return (await res.json()) as Profile
 }
 

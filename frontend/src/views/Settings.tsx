@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import {
+  changeEmail,
   changePassword,
   errorText,
   getIngestTokenStatus,
@@ -10,10 +11,16 @@ import {
   type Units,
 } from '../api.ts'
 
+// Said whatever happened. Whether that address belongs to anybody already is
+// not this screen's news to give, so the sentence is the same either way.
+const EMAIL_SENT =
+  'Check that inbox. If the address can be used here, a link to confirm it is on its way.'
+
 interface Props {
   username: string
   email: string | null
   emailVerified: boolean
+  pendingEmail: string | null
   units: Units
   onUnitsChanged: (units: Units) => void
   onSignedOut: () => void
@@ -24,6 +31,7 @@ export default function Settings({
   username,
   email,
   emailVerified,
+  pendingEmail,
   units,
   onUnitsChanged,
   onSignedOut,
@@ -49,6 +57,12 @@ export default function Settings({
   const [passwordError, setPasswordError] = useState('')
   const [passwordNote, setPasswordNote] = useState('')
   const [savingPassword, setSavingPassword] = useState(false)
+
+  const [emailPassword, setEmailPassword] = useState('')
+  const [wantedEmail, setWantedEmail] = useState('')
+  const [emailError, setEmailError] = useState('')
+  const [emailNote, setEmailNote] = useState('')
+  const [savingEmail, setSavingEmail] = useState(false)
 
   useEffect(() => {
     getIngestTokenStatus()
@@ -101,6 +115,23 @@ export default function Settings({
     }
   }
 
+  async function submitEmail(event: FormEvent) {
+    event.preventDefault()
+    setSavingEmail(true)
+    setEmailError('')
+    setEmailNote('')
+    try {
+      await changeEmail(emailPassword, wantedEmail)
+      setEmailPassword('')
+      setWantedEmail('')
+      setEmailNote(EMAIL_SENT)
+    } catch (err) {
+      setEmailError(errorText(err))
+    } finally {
+      setSavingEmail(false)
+    }
+  }
+
   async function submitPassword(event: FormEvent) {
     event.preventDefault()
     setSavingPassword(true)
@@ -138,84 +169,234 @@ export default function Settings({
         </button>
       </div>
 
-      <section className="card">
-        <h2>Sync token</h2>
-        <p className="hint">
-          The bearer token your phone sends with each workout export. Rotating it
-          replaces the old one immediately.
-        </p>
+      {/* Two groups, and everything about this account is in the first one:
+          who you are here, how to be reached, and how to leave. */}
+      <section className="settings-group">
+        <h2 className="label settings-title">Account</h2>
 
-        {tokenStatus && (
-          <p className="note">
-            {tokenStatus.exists
-              ? `A token exists${
-                  tokenStatus.rotated_at
-                    ? `, last rotated ${new Date(tokenStatus.rotated_at).toLocaleDateString()}`
-                    : ''
-                }.`
-              : 'No token yet.'}
-          </p>
-        )}
-
-        {freshToken && (
-          <div className="token">
-            <p className="warning">
-              This is the only time this token is shown. Copy it into your export app
-              now. It will not be shown again.
+        <div className="card">
+          <h3>Email</h3>
+          <p className="note">Signed in as {username}.</p>
+          {email ? (
+            <p className="note">
+              {email}{' '}
+              <span className={emailVerified ? 'tag' : 'tag tag-flag'}>
+                {emailVerified ? 'verified' : 'not verified'}
+              </span>
             </p>
-            <code>{freshToken}</code>
-            <button type="button" className="secondary" onClick={() => void copyToken()}>
-              Copy
-            </button>
-            {copyState === 'copied' && (
-              <p className="note note-success" role="status">
-                Copied.
-              </p>
-            )}
-            {copyState === 'failed' && (
-              <p className="note" role="status">
-                This browser would not copy it. Select the token and copy it by hand.
-              </p>
-            )}
-          </div>
-        )}
+          ) : (
+            // The command line makes accounts without one, and they work fine.
+            <p className="note">No email address on this account.</p>
+          )}
+          {/* Whatever was just asked for is not drawn here. An address that
+              already belongs to somebody else is answered exactly like one that
+              does not, and showing it as waiting would undo that silence; it
+              appears once the server says it is waiting. */}
+          {pendingEmail && (
+            <p className="note">
+              {pendingEmail} <span className="tag tag-flag">waiting to be confirmed</span>
+            </p>
+          )}
 
-        {tokenError && (
-          <p className="error" role="alert">
-            {tokenError}
-          </p>
-        )}
-
-        {confirmingRotate ? (
-          <>
+          <form onSubmit={submitEmail}>
             <p className="hint">
-              Your phone stops syncing until the new token is pasted into your export
-              app.
+              {email
+                ? 'Changing it sends a link to the new address. The old one stays on the account until that link is used.'
+                : 'Adding one sends a link to it. The address is on the account once that link is used.'}
             </p>
-            <div className="choice">
-              <button
-                type="button"
-                className="primary"
-                onClick={() => void rotate()}
-                disabled={rotating}
-              >
-                Replace the token
-              </button>
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => setConfirmingRotate(false)}
-                disabled={rotating}
-              >
-                Cancel
-              </button>
-            </div>
-          </>
-        ) : (
-          <button type="button" className="primary" onClick={askRotate} disabled={rotating}>
-            {tokenStatus?.exists ? 'Rotate token' : 'Create token'}
+            <label>
+              Current password
+              <input
+                type="password"
+                value={emailPassword}
+                onChange={(event) => setEmailPassword(event.target.value)}
+                autoComplete="current-password"
+                required
+              />
+            </label>
+            <label>
+              New email address
+              <input
+                type="email"
+                value={wantedEmail}
+                onChange={(event) => setWantedEmail(event.target.value)}
+                autoComplete="email"
+                autoCapitalize="none"
+                spellCheck={false}
+                required
+              />
+            </label>
+
+            {emailError && (
+              <p className="error" role="alert">
+                {emailError}
+              </p>
+            )}
+            {emailNote && (
+              <p className="note note-success" role="status">
+                {emailNote}
+              </p>
+            )}
+
+            <button type="submit" className="primary" disabled={savingEmail}>
+              {email ? 'Change email' : 'Add email'}
+            </button>
+          </form>
+        </div>
+
+        <div className="card">
+          <h3>Password</h3>
+          <form onSubmit={submitPassword}>
+            <label>
+              Current password
+              <input
+                type="password"
+                value={currentPassword}
+                onChange={(event) => setCurrentPassword(event.target.value)}
+                autoComplete="current-password"
+                required
+              />
+            </label>
+            <label>
+              New password
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(event) => setNewPassword(event.target.value)}
+                autoComplete="new-password"
+                minLength={10}
+                required
+              />
+            </label>
+            <p className="hint">At least 10 characters.</p>
+
+            {passwordError && (
+              <p className="error" role="alert">
+                {passwordError}
+              </p>
+            )}
+            {passwordNote && (
+              <p className="note note-success" role="status">
+                {passwordNote}
+              </p>
+            )}
+
+            <button type="submit" className="primary" disabled={savingPassword}>
+              Change password
+            </button>
+          </form>
+        </div>
+
+        <div className="card">
+          <h3>Sign out</h3>
+          <p className="hint">Signs this browser out. Your other devices stay signed in.</p>
+          <button type="button" className="secondary" onClick={() => void signOut()}>
+            Sign out
           </button>
-        )}
+        </div>
+      </section>
+
+      <section className="settings-group">
+        <h2 className="label settings-title">Health sync</h2>
+
+        <div className="card">
+          <h3>Sync token</h3>
+          <p className="hint">
+            The bearer token your phone sends with each workout export. Rotating it replaces
+            the old one immediately.
+          </p>
+
+          {tokenStatus && (
+            <p className="note">
+              {tokenStatus.exists
+                ? `A token exists${
+                    tokenStatus.rotated_at
+                      ? `, last rotated ${new Date(tokenStatus.rotated_at).toLocaleDateString()}`
+                      : ''
+                  }.`
+                : 'No token yet.'}
+            </p>
+          )}
+
+          {freshToken && (
+            <div className="token">
+              <p className="warning">
+                This is the only time this token is shown. Copy it into your export app now.
+                It will not be shown again.
+              </p>
+              <code>{freshToken}</code>
+              <button type="button" className="secondary" onClick={() => void copyToken()}>
+                Copy
+              </button>
+              {copyState === 'copied' && (
+                <p className="note note-success" role="status">
+                  Copied.
+                </p>
+              )}
+              {copyState === 'failed' && (
+                <p className="note" role="status">
+                  This browser would not copy it. Select the token and copy it by hand.
+                </p>
+              )}
+            </div>
+          )}
+
+          {tokenError && (
+            <p className="error" role="alert">
+              {tokenError}
+            </p>
+          )}
+
+          {confirmingRotate ? (
+            <>
+              <p className="hint">
+                Your phone stops syncing until the new token is pasted into your export app.
+              </p>
+              <div className="choice">
+                <button
+                  type="button"
+                  className="primary"
+                  onClick={() => void rotate()}
+                  disabled={rotating}
+                >
+                  Replace the token
+                </button>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => setConfirmingRotate(false)}
+                  disabled={rotating}
+                >
+                  Cancel
+                </button>
+              </div>
+            </>
+          ) : (
+            <button type="button" className="primary" onClick={askRotate} disabled={rotating}>
+              {tokenStatus?.exists ? 'Rotate token' : 'Create token'}
+            </button>
+          )}
+        </div>
+
+        {/* The short version. The full setup, including what the server does
+            with a sync, is in the repository's own documentation. */}
+        <div className="card">
+          <h3>Setting up your phone</h3>
+          <p className="hint">
+            Workouts arrive from Health Auto Export, an iPhone app that reads Apple Health and
+            posts to a URL you give it. In that app, add a REST API automation pointing at
+            this site's /api/ingest address, method POST, with the header Authorization:
+            Bearer followed by the token above. Set the data type to Workouts and the format
+            to JSON, then run it on a schedule. Walks, runs, rides, and swims are imported;
+            anything else in the export is ignored. Sending the same workouts twice changes
+            nothing, so overlapping exports are safe.
+          </p>
+          <p className="hint">
+            Turn Include Route Data on if you want the line drawn on your workout cards. No
+            map is ever fetched from anywhere, and the start and end of every route are
+            thrown away before it is stored.
+          </p>
+        </div>
       </section>
 
       <section className="card">
@@ -246,67 +427,6 @@ export default function Settings({
             {unitsError}
           </p>
         )}
-      </section>
-
-      <section className="card">
-        <h2>Password</h2>
-        <form onSubmit={submitPassword}>
-          <label>
-            Current password
-            <input
-              type="password"
-              value={currentPassword}
-              onChange={(event) => setCurrentPassword(event.target.value)}
-              autoComplete="current-password"
-              required
-            />
-          </label>
-          <label>
-            New password
-            <input
-              type="password"
-              value={newPassword}
-              onChange={(event) => setNewPassword(event.target.value)}
-              autoComplete="new-password"
-              minLength={10}
-              required
-            />
-          </label>
-          <p className="hint">At least 10 characters.</p>
-
-          {passwordError && (
-            <p className="error" role="alert">
-              {passwordError}
-            </p>
-          )}
-          {passwordNote && (
-            <p className="note note-success" role="status">
-              {passwordNote}
-            </p>
-          )}
-
-          <button type="submit" className="primary" disabled={savingPassword}>
-            Change password
-          </button>
-        </form>
-      </section>
-
-      <section className="card">
-        <h2>Account</h2>
-        <p className="note">Signed in as {username}.</p>
-        {email ? (
-          <p className="note">
-            {email} <span className={emailVerified ? 'tag' : 'tag tag-flag'}>
-              {emailVerified ? 'verified' : 'not verified'}
-            </span>
-          </p>
-        ) : (
-          // The command line makes accounts without one, and they work fine.
-          <p className="note">No email address on this account.</p>
-        )}
-        <button type="button" className="secondary" onClick={() => void signOut()}>
-          Sign out
-        </button>
       </section>
     </>
   )

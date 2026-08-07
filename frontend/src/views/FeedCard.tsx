@@ -15,7 +15,7 @@ import {
   formatStart,
   unitName,
 } from '../format.ts'
-import { ACTIVITY_NAMES, raceBadgeName } from '../labels.ts'
+import { ACTIVITY_NAMES, personName, raceBadgeName } from '../labels.ts'
 import AvatarFrame from './AvatarFrame.tsx'
 import Icon from './Icon.tsx'
 import RouteLine from './RouteLine.tsx'
@@ -185,6 +185,8 @@ interface Props {
 export default function FeedCard({ item, units, avatarVersion }: Props) {
   const { user } = item
   const title = ACTIVITY_NAMES[item.activity]
+  // The name they go by if they gave one, and their username otherwise.
+  const who = personName(user)
 
   if (item.own) {
     return (
@@ -198,11 +200,11 @@ export default function FeedCard({ item, units, avatarVersion }: Props) {
             />
           ) : (
             <span className="feed-avatar feed-avatar-empty" aria-hidden="true">
-              {user.username.slice(0, 1).toUpperCase()}
+              {who.slice(0, 1).toUpperCase()}
             </span>
           )}
           <div className="feed-who">
-            <p className="feed-name">{user.username}</p>
+            <p className="feed-name">{who}</p>
             <p className="feed-when">{formatStart(item.start_ts)}</p>
             <p className="feed-source">{SOURCE_NAMES[item.source]}</p>
           </div>
@@ -250,14 +252,14 @@ export default function FeedCard({ item, units, avatarVersion }: Props) {
     <article className="card feed">
       <header className="feed-head">
         <AvatarFrame
-          username={user.username}
+          name={who}
           src={user.has_avatar ? avatarUrl(user.user_id, null) : null}
           borderTier={user.border_tier}
           flourish={user.flourish}
           frameClass="feed-frame"
         />
         <div className="feed-who">
-          <p className="feed-name">{user.username}</p>
+          <p className="feed-name">{who}</p>
           <p className="feed-when">{formatStart(item.start_ts)}</p>
         </div>
       </header>
