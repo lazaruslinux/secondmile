@@ -22,7 +22,7 @@ import {
   zonedDay,
   zonedInputValue,
 } from '../format.ts'
-import { ACTIVITY_NAMES, ACTIVITY_ORDER, raceBadgeName } from '../labels.ts'
+import { ACTIVITY_NAMES, ACTIVITY_ORDER, medalName } from '../labels.ts'
 import RouteLine from './RouteLine.tsx'
 
 const WORKOUT_PAGE = 50
@@ -375,11 +375,12 @@ export default function Log({ userId, units }: Props) {
                         {workout.avg_hr !== null && (
                           <span>{Math.round(workout.avg_hr)} bpm</span>
                         )}
-                        {workout.race_badge && (
-                          <span className="feed-badge">
-                            {raceBadgeName(workout.race_badge)}
+                        {/* One chip per medal the workout earned, up to two. */}
+                        {(workout.medals ?? []).map((id) => (
+                          <span key={id} className="feed-badge">
+                            {medalName(id)}
                           </span>
-                        )}
+                        ))}
                         {workout.source === 'manual' && <span className="tag">Manual</span>}
                         {notes.length > 0 && (
                           <span className="tag tag-flag" title={notes.join(' ')}>

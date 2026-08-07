@@ -13,10 +13,10 @@ from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app import fellowship, models, progress, security, throttle
+from app import fellowship, medals, models, progress, security, throttle
 from app.activity import converted_miles
 from app.db import get_db
-from app.routers.workouts import parse_cursor, photos_for, race_badges_for, routes_for
+from app.routers.workouts import parse_cursor, photos_for, routes_for
 
 router = APIRouter(tags=["fellowship"])
 
@@ -170,7 +170,7 @@ def _row(
     workout: models.Workout,
     person: dict,
     own: bool,
-    race_badge: str | None,
+    medal_ids: list[str],
     has_route: bool,
     photo_ids: list[int],
     encouragement: dict,
@@ -193,7 +193,7 @@ def _row(
         "start_ts": workout.start_ts.isoformat(),
         "distance_mi": round(workout.distance_mi, 3),
         "duration_s": workout.duration_s,
-        "race_badge": race_badge,
+        "medals": medal_ids,
         "has_route": has_route,
         "title": workout.title,
         "post": workout.post,
@@ -235,7 +235,7 @@ def read_feed(
         ).scalars()
     )
 
-    badges = race_badges_for(db, rows)
+    earned = medals.medals_for(db, rows)
     routed = routes_for(db, rows)
     pictures = photos_for(db, rows)
     people = fellowship.people(db, {row.user_id for row in rows})
@@ -245,7 +245,7 @@ def read_feed(
             row,
             people[row.user_id],
             row.user_id == user.id,
-            badges.get(row.id),
+            earned.get(row.id, []),
             row.id in routed,
             pictures.get(row.id, []),
             counts[row.id],

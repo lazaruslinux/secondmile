@@ -224,21 +224,27 @@ def test_history_rows_carry_what_each_workout_was_worth(signed_in):
         assert row["xp"] == converted_miles(row["activity"], row["distance_mi"])
 
 
-def test_history_rows_name_the_race_badge_a_run_earned(signed_in):
+def test_history_rows_name_the_medals_a_run_earned(signed_in):
     signed_in.post("/api/workouts", json=manual(duration=3300, miles=6.4))
     signed_in.post(
         "/api/workouts",
         json=manual(start="2026-07-21T06:12:00+00:00", duration=1800, miles=2.0),
     )
-    rows = {row["distance_mi"]: row["race_badge"] for row in signed_in.get("/api/workouts").json()}
-    assert rows[6.4] == "race_10k"
-    assert rows[2.0] is None
+    # An early run earns the distance and the hour both, in catalogue order.
+    signed_in.post(
+        "/api/workouts",
+        json=manual(start="2026-07-22T05:30:00+00:00", duration=2700, miles=4.0),
+    )
+    rows = {row["distance_mi"]: row["medals"] for row in signed_in.get("/api/workouts").json()}
+    assert rows[6.4] == ["race_10k"]
+    assert rows[2.0] == []
+    assert rows[4.0] == ["race_5k", "early_riser"]
 
 
 def test_a_new_entry_reports_its_own_worth(signed_in):
     created = signed_in.post("/api/workouts", json=manual(duration=1800, miles=3.0))
     assert created.json()["xp"] == 3.0
-    assert created.json()["race_badge"] is None
+    assert created.json()["medals"] == []
 
 
 def test_history_needs_a_session(client):

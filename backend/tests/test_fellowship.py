@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 
 from app import config, fellowship, models, security
 from app.main import app as fastapi_app
-from conftest import make_user
+from conftest import make_user, neutral_start
 
 # The photo upload helper, borrowed rather than written twice: what a friend
 # sees of a picture is tested here, and how one is stored is tested there.
@@ -28,7 +28,7 @@ FRIEND_ROW_KEYS = {
     "start_ts",
     "distance_mi",
     "duration_s",
-    "race_badge",
+    "medals",
     "has_route",
     # The words and the pictures are on a friend's row in full: a post is
     # something somebody chose to write, not something read off their body.
@@ -54,7 +54,7 @@ def sign_in(db_session, username: str) -> tuple[models.User, TestClient]:
 
 
 def post_workout(client, *, activity="run", miles=3.5, offset_min=0, avg_hr=142.0) -> dict:
-    start = security.now_utc() - dt.timedelta(hours=12) + dt.timedelta(minutes=offset_min)
+    start = neutral_start() + dt.timedelta(minutes=offset_min)
     body = {
         "activity": activity,
         "start_ts": start.isoformat(),
@@ -239,7 +239,7 @@ def test_a_friend_sees_the_headline_and_nothing_behind_it(
     assert row["workout_id"] == workout["id"]
     assert row["distance_mi"] == 3.5
     assert row["duration_s"] == 2100
-    assert row["race_badge"] == "race_5k"
+    assert row["medals"] == ["race_5k"]
     assert row["user"]["username"] == member.username
     assert row["encouragement"] == {"cheers": 0, "notes": 0, "cheered_by_me": False}
     # The things a friend is never told, spelled out so a future field cannot
@@ -543,8 +543,7 @@ def test_the_letter_reads_in_order_and_carries_the_words(friends, db_session):
         "since",
         "miles",
         "encouragement",
-        "race_badges",
-        "achievements",
+        "medals",
         "chests",
         "flourish_stage",
         "flourish_rose",
@@ -639,8 +638,8 @@ def test_the_friends_list_carries_the_same_name(signed_in, db_session, member, m
 
 
 def test_a_display_name_is_the_halves_that_are_there():
-    assert fellowship.display_name("Justin", "Case") == "Justin Case"
-    assert fellowship.display_name("Justin", None) == "Justin"
+    assert fellowship.display_name("Avery", "Case") == "Avery Case"
+    assert fellowship.display_name("Avery", None) == "Avery"
     assert fellowship.display_name(None, "Case") == "Case"
     assert fellowship.display_name(None, None) is None
     assert fellowship.display_name("  ", "") is None

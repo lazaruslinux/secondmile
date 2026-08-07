@@ -21,9 +21,8 @@ import sys
 
 from sqlalchemy import select
 
-from app import achievements
 from app import activity as activity_rules
-from app import grove, models, progress, routemaps, security
+from app import grove, medals, models, progress, routemaps, security
 from app.config import check_deploy_config
 from app.db import SessionLocal
 from app.routers.auth import create_invite
@@ -125,10 +124,8 @@ def cmd_recompute_progress(args: argparse.Namespace) -> None:
     The safety hatch for the day a constant changes, and the way to replay a
     history the migration credited in one lump without dropping its chests.
     Everything derived goes and is rebuilt: the experience, the level, the
-    chest ladder and the chests on it, the growth in the plot, and the race
-    badges, which come back with the dates of the runs that earned them.
-    Earned achievements are left alone, because they are never revoked and the
-    evaluator re-awards whatever the rebuilt history earns on top of them.
+    chest ladder and the chests on it, the growth in the plot, and every medal,
+    which come back with the dates of the workouts and weeks that earned them.
 
     Nothing anybody chose is rebuilt either: the satchel, what is planted, and
     every anointing are actions rather than consequences, and chests that came
@@ -152,26 +149,43 @@ def cmd_recompute_progress(args: argparse.Namespace) -> None:
         chests = (
             db.query(models.Chest).filter(models.Chest.user_id == user.id).count()
         )
-        badges = (
-            db.query(models.BadgeEarn).filter(models.BadgeEarn.user_id == user.id).count()
-        )
         print(f"Rebuilt {username} from their workout history.")
         print(f"  level: {row.level} ({row.xp:.1f} XP)")
         print(f"  chests: {chests}")
-        print(f"  achievements: {achievements.earned_count(db, user.id)}")
-        print(f"  badges: {badges}")
+        _print_medal_counts(db, user.id)
     finally:
         db.close()
 
 
-def cmd_backfill_badges(args: argparse.Namespace) -> None:
-    """Award the badges one account's credited history has already earned.
+def _print_medal_counts(db, user_id: int) -> None:
+    """What an account holds, per table, in the two lines every command ends on."""
+    print(
+        "  medals on workouts: "
+        + str(db.query(models.BadgeEarn).filter(models.BadgeEarn.user_id == user_id).count())
+    )
+    print(
+        "  medals on weeks: "
+        + str(
+            db.query(models.WeeklyBadgeEarn)
+            .filter(models.WeeklyBadgeEarn.user_id == user_id)
+            .count()
+        )
+    )
 
-    The gentle sibling of recompute-progress: it replays only the badge
-    awards, so chests, the plot, experience, and achievements are untouched.
-    This is the right tool after a migration adds a badge family to a
-    database with real history in it. Safe to run twice: award_badge is
-    idempotent per workout.
+
+def cmd_backfill_badges(args: argparse.Namespace) -> None:
+    """Award the medals one account's credited history has already earned.
+
+    The gentle sibling of recompute-progress: it replays only the medal
+    awards, so chests, the plot, and experience are untouched. This is the
+    right tool after a migration adds a medal family to a database with real
+    history in it. Safe to run twice: awarding is idempotent per workout, and a
+    week is walked from its workouts rather than added to, so a second run
+    writes the same rows again.
+
+    It may correct a weekly row that a partial history left holding a lower
+    medal than the week actually reached; that is the same answer a full replay
+    would produce. Nothing is ever deleted here.
     """
     username = args.username.strip().lower()
     db = _session()
@@ -189,19 +203,20 @@ def cmd_backfill_badges(args: argparse.Namespace) -> None:
                 models.ProcessedWorkout.workout_id == models.Workout.id,
             )
             .where(models.Workout.user_id == user.id)
-            .order_by(models.Workout.start_ts)
+            .order_by(models.Workout.start_ts, models.Workout.id)
         ).scalars().all()
         awarded = 0
+        weeks = set()
         for workout in credited:
-            if achievements.award_badge(db, user.id, workout) is not None:
-                awarded += 1
+            awarded += len(medals.award_workout_medals(db, user.id, workout))
+            weeks.add(activity_rules.week_start(workout.start_ts))
+        for monday in sorted(weeks):
+            medals.update_week(db, user.id, monday)
         db.commit()
-        total = (
-            db.query(models.BadgeEarn).filter(models.BadgeEarn.user_id == user.id).count()
-        )
         print(f"Replayed {len(credited)} credited workouts for {username}.")
-        print(f"  badges newly awarded: {awarded}")
-        print(f"  badges held now: {total}")
+        print(f"  medals newly awarded on workouts: {awarded}")
+        print(f"  weeks brought up to date: {len(weeks)}")
+        _print_medal_counts(db, user.id)
     finally:
         db.close()
 
@@ -215,7 +230,7 @@ def cmd_backfill_routes(args: argparse.Namespace) -> None:
     the sync endpoint parses it, each entry is matched to its workout by the
     dedupe key, and a line is written for the workouts that have none.
 
-    Only routes are written. Workouts, progress, badges, and the plot are all
+    Only routes are written. Workouts, progress, medals, and the plot are all
     untouched, and a workout that already has a line keeps it, so running this
     twice is the same as running it once.
     """
@@ -486,19 +501,13 @@ def cmd_seed_demo(args: argparse.Namespace) -> None:
                 workout.activity,
                 workout.created_at or workout.start_ts,
             )
-        db.flush()
-        achievements.evaluate(db, user.id)
         db.commit()
 
         print("Seeded the demo account.")
         print("  username: demo")
         print(f"  password: {password}")
         print(f"  level: {row.level} ({row.xp:.1f} XP)")
-        print(f"  achievements: {achievements.earned_count(db, user.id)}")
-        print(
-            "  badges: "
-            + str(db.query(models.BadgeEarn).filter(models.BadgeEarn.user_id == user.id).count())
-        )
+        _print_medal_counts(db, user.id)
         print(f"  chests waiting: {min(len(pending), _DEMO_PENDING_CHESTS)}")
         print(f"  planted: {len(seeds)}")
         print("This password is shown once. It is a fictional account; delete it before")
@@ -530,7 +539,7 @@ def main() -> None:
     recompute.set_defaults(func=cmd_recompute_progress)
 
     backfill = sub.add_parser(
-        "backfill-badges", help="award the badges an account's history already earned"
+        "backfill-badges", help="award the medals an account's history already earned"
     )
     backfill.add_argument("username")
     backfill.set_defaults(func=cmd_backfill_badges)

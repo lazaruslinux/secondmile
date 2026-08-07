@@ -89,7 +89,7 @@ first and have the person use the resend button on the sign-in screen.
 
 ## Progress, and rebuilding it
 
-Experience, levels, chests, badges, and achievements are all derived from the
+Experience, levels, chests, and medals are all derived from the
 workout history. Nothing is typed in and nothing is trusted from a browser: every
 workout is credited exactly once, whether it arrived from a phone, from the
 manual entry form, or was written straight into the database.
@@ -103,12 +103,11 @@ docker compose exec backend python manage.py recompute-progress theirname
 ```
 
 This clears that account's experience, level, chest ladder, earned chests, the
-growth in its plot, and its race badges, and builds them all again from the
+growth in its plot, and its medals, and builds them all again from the
 workouts. The workouts themselves are never touched, so nothing anybody
-actually did is at risk. Race badges come back with the dates of the runs that
-earned them, so running this is also how a history that predates the badges
-earns them. Earned achievements are left exactly where they are: they are
-never revoked, and anything the rebuilt history earns is added on top.
+actually did is at risk. Medals come back with the dates of the runs and weeks
+that earned them, so running this is also how a history that predates a medal
+family earns it.
 
 Nothing anybody chose is rebuilt either. What is in the satchel, what has been
 planted, and every anointing given or received stay exactly as they are, and a
@@ -127,9 +126,10 @@ docker compose exec backend python manage.py backfill-badges theirname
 docker compose exec backend python manage.py backfill-routes theirname
 ```
 
-The first awards the race badges an already-credited history has earned. The
-second draws the route lines out of the payloads the ingest log kept, for
-workouts that have no line yet. Both are safe to run twice.
+The first awards the medals an already-credited history has earned, in every
+family, and is the tool to reach for after an upgrade that adds one. The second
+draws the route lines out of the payloads the ingest log kept, for workouts that
+have no line yet. Both are safe to run twice.
 
 ## Profile pictures
 

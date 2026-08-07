@@ -1,4 +1,4 @@
-"""The pipeline: real workouts become experience, levels, chests, and badges.
+"""The pipeline: real workouts become experience, levels, chests, and medals.
 
 Everything is server side and idempotent per workout: every path funnels
 through process_user, and a credited workout is never credited again. Every
@@ -13,7 +13,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app import achievements, grove, models, species
+from app import grove, medals, models, species
 from app.activity import converted_miles, week_start
 from app.config import (
     BORDER_LEVELS,
@@ -141,9 +141,6 @@ def process_user(db: Session, user_id: int) -> models.UserProgress:
         credited += 1
     if credited:
         progress.updated_at = now_utc()
-    # Runs even on a quiet sweep: the evaluator is aggregate-based, so history
-    # that predates a release earns its badges on the first read.
-    achievements.evaluate(db, user_id)
     db.commit()
     return progress
 
@@ -165,7 +162,11 @@ def _credit(db: Session, progress: models.UserProgress, workout: models.Workout)
     # Experience is the distance itself. One converted Mile, one XP.
     progress.xp += miles
     progress.level = level_for_xp(progress.xp)
-    achievements.award_badge(db, progress.user_id, workout)
+    medals.award_workout_medals(db, progress.user_id, workout)
+    # After the workout is credited, so the week it falls in is totalled with
+    # this one in it. The whole week is walked again rather than added to, which
+    # is what makes a backfill arriving out of order land on the same rows.
+    medals.update_week_for(db, progress.user_id, workout)
     _advance_chests(db, progress, miles)
     # When the workout arrived rather than when it happened, so a week of
     # history synced this morning waters what is in the ground this morning,
@@ -342,13 +343,11 @@ def open_chest(
 
 def recompute(db: Session, user_id: int) -> models.UserProgress:
     """Throw away one account's derived progress and rebuild it from the
-    workouts. Workouts are never touched. Earned achievements stay: they are
-    never revoked, and the evaluator re-awards on top of them, so a badge
-    keeps the day it was first earned.
+    workouts. Workouts are never touched.
 
-    Race badges do go, and come straight back: they belong to individual runs
-    rather than to aggregates, so replaying the runs is the only thing that
-    rebuilds them, and each one returns with the same date it had.
+    Medals go, and come straight back: every one of them is earned by the
+    history rather than held forever, so replaying the history is the only
+    thing that rebuilds them, and each one returns with the date it had.
 
     Nothing anybody chose is rebuilt. The satchel, what is planted, and every
     anointing are actions rather than consequences, so they are left exactly as
@@ -362,7 +361,7 @@ def recompute(db: Session, user_id: int) -> models.UserProgress:
         )
     )
     grove.reset_growth(db, user_id)
-    achievements.clear_badges(db, user_id)
+    medals.clear_earns(db, user_id)
     # processed_workouts is keyed by workout; the workout is what has an owner.
     db.execute(
         delete(models.ProcessedWorkout).where(

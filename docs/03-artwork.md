@@ -122,59 +122,75 @@ as 40 pixels across in the feed, so keep the shapes bold enough to read there.
 
 ## Medals
 
-`frontend/src/assets/badges/race-5k.svg` through `race-ultra.svg`
+`frontend/src/assets/badges/*.svg`
 
-The five race distances, the row of art at the top of the You screen. One file
-each, and the interface calls them medals:
+The whole reward system is twelve medals in four families, drawn on the You
+screen family by family and again down the rail on Home. Every one of them is
+repeatable, so a medal is a count rather than a yes or a no: each is drawn once
+with its number under it rather than once per earning, and one not yet earned is
+the same file drawn dim.
 
-| File | Distance | Earned by |
+Each medal reads exactly one file, and **this mapping is the swap contract**:
+put a different drawing in the named file and that medal changes everywhere it
+appears, with no code, no list, and no import to edit. The ids are the server's;
+the file names are the mapping's, and it lives in `frontend/src/art.ts`.
+
+| Id | File | Earned by |
 | --- | --- | --- |
-| `race-5k.svg` | 5K | One run of 3.1 miles or more |
-| `race-10k.svg` | 10K | One run of 6.2 miles or more |
-| `race-half.svg` | Half | One run of 13.1 miles or more |
-| `race-marathon.svg` | Marathon | One run of 26.2 miles or more |
-| `race-ultra.svg` | Ultra | One run of 31.1 miles or more |
+| `race_5k` | `race-5k.svg` | One run of 3.1 miles or more |
+| `race_10k` | `race-10k.svg` | One run of 6.2 miles or more |
+| `race_half` | `race-half.svg` | One run of 13.1 miles or more |
+| `race_marathon` | `race-marathon.svg` | One run of 26.2 miles or more |
+| `race_ultra` | `race-ultra.svg` | One run of 31.1 miles or more |
+| `weekly_10` | `weekly-10.svg` | Ten miles inside one week, any activity |
+| `weekly_15` | `weekly-15.svg` | Fifteen miles inside one week |
+| `weekly_25` | `weekly-25.svg` | Twenty-five miles inside one week |
+| `weekly_40` | `weekly-40.svg` | Forty miles inside one week |
+| `early_riser` | `time-early-riser.svg` | A run of 5K or more started between four and six in the morning |
+| `night_owl` | `time-night-owl.svg` | A run of 5K or more started between eight at night and four in the morning |
+| `second_mile` | `second-mile.svg` | Twenty miles inside one week, which is double the smallest weekly target |
 
-They are repeatable, so each one is drawn once with a count under it rather
-than once per earning, and a distance not yet run is the same file drawn dim.
-Draw them as a set: the same size and weight, with the distance readable at a
-glance, because five of them share the width of a phone screen. The placeholder
-art puts the distance in a band across the middle and counts the rank in marks
-above it.
+The medal ids are in `backend/app/medals.py`, in the catalogue near the top of
+the file. The catalogue is twelve and fixed: a family gains a medal by gaining a
+row there and a file here, and the mapping in `art.ts` gaining a line.
 
-The file names are fixed; the ids behind them are `race_5k` through
-`race_ultra` in the backend, with underscores rather than hyphens.
+Four families, and the placeholder art gives each one a shape of its own so a
+screen of twelve does not read as twelve versions of the same object:
 
-## Achievement badges
+- **Distance**, the five races: a struck plate with the distance in a band
+  across the middle, and the step of the ladder counted in marks above it.
+- **Weeks**, the four mileage weeks: a calendar rather than a plate, the week
+  along its head and the mileage large in the middle.
+- **Hours**, the two times of day: a plate again, with a picture on it and no
+  lettering. Early Riser is a steaming coffee cup in front of a sunrise. Night
+  Owl is an owl, with a crescent moon behind it.
+- **Second mile**, on its own: a milestone marker reading II.
 
-`frontend/src/assets/badges/<achievement-id>.svg`
+Draw them as a set: the same size and weight, readable at a glance, because five
+of them share the width of a phone screen. Medals are drawn small, roughly 56
+pixels in the strip on You, 30 in the rail on Home, and 32 to 36 in the slots
+under the avatar, where they are drawn round. Keep the artwork inside a circle
+and off fine detail.
 
-Drop a file in named after an achievement id and it becomes that achievement's
-badge. There is no list to edit and no import to add. An achievement with no
-file of its own falls back to a generic badge for its kind:
+### The stars
 
-`frontend/src/assets/badges/kind-week-distance.svg`
+Stars are an overlay the app draws, not artwork, and there is no file per star
+to make. Every fifty earnings of the same medal adds one, to a limit of thirty
+three, and the marks are spread evenly around the medal at whatever number it
+has: the first straight up and the rest clockwise from it, so two sit opposite
+each other and thirty three make a ring.
 
-The achievement ids are in `backend/app/achievements.py`, in the catalogue near
-the top of the file. They read like `week_10`, so the file for that one is
-`week_10.svg`.
+The overlay is drawn in the same 64 unit box the artwork uses, on a circle of
+radius 30 about the centre, which is outside the rim of the placeholder plates.
+Wherever stars can appear, the app insets the drawing itself to leave that ring
+clear, and it insets every medal in the row rather than only the starred ones,
+so the count is what changes and a medal is never resized under it. **Keep your
+artwork inside a radius of about 27** in the same box, or the stars will sit on
+top of it rather than around it.
 
-Badges are drawn small: in the nest under the avatar they are roughly 32 to 36
-pixels across, and in the achievements list roughly 64. Anything that depends
-on fine detail will not read at that size. A badge is drawn round in the nest,
-so keep the artwork inside a circle.
-
-### The gilded variant
-
-Weekly achievements have a second, finer version earned by doubling the target
-inside the same week. Name it after the achievement with `-gilded` on the end:
-
-`frontend/src/assets/badges/week_10-gilded.svg`
-
-If there is no gilded file, the app draws the ordinary badge with a gilded
-treatment of its own. Providing the file is how you make the difference
-unmistakable, which is the point of the mechanic: it is meant to be visibly
-finer than the badge everybody else has.
+The stars take the interface's own type colour rather than a colour of their
+own. Anything finer, a colour that shifts as they mount up, is a later art pass
+and is not built.
 
 ## Grove plants
 

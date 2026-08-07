@@ -1,4 +1,4 @@
-"""The profile: the trophy room, its picture, its badge slots, and the catalogue."""
+"""The profile: the trophy room, its picture, its medal slots, and the catalogue."""
 
 import datetime as dt
 import os
@@ -6,7 +6,6 @@ import os
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 # Straight from starlette: the multipart parser produces starlette's
@@ -15,9 +14,8 @@ from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile
 from starlette.formparsers import MultiPartException
 
-from app import achievements
 from app import activity as activity_rules
-from app import avatars, fellowship, grove, images, models, progress, security, throttle
+from app import avatars, fellowship, grove, images, medals, models, progress, security, throttle
 from app.config import MAX_AVATAR_BYTES, MAX_DIAMOND_SPORTS, MAX_DISPLAYED_BADGES
 from app.db import get_db
 from app.models import ACTIVITIES
@@ -134,7 +132,9 @@ def serialize_profile(db: Session, user: models.User, row: models.UserProgress) 
         # shows anybody.
         "flourish": fellowship.flourish_stage(row.renown),
         "displayed_badges": list(user.displayed_badges or []),
-        "race_badges": achievements.badge_summary(db, user.id, "race"),
+        # The whole catalogue, unearned rows included, with a count on each.
+        # The stars a client draws are that count and nothing stored.
+        "medals": medals.medal_summary(db, user.id),
         # The effective list, never the stored one: the client renders diamonds
         # and should not have to work out what null means.
         "diamond_sports": progress.diamond_sports(db, user.id, user.diamond_sports),
@@ -149,10 +149,6 @@ def serialize_profile(db: Session, user: models.User, row: models.UserProgress) 
         # Which chest is coming and how far off it is, so the banner can say
         # so without asking a second endpoint.
         "next_chest": progress.next_chest(row),
-        "achievements": {
-            "earned": achievements.earned_count(db, user.id),
-            "total": len(achievements.CATALOG),
-        },
     }
 
 
@@ -166,7 +162,7 @@ def read_profile(
 
 def _set_badges(db: Session, user: models.User, sent: list[str]) -> None:
     """Checked against what the account actually owns; this function is the only
-    thing enforcing that. Achievements and race badges share the slots."""
+    thing enforcing that. Every family shares the slots."""
     chosen = [str(value) for value in sent]
     if len(chosen) > MAX_DISPLAYED_BADGES:
         raise HTTPException(
@@ -175,13 +171,7 @@ def _set_badges(db: Session, user: models.User, sent: list[str]) -> None:
         )
     if len(set(chosen)) != len(chosen):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "A badge cannot fill two slots.")
-    owned = set(
-        db.execute(
-            select(models.UserAchievement.achievement_id).where(
-                models.UserAchievement.user_id == user.id
-            )
-        ).scalars()
-    ) | achievements.earned_badge_ids(db, user.id)
+    owned = medals.earned_medal_ids(db, user.id)
     for badge in chosen:
         if badge not in owned:
             raise HTTPException(
@@ -332,21 +322,3 @@ def read_avatar(
             "X-Content-Type-Options": "nosniff",
         },
     )
-
-
-@router.get("/achievements")
-def read_achievements(
-    db: Session = Depends(get_db), user: models.User = Depends(security.current_user)
-) -> list[dict]:
-    """The whole catalogue, in order, with what this account has done. Swept
-    first so the list is never stale after a sync."""
-    progress.process_user(db, user.id)
-    held = {
-        row.achievement_id: row
-        for row in db.execute(
-            select(models.UserAchievement).where(models.UserAchievement.user_id == user.id)
-        ).scalars()
-    }
-    return [
-        achievements.serialize(row, held.get(row.id)) for row in achievements.CATALOG
-    ]

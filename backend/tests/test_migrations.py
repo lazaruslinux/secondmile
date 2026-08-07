@@ -5,6 +5,7 @@ rather than the in-memory database the rest of the suite uses: a migration is
 only worth testing if it is the real revision script doing the real work.
 """
 
+import json
 import pathlib
 
 import pytest
@@ -38,13 +39,14 @@ def migrated(tmp_path, monkeypatch):
 
 def _fill(connection) -> None:
     """A little of everything the old shape held: an account partway up the
-    old chest accumulator, two unopened chests, a filled album, and both kinds
-    of achievement."""
+    old chest accumulator, two unopened chests, a filled album, both kinds of
+    achievement, and badge slots holding one id of each era."""
     connection.execute(
         sa.text(
             "INSERT INTO users (id, username, password_hash, email_verified, is_admin,"
             " units, displayed_badges, created_at)"
-            " VALUES (1, 'runner', 'x', 1, 0, 'imperial', '[]', '2026-01-01 00:00:00')"
+            " VALUES (1, 'runner', 'x', 1, 0, 'imperial',"
+            " '[\"week_10\", \"race_half\"]', '2026-01-01 00:00:00')"
         )
     )
     connection.execute(
@@ -115,12 +117,69 @@ def test_the_seeds_migration_keeps_what_was_earned_and_drops_the_cards(migrated)
         }
         assert "next_chest_gap_mi" not in progress_columns
 
-        # The weekly badges are untouched and the collection ones are gone,
-        # ids and all: nothing may be left that the source cannot name.
-        held = set(
-            connection.execute(sa.text("SELECT achievement_id FROM user_achievements")).scalars()
+        # The achievements went entirely in 0012, table and all.
+        assert "user_achievements" not in tables
+
+
+def test_the_medals_migration_reshapes_the_earns_and_prunes_the_slots(migrated):
+    """0012: one workout may hold two medals, a week gets a table of its own,
+    and any id the twelve do not name is pruned out of the badge slots."""
+    engine, upgrade = migrated
+    with engine.connect() as connection:
+        _fill(connection)
+        connection.execute(
+            sa.text(
+                "INSERT INTO workouts (id, user_id, activity, start_ts, duration_s,"
+                " distance_mi, active_kcal, source, flags, created_at)"
+                " VALUES (1, 1, 'run', '2026-07-01 05:30:00', 2700, 4.0, 400.0,"
+                " 'sync', '{}', '2026-07-01 07:00:00')"
+            )
         )
-        assert held == {"week_10", "week_25"}
+        connection.execute(
+            sa.text(
+                "INSERT INTO badge_earns (id, user_id, badge_id, workout_id, earned_at)"
+                " VALUES (1, 1, 'race_5k', 1, '2026-07-01 05:30:00')"
+            )
+        )
+        connection.commit()
+
+    upgrade()
+
+    with engine.connect() as connection:
+        tables = set(
+            connection.execute(
+                sa.text("SELECT name FROM sqlite_master WHERE type = 'table'")
+            ).scalars()
+        )
+        assert "weekly_badge_earns" in tables
+        assert "user_achievements" not in tables
+
+        # What was earned survives the table being rebuilt.
+        assert connection.execute(
+            sa.text("SELECT badge_id, workout_id FROM badge_earns")
+        ).all() == [("race_5k", 1)]
+
+        # The same workout may now hold a second medal from another family.
+        connection.execute(
+            sa.text(
+                "INSERT INTO badge_earns (id, user_id, badge_id, workout_id, earned_at)"
+                " VALUES (2, 1, 'early_riser', 1, '2026-07-01 05:30:00')"
+            )
+        )
+        connection.commit()
+        # The same pair twice is still refused, which is what makes a replay safe.
+        with pytest.raises(sa.exc.IntegrityError):
+            connection.execute(
+                sa.text(
+                    "INSERT INTO badge_earns (id, user_id, badge_id, workout_id, earned_at)"
+                    " VALUES (3, 1, 'early_riser', 1, '2026-07-01 05:30:00')"
+                )
+            )
+        connection.rollback()
+
+        # The achievement id in the badge slots is pruned; the race id stays.
+        slots = connection.execute(sa.text("SELECT displayed_badges FROM users")).scalar_one()
+        assert json.loads(slots) == ["race_half"]
 
 
 def test_the_migration_steps_back_down_again(migrated):

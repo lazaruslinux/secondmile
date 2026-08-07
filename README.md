@@ -1,11 +1,11 @@
 # secondmile
 
 A self-hosted fitness app with a game inside it. Miles you actually walk, run,
-cycle, or swim sync from your phone and become experience, badges, and things
+cycle, or swim sync from your phone and become experience, medals, and things
 growing in a plot on a profile you build over months. The game is early:
-accounts, workout sync, the Almanac, the profile with its levels and
-achievements, the plot with its chests and seeds, and a feed shared with
-friends work today, and the rest is being built on top of them.
+accounts, workout sync, the Almanac, the profile with its levels and medals,
+the plot with its chests and seeds, and a feed shared with friends work today,
+and the rest is being built on top of them.
 
 Current version: **0.1.1**. Releases are tagged in git.
 
@@ -25,14 +25,15 @@ Current version: **0.1.1**. Releases are tagged in git.
   on a bike and a swimmer is never shortchanged. The levels are the race
   ladder: a 5K, then a 10K, then a half, then a marathon, and a marathon more
   every level after that. Levels grow the border around your picture, and the
-  badges you have chosen sit in fixed slots around it. Weekly and lifetime
+  medals you have chosen sit in fixed slots around it. Weekly and lifetime
   totals are worn on the profile. There are no leaderboards of raw miles and
   there never will be: profiles celebrate, they do not rank.
-- **Keeps an endless list of things to earn.** Race badges for a single run
-  that covers 5K, 10K, half marathon, marathon, or ultra distance, earned again
-  every time you do it and counted on the profile. Achievements for a big week,
-  with a second, visibly finer version earned by voluntarily doubling the
-  target inside the same week. Achievements are never taken away.
+- **Keeps an endless list of things to earn.** Twelve medals, and every one of
+  them repeatable: five for a single run that covers 5K, 10K, half marathon,
+  marathon, or ultra distance, four for a big week, two for running before six
+  in the morning or after eight at night, and the Second Mile for voluntarily
+  doubling a weekly target inside the same week. Each is counted on the
+  profile, so a medal earned five times says so.
 - **Drops chests on a ladder you can count.** Chests cost 5K, then 10K, then a
   half, a marathon, an ultra, and then the ladder starts again. Converted miles
   from every activity are the fuel, a long run climbs several steps at once,
@@ -171,9 +172,8 @@ Two of them decide how people get accounts:
   their pixels to a 512 by 512 webp. The original bytes are never stored or
   served, all metadata including location is dropped, and the file name comes
   from the account rather than from the upload.
-- Experience, levels, badges, achievements, and chest drops are computed on the
-  server from synced workouts alone. There is no client input that can grant
-  any of them.
+- Experience, levels, medals, and chest drops are computed on the server from
+  synced workouts alone. There is no client input that can grant any of them.
 - The containers run unprivileged, base images are digest-pinned, Python
   dependencies are hash-locked, and CI runs a known-vulnerability audit on
   every push.
@@ -205,6 +205,12 @@ npm run dev
 Tests run against SQLite so they need no running database. CI runs ruff,
 pytest, pip-audit, the frontend typecheck and build, and npm audit on every
 push.
+
+## Development
+
+This project was developed with Claude Code. The AI wrote the code; the
+design, the decisions, the corrections, and the testing on real data are
+human.
 
 ## License
 

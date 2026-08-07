@@ -52,9 +52,11 @@ export interface Workout {
   // from the same formula the pipeline uses; optional here so the app still
   // renders against a server that predates the field.
   xp?: number
-  // The race badge this one run earned, if it earned any. At most one per
-  // workout: the longest distance it qualified for.
-  race_badge?: string | null
+  // The medals this one workout earned, as ids. At most two: the race medal for
+  // the distance it qualified for and the medal for the hour it was started at.
+  // Weekly medals and the second mile are not earned by one workout and never
+  // appear here.
+  medals?: string[]
   // Whether the server holds a route for this workout. Optional so the app
   // still renders against a server that predates the field.
   has_route?: boolean
@@ -111,7 +113,8 @@ export interface FeedItem {
   start_ts: string
   distance_mi: number
   duration_s: number
-  race_badge: string | null
+  // The medals this workout earned, read the same way as a workout's own.
+  medals?: string[]
   has_route: boolean
   source: Source
   own: boolean
@@ -175,16 +178,30 @@ export interface ActivityStats {
   workouts: number
 }
 
-// One race distance and how many times it has been run. The server sends all
-// five whether they have been earned or not, so a count of zero is a badge
-// still to come rather than a missing row.
-export interface RaceBadge {
+// The four kinds of medal. Every medal in the catalogue belongs to exactly one.
+export type MedalFamily = 'race' | 'weekly' | 'time' | 'second_mile'
+
+// One medal and how many times it has been earned. The server sends all twelve
+// whether they have been earned or not, so a count of zero is a medal still to
+// come rather than a missing row. Medals repeat: the count is the whole of what
+// an account holds, and the stars around the artwork are worked out from it
+// here rather than sent.
+export interface Medal {
   id: string
-  // Absent from the recap, which is only reporting what arrived rather than
-  // what the account holds.
-  count?: number
-  first_earned_at?: string | null
-  last_earned_at?: string | null
+  family: MedalFamily
+  name: string
+  count: number
+  first_earned_at: string | null
+  last_earned_at: string | null
+}
+
+// One earning of one medal, which is what the recap lists: the same medal
+// earned twice arrives as two entries. Every field but the id is optional, so
+// an entry that carries nothing else still reads.
+export interface MedalEarn {
+  id: string
+  name?: string
+  earned_at?: string
 }
 
 // The parts of a profile a person types in themselves. All optional, all
@@ -225,11 +242,12 @@ export interface Profile {
   // stage is carried on every person in the feed, so a server that does not put
   // it here as well simply leaves the profile's own frame plain.
   flourish?: number
-  // Achievement ids and earned race badge ids together, at most four.
+  // The medals shown in the slots under the picture, as ids, at most four. Any
+  // owned medal may be in them.
   displayed_badges: string[]
-  // All five race distances with their counts. Optional so the app still
-  // renders against a server that predates the field.
-  race_badges?: RaceBadge[]
+  // The whole catalogue with its counts, in catalogue order. Optional so the
+  // app still renders against a server that predates the field.
+  medals?: Medal[]
   // The sports shown as diamonds, at most three. The server sends the effective
   // list, which is the player's own pick or its best guess when they have not
   // made one. Optional so the app still renders against a server that predates
@@ -250,26 +268,11 @@ export interface Profile {
   next_chest?: { tier?: string | null; miles_away?: number; mi_away?: number }
   next_chest_tier?: string | null
   next_chest_mi?: number
-  achievements: { earned: number; total: number }
 }
 
 export interface AvatarState {
   has_avatar: boolean
   avatar_version: number
-}
-
-export type AchievementKind = 'week-distance'
-
-export interface Achievement {
-  id: string
-  kind: AchievementKind
-  name: string
-  detail: string
-  // Whether this one has a gilded form at all, which is the weekly ladder only.
-  gildable: boolean
-  earned: boolean
-  gilded: boolean
-  earned_at: string | null
 }
 
 // Seeds carry a rarity that decides how big the thing they grow into gets. The
@@ -358,7 +361,7 @@ export interface Chest {
 }
 
 // Everything that happened while the app was shut. The chests were dropped and
-// the badges were earned before anyone looked; this is the letter, not the
+// the medals were earned before anyone looked; this is the letter, not the
 // event.
 // One note somebody wrote. Read defensively: the sender's name and the words
 // are what matter, and every field is optional so a row missing one still
@@ -385,10 +388,9 @@ export interface RecapState {
   since: string | null
   miles: number
   chests: Chest[]
-  achievements: Achievement[]
-  // Race badges earned since the last time this was read. Optional, and each
-  // entry may carry nothing but its id.
-  race_badges?: RaceBadge[]
+  // Medals earned since the last time this was read, one entry per earning
+  // across every family. Optional, and each entry may carry nothing but its id.
+  medals?: MedalEarn[]
   // Words and cheers received since the last read. Optional throughout.
   encouragement?: RecapEncouragement
   // Whether the border's growth moved on, and how far it got. Either may be
@@ -684,10 +686,6 @@ export async function deleteAvatar(): Promise<void> {
 
 export function avatarUrl(userId: number, version: number | null): string {
   return `${BASE}/profile/avatar/${userId}${version === null ? '' : `?v=${version}`}`
-}
-
-export function listAchievements(): Promise<Achievement[]> {
-  return getJson<Achievement[]>('/achievements')
 }
 
 export function getRecap(): Promise<RecapState> {

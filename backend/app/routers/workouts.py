@@ -17,7 +17,7 @@ from starlette.datastructures import UploadFile
 from starlette.formparsers import MultiPartException
 
 from app import activity as activity_rules
-from app import fellowship, images, models, photos, progress, security, throttle
+from app import fellowship, images, medals, models, photos, progress, security, throttle
 from app.config import (
     MAX_PHOTO_BYTES,
     MAX_PHOTOS_PER_WORKOUT,
@@ -51,7 +51,7 @@ NO_SUCH_PHOTO = "No such photo."
 
 def _serialize(
     workout: models.Workout,
-    race_badge: str | None = None,
+    medal_ids: list[str] | None = None,
     has_route: bool = False,
     photo_ids: list[int] | None = None,
 ) -> dict:
@@ -59,9 +59,10 @@ def _serialize(
 
     The experience is the converted distance the pipeline credited, computed
     from the same function rather than a copy of it, so a row can never claim a
-    number the account was not given. The race badge is read from the table
+    number the account was not given. The medals are read from the table
     instead, because earning one is a fact about what happened rather than a
-    number that can be recomputed from the row.
+    number that can be recomputed from the row. A workout carries the ones it
+    earned itself, which is none, one, or one race medal and one time medal.
 
     The route itself is not here, only whether there is one: a list has a couple
     of hundred coordinate pairs on it, and a page of history would be mostly
@@ -70,23 +71,9 @@ def _serialize(
     return {
         **activity_rules.serialize(workout, photo_ids),
         "xp": round(activity_rules.converted_miles(workout.activity, workout.distance_mi), 2),
-        "race_badge": race_badge,
+        "medals": medal_ids or [],
         "has_route": has_route,
     }
-
-
-def race_badges_for(db: Session, workouts: list[models.Workout]) -> dict[int, str]:
-    """Which of these workouts earned a race badge, keyed by workout id."""
-    ids = [row.id for row in workouts]
-    if not ids:
-        return {}
-    return dict(
-        db.execute(
-            select(models.BadgeEarn.workout_id, models.BadgeEarn.badge_id).where(
-                models.BadgeEarn.workout_id.in_(ids)
-            )
-        ).all()
-    )
 
 
 def routes_for(db: Session, workouts: list[models.Workout]) -> set[int]:
@@ -206,11 +193,11 @@ def create_workout(
     db.commit()
 
     # A workout typed in by hand counts exactly as much as one from a watch,
-    # so it goes through the same pipeline on the same terms, race badge
+    # so it goes through the same pipeline on the same terms, medals
     # included.
     progress.process_user(db, user.id)
     # No route: a workout typed into a form never carried a trace.
-    return _serialize(workout, race_badges_for(db, [workout]).get(workout.id))
+    return _serialize(workout, medals.medals_for(db, [workout]).get(workout.id))
 
 
 def parse_cursor(before: str) -> dt.datetime:
@@ -246,11 +233,11 @@ def list_workouts(
     # and skip another.
     stmt = stmt.order_by(models.Workout.start_ts.desc(), models.Workout.id.desc()).limit(limit)
     rows = list(db.execute(stmt).scalars())
-    badges = race_badges_for(db, rows)
+    earned = medals.medals_for(db, rows)
     routed = routes_for(db, rows)
     pictures = photos_for(db, rows)
     return [
-        _serialize(row, badges.get(row.id), row.id in routed, pictures.get(row.id))
+        _serialize(row, earned.get(row.id), row.id in routed, pictures.get(row.id))
         for row in rows
     ]
 
@@ -343,7 +330,7 @@ def update_workout(
     db.commit()
     return _serialize(
         workout,
-        race_badges_for(db, [workout]).get(workout.id),
+        medals.medals_for(db, [workout]).get(workout.id),
         workout.id in routes_for(db, [workout]),
         photos_for(db, [workout]).get(workout.id),
     )

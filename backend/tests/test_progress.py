@@ -3,9 +3,9 @@
 import datetime as dt
 
 import pytest
-from conftest import log_workout
+from conftest import log_workout, neutral_start
 
-from app import achievements, models, progress, security
+from app import medals, models, progress, security
 from app.activity import converted_miles
 from app.config import BORDER_LEVELS, MAX_LEVEL
 
@@ -229,11 +229,11 @@ def test_walking_and_running_the_same_distance_find_the_same_chests(
 
 
 # --------------------------------------------------------------------------
-# Race badges
+# Race medals
 # --------------------------------------------------------------------------
 
 
-def badge_rows(db_session, user_id) -> list[models.BadgeEarn]:
+def medal_rows(db_session, user_id) -> list[models.BadgeEarn]:
     return (
         db_session.query(models.BadgeEarn)
         .filter(models.BadgeEarn.user_id == user_id)
@@ -242,12 +242,16 @@ def badge_rows(db_session, user_id) -> list[models.BadgeEarn]:
     )
 
 
-def stored_run(db_session, user_id, miles, *, duration_s=None, activity="run", offset_h=1):
-    """One run written straight in, so the test picks its own numbers."""
+def stored_run(db_session, user_id, miles, *, duration_s=None, activity="run", days_ago=1):
+    """One run written straight in, so the test picks its own numbers.
+
+    Mid-morning on a day of its own, which is an hour no time medal is earned
+    in: a case about a distance should never also be a case about a clock.
+    """
     row = models.Workout(
         user_id=user_id,
         activity=activity,
-        start_ts=security.now_utc() - dt.timedelta(hours=offset_h),
+        start_ts=neutral_start() - dt.timedelta(days=days_ago),
         duration_s=duration_s if duration_s is not None else int(miles * 9 * 60) or 600,
         distance_mi=miles,
         active_kcal=100.0,
@@ -261,15 +265,15 @@ def stored_run(db_session, user_id, miles, *, duration_s=None, activity="run", o
     return row
 
 
-def test_a_run_earns_only_its_highest_race_badge(signed_in, db_session, member):
+def test_a_run_earns_only_its_highest_race_medal(signed_in, db_session, member):
     """A marathon is a marathon, not also a 5K and a 10K and a half."""
-    stored_run(db_session, member.id, 26.3, offset_h=5)
+    stored_run(db_session, member.id, 26.3, days_ago=5)
     progress.process_user(db_session, member.id)
-    rows = badge_rows(db_session, member.id)
+    rows = medal_rows(db_session, member.id)
     assert [row.badge_id for row in rows] == ["race_marathon"]
 
 
-def test_each_race_distance_earns_its_own_badge(signed_in, db_session, member):
+def test_each_race_distance_earns_its_own_medal(signed_in, db_session, member):
     for offset, (miles, expected) in enumerate(
         (
             (3.1, "race_5k"),
@@ -279,38 +283,38 @@ def test_each_race_distance_earns_its_own_badge(signed_in, db_session, member):
             (31.1, "race_ultra"),
         )
     ):
-        row = stored_run(db_session, member.id, miles, offset_h=offset + 1)
+        row = stored_run(db_session, member.id, miles, days_ago=offset + 1)
         progress.process_user(db_session, member.id)
-        earned = {badge.workout_id: badge.badge_id for badge in badge_rows(db_session, member.id)}
+        earned = {badge.workout_id: badge.badge_id for badge in medal_rows(db_session, member.id)}
         assert earned[row.id] == expected, miles
 
 
 def test_a_run_short_of_the_threshold_earns_nothing(signed_in, db_session, member):
     stored_run(db_session, member.id, 3.09)
     progress.process_user(db_session, member.id)
-    assert badge_rows(db_session, member.id) == []
+    assert medal_rows(db_session, member.id) == []
 
 
-def test_race_badges_repeat_and_carry_the_day_of_the_run(signed_in, db_session, member):
-    first = stored_run(db_session, member.id, 4.0, offset_h=48)
-    second = stored_run(db_session, member.id, 5.0, offset_h=2)
+def test_race_medals_repeat_and_carry_the_day_of_the_run(signed_in, db_session, member):
+    first = stored_run(db_session, member.id, 4.0, days_ago=48)
+    second = stored_run(db_session, member.id, 5.0, days_ago=2)
     progress.process_user(db_session, member.id)
-    rows = badge_rows(db_session, member.id)
+    rows = medal_rows(db_session, member.id)
     assert [row.badge_id for row in rows] == ["race_5k", "race_5k"]
-    # The date on the badge is the date of the run, never the clock.
+    # The date on the medal is the date of the run, never the clock.
     assert {row.workout_id: row.earned_at for row in rows} == {
         first.id: first.start_ts,
         second.id: second.start_ts,
     }
 
 
-def test_only_running_earns_a_race_badge_this_round(signed_in, db_session, member):
+def test_only_running_earns_a_race_medal(signed_in, db_session, member):
     for offset, activity in enumerate(("walk", "cycle", "swim")):
         stored_run(
-            db_session, member.id, 30.0, activity=activity, duration_s=6 * 3600, offset_h=offset + 1
+            db_session, member.id, 30.0, activity=activity, duration_s=6 * 3600, days_ago=offset + 1
         )
     progress.process_user(db_session, member.id)
-    assert badge_rows(db_session, member.id) == []
+    assert medal_rows(db_session, member.id) == []
 
 
 def test_a_run_flagged_impossible_earns_nothing(signed_in, db_session, member):
@@ -326,59 +330,88 @@ def test_a_run_flagged_impossible_earns_nothing(signed_in, db_session, member):
     )
     assert created.status_code == 201
     assert created.json()["flags"]["impossible_pace"] is True
-    assert created.json()["race_badge"] is None
-    assert badge_rows(db_session, member.id) == []
+    assert created.json()["medals"] == []
+    assert medal_rows(db_session, member.id) == []
 
 
 def test_a_manually_entered_run_earns_its_badge(signed_in, db_session, member):
     created = log_workout(signed_in, "run", 6.5, pace_min=10)
-    assert created["race_badge"] == "race_10k"
-    assert [row.badge_id for row in badge_rows(db_session, member.id)] == ["race_10k"]
+    assert created["medals"] == ["race_10k"]
+    assert [row.badge_id for row in medal_rows(db_session, member.id)] == ["race_10k"]
 
 
-def test_a_replayed_history_earns_the_same_badges_once(signed_in, db_session, member):
-    stored_run(db_session, member.id, 13.5, offset_h=30)
-    stored_run(db_session, member.id, 3.5, offset_h=6)
+def test_a_replayed_history_earns_the_same_medals_once(signed_in, db_session, member):
+    stored_run(db_session, member.id, 13.5, days_ago=30)
+    stored_run(db_session, member.id, 3.5, days_ago=6)
     progress.process_user(db_session, member.id)
-    before = [(row.badge_id, row.workout_id, row.earned_at) for row in badge_rows(db_session, member.id)]
+    before = [(row.badge_id, row.workout_id, row.earned_at) for row in medal_rows(db_session, member.id)]
     assert len(before) == 2
 
     # A sweep that finds nothing new must not award anything again.
     progress.process_user(db_session, member.id)
-    assert len(badge_rows(db_session, member.id)) == 2
+    assert len(medal_rows(db_session, member.id)) == 2
 
     # And a full rebuild returns exactly the same rows, dates included.
     progress.recompute(db_session, member.id)
-    after = [(row.badge_id, row.workout_id, row.earned_at) for row in badge_rows(db_session, member.id)]
+    after = [(row.badge_id, row.workout_id, row.earned_at) for row in medal_rows(db_session, member.id)]
     assert after == before
 
 
-def test_the_profile_lists_every_race_badge_with_its_count(signed_in, db_session, member):
-    stored_run(db_session, member.id, 3.2, offset_h=30)
-    stored_run(db_session, member.id, 3.4, offset_h=6)
+def test_the_profile_lists_every_medal_with_its_count(signed_in, db_session, member):
+    stored_run(db_session, member.id, 3.2, days_ago=30)
+    stored_run(db_session, member.id, 3.4, days_ago=6)
     body = profile(signed_in)
-    rows = {row["id"]: row for row in body["race_badges"]}
-    assert list(rows) == [badge.id for badge in achievements.RACE_BADGES]
+    rows = {row["id"]: row for row in body["medals"]}
+    # The whole catalogue, in catalogue order, earned or not.
+    assert list(rows) == [medal.id for medal in medals.CATALOG]
     assert rows["race_5k"]["count"] == 2
     assert rows["race_5k"]["first_earned_at"] < rows["race_5k"]["last_earned_at"]
     assert rows["race_marathon"] == {
         "id": "race_marathon",
+        "family": "race",
         "name": "Marathon",
-        "distance_mi": 26.2,
         "count": 0,
         "first_earned_at": None,
         "last_earned_at": None,
     }
+    # The profile no longer carries an achievements summary of any kind.
+    assert "achievements" not in body
+    assert "race_badges" not in body
 
 
-def test_a_race_badge_can_be_worn_in_a_slot(signed_in, db_session, member):
+def test_a_weekly_medal_is_counted_by_the_week(signed_in, db_session, member):
+    """One row per week, so two big weeks count two rather than four."""
+    for week in range(2):
+        for day in range(2):
+            stored_run(db_session, member.id, 8.0, days_ago=week * 7 + day)
+    rows = {row["id"]: row for row in profile(signed_in)["medals"]}
+    assert rows["weekly_15"]["count"] == 2
+    assert rows["weekly_10"]["count"] == 0
+    assert rows["second_mile"]["count"] == 0
+
+
+def test_any_earned_medal_can_be_worn_in_a_slot(signed_in, db_session, member):
     refused = signed_in.patch("/api/profile", json={"displayed_badges": ["race_ultra"]})
     assert refused.status_code == 400
+    # Unearned medals from the new families are refused the same way.
+    for unearned in ("weekly_40", "early_riser", "second_mile"):
+        assert (
+            signed_in.patch("/api/profile", json={"displayed_badges": [unearned]}).status_code
+            == 400
+        )
 
     log_workout(signed_in, "run", 13.2, pace_min=9)
     accepted = signed_in.patch("/api/profile", json={"displayed_badges": ["race_half"]})
     assert accepted.status_code == 200
     assert accepted.json()["displayed_badges"] == ["race_half"]
+
+
+def test_an_earned_weekly_medal_can_be_worn_in_a_slot(signed_in, db_session, member):
+    stored_run(db_session, member.id, 11.0, days_ago=1)
+    profile(signed_in)
+    worn = signed_in.patch("/api/profile", json={"displayed_badges": ["weekly_10"]})
+    assert worn.status_code == 200
+    assert worn.json()["displayed_badges"] == ["weekly_10"]
 
 
 def test_one_account_cannot_see_another(signed_in, db_session, admin, client):
@@ -390,4 +423,4 @@ def test_one_account_cannot_see_another(signed_in, db_session, admin, client):
     signed_in.post("/api/auth/login", json=ADMIN)
     other = profile(signed_in)
     assert other["xp"] == 0
-    assert all(row["count"] == 0 for row in other["race_badges"])
+    assert all(row["count"] == 0 for row in other["medals"])

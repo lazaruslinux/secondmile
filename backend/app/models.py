@@ -102,7 +102,7 @@ class User(Base):
     # the directory does not orphan every row. Always derived from the account
     # id: nothing an uploader sends ever reaches this column.
     avatar_path: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    # The achievement ids the player has chosen to wear, in slot order. A list
+    # The medal ids the player has chosen to wear, in slot order. A list
     # of at most MAX_DISPLAYED_BADGES, validated against what they own on every
     # write. JSON rather than a join table because it is an ordered list of
     # fixed length that is only ever read and written whole.
@@ -255,10 +255,10 @@ class IngestLog(Base):
     result: Mapped[dict] = mapped_column(JSONType, nullable=False)
 
 
-# Species and achievement ids come from app.species and app.achievements rather
-# than from a table. They are strings here and no foreign key points at them,
-# because the catalogue is authored in the source and a release is the only
-# thing that changes it.
+# Species and medal ids come from app.species and app.medals rather than from a
+# table. They are strings here and no foreign key points at them, because the
+# catalogue is authored in the source and a release is the only thing that
+# changes it.
 _CATALOG_ID = String(48)
 
 
@@ -306,45 +306,56 @@ class ProcessedWorkout(Base):
     )
 
 
-class UserAchievement(Base):
-    __tablename__ = "user_achievements"
-
-    user_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
-    )
-    achievement_id: Mapped[str] = mapped_column(_CATALOG_ID, primary_key=True)
-    earned_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
-    # The Second Mile rule: doubling a target inside the same window upgrades
-    # the badge in place. Achievements are never revoked and gilding is never
-    # taken back, so this column only ever goes from false to true.
-    gilded: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-
-
 class BadgeEarn(Base):
     __tablename__ = "badge_earns"
+    # One workout may hold one medal from each per-workout family, so the pair
+    # is the key rather than the workout alone: a 5K run before six in the
+    # morning earns the 5K and Early Riser both. Replaying the same history is
+    # idempotent for free, because the second attempt collides and is dropped.
+    __table_args__ = (
+        UniqueConstraint("workout_id", "badge_id", name="uq_badge_earn_workout_medal"),
+    )
 
-    # One row every time a workout earns a badge. Repeatable on purpose, which
-    # is the whole difference from user_achievements: a marathon is not a thing
-    # you do once and tick off, so this counts them.
+    # One row every time a workout earns a medal. Repeatable on purpose: a
+    # marathon is not a thing you do once and tick off, so this counts them.
     #
-    # Every badge family lives in this one table, keyed by the catalogue id.
-    # The race family is the only one today; another is catalogue rows and an
-    # awarding rule in app/achievements.py, never a second table.
+    # The race and time families live here, keyed by the catalogue id. The
+    # families a week earns rather than a session are in weekly_badge_earns.
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     badge_id: Mapped[str] = mapped_column(_CATALOG_ID, nullable=False)
-    # Required and unique while every badge is earned by one workout. That
-    # makes a replay of the same history idempotent for free: the second
-    # attempt to award the same workout collides and is dropped. A family
-    # earned over a period rather than in a session relaxes both in its own
-    # migration.
     workout_id: Mapped[int] = mapped_column(
-        ForeignKey("workouts.id", ondelete="CASCADE"), nullable=False, unique=True
+        ForeignKey("workouts.id", ondelete="CASCADE"), nullable=False
     )
     # The workout's own start time, never the clock, so a rebuild writes the
     # same row it wrote the first time.
+    earned_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
+
+
+class WeeklyBadgeEarn(Base):
+    __tablename__ = "weekly_badge_earns"
+
+    # One row per family per week, which is what lets a week upgrade its medal
+    # in place: seven days that reach 25 miles keep the row they earned at 10
+    # and change what it holds. The primary key is the whole of the idempotence
+    # here, the way the unique pair is next door.
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    # The Monday of the week, in the instance timezone, the same Monday the
+    # Almanac groups by.
+    week_start: Mapped[dt.date] = mapped_column(Date, primary_key=True)
+    family: Mapped[str] = mapped_column(String(16), primary_key=True)
+    badge_id: Mapped[str] = mapped_column(_CATALOG_ID, nullable=False)
+    # The workout that crossed the line. Kept so the letter can ask when the
+    # medal arrived rather than when it was earned: a January week backfilled
+    # this morning is news this morning, whatever date is on it.
+    workout_id: Mapped[int] = mapped_column(
+        ForeignKey("workouts.id", ondelete="CASCADE"), nullable=False
+    )
+    # That workout's start time, so a rebuild writes the same row again.
     earned_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
 
 

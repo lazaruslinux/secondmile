@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app import achievements, fellowship, grove, models, progress, security
+from app import fellowship, grove, medals, models, progress, security
 from app.activity import converted_miles
 from app.db import get_db
 
@@ -98,16 +98,6 @@ def read_recap(
     """
     row = progress.process_user(db, user.id)
     since = row.last_ack_at
-    badge_stmt = select(models.UserAchievement).where(
-        models.UserAchievement.user_id == user.id
-    )
-    if since is not None:
-        badge_stmt = badge_stmt.where(models.UserAchievement.earned_at > since)
-    fresh = db.execute(
-        badge_stmt.order_by(
-            models.UserAchievement.earned_at, models.UserAchievement.achievement_id
-        )
-    ).scalars()
 
     # Miles from workouts that landed since the last acknowledgement, by when
     # the row arrived rather than when the workout started: a week of history
@@ -125,17 +115,12 @@ def read_recap(
     )
 
     # Ordered as the letter reads: the miles, then what people said about them,
-    # then the medals, the achievements, and the chests still waiting.
+    # then the medals and the chests still waiting.
     return {
         "since": since.isoformat() if since is not None else None,
         "miles": round(miles, 2),
         "encouragement": _received(db, user.id, since),
-        "race_badges": _fresh_race_badges(db, user.id, since),
-        "achievements": [
-            achievements.serialize(achievements.BY_ID[held.achievement_id], held)
-            for held in fresh
-            if held.achievement_id in achievements.BY_ID
-        ],
+        "medals": _fresh_medals(db, user.id, since),
         "chests": _waiting_chests(db, user.id),
         **_flourish(db, user.id, row, since),
     }
@@ -235,34 +220,43 @@ def _flourish(
     return {"flourish_stage": stage, "flourish_rose": stage > before}
 
 
-def _fresh_race_badges(db: Session, user_id: int, since: dt.datetime | None) -> list[dict]:
-    """Race badges to tell the player about, newest last.
+def _fresh_medals(db: Session, user_id: int, since: dt.datetime | None) -> list[dict]:
+    """Medals to tell the player about, newest last, every family.
 
     Selected by when the workout arrived rather than by when it happened, the
-    same rule the miles above follow. A badge's own earned_at is the date of
+    same rule the miles above follow. A medal's own earned_at is the date of
     the run, which is what the profile should show and exactly the wrong thing
     to filter a recap by: a fortnight of history synced this morning would then
-    hand over nothing.
+    hand over nothing. A weekly medal is filtered by the arrival of the workout
+    that crossed the line, which is the same rule read one table across.
     """
-    stmt = (
-        select(models.BadgeEarn)
-        .join(models.Workout, models.Workout.id == models.BadgeEarn.workout_id)
-        .where(models.BadgeEarn.user_id == user_id)
-    )
-    if since is not None:
-        stmt = stmt.where(models.Workout.created_at > since)
-    rows = db.execute(stmt.order_by(models.BadgeEarn.earned_at, models.BadgeEarn.id))
-    return [
-        {
-            "id": row.badge_id,
-            "name": achievements.BADGES_BY_ID[row.badge_id].name,
-            "distance_mi": achievements.BADGES_BY_ID[row.badge_id].distance_mi,
-            "workout_id": row.workout_id,
-            "earned_at": row.earned_at.isoformat(),
-        }
-        for row in rows.scalars()
-        if row.badge_id in achievements.BADGES_BY_ID
-    ]
+    found: list[tuple[dt.datetime, int, dict]] = []
+    order = {medal.id: index for index, medal in enumerate(medals.CATALOG)}
+    for table in (models.BadgeEarn, models.WeeklyBadgeEarn):
+        stmt = (
+            select(table)
+            .join(models.Workout, models.Workout.id == table.workout_id)
+            .where(table.user_id == user_id)
+        )
+        if since is not None:
+            stmt = stmt.where(models.Workout.created_at > since)
+        for row in db.execute(stmt).scalars():
+            if row.badge_id not in medals.BY_ID:
+                continue
+            found.append(
+                (
+                    row.earned_at,
+                    order[row.badge_id],
+                    {
+                        "id": row.badge_id,
+                        "name": medals.BY_ID[row.badge_id].name,
+                        "earned_at": row.earned_at.isoformat(),
+                    },
+                )
+            )
+    # Oldest first, and the catalogue settles two earned on the same run, so the
+    # letter reads the same way twice.
+    return [entry for _stamp, _rank, entry in sorted(found, key=lambda item: item[:2])]
 
 
 @router.post("/recap/ack", status_code=status.HTTP_204_NO_CONTENT)

@@ -3,7 +3,7 @@
 import datetime as dt
 import random
 
-from conftest import log_workout
+from conftest import log_workout, neutral_start
 
 from app import models, progress, security, species
 from app.config import CHEST_LADDER, CHEST_TIER_ODDS
@@ -246,10 +246,10 @@ def test_nothing_is_left_of_the_cards(signed_in):
         assert "card" not in body.lower(), path
 
 
-def test_the_achievement_catalogue_no_longer_collects_anything(signed_in):
-    rows = signed_in.get("/api/achievements").json()
-    assert {row["kind"] for row in rows} == {"week-distance"}
-    assert all(not row["id"].startswith("collection") for row in rows)
+def test_the_achievements_endpoint_is_gone(signed_in):
+    """Achievements retired as a system: the medals took their place, and there
+    is no catalogue left to ask for."""
+    assert signed_in.get("/api/achievements").status_code == 404
 
 
 # --------------------------------------------------------------------------
@@ -257,9 +257,18 @@ def test_the_achievement_catalogue_no_longer_collects_anything(signed_in):
 # --------------------------------------------------------------------------
 
 
-def test_the_recap_carries_chests_badges_and_miles_then_clears(signed_in):
+def test_the_recap_carries_chests_medals_and_miles_then_clears(signed_in):
     log_workout(signed_in, "run", 11.0, pace_min=9)
     recap = signed_in.get("/api/recap").json()
+    assert list(recap) == [
+        "since",
+        "miles",
+        "encouragement",
+        "medals",
+        "chests",
+        "flourish_stage",
+        "flourish_rose",
+    ]
     assert recap["since"] is None
     assert recap["miles"] == 11.0
     assert recap["chests"], "eleven Miles should have dropped at least one chest"
@@ -273,20 +282,22 @@ def test_the_recap_carries_chests_badges_and_miles_then_clears(signed_in):
     assert [row["tier"] for row in recap["chests"]] == ["5K", "10K"]
     # Nothing was given, so nothing is attributed to anybody.
     assert all(row["from_username"] is None for row in recap["chests"])
-    assert [row["id"] for row in recap["achievements"]] == ["week_10"]
-    assert [row["id"] for row in recap["race_badges"]] == ["race_10k"]
+    # Eleven miles in one run is a 10K and a ten-mile week, and both families
+    # are in the letter. Each entry is the id, the label, and the date.
+    assert [row["id"] for row in recap["medals"]] == ["race_10k", "weekly_10"]
+    assert set(recap["medals"][0]) == {"id", "name", "earned_at"}
+    assert recap["medals"][1]["name"] == "10-mile week"
 
     assert signed_in.post("/api/recap/ack").status_code == 204
     cleared = signed_in.get("/api/recap").json()
     assert cleared["since"] is not None
     assert cleared["miles"] == 0.0
-    assert cleared["achievements"] == []
-    assert cleared["race_badges"] == []
+    assert cleared["medals"] == []
     # Chests are not cleared by acknowledging: they wait to be opened.
     assert cleared["chests"] == recap["chests"]
 
 
-def test_a_badge_from_a_backdated_run_still_reaches_the_recap(signed_in, db_session, member):
+def test_a_medal_from_a_backdated_run_still_reaches_the_recap(signed_in, db_session, member):
     """The run happened last month; the sync happened this morning. What makes
     it news is when it arrived, which is the same rule the miles follow."""
     signed_in.post("/api/recap/ack")
@@ -294,9 +305,9 @@ def test_a_badge_from_a_backdated_run_still_reaches_the_recap(signed_in, db_sess
         models.Workout(
             user_id=member.id,
             activity="run",
-            start_ts=security.now_utc() - dt.timedelta(days=40),
-            duration_s=50 * 60,
-            distance_mi=6.4,
+            start_ts=neutral_start() - dt.timedelta(days=40),
+            duration_s=90 * 60,
+            distance_mi=10.5,
             active_kcal=600.0,
             avg_hr=None,
             source="sync",
@@ -307,8 +318,10 @@ def test_a_badge_from_a_backdated_run_still_reaches_the_recap(signed_in, db_sess
     db_session.commit()
     progress.process_user(db_session, member.id)
     recap = signed_in.get("/api/recap").json()
-    assert [row["id"] for row in recap["race_badges"]] == ["race_10k"]
-    assert recap["race_badges"][0]["earned_at"] < recap["since"]
+    # The weekly medal follows the same rule, filtered by the arrival of the
+    # workout that crossed the line rather than by the date on it.
+    assert [row["id"] for row in recap["medals"]] == ["race_10k", "weekly_10"]
+    assert all(row["earned_at"] < recap["since"] for row in recap["medals"])
 
 
 def test_the_chest_endpoints_need_a_session(client):

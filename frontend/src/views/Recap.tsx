@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { errorText, openChest, type RecapState, type SatchelItem } from '../api.ts'
 import { formatDate } from '../format.ts'
-import { chestName, RACE_BADGE_DETAILS, raceBadgeName } from '../labels.ts'
+import { chestName, MEDAL_DETAILS, medalName } from '../labels.ts'
 import { chestGiver, flourishLine, noteAuthor, recapCheers, recapNotes } from '../recap.ts'
-import Badge from './Badge.tsx'
 import ChestItem from './ChestItem.tsx'
-import { RaceBadgeMark } from './RaceBadges.tsx'
+import { MedalMark } from './Medals.tsx'
 
 interface Props {
   recap: RecapState
@@ -45,13 +44,13 @@ export default function Recap({ recap, onDismiss }: Props) {
 
   // The recap lists one entry per earning, so two 5K runs arrive as two rows
   // naming the same medal. Grouping them is what turns that into one line with
-  // a number on it, and an entry that already carries a count is counted as it
-  // says rather than as one.
+  // a number on it, and the order the medals were earned in is the order they
+  // are read in.
   const medals: { id: string; count: number }[] = []
-  for (const row of recap.race_badges ?? []) {
+  for (const row of recap.medals ?? []) {
     const held = medals.find((one) => one.id === row.id)
-    if (held) held.count += row.count ?? 1
-    else medals.push({ id: row.id, count: row.count ?? 1 })
+    if (held) held.count += 1
+    else medals.push({ id: row.id, count: 1 })
   }
 
   const notes = recapNotes(recap.encouragement)
@@ -114,41 +113,25 @@ export default function Recap({ recap, onDismiss }: Props) {
           {medals.length > 0 && (
             <section className="recap-section">
               <h3>New medals</h3>
-              <ul className="achievements">
+              {/* Every family reads the same way here. A week counted and an
+                  hour kept are earnings like a distance run, said in the same
+                  words and given the same room. */}
+              <ul className="medal-earns">
                 {medals.map((row) => {
                   const times = row.count > 1 ? ` ${row.count} times` : ''
+                  const detail = MEDAL_DETAILS[row.id]
                   return (
-                    <li key={row.id} className="achievement">
-                      <RaceBadgeMark id={row.id} earned />
-                      <div className="achievement-body">
-                        <p className="achievement-name">
-                          You earned the {raceBadgeName(row.id)} medal{times}.
+                    <li key={row.id} className="medal-earn">
+                      <MedalMark id={row.id} earned />
+                      <div className="medal-earn-body">
+                        <p className="medal-earn-name">
+                          You earned the {medalName(row.id)} medal{times}.
                         </p>
-                        <p className="achievement-detail">{RACE_BADGE_DETAILS[row.id]}</p>
+                        {detail && <p className="medal-earn-detail">{detail}</p>}
                       </div>
                     </li>
                   )
                 })}
-              </ul>
-            </section>
-          )}
-
-          {recap.achievements.length > 0 && (
-            <section className="recap-section">
-              <h3>New achievements</h3>
-              <ul className="achievements">
-                {recap.achievements.map((row) => (
-                  <li key={row.id} className="achievement">
-                    <Badge achievement={row} />
-                    <div className="achievement-body">
-                      <p className="achievement-name">
-                        {row.name}
-                        {row.gilded && <span className="tag tag-gilded">Gilded</span>}
-                      </p>
-                      <p className="achievement-detail">{row.detail}</p>
-                    </div>
-                  </li>
-                ))}
               </ul>
             </section>
           )}

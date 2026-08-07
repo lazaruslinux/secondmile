@@ -308,7 +308,7 @@ def converted_miles(activity: str, distance_mi: float) -> float:
 
     Effort equivalence rather than distance: an hour of swimming is not an hour
     of cycling, and everything the game counts is counted in effort. Lives here
-    rather than in the pipeline because the achievements engine and the profile
+    rather than in the pipeline because the grove, the chest ladder, and the profile
     totals need the same answer and must never drift from it.
     """
     return distance_mi * MILES_PER_RAW[activity]

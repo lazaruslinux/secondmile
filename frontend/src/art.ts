@@ -81,31 +81,27 @@ export function iconArt(name: string): string | null {
   return icons.get(name) ?? null
 }
 
-// Race badge files are named with hyphens, race-5k.svg through race-ultra.svg,
-// while the ids the server sends use underscores.
-export function raceBadgeArt(badgeId: string): string | null {
-  return badges.get(badgeId.replace(/_/g, '-')) ?? null
+// Which file each medal is drawn from. This mapping is the swap contract: put
+// a different drawing in the named file and that medal changes everywhere,
+// with nothing else to edit. Ids come from the server with underscores; files
+// are named with hyphens, and the time family carries its family in its name.
+const MEDAL_FILES: Record<string, string> = {
+  race_5k: 'race-5k',
+  race_10k: 'race-10k',
+  race_half: 'race-half',
+  race_marathon: 'race-marathon',
+  race_ultra: 'race-ultra',
+  weekly_10: 'weekly-10',
+  weekly_15: 'weekly-15',
+  weekly_25: 'weekly-25',
+  weekly_40: 'weekly-40',
+  early_riser: 'time-early-riser',
+  night_owl: 'time-night-owl',
+  second_mile: 'second-mile',
 }
 
-export interface BadgeArt {
-  url: string | null
-  // True only when the file being drawn is the achievement's own gilded
-  // artwork. When it is false and the badge is gilded, the app adds a gilded
-  // treatment of its own instead, so the difference is always visible.
-  gildedArt: boolean
-}
-
-export function badgeArt(
-  achievementId: string,
-  kind: string,
-  gilded: boolean,
-): BadgeArt {
-  if (gilded) {
-    const finer = badges.get(`${achievementId}-gilded`)
-    if (finer) return { url: finer, gildedArt: true }
-  }
-  return {
-    url: badges.get(achievementId) ?? badges.get(`kind-${kind}`) ?? null,
-    gildedArt: false,
-  }
+// A medal id this build has never heard of falls back to its id read as a file
+// name, so a medal added on the server costs a picture rather than a screen.
+export function medalArt(medalId: string): string | null {
+  return badges.get(MEDAL_FILES[medalId] ?? medalId.replace(/_/g, '-')) ?? null
 }

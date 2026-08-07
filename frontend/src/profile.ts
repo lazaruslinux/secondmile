@@ -2,11 +2,22 @@
 // form of the You screen in its side column, so the rules for what appears there
 // are written once here rather than twice in the views.
 
-import type { Activity, Profile, RaceBadge } from './api.ts'
+import type { Activity, Medal, Profile } from './api.ts'
 import { ACTIVITY_ORDER, chestName } from './labels.ts'
 
 // How many sports get a diamond. The server enforces the same number.
 export const MAX_DIAMONDS = 3
+
+// One star for every fifty earnings of the same medal, and never more than
+// thirty three of them. Nothing about the stars comes from the server: they are
+// the count read a second way, so the two can never disagree.
+export const EARNS_PER_STAR = 50
+export const MAX_STARS = 33
+
+export function starsFor(count: number): number {
+  if (!(count > 0)) return 0
+  return Math.min(MAX_STARS, Math.floor(count / EARNS_PER_STAR))
+}
 
 // The name on the profile header, or nothing at all. The server composes it;
 // where it has not, the two halves are put together here so a profile just
@@ -49,10 +60,10 @@ export function diamondsOf(profile: Profile): Activity[] {
     .slice(0, MAX_DIAMONDS)
 }
 
-// How many times each race distance has been run, by badge id. A server that
-// predates the field, or a recap entry that carries no count, reads as none.
-export function raceCountsOf(badges: RaceBadge[] | undefined): Map<string, number> {
-  return new Map((badges ?? []).map((row) => [row.id, row.count ?? 0]))
+// How many times each medal has been earned, by medal id. A server that
+// predates the field reads as none of everything.
+export function medalCountsOf(medals: Medal[] | undefined): Map<string, number> {
+  return new Map((medals ?? []).map((row) => [row.id, row.count ?? 0]))
 }
 
 // How many workouts are behind an account, across every activity. The profile

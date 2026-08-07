@@ -623,46 +623,60 @@ button:disabled {
   margin: 0.4rem 0 0;
 }
 
-/* Home: the medals and the grove in the right rail */
+/* Home: the medals and the grove in the right rail
+
+   Twelve rows in a narrow column, so this is tighter than the strip on You:
+   smaller artwork, no rule between the rows, and the family name doing the
+   separating that the rules used to do. */
+.home-medals .medal-group + .medal-group {
+  margin-top: 0.5rem;
+}
+
+.medal-family {
+  margin: 0;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--line);
+}
 
 .medal-list {
   list-style: none;
-  margin: 0.5rem 0 0;
+  margin: 0.15rem 0 0;
   padding: 0;
 }
 
 .medal-row {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
-  padding: 0.4rem 0;
-  border-bottom: 1px solid var(--line);
-}
-
-.medal-row:last-child {
-  border-bottom: none;
+  gap: 0.55rem;
+  padding: 0.22rem 0;
 }
 
 .medal-row .badge {
   flex: 0 0 auto;
-  width: 2rem;
-  height: 2rem;
+  width: 1.9rem;
+  height: 1.9rem;
+}
+
+/* The same room for the stars the strip on You leaves. */
+.medal-row .badge img,
+.medal-row .badge-blank {
+  padding: 9%;
 }
 
 .medal-name {
   flex: 1 1 auto;
   min-width: 0;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 700;
 }
 
 .medal-count {
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
-/* A distance never run keeps its row and goes quiet rather than leaving a gap
+/* A medal never earned keeps its row and goes quiet rather than leaving a gap
    in the ladder. */
 .medal-row-none .medal-name,
 .medal-row-none .medal-count {
@@ -1417,6 +1431,7 @@ button:disabled {
 }
 
 .badge {
+  position: relative;
   display: block;
   width: 100%;
   height: 100%;
@@ -1428,7 +1443,7 @@ button:disabled {
   height: 100%;
 }
 
-/* An achievement with no artwork at all still needs to occupy its place. */
+/* A medal with no artwork at all still needs to occupy its place. */
 .badge-blank,
 .badge-empty {
   display: block;
@@ -1443,16 +1458,19 @@ button:disabled {
   filter: grayscale(1);
 }
 
-/* Going the second mile has to be visible from across the room. This is what a
-   gilded badge gets when its own gilded artwork has not been drawn yet. Gold is
-   the game's own mark for it rather than a second interface accent. */
-.badge-gilded {
-  /* The padding is what makes the gold read as a ring rather than a rim, since
-     a badge drawing is usually opaque out to its own edge. */
-  padding: 7%;
-  border: 2px solid #b45309;
-  border-radius: 999px;
-  background: radial-gradient(circle, #fcd9a4 0%, #f3b45c 55%, #b45309 100%);
+/* The stars a medal has earned: one overlay laid over the drawing rather than a
+   picture per star, drawn out at the edge of the same box the artwork uses.
+   Wherever stars can appear, the drawing is inset by the width of the ring so
+   the marks circle the medal rather than sit on its rim. The inset is on the
+   place rather than on the starred medal, so a row of medals is one size
+   whether the ring is there yet or not. */
+.medal-stars {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  color: var(--text);
+  pointer-events: none;
 }
 
 .profile-name {
@@ -1763,19 +1781,24 @@ button:disabled {
 }
 
 /* Medals
-   Five race distances in one row at every width, each with its count under the
-   art and its distance under that. A distance never run keeps its column and
-   its nought rather than leaving a hole in the ladder. */
-.race-strip {
+   The catalogue on You: four families, each a row of medals at one size, with
+   the count under the artwork and the name under that. Five columns whatever
+   the family holds, so a medal is the same size in all four rows. A medal never
+   earned keeps its column and its nought rather than leaving a hole. */
+.medal-group + .medal-group {
+  margin-top: 0.9rem;
+}
+
+.medal-strip {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 0.5rem;
   list-style: none;
-  margin: 0.75rem 0 0;
+  margin: 0.4rem 0 0;
   padding: 0;
 }
 
-.race-item {
+.medal-tile {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1786,32 +1809,34 @@ button:disabled {
 
 /* The artwork takes its size from the column rather than a fixed width, so the
    same row fits a phone and a desktop column. */
-.race-item .badge {
+.medal-tile .badge {
   width: 100%;
   max-width: 3.5rem;
   height: auto;
 }
 
-.race-item .badge img,
-.race-item .badge-blank {
+.medal-tile .badge img,
+.medal-tile .badge-blank {
   height: auto;
   aspect-ratio: 1 / 1;
+  /* Room for the ring of stars, kept whether there are any yet or not. */
+  padding: 9%;
 }
 
-.race-count {
+.medal-tile-count {
   font-size: 1rem;
   font-weight: 700;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
 }
 
-.race-count-none {
+.medal-tile-none {
   color: var(--muted);
 }
 
 /* Slightly tighter than the app's usual caption, because MARATHON has to fit a
    fifth of a phone screen. */
-.race-name {
+.medal-tile-name {
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
@@ -1819,15 +1844,15 @@ button:disabled {
   color: var(--muted);
 }
 
-/* Achievements */
+/* Medals earned, as the letter lists them */
 
-.achievements {
+.medal-earns {
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-.achievement {
+.medal-earn {
   display: flex;
   align-items: flex-start;
   gap: 0.75rem;
@@ -1835,43 +1860,29 @@ button:disabled {
   border-bottom: 1px solid var(--line);
 }
 
-.achievement:last-child {
+.medal-earn:last-child {
   border-bottom: none;
 }
 
-.achievement .badge {
+.medal-earn .badge {
   flex: 0 0 auto;
   width: 3.5rem;
   height: 3.5rem;
 }
 
-.achievement-body {
+.medal-earn-body {
   min-width: 0;
 }
 
-.achievement-name {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
+.medal-earn-name {
   margin: 0;
   font-weight: 700;
 }
 
-.achievement-detail {
+.medal-earn-detail {
   margin: 0;
   font-size: 0.85rem;
   color: var(--muted);
-}
-
-.achievement-locked .achievement-name {
-  color: var(--muted);
-}
-
-.tag-gilded {
-  border-color: #b45309;
-  color: #e5b264;
-  font-weight: 700;
 }
 
 .chests {
@@ -2371,11 +2382,11 @@ button:disabled {
 
   /* Five columns on a 360px screen: the row gives up its gaps and its letter
      spacing before it gives up fitting on one line. */
-  .race-strip {
+  .medal-strip {
     gap: 0.35rem;
   }
 
-  .race-name {
+  .medal-tile-name {
     letter-spacing: 0.02em;
   }
 }

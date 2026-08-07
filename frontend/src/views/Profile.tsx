@@ -3,13 +3,11 @@ import {
   avatarUrl,
   errorText,
   getProfile,
-  listAchievements,
   listChests,
   listGrove,
   openChest,
   setDiamondSports,
   setDisplayedBadges,
-  type Achievement,
   type ActivityStats,
   type Activity,
   type Chest,
@@ -30,32 +28,26 @@ import {
   ACTIVITY_NAMES,
   ACTIVITY_ORDER,
   chestName,
+  MEDAL_ORDER,
+  medalName,
   plantingName,
-  RACE_BADGE_ORDER,
-  raceBadgeName,
 } from '../labels.ts'
 import {
   ageOf,
   diamondsOf,
   displayNameOf,
   MAX_DIAMONDS,
+  medalCountsOf,
   nextChestLine,
-  raceCountsOf,
 } from '../profile.ts'
-import Achievements from './Achievements.tsx'
 import AvatarFrame from './AvatarFrame.tsx'
-import Badge from './Badge.tsx'
 import ChestItem from './ChestItem.tsx'
 import EditProfile from './EditProfile.tsx'
 import Fellowship from './Fellowship.tsx'
 import Icon from './Icon.tsx'
-import MedalNest from './MedalNest.tsx'
+import MedalNest, { MAX_MEDAL_SLOTS } from './MedalNest.tsx'
+import Medals, { MedalMark } from './Medals.tsx'
 import PlantArt from './PlantArt.tsx'
-import RaceBadges, { RaceBadgeMark } from './RaceBadges.tsx'
-
-// Four, and the server says the same. The slots are drawn whether they are
-// filled or not, because an empty slot is the invitation to fill it.
-const SLOTS = [0, 1, 2, 3]
 
 function totalsOf(stats: Partial<Record<Activity, ActivityStats>>) {
   let converted = 0
@@ -126,7 +118,6 @@ function Stats({ stats, units, empty }: StatsProps) {
 
 interface Cached {
   profile: ProfileData
-  achievements: Achievement[]
   chests: Chest[]
   plantings: Planting[]
 }
@@ -150,9 +141,6 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
   // underneath, so switching tabs is not a blank screen every time.
   const [profile, setProfile] = useState<ProfileData | null>(
     () => cache.get(userId)?.profile ?? null,
-  )
-  const [achievements, setAchievements] = useState<Achievement[]>(
-    () => cache.get(userId)?.achievements ?? [],
   )
   const [chests, setChests] = useState<Chest[]>(() => cache.get(userId)?.chests ?? [])
   const [plantings, setPlantings] = useState<Planting[]>(
@@ -179,14 +167,12 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
 
   const load = useCallback(async () => {
     try {
-      const [mine, catalog, waiting, plot] = await Promise.all([
+      const [mine, waiting, plot] = await Promise.all([
         getProfile(),
-        listAchievements(),
         listChests(),
         listGrove(),
       ])
       setProfile(mine)
-      setAchievements(catalog)
       setChests(waiting)
       setPlantings(plot)
       setLoadError('')
@@ -204,8 +190,8 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
   // Whatever is on the screen is what a return to this tab should show, edits
   // made here included, so the cache follows the state rather than the fetch.
   useEffect(() => {
-    if (profile) cache.set(userId, { profile, achievements, chests, plantings })
-  }, [userId, profile, achievements, chests, plantings])
+    if (profile) cache.set(userId, { profile, chests, plantings })
+  }, [userId, profile, chests, plantings])
 
   // The picture is uploaded from the edit panel and saved there and then, so
   // this only has to redraw what is already on the server.
@@ -225,7 +211,7 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
     setChosen((current) =>
       current.includes(id)
         ? current.filter((held) => held !== id)
-        : current.length >= SLOTS.length
+        : current.length >= MAX_MEDAL_SLOTS
           ? current
           : [...current, id],
     )
@@ -301,26 +287,16 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
     )
   }
 
-  const byId = new Map(achievements.map((row) => [row.id, row]))
-  const earned = achievements.filter((row) => row.earned)
   const nextLevel = profile.level + 1
   const diamonds = diamondsOf(profile)
 
-  // Race badges are held in the same four slots as achievements, so the two
-  // lists are one list wherever a slot or the picker is concerned.
-  const raceCounts = raceCountsOf(profile.race_badges)
+  // Any medal that has been earned can go in a slot, so the picker and the
+  // strip below read the same catalogue and the same counts.
+  const counts = medalCountsOf(profile.medals)
   const nextChest = nextChestLine(profile)
   const shownName = displayNameOf(profile)
   const age = ageOf(profile)
-  const earnedRaces = RACE_BADGE_ORDER.filter((id) => (raceCounts.get(id) ?? 0) > 0)
-  const slotChoices = earned.length + earnedRaces.length
-
-  function slotBadge(id: string) {
-    const achievement = byId.get(id)
-    if (achievement) return <Badge achievement={achievement} standalone />
-    if ((raceCounts.get(id) ?? 0) > 0) return <RaceBadgeMark id={id} earned standalone />
-    return <span className="badge badge-empty" aria-hidden="true" />
-  }
+  const ownedMedals = MEDAL_ORDER.filter((id) => (counts.get(id) ?? 0) > 0)
 
   return (
     <>
@@ -395,9 +371,7 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
               {/* All four positions, filled or not: an empty one here is the
                   invitation to fill it, and this is the only screen that offers
                   the choice. */}
-              <MedalNest
-                items={SLOTS.map((slot) => slotBadge(profile.displayed_badges[slot] ?? ''))}
-              />
+              <MedalNest ids={profile.displayed_badges} slots={MAX_MEDAL_SLOTS} />
             </AvatarFrame>
           </div>
 
@@ -465,9 +439,9 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
               </li>
               <li>
                 <span className="count-value">
-                  {profile.achievements.earned} / {profile.achievements.total}
+                  {ownedMedals.length} / {MEDAL_ORDER.length}
                 </span>
-                <span className="count-label">Achievements</span>
+                <span className="count-label">Medals</span>
               </li>
             </ul>
 
@@ -563,13 +537,13 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
                 <button
                   type="button"
                   className="secondary"
-                  disabled={slotChoices === 0}
+                  disabled={ownedMedals.length === 0}
                   onClick={() => (picking ? setPicking(false) : startPicking())}
                 >
                   {picking ? 'Close medals' : 'Choose medals'}
                 </button>
               </div>
-              {slotChoices === 0 && (
+              {ownedMedals.length === 0 && (
                 <p className="hint">Medals fill the slots once you have earned some.</p>
               )}
             </div>
@@ -577,10 +551,14 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
             {picking && (
               <div className="picker">
                 <p className="hint">
-                  Up to {SLOTS.length}, in the slots under your picture. {chosen.length} chosen.
+                  Up to {MAX_MEDAL_SLOTS}, in the slots under your picture. {chosen.length}{' '}
+                  chosen.
                 </p>
+                {/* Only medals already earned, in catalogue order. The server
+                    refuses anything else, and the two agreeing is what keeps a
+                    slot from being offered and then rejected. */}
                 <ul className="picker-list">
-                  {earnedRaces.map((id) => {
+                  {ownedMedals.map((id) => {
                     const held = chosen.includes(id)
                     return (
                       <li key={id}>
@@ -588,31 +566,14 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
                           <input
                             type="checkbox"
                             checked={held}
-                            disabled={!held && chosen.length >= SLOTS.length}
+                            disabled={!held && chosen.length >= MAX_MEDAL_SLOTS}
                             onChange={() => toggleBadge(id)}
                           />
-                          <RaceBadgeMark id={id} earned />
+                          <MedalMark id={id} earned />
                           <span>
-                            {raceBadgeName(id)}
-                            <span className="muted"> {raceCounts.get(id) ?? 0} earned</span>
+                            {medalName(id)}
+                            <span className="muted"> {counts.get(id) ?? 0} earned</span>
                           </span>
-                        </label>
-                      </li>
-                    )
-                  })}
-                  {earned.map((row) => {
-                    const held = chosen.includes(row.id)
-                    return (
-                      <li key={row.id}>
-                        <label className="picker-option">
-                          <input
-                            type="checkbox"
-                            checked={held}
-                            disabled={!held && chosen.length >= SLOTS.length}
-                            onChange={() => toggleBadge(row.id)}
-                          />
-                          <Badge achievement={row} />
-                          <span>{row.name}</span>
                         </label>
                       </li>
                     )
@@ -705,11 +666,10 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
             )}
           </section>
 
-          {/* The centrepiece: the race ladder sits above the rest of the
-              badges, since it is the one every run is measured against. */}
-          <RaceBadges badges={profile.race_badges} />
-
-          <Achievements achievements={achievements} />
+          {/* The centrepiece: the whole catalogue, family by family, with the
+              race ladder first since it is the one every run is measured
+              against. */}
+          <Medals medals={profile.medals} />
         </div>
       </div>
     </>

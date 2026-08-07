@@ -7,7 +7,7 @@ import pytest
 from conftest import log_workout
 from PIL import Image
 
-from app import models, progress, security
+from app import medals, models, progress, security
 from app.config import MAX_AVATAR_BYTES
 
 pytest.importorskip("PIL")
@@ -38,14 +38,8 @@ def test_a_fresh_profile_reports_the_whole_shape(signed_in, member):
     assert body["xp_for_next_level"] == 3.1
     assert body["border_tier"] == 1
     assert body["displayed_badges"] == []
-    assert [row["id"] for row in body["race_badges"]] == [
-        "race_5k",
-        "race_10k",
-        "race_half",
-        "race_marathon",
-        "race_ultra",
-    ]
-    assert all(row["count"] == 0 for row in body["race_badges"])
+    assert [row["id"] for row in body["medals"]] == [medal.id for medal in medals.CATALOG]
+    assert all(row["count"] == 0 for row in body["medals"])
     assert body["diamond_sports"] == []
     assert body["streak_weeks"] == 0
     assert body["week"] == {}
@@ -53,8 +47,6 @@ def test_a_fresh_profile_reports_the_whole_shape(signed_in, member):
     # Nothing planted, and no total to fill: the plot is not a collection.
     assert body["grove"] == {"planted": 0, "mature": 0}
     assert body["next_chest"] == {"tier": "5K", "tier_id": "5k", "miles_away": 3.1}
-    assert body["achievements"]["earned"] == 0
-    assert body["achievements"]["total"] > 0
 
 
 def test_the_profile_carries_week_and_lifetime_totals(signed_in):
@@ -71,15 +63,14 @@ def test_the_profile_carries_week_and_lifetime_totals(signed_in):
 
 
 def owned_badges(client) -> list[str]:
-    """Everything this account may put in a slot: achievements and race badges."""
-    held = [row["id"] for row in client.get("/api/achievements").json() if row["earned"]]
-    return held + [
-        row["id"] for row in client.get("/api/profile").json()["race_badges"] if row["count"]
+    """Every medal this account may put in a slot, which is every earned one."""
+    return [
+        row["id"] for row in client.get("/api/profile").json()["medals"] if row["count"]
     ]
 
 
 def test_badge_slots_take_only_badges_the_account_owns(signed_in, db_session, member):
-    refused = signed_in.patch("/api/profile", json={"displayed_badges": ["week_40"]})
+    refused = signed_in.patch("/api/profile", json={"displayed_badges": ["weekly_40"]})
     assert refused.status_code == 400
     assert "not earned" in refused.json()["detail"]
 
@@ -179,7 +170,6 @@ def test_the_profile_endpoints_need_a_session(client, member):
     assert client.post("/api/profile/avatar", files={"file": ("a.png", b"x")}).status_code == 401
     assert client.delete("/api/profile/avatar").status_code == 401
     assert client.get(f"/api/profile/avatar/{member.id}").status_code == 401
-    assert client.get("/api/achievements").status_code == 401
 
 
 def test_one_account_cannot_overwrite_another_avatar(signed_in, db_session, admin, member):
@@ -390,19 +380,19 @@ def test_a_fresh_profile_has_no_name_and_no_age(signed_in):
 
 def test_the_name_fields_are_saved_and_composed_into_one(signed_in, db_session, member):
     body = signed_in.patch(
-        "/api/profile", json={"first_name": " Justin ", "last_name": "Case"}
+        "/api/profile", json={"first_name": " Avery ", "last_name": "Case"}
     ).json()
-    assert (body["first_name"], body["last_name"]) == ("Justin", "Case")
-    assert body["display_name"] == "Justin Case"
+    assert (body["first_name"], body["last_name"]) == ("Avery", "Case")
+    assert body["display_name"] == "Avery Case"
     db_session.refresh(member)
-    assert (member.first_name, member.last_name) == ("Justin", "Case")
+    assert (member.first_name, member.last_name) == ("Avery", "Case")
 
 
 def test_half_a_name_is_still_a_name(signed_in):
-    first = signed_in.patch("/api/profile", json={"first_name": "Justin"}).json()
-    assert first["display_name"] == "Justin"
+    first = signed_in.patch("/api/profile", json={"first_name": "Avery"}).json()
+    assert first["display_name"] == "Avery"
     both = signed_in.patch("/api/profile", json={"last_name": "Case"}).json()
-    assert both["display_name"] == "Justin Case"
+    assert both["display_name"] == "Avery Case"
     # Cleared back to half, and the half that is left is the whole of it.
     last = signed_in.patch("/api/profile", json={"first_name": None}).json()
     assert last["display_name"] == "Case"
@@ -412,7 +402,7 @@ def test_every_new_field_can_be_cleared_again(signed_in, db_session, member):
     signed_in.patch(
         "/api/profile",
         json={
-            "first_name": "Justin",
+            "first_name": "Avery",
             "last_name": "Case",
             "birthdate": "1990-05-04",
             "gender": "man",
@@ -504,7 +494,7 @@ def test_patching_a_name_leaves_the_badge_slots_and_diamonds_alone(signed_in):
     signed_in.patch("/api/profile", json={"displayed_badges": owned[:1]})
     signed_in.patch("/api/profile", json={"diamond_sports": ["swim"]})
 
-    body = signed_in.patch("/api/profile", json={"first_name": "Justin"}).json()
+    body = signed_in.patch("/api/profile", json={"first_name": "Avery"}).json()
     assert body["displayed_badges"] == owned[:1]
     assert body["diamond_sports"] == ["swim"]
-    assert body["display_name"] == "Justin"
+    assert body["display_name"] == "Avery"

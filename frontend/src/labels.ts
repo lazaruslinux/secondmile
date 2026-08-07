@@ -6,6 +6,7 @@ import type {
   Activity,
   FriendPlanting,
   ItemKind,
+  MedalFamily,
   Person,
   Planting,
   Rarity,
@@ -21,37 +22,100 @@ export const ACTIVITY_NAMES: Record<Activity, string> = {
   swim: 'Swim',
 }
 
-// The five race distances, shortest first, which is the order they are drawn
-// in. The ids are the server's; the names are what a runner calls them.
-export const RACE_BADGE_ORDER = [
+// The medal catalogue: twelve medals in four families, in the order every screen
+// draws them. Every one of them repeats, so a medal is a count rather than a
+// yes or a no, and the catalogue is fixed rather than grown: nothing here is
+// added to without the art and the server being changed together.
+export const MEDAL_ORDER = [
   'race_5k',
   'race_10k',
   'race_half',
   'race_marathon',
   'race_ultra',
+  'weekly_10',
+  'weekly_15',
+  'weekly_25',
+  'weekly_40',
+  'early_riser',
+  'night_owl',
+  'second_mile',
 ]
 
-export const RACE_BADGE_NAMES: Record<string, string> = {
+export const MEDAL_FAMILY_ORDER: MedalFamily[] = ['race', 'weekly', 'time', 'second_mile']
+
+// Which family each medal belongs to. The server sends this as well; this is
+// what the screens group by, so the layout is the same whatever a server that
+// predates the field does or does not say.
+export const MEDAL_FAMILIES: Record<string, MedalFamily> = {
+  race_5k: 'race',
+  race_10k: 'race',
+  race_half: 'race',
+  race_marathon: 'race',
+  race_ultra: 'race',
+  weekly_10: 'weekly',
+  weekly_15: 'weekly',
+  weekly_25: 'weekly',
+  weekly_40: 'weekly',
+  early_riser: 'time',
+  night_owl: 'time',
+  second_mile: 'second_mile',
+}
+
+export const MEDAL_FAMILY_NAMES: Record<MedalFamily, string> = {
+  race: 'Distance',
+  weekly: 'Weeks',
+  time: 'Hours',
+  second_mile: 'Second mile',
+}
+
+// The names are the interface's own, not the server's, so twelve medals read as
+// one set wherever they are drawn. The stylesheet is what puts them in capitals.
+export const MEDAL_NAMES: Record<string, string> = {
   race_5k: '5K',
   race_10k: '10K',
   race_half: 'Half',
   race_marathon: 'Marathon',
   race_ultra: 'Ultra',
+  weekly_10: '10-mile week',
+  weekly_15: '15-mile week',
+  weekly_25: '25-mile week',
+  weekly_40: '40-mile week',
+  early_riser: 'Early Riser',
+  night_owl: 'Night Owl',
+  second_mile: 'Second Mile',
 }
 
-// What earns each one. The thresholds are the server's, in statute miles.
-export const RACE_BADGE_DETAILS: Record<string, string> = {
+// What earns each one. The thresholds are the server's, in statute miles, and
+// they are written out in docs/03-artwork.md as well.
+export const MEDAL_DETAILS: Record<string, string> = {
   race_5k: 'One run of 3.1 miles or more.',
   race_10k: 'One run of 6.2 miles or more.',
   race_half: 'One run of 13.1 miles or more.',
   race_marathon: 'One run of 26.2 miles or more.',
   race_ultra: 'One run of 31.1 miles or more.',
+  weekly_10: 'Ten miles inside one week, any activity.',
+  weekly_15: 'Fifteen miles inside one week.',
+  weekly_25: 'Twenty-five miles inside one week.',
+  weekly_40: 'Forty miles inside one week.',
+  early_riser: 'A run of 5K or more started between four and six in the morning.',
+  night_owl: 'A run of 5K or more started between eight at night and four in the morning.',
+  second_mile: 'Twenty miles inside one week, double the smallest weekly target.',
 }
 
-// A badge id the server sent that this build has no name for still has to read
-// as something.
-export function raceBadgeName(id: string): string {
-  return RACE_BADGE_NAMES[id] ?? id
+// A medal id the server sent that this build has no name for still has to read
+// as something: the server's own name for it, and the id itself failing that.
+export function medalName(id: string, given?: string | null): string {
+  return MEDAL_NAMES[id] ?? (given?.trim() ? given : id)
+}
+
+// The catalogue in family order, ready to draw as four groups. Families with
+// nothing in them are left out, which cannot happen while the catalogue is the
+// fixed twelve but keeps the callers from having to check.
+export function medalsByFamily(): { family: MedalFamily; ids: string[] }[] {
+  return MEDAL_FAMILY_ORDER.map((family) => ({
+    family,
+    ids: MEDAL_ORDER.filter((id) => MEDAL_FAMILIES[id] === family),
+  })).filter((group) => group.ids.length > 0)
 }
 
 // The server names every species it sends, so a rename there is a rename here

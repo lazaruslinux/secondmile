@@ -16,13 +16,24 @@ import {
   weekStartKey,
   zonedDay,
 } from '../format.ts'
-import { ACTIVITY_NAMES, RACE_BADGE_ORDER, raceBadgeName } from '../labels.ts'
-import { displayNameOf, lifetimeWorkouts, raceCountsOf, weekTotals } from '../profile.ts'
+import {
+  ACTIVITY_NAMES,
+  MEDAL_FAMILY_NAMES,
+  medalName,
+  medalsByFamily,
+} from '../labels.ts'
+import {
+  displayNameOf,
+  lifetimeWorkouts,
+  medalCountsOf,
+  starsFor,
+  weekTotals,
+} from '../profile.ts'
 import AvatarFrame from './AvatarFrame.tsx'
 import FeedCard from './FeedCard.tsx'
 import Icon from './Icon.tsx'
 import MedalNest from './MedalNest.tsx'
-import { RaceBadgeMark } from './RaceBadges.tsx'
+import { MedalMark } from './Medals.tsx'
 
 const PAGE = 20
 
@@ -191,18 +202,11 @@ export default function Home({
   // The summary card is about this account, so the line under it names this
   // account's last workout rather than whatever is at the top of the feed.
   const mine = feed.find((item) => item.own)
-  const raceCounts = raceCountsOf(profile.race_badges)
+  const counts = medalCountsOf(profile.medals)
   const shownName = displayNameOf(profile)
   // Own growth stage, from the profile when the server puts it there and from
   // this account's own feed row when it does not.
   const flourish = profile.flourish ?? mine?.user.flourish ?? 0
-
-  // Only the race medals among the chosen four are drawn here. This screen does
-  // not fetch the achievement catalogue, so an achievement badge has no artwork
-  // to draw from; the You screen shows all four.
-  const nestMedals = profile.displayed_badges
-    .filter((id) => (raceCounts.get(id) ?? 0) > 0)
-    .map((id) => <RaceBadgeMark key={id} id={id} earned standalone />)
 
   // Three columns from 900px up and one below it. The columns are wrappers
   // rather than a reordering, so the phone still draws the streak, then the
@@ -224,7 +228,9 @@ export default function Home({
               frameClass="summary-frame"
               labelled
             >
-              <MedalNest items={nestMedals} />
+              {/* The same field the You screen draws from, drawn the same way,
+                  so the two never show a different set. */}
+              <MedalNest ids={profile.displayed_badges} />
             </AvatarFrame>
 
             <h2 className="summary-name">{shownName || profile.username}</h2>
@@ -314,20 +320,31 @@ export default function Home({
           </p>
         </section>
 
+        {/* The whole catalogue, twelve rows in four families. It is a tall card
+            for a rail, so the rows are tighter here than the strip on You and
+            the family names carry the grouping instead of gaps. */}
         <section className="card home-medals">
           <h2 className="label">Medals</h2>
-          <ul className="medal-list">
-            {RACE_BADGE_ORDER.map((id) => {
-              const count = raceCounts.get(id) ?? 0
-              return (
-                <li key={id} className={count > 0 ? 'medal-row' : 'medal-row medal-row-none'}>
-                  <RaceBadgeMark id={id} earned={count > 0} />
-                  <span className="medal-name">{raceBadgeName(id)}</span>
-                  <span className="medal-count">{count}</span>
-                </li>
-              )
-            })}
-          </ul>
+          {medalsByFamily().map((group) => (
+            <div key={group.family} className="medal-group">
+              <h3 className="label medal-family">{MEDAL_FAMILY_NAMES[group.family]}</h3>
+              <ul className="medal-list">
+                {group.ids.map((id) => {
+                  const count = counts.get(id) ?? 0
+                  return (
+                    <li
+                      key={id}
+                      className={count > 0 ? 'medal-row' : 'medal-row medal-row-none'}
+                    >
+                      <MedalMark id={id} earned={count > 0} stars={starsFor(count)} />
+                      <span className="medal-name">{medalName(id)}</span>
+                      <span className="medal-count">{count}</span>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          ))}
         </section>
 
         <section className="card home-grove">

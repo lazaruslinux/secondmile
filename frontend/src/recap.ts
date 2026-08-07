@@ -60,8 +60,7 @@ export function recapHasNews(recap: RecapState): boolean {
   return (
     recap.miles > 0 ||
     recap.chests.length > 0 ||
-    recap.achievements.length > 0 ||
-    (recap.race_badges?.length ?? 0) > 0 ||
+    (recap.medals?.length ?? 0) > 0 ||
     recapNotes(recap.encouragement).length > 0 ||
     recapCheers(recap.encouragement) > 0 ||
     flourishLine(recap) !== ''

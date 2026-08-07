@@ -20,7 +20,7 @@ import {
   formatStart,
   unitName,
 } from '../format.ts'
-import { ACTIVITY_NAMES, personName, raceBadgeName } from '../labels.ts'
+import { ACTIVITY_NAMES, medalName, personName } from '../labels.ts'
 import AvatarFrame from './AvatarFrame.tsx'
 import Icon from './Icon.tsx'
 import RouteLine from './RouteLine.tsx'
@@ -410,6 +410,7 @@ export default function FeedCard({ item, units, avatarVersion, onChanged }: Prop
       : `${activityName}, ${formatStart(item.start_ts)}`
   const post = (item.post ?? '').trim()
   const photos = item.photos ?? []
+  const medals = item.medals ?? []
   // The name they go by if they gave one, and their username otherwise.
   const who = personName(user)
 
@@ -485,14 +486,18 @@ export default function FeedCard({ item, units, avatarVersion, onChanged }: Prop
         {!editing && post !== '' && <p className="feed-post">{post}</p>}
         {!editing && <PhotoStrip workoutId={item.workout_id} photos={photos} />}
 
-        {(item.xp !== undefined || item.race_badge) && (
+        {(item.xp !== undefined || medals.length > 0) && (
           <p className="feed-foot">
             {item.xp !== undefined && (
               <span className="feed-xp">+{convertedValue(item.xp)} XP</span>
             )}
-            {item.race_badge && (
-              <span className="feed-badge">{raceBadgeName(item.race_badge)}</span>
-            )}
+            {/* One chip per medal the workout earned. A long run started before
+                dawn earns two, and the strip wraps rather than truncates. */}
+            {medals.map((id) => (
+              <span key={id} className="feed-badge">
+                {medalName(id)}
+              </span>
+            ))}
           </p>
         )}
       </article>
@@ -540,9 +545,13 @@ export default function FeedCard({ item, units, avatarVersion, onChanged }: Prop
       {post !== '' && <p className="feed-post">{post}</p>}
       <PhotoStrip workoutId={item.workout_id} photos={photos} />
 
-      {item.race_badge && (
+      {medals.length > 0 && (
         <p className="feed-foot">
-          <span className="feed-badge">{raceBadgeName(item.race_badge)}</span>
+          {medals.map((id) => (
+            <span key={id} className="feed-badge">
+              {medalName(id)}
+            </span>
+          ))}
         </p>
       )}
 

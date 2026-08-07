@@ -194,13 +194,23 @@ def photo_dir(tmp_path, monkeypatch):
     return target
 
 
+def neutral_start() -> dt.datetime:
+    """Half a day ago, snapped to mid-morning in the instance timezone.
+
+    Recent enough to be this week, and at an hour no time-of-day medal is
+    earned in, so a case about a distance is never also a case about a clock.
+    """
+    local = (security.now_utc() - dt.timedelta(hours=12)).astimezone(config.SERVER_TZ)
+    return dt.datetime.combine(local.date(), dt.time(9, 0), tzinfo=config.SERVER_TZ)
+
+
 def log_workout(client, activity="run", miles=1.0, *, pace_min=12.0, offset_min=0) -> dict:
     """Post one manual workout and return it.
 
     Start times are spread by the offset so two workouts in one test never
     collide on the dedupe key.
     """
-    start = security.now_utc() - dt.timedelta(hours=12) + dt.timedelta(minutes=offset_min)
+    start = neutral_start() + dt.timedelta(minutes=offset_min)
     response = client.post(
         "/api/workouts",
         json={
