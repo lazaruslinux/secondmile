@@ -141,28 +141,36 @@ CHEST_LADDER: tuple[tuple[str, str, float], ...] = (
     ("ultra", "Ultra", 31.1),
 )
 
-# The odds of each rarity slot per tier, as (common, uncommon, rare). The climb
-# is the reward for the long steps: an Ultra chest never holds a common.
-CHEST_TIER_ODDS: dict[str, tuple[float, float, float]] = {
-    "5k": (0.70, 0.25, 0.05),
-    "10k": (0.60, 0.30, 0.10),
-    "half": (0.50, 0.35, 0.15),
-    "marathon": (0.35, 0.40, 0.25),
-    "ultra": (0.0, 0.55, 0.45),
+# The rarity slot each step of the ladder is worth at worst. A chest is never
+# poorer than its step, which is what makes the long steps worth walking: an
+# Ultra is a legendary chest and cannot come up as anything else.
+CHEST_TIER_FLOOR: dict[str, str] = {
+    "5k": "common",
+    "10k": "uncommon",
+    "half": "rare",
+    "marathon": "epic",
+    "ultra": "legendary",
 }
 
-# What a chest that predates the ladder rolls against. Those chests were
-# dropped without a tier and are worth what the first step is worth.
-LEGACY_CHEST_ODDS = CHEST_TIER_ODDS["5k"]
+# How often a chest comes up one rarity above its floor, and never further. The
+# top of the ladder has nothing above it, so an Ultra keeps its own.
+CHEST_UPGRADE_CHANCE = 0.20
+
+# The step a chest that predates the ladder is worth. Those chests were dropped
+# without a tier and roll as the first step in every respect.
+LEGACY_CHEST_TIER = "5k"
 
 # What comes out of a rarity slot once it has been rolled, as (kind, chance)
 # summing to one. Every item is a tool with exactly one verb: a seed is
-# planted, water is poured, oil anoints somebody else. Oil only exists in the
-# rare slot, which is why it is mostly a Marathon and Ultra thing.
+# planted, water is poured, oil anoints somebody else, and a wish is spent on
+# whichever seed you are missing. The two top slots are the tools alone: a wish
+# is what an epic slot is, and oil is what a legendary slot is.
 CHEST_SLOT_ITEMS: dict[str, tuple[tuple[str, float], ...]] = {
     "common": (("seed", 0.85), ("water", 0.15)),
     "uncommon": (("seed", 0.70), ("water", 0.30)),
-    "rare": (("seed", 0.70), ("oil", 0.30)),
+    "rare": (("seed", 0.80), ("water", 0.20)),
+    "epic": (("wish", 1.0),),
+    "legendary": (("oil", 1.0),),
 }
 
 # Growth. Every planting grows from every credited workout, all at once and

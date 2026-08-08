@@ -277,22 +277,25 @@ export interface AvatarState {
   avatar_version: number
 }
 
-// Seeds carry a rarity that decides how big the thing they grow into gets. The
-// special one is its own kind of rare and never rolls.
-export type Rarity = 'common' | 'uncommon' | 'rare' | 'special'
+// Seeds carry a rarity that decides how big the thing they grow into gets, and
+// they roll no higher than rare. The two steps above that belong to the tools:
+// a wish is epic and oil is legendary. The special one is its own kind of rare
+// and never rolls.
+export type Rarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary' | 'special'
 
 // What a chest holds. Every item is a tool with exactly one thing to do with it:
-// a seed is planted, water is poured onto a planting, oil is given to a friend.
-export type ItemKind = 'seed' | 'water' | 'oil'
+// a seed is planted, water is poured onto a planting, oil is given to a friend,
+// and a wish is spent on any seed the grove is still missing.
+export type ItemKind = 'seed' | 'water' | 'oil' | 'wish'
 
-// One unused thing in the satchel. Water and oil carry no species; a seed
-// always does.
+// One unused thing in the satchel. Only a seed carries a species; the tools
+// never do.
 export interface SatchelItem {
   id: number
   kind: ItemKind
   species: string | null
   // What the species is called on screen, where the server sends one plain
-  // name rather than the two below. Null for water and oil.
+  // name rather than the two below. Null for every tool.
   name?: string | null
   // A species has two names: what it is called in the hand and what it is
   // called in the ground. A seed says the first one. Both are optional, so a
@@ -742,4 +745,17 @@ export async function pourWater(itemId: number, plantingId: number): Promise<voi
 // waiting on that person.
 export async function anointFriend(itemId: number, userId: number): Promise<void> {
   await sendJson(`/satchel/${itemId}/anoint`, 'POST', { user_id: userId })
+}
+
+// A wish is spent on one species and comes back as that seed, which is what
+// takes the wish's place in the satchel. An empty species is the one case where
+// there is nothing left to ask for: the server answers with water instead. A
+// 4xx means the pick went stale between the list and the tap.
+export async function chooseSeed(itemId: number, species: string): Promise<SatchelItem> {
+  // Null rather than a missing key, so the "nothing left to ask for" case is
+  // said outright rather than left to be inferred from an empty body.
+  const res = await sendJson(`/satchel/${itemId}/choose`, 'POST', {
+    species: species === '' ? null : species,
+  })
+  return (await res.json()) as SatchelItem
 }

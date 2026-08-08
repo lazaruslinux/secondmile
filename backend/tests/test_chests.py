@@ -6,7 +6,7 @@ import random
 from conftest import log_workout, neutral_start
 
 from app import models, progress, security, species
-from app.config import CHEST_LADDER, CHEST_TIER_ODDS
+from app.config import CHEST_LADDER, CHEST_TIER_FLOOR
 
 
 def give_chest(db_session, user_id: int, tier: str | None = "5k") -> models.Chest:
@@ -110,21 +110,44 @@ def test_a_rebuild_walks_the_same_ladder(signed_in, db_session, member):
 # --------------------------------------------------------------------------
 
 
-def test_the_tier_odds_are_the_documented_ones():
-    rng = random.Random("odds")
-    for tier, (common, uncommon, rare) in CHEST_TIER_ODDS.items():
-        rolls = [progress.roll_slot(rng, tier) for _ in range(4000)]
-        assert abs(rolls.count("common") / 4000 - common) < 0.04, tier
-        assert abs(rolls.count("uncommon") / 4000 - uncommon) < 0.04, tier
-        assert abs(rolls.count("rare") / 4000 - rare) < 0.04, tier
-    # The Ultra chest never holds a common, which is the whole point of it.
-    assert "common" not in {progress.roll_slot(rng, "ultra") for _ in range(2000)}
+def test_the_ladder_is_the_floor_and_the_only_way_is_up():
+    """Every step names the rarity its chest is worth at worst."""
+    assert [CHEST_TIER_FLOOR[tier_id] for tier_id, _name, _cost in CHEST_LADDER] == [
+        "common",
+        "uncommon",
+        "rare",
+        "epic",
+        "legendary",
+    ]
+    # The two above the seeds are item rarities and nothing in the catalogue
+    # claims them.
+    assert species.RARITY_LADDER == ("common", "uncommon", "rare", "epic", "legendary")
+    assert not [row for row in species.BY_ID.values() if row.rarity in ("epic", "legendary")]
+
+
+def test_a_chest_is_its_own_step_four_times_in_five():
+    """The other time it is exactly one rarity above it, and never further."""
+    rng = random.Random("floor")
+    for tier_id, _name, _cost in CHEST_LADDER:
+        floor = CHEST_TIER_FLOOR[tier_id]
+        step = species.RARITY_LADDER.index(floor)
+        above = species.RARITY_LADDER[min(step + 1, len(species.RARITY_LADDER) - 1)]
+        rolls = [progress.roll_slot(rng, tier_id) for _ in range(4000)]
+        assert set(rolls) <= {floor, above}, tier_id
+        assert abs(rolls.count(floor) / 4000 - (0.80 if above != floor else 1.0)) < 0.04, tier_id
+
+
+def test_an_ultra_chest_is_always_a_legendary():
+    """The top of the ladder has nothing above it to climb to."""
+    rng = random.Random("ultra")
+    assert {progress.roll_slot(rng, "ultra") for _ in range(4000)} == {"legendary"}
 
 
 def test_a_chest_from_before_the_ladder_rolls_the_first_step(signed_in, db_session, member):
     rng = random.Random("legacy")
     rolls = [progress.roll_slot(rng, None) for _ in range(4000)]
-    assert abs(rolls.count("common") / 4000 - 0.70) < 0.04
+    assert set(rolls) == {"common", "uncommon"}
+    assert abs(rolls.count("common") / 4000 - 0.80) < 0.04
 
     # And it opens like any other, named for the step it is worth.
     open_one(signed_in, db_session, member.id)
@@ -132,23 +155,24 @@ def test_a_chest_from_before_the_ladder_rolls_the_first_step(signed_in, db_sessi
     body = signed_in.post(f"/api/chests/{legacy.id}/open").json()
     assert body["tier"] == "5K"
     assert body["tier_id"] == "5k"
-    assert body["kind"] in ("seed", "water", "oil")
+    assert body["kind"] in ("seed", "water")
 
 
 def test_each_slot_holds_its_own_tools():
     """The second roll: which tool the slot hands over once it is decided."""
     rng = random.Random("slots")
-    seen: dict[str, list[str]] = {"common": [], "uncommon": [], "rare": []}
-    for _ in range(20000):
-        kind, _species_id, rarity = progress.roll_loot(rng, "half", False)
-        seen[rarity].append(kind)
-    for rarity, wanted in (("common", 0.15), ("uncommon", 0.30), ("rare", 0.30)):
-        tool = "oil" if rarity == "rare" else "water"
-        share = seen[rarity].count(tool) / len(seen[rarity])
+    seen: dict[str, list[str]] = {rarity: [] for rarity in species.RARITY_LADDER}
+    for tier_id, _name, _cost in CHEST_LADDER:
+        for _ in range(8000):
+            kind, _species_id, rarity = progress.roll_loot(rng, tier_id, False)
+            seen[rarity].append(kind)
+    for rarity, wanted in (("common", 0.15), ("uncommon", 0.30), ("rare", 0.20)):
+        share = seen[rarity].count("water") / len(seen[rarity])
         assert abs(share - wanted) < 0.03, rarity
-    # Oil is a rare-slot thing only, and no tree ever comes with a watering can.
-    assert "oil" not in seen["common"] and "oil" not in seen["uncommon"]
-    assert "water" not in seen["rare"]
+        assert set(seen[rarity]) == {"seed", "water"}, rarity
+    # The two slots above the seeds are one tool each, every time.
+    assert set(seen["epic"]) == {"wish"}
+    assert set(seen["legendary"]) == {"oil"}
 
 
 def test_a_seed_comes_out_of_the_slot_it_was_rolled_in():
@@ -232,32 +256,56 @@ def test_a_rarity_with_nothing_left_to_want_pours_water():
     assert kinds == {"water"}
 
 
-def test_a_full_rare_slot_still_pays_oil_at_its_own_odds():
-    """The tools are untouched by the rule: only the seed half of the slot
-    changes, and a rare slot with nothing left to give still hands over oil as
-    often as it ever did."""
+def test_a_full_rare_slot_pours_water_for_the_whole_of_it():
+    """The rule reaches every seed slot the same way: with nothing left to want
+    among the rares, a rare slot is water from end to end."""
     held = {row.id for row in species.BY_RARITY["rare"]}
     rng = random.Random("rare-full")
-    rolls = [progress.roll_loot(rng, "ultra", False, held) for _ in range(4000)]
+    rolls = [progress.roll_loot(rng, "half", False, held) for _ in range(4000)]
     rare = [row for row in rolls if row[2] == "rare"]
-    assert {kind for kind, _species_id, _rarity in rare} == {"oil", "water"}
-    share = sum(1 for kind, _s, _r in rare if kind == "oil") / len(rare)
-    assert abs(share - 0.30) < 0.03
+    assert rare, "a Half chest floors at the rare slot"
+    assert {kind for kind, _species_id, _rarity in rare} == {"water"}
     # The tree that is only ever given is in no bag this reaches into.
     assert all(species_id is None for _kind, species_id, _rarity in rare)
 
 
+def test_a_legendary_slot_pays_oil_whatever_the_plot_holds():
+    """Oil is not a seed and owes the plot nothing: a full grove changes it in
+    no way at all."""
+    held = {row.id for row in species.BY_ID.values()}
+    rng = random.Random("oil")
+    rolls = [progress.roll_loot(rng, "ultra", False, held) for _ in range(2000)]
+    assert {row for row in rolls} == {("oil", None, "legendary")}
+
+
 def test_water_and_oil_come_up_exactly_as_they_always_did():
-    """Same seed, same chest: a roll that was never a seed lands identically
-    whatever the account is already holding."""
+    """Same seed, same chest: a roll that was neither a seed nor a wish lands
+    identically whatever the account is already holding. Those two are the only
+    ones that read the plot."""
     held = {row.id for row in species.BY_ID.values()}
     for seed in range(400):
-        empty = progress.roll_loot(random.Random(seed), "half", False)
-        full = progress.roll_loot(random.Random(seed), "half", False, held)
-        # The rarity slot is rolled before anything knows about the plot.
-        assert full[2] == empty[2]
-        if empty[0] != "seed":
-            assert full == empty
+        for tier_id, _name, _cost in CHEST_LADDER:
+            empty = progress.roll_loot(random.Random(seed), tier_id, False)
+            full = progress.roll_loot(random.Random(seed), tier_id, False, held)
+            # The rarity slot is rolled before anything knows about the plot.
+            assert full[2] == empty[2]
+            if empty[0] not in ("seed", "wish"):
+                assert full == empty
+
+
+def test_a_wish_falls_to_water_once_there_is_nothing_left_to_wish_for():
+    """The last rule of the satchel, said again at the top of the ladder: there
+    is no such thing as an item worth nothing."""
+    rng = random.Random("wishes")
+    full = {row.id for row in species.BY_ID.values()}
+    # One short of the whole twelve is still something to wish for.
+    nearly = full - {"pomegranate"}
+    for held, wanted in ((frozenset(), "wish"), (nearly, "wish"), (full, "water")):
+        rolls = [progress.roll_loot(rng, "marathon", False, held) for _ in range(500)]
+        epic = [row for row in rolls if row[2] == "epic"]
+        assert epic, "a Marathon chest floors at the epic slot"
+        assert {row[0] for row in epic} == {wanted}
+        assert all(row[1] is None for row in epic)
 
 
 def test_a_chest_from_before_the_ladder_obeys_the_rule_too():

@@ -1,7 +1,10 @@
 import { useEffect, useRef } from 'react'
 
-export interface Choice {
-  id: number
+// What is picked is usually a row in the database and so a number, but a wish
+// is spent on a species, which is a name. The id is whatever the list is a list
+// of, and the caller gets back exactly the type it put in.
+export interface Choice<Id = number> {
+  id: Id
   label: string
   // The quiet half of a row: how far along a planting is, and so on.
   detail?: string
@@ -10,22 +13,22 @@ export interface Choice {
   group?: string
 }
 
-interface Props {
+interface Props<Id> {
   title: string
   hint: string
-  choices: Choice[]
+  choices: Choice<Id>[]
   // What the list says when there is nothing to choose from.
   empty: string
   busy: boolean
   error: string
-  onChoose: (id: number) => void
+  onChoose: (id: Id) => void
   onCancel: () => void
 }
 
 // A plain list to pick one thing out of, in the same modal dialog the letter
 // uses: the focus trap, the page held still behind it, and Esc all come with
 // the element rather than being built here.
-export default function Chooser({
+export default function Chooser<Id extends number | string>({
   title,
   hint,
   choices,
@@ -34,7 +37,7 @@ export default function Chooser({
   error,
   onChoose,
   onCancel,
-}: Props) {
+}: Props<Id>) {
   const dialog = useRef<HTMLDialogElement>(null)
 
   useEffect(() => {

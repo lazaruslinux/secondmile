@@ -151,6 +151,8 @@ const RARITY_NAMES: Record<Rarity, string> = {
   common: 'Common',
   uncommon: 'Uncommon',
   rare: 'Rare',
+  epic: 'Epic',
+  legendary: 'Legendary',
   special: '',
 }
 
@@ -160,19 +162,44 @@ export function rarityWord(rarity: Rarity | string): string {
   return RARITY_NAMES[rarity as Rarity] ?? ''
 }
 
-// Which of the three frames a plant or a seed is drawn in. The rarity that
-// never rolls is framed as the rarest rather than given a frame of its own, so
-// the frames stay three and nothing is said about it.
-export function rarityTier(rarity: Rarity | string): 'common' | 'uncommon' | 'rare' {
+export type RarityTier = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary'
+
+// Which of the five frames a thing is drawn in. Seeds roll no higher than rare;
+// the two steps above belong to the tools. The rarity that never rolls is
+// framed as rare rather than given a frame of its own, so nothing is said about
+// the one seed that is not like the others.
+export function rarityTier(rarity: Rarity | string): RarityTier {
   if (rarity === 'uncommon') return 'uncommon'
   if (rarity === 'rare' || rarity === 'special') return 'rare'
+  if (rarity === 'epic') return 'epic'
+  if (rarity === 'legendary') return 'legendary'
   return 'common'
+}
+
+// The tools are one rarity each by what they are, so their frame is read off
+// the kind rather than off the row. Rows written before the tiers grew carry
+// older rarities and are not rewritten, and this is what makes an old oil and a
+// new one draw the same. A seed keeps the rarity it was rolled at.
+const KIND_RARITY: Record<string, Rarity> = {
+  wish: 'epic',
+  oil: 'legendary',
+}
+
+export function itemRarity(item: SatchelItem): Rarity {
+  return KIND_RARITY[item.kind] ?? item.rarity
+}
+
+// Whether a tool is drawn in a rarity frame at all. Water is the one thing in
+// the satchel with no rarity to name, and it stays a plain square.
+export function itemFramed(item: SatchelItem): boolean {
+  return KIND_RARITY[item.kind] !== undefined
 }
 
 const KIND_NAMES: Record<ItemKind, string> = {
   seed: 'Seed',
   water: 'Water',
   oil: 'Oil',
+  wish: 'Unmarked seed',
 }
 
 // What one thing in the satchel is called. A seed is named after what it grows
@@ -181,6 +208,26 @@ export function itemName(item: SatchelItem): string {
   if (item.kind === 'seed' && item.species) return seedName(item)
   return KIND_NAMES[item.kind] ?? item.kind
 }
+
+// The twelve species a chest can roll, in catalogue order, each with the name
+// its seed is called by. The catalogue has to be written down here as well as
+// on the server because a wish is spent on a species nobody owns yet, and the
+// server names only what is already held. The thirteenth species is given
+// rather than rolled and is deliberately not on this list.
+export const SEED_SPECIES: { id: string; name: string; rarity: Rarity }[] = [
+  { id: 'strawberry', name: 'Strawberry seed', rarity: 'common' },
+  { id: 'banana', name: 'Banana seed', rarity: 'common' },
+  { id: 'raspberry', name: 'Raspberry seed', rarity: 'common' },
+  { id: 'blueberry', name: 'Blueberry seed', rarity: 'common' },
+  { id: 'blackberry', name: 'Blackberry seed', rarity: 'uncommon' },
+  { id: 'mango', name: 'Mango seed', rarity: 'uncommon' },
+  { id: 'grapevine', name: 'Grape seed', rarity: 'uncommon' },
+  { id: 'fig_bush', name: 'Fig seed', rarity: 'uncommon' },
+  { id: 'olive', name: 'Olive seed', rarity: 'rare' },
+  { id: 'dates', name: 'Date seed', rarity: 'rare' },
+  { id: 'coffee', name: 'Coffee seed', rarity: 'rare' },
+  { id: 'pomegranate', name: 'Pomegranate seed', rarity: 'rare' },
+]
 
 // The step of the ladder a chest dropped on. The names are the server's; a
 // chest from before the ladder simply has none.
@@ -195,4 +242,20 @@ const CHEST_TIER_NAMES: Record<string, string> = {
 export function chestName(tier: string | null | undefined): string {
   if (!tier) return 'Chest'
   return `${CHEST_TIER_NAMES[tier.toLowerCase()] ?? tier} chest`
+}
+
+// The chest ladder runs up the same five colours the frames do, so a Marathon
+// chest is named in the same purple the wish inside it is framed in. Common is
+// the type colour already, so it takes no class, and a chest from before the
+// ladder takes none either.
+const CHEST_TIER_RARITY: Record<string, RarityTier> = {
+  '10k': 'uncommon',
+  half: 'rare',
+  marathon: 'epic',
+  ultra: 'legendary',
+}
+
+export function chestTierClass(tier: string | null | undefined): string | undefined {
+  const step = tier ? CHEST_TIER_RARITY[tier.toLowerCase()] : undefined
+  return step ? `chest-tier-${step}` : undefined
 }

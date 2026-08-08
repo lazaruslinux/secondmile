@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   anointFriend,
+  chooseSeed,
   errorText,
   getFriends,
   listFriendGrove,
@@ -17,18 +18,28 @@ import {
 import { itemArt } from '../art.ts'
 import { convertedValue } from '../format.ts'
 import { levelProgress, plantStage } from '../grove.ts'
-import { itemName, personName, plantingName } from '../labels.ts'
+import {
+  itemFramed,
+  itemName,
+  itemRarity,
+  personName,
+  plantingName,
+  rarityWord,
+  SEED_SPECIES,
+} from '../labels.ts'
 import Chooser, { type Choice } from './Chooser.tsx'
 import PlantArt from './PlantArt.tsx'
 import RarityFrame from './RarityFrame.tsx'
 
-// The satchel is grouped in the order things are used: sown, watered, given.
-const KIND_ORDER: ItemKind[] = ['seed', 'water', 'oil']
+// The satchel is grouped in the order things are used: sown, watered, given,
+// and last the one that is spent to be given a seed at all.
+const KIND_ORDER: ItemKind[] = ['seed', 'water', 'oil', 'wish']
 
 const GROUP_TITLES: Record<ItemKind, string> = {
   seed: 'Seeds',
   water: 'Water',
   oil: 'Oil',
+  wish: 'Unmarked seed',
 }
 
 // One verb each, and only one. Nothing in the satchel is there to be looked at.
@@ -36,11 +47,18 @@ const VERBS: Record<ItemKind, string> = {
   seed: 'Plant',
   water: 'Pour onto...',
   oil: 'Anoint...',
+  wish: 'Choose...',
 }
 
 // Said after oil is used, and it is the whole of what is said. The point of the
 // thing is that the other person finds out later, from the chest itself.
 const ANOINTED = 'Done. Nothing is said to them.'
+
+// The one row a wish offers when there is no seed left to ask for. Its id is
+// the empty species, which is what the server reads as "there was nothing to
+// choose", and what it answers with water for.
+const NO_SPECIES = ''
+const COMPLETE = 'Your grove is complete. The seed became water.'
 
 // A friend's plot comes back with a stage rather than miles, so the quiet half
 // of the row says how far along it is in words.
@@ -145,6 +163,10 @@ export default function Grove({ userId }: Props) {
     setNote('')
     setChoosing(item)
     setFriendPlots([])
+    // A wish is spent on the catalogue, which is already here: what is missing
+    // is worked out from the plot and the satchel, so there is nothing to ask
+    // the server for before the list can be drawn.
+    if (item.kind === 'wish') return
     try {
       const found = await getFriends()
       setFriends(found.friends)
@@ -188,6 +210,30 @@ export default function Grove({ userId }: Props) {
     }
   }
 
+  // A wish is spent on a species rather than on a row, and what comes back is
+  // the seed itself, which takes the wish's place in the satchel. Nothing else
+  // changed, so the plot is not asked for again.
+  async function spendWish(species: string) {
+    const item = choosing
+    if (!item) return
+    setBusyId(item.id)
+    setChooserError('')
+    try {
+      const made = await chooseSeed(item.id, species)
+      setItems((held) => held.map((one) => (one.id === item.id ? made : one)))
+      setChoosing(null)
+      if (species === NO_SPECIES) setNote(COMPLETE)
+    } catch (err) {
+      // A pick can go stale between the list and the tap: a seed of that
+      // species may have arrived in the meantime. Reading everything again is
+      // what redraws the list under the message.
+      setChooserError(errorText(err))
+      await load()
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   const growing = plantings.filter((row) => !row.gilded)
 
   // This account's plot first, then each friend's under their own name. Nothing
@@ -213,6 +259,19 @@ export default function Grove({ userId }: Props) {
     id: person.user_id,
     label: personName(person),
   }))
+
+  // What a wish can be spent on: every species that is neither growing in the
+  // plot nor already held as a seed. A grove holding all of them offers the one
+  // thing left, which is water.
+  const owned = new Set<string>([
+    ...plantings.map((row) => row.species),
+    ...items.flatMap((one) => (one.kind === 'seed' && one.species ? [one.species] : [])),
+  ])
+  const lacking = SEED_SPECIES.filter((row) => !owned.has(row.id))
+  const seedChoices: Choice<string>[] =
+    lacking.length > 0
+      ? lacking.map((row) => ({ id: row.id, label: row.name, detail: rarityWord(row.rarity) }))
+      : [{ id: NO_SPECIES, label: 'Water', detail: 'The wish becomes water.' }]
 
   return (
     <>
@@ -291,7 +350,9 @@ export default function Grove({ userId }: Props) {
           </p>
         )}
         {!loading && items.length === 0 && (
-          <p className="hint">Empty. Chests hold seeds, water, and oil.</p>
+          <p className="hint">
+            Empty. Chests hold seeds, water, oil, and unmarked seeds.
+          </p>
         )}
 
         {KIND_ORDER.map((kind) => {
@@ -303,9 +364,10 @@ export default function Grove({ userId }: Props) {
               <ul className="satchel-list">
                 {held.map((item) => {
                   // A seed is drawn as what it grows into, framed in its
-                  // rarity, which is where the rarity is said. Water and oil
-                  // are drawn as themselves and have no rarity to say.
+                  // rarity. A tool is drawn as itself, framed where it has a
+                  // rarity to name and left plain where it has none.
                   const art = item.kind === 'seed' ? null : itemArt(item.kind)
+                  const framed = itemFramed(item)
                   return (
                     <li key={item.id} className="satchel-row">
                       {item.kind === 'seed' && item.species !== null && (
@@ -318,9 +380,14 @@ export default function Grove({ userId }: Props) {
                           />
                         </RarityFrame>
                       )}
-                      {art && (
+                      {art && framed && (
+                        <RarityFrame rarity={itemRarity(item)} className="satchel-frame">
+                          <img className="item-art" src={art} alt="" />
+                        </RarityFrame>
+                      )}
+                      {art && !framed && (
                         <span className="item-square">
-                          <img src={art} alt="" />
+                          <img className="item-art" src={art} alt="" />
                         </span>
                       )}
                       <span className="satchel-name">{itemName(item)}</span>
@@ -365,6 +432,26 @@ export default function Grove({ userId }: Props) {
           busy={busyId !== null}
           error={chooserError}
           onChoose={(id) => void choose(id)}
+          onCancel={() => setChoosing(null)}
+        />
+      )}
+
+      {/* The same list the other two use, spent on a species instead of a row.
+          A grove with every seed in it has one thing left to be given, so the
+          list says so plainly rather than being empty. */}
+      {choosing?.kind === 'wish' && (
+        <Chooser
+          title="Unmarked seed"
+          hint={
+            lacking.length > 0
+              ? 'Choose what it will become: any seed you have not yet found. One use.'
+              : 'Your grove is complete. There is no seed left to ask for.'
+          }
+          choices={seedChoices}
+          empty="Nothing to choose."
+          busy={busyId !== null}
+          error={chooserError}
+          onChoose={(species) => void spendWish(species)}
           onCancel={() => setChoosing(null)}
         />
       )}

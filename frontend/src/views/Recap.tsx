@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { errorText, openChest, type RecapState, type SatchelItem } from '../api.ts'
 import { formatDate } from '../format.ts'
-import { chestName, MEDAL_DETAILS, medalName } from '../labels.ts'
+import { chestName, chestTierClass, MEDAL_DETAILS, medalName } from '../labels.ts'
 import { chestGiver, flourishLine, noteAuthor, recapCheers, recapNotes } from '../recap.ts'
 import ChestItem from './ChestItem.tsx'
 import { MedalMark } from './Medals.tsx'
@@ -157,7 +157,10 @@ export default function Recap({ recap, onDismiss }: Props) {
                         </p>
                       )}
                       <div className="chest-line">
-                        <span>{chestName(chest.tier)}</span>
+                        {/* Named in the colour of the step it dropped on. */}
+                        <span className={chestTierClass(chest.tier)}>
+                          {chestName(chest.tier)}
+                        </span>
                         {!reveal && (
                           <button
                             type="button"

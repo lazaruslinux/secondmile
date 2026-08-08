@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { errorText, plantSeed, type SatchelItem } from '../api.ts'
 import { itemArt } from '../art.ts'
-import { itemName } from '../labels.ts'
+import { itemFramed, itemName, itemRarity } from '../labels.ts'
 import PlantArt from './PlantArt.tsx'
 import RarityFrame from './RarityFrame.tsx'
 
@@ -9,10 +9,11 @@ import RarityFrame from './RarityFrame.tsx'
 const KIND_LINES: Record<string, string> = {
   water: 'Pour it onto one plant in the grove.',
   oil: 'Anoint a friend with it from the grove.',
+  wish: 'Choose what it will become: any seed you have not yet found.',
 }
 
 // Everything out of a chest goes the same place, and that is the whole of what
-// a reveal says about water and oil until the picture is tapped.
+// a reveal says about a tool until the picture is tapped.
 const STOWED = 'Added to satchel.'
 
 interface Props {
@@ -23,13 +24,13 @@ interface Props {
 }
 
 // What came out of a chest, with the one thing to do with it offered here. A
-// seed is planted from where it was found; water and oil need something chosen
+// seed is planted from where it was found; every tool needs something chosen
 // first, so they wait in the satchel and the grove is where they are used.
 export default function ChestItem({ item, onPlanted }: Props) {
   const [planted, setPlanted] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  // Water and oil say what they are for only when the picture is tapped.
+  // A tool says what it is for only when the picture is tapped.
   const [telling, setTelling] = useState(false)
 
   async function plant() {
@@ -50,12 +51,27 @@ export default function ChestItem({ item, onPlanted }: Props) {
   const seedLine = 'Plant it and it grows with your miles.'
   const art = seed ? null : itemArt(item.kind)
   const line = KIND_LINES[item.kind] ?? ''
+  // Oil and a wish carry a rarity and are framed in it; water carries none.
+  const framed = itemFramed(item)
+
+  // The picture of a tool is what is pressed to find out what it is for. Framed
+  // or not, it is the same button; the frame only changes what is around it.
+  const picture = art && (
+    <button
+      type="button"
+      className={framed ? 'item-art-button' : 'item-square item-square-button'}
+      aria-expanded={telling}
+      aria-label={`What ${itemName(item)} is for`}
+      onClick={() => setTelling((shown) => !shown)}
+    >
+      <img className="item-art" src={art} alt="" />
+    </button>
+  )
 
   return (
     <div className="item-reveal">
-      {/* A seed is drawn as what it grows into, framed in its rarity. Water and
-          oil are drawn as themselves, and the picture is what is pressed to
-          find out what they are for. */}
+      {/* A seed is drawn as what it grows into, framed in its rarity. A tool is
+          drawn as itself, framed only where it has a rarity to name. */}
       {seed && item.species !== null && (
         <RarityFrame rarity={item.rarity} className="item-frame">
           <PlantArt
@@ -67,16 +83,14 @@ export default function ChestItem({ item, onPlanted }: Props) {
         </RarityFrame>
       )}
 
-      {art && (
-        <button
-          type="button"
-          className="item-square item-square-button"
-          aria-expanded={telling}
-          aria-label={`What ${itemName(item)} is for`}
-          onClick={() => setTelling((shown) => !shown)}
-        >
-          <img src={art} alt="" />
-        </button>
+      {framed ? (
+        picture && (
+          <RarityFrame rarity={itemRarity(item)} className="item-frame">
+            {picture}
+          </RarityFrame>
+        )
+      ) : (
+        picture
       )}
 
       <div className="item-body">

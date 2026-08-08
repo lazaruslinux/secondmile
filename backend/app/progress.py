@@ -19,8 +19,9 @@ from app.config import (
     BORDER_LEVELS,
     CHEST_LADDER,
     CHEST_SLOT_ITEMS,
-    CHEST_TIER_ODDS,
-    LEGACY_CHEST_ODDS,
+    CHEST_TIER_FLOOR,
+    CHEST_UPGRADE_CHANCE,
+    LEGACY_CHEST_TIER,
     LEVEL_COSTS_MI,
     LEVEL_STEP_MI,
     MAX_DIAMOND_SPORTS,
@@ -273,9 +274,18 @@ def _honour_anointings(
 
 
 def roll_slot(rng: random.Random, tier: str | None) -> str:
-    """Which rarity slot a chest of this tier comes up with."""
-    odds = CHEST_TIER_ODDS.get(tier or "", LEGACY_CHEST_ODDS)
-    return rng.choices(species.RARITIES, weights=odds, k=1)[0]
+    """Which rarity slot a chest of this tier comes up with.
+
+    The step of the ladder sets the floor and the chest is never worth less
+    than it: four times in five it is exactly its own step, and the fifth time
+    it is the one above. An Ultra already stands on the top rung, so the roll
+    still happens and lands where it started.
+    """
+    floor = CHEST_TIER_FLOOR.get(tier or "", CHEST_TIER_FLOOR[LEGACY_CHEST_TIER])
+    step = species.RARITY_LADDER.index(floor)
+    if rng.random() < CHEST_UPGRADE_CHANCE:
+        step = min(step + 1, len(species.RARITY_LADDER) - 1)
+    return species.RARITY_LADDER[step]
 
 
 def roll_loot(
@@ -287,15 +297,17 @@ def roll_loot(
     """What one chest holds, as (kind, species id or None, rarity).
 
     Two rolls: the tier decides the rarity slot, and the slot decides whether
-    it is a seed or the tool that shares it. Oil lives in the rare slot only,
-    which is why it is mostly a Marathon and Ultra thing.
+    it is a seed or the tool that shares it. The three seed slots share theirs
+    with water; the two above them are tools outright, an epic being a wish and
+    a legendary being oil.
 
     A plot holds one of each species, so a seed of something the account
     already has is rolled again inside its own rarity, among what it is
     missing. The first roll still happens either way, which is what keeps a
     chest that was never a duplicate landing on exactly what it always did.
     With nothing left to want in that rarity the slot pours water instead:
-    there is no such thing as an item worth nothing.
+    there is no such thing as an item worth nothing. A wish falls to water by
+    the same rule, once there is nothing left anywhere to wish for.
 
     The first chest an account ever opens ignores all of it. That is never
     explained anywhere, and this is the only line that knows about it.
@@ -308,6 +320,8 @@ def roll_loot(
     kind = rng.choices(
         [kind for kind, _weight in choices], weights=[weight for _kind, weight in choices], k=1
     )[0]
+    if kind == "wish":
+        return ("wish", None, rarity) if species.missing(held) else ("water", None, rarity)
     if kind != "seed":
         return kind, None, rarity
     picked = rng.choice(species.BY_RARITY[rarity]).id

@@ -25,6 +25,15 @@ from dataclasses import dataclass
 
 RARITIES = ("common", "uncommon", "rare")
 
+# The whole rarity ladder, in order, low to high. The first three are the
+# rarities a seed can be; the two above them belong to items only, because there
+# is nothing rarer to grow than a rare and the ladder still has to climb past it.
+RARITY_LADDER = (*RARITIES, "epic", "legendary")
+
+# What a wish is called wherever it is shown. It is not a species, so it has no
+# catalogue row; it is the promise of whichever one you name.
+WISH_NAME = "Unmarked seed"
+
 # Converted Miles one level costs, by rarity. What each species once needed to
 # come to maturity it now needs for every level it puts on.
 LEVEL_MI: dict[str, float] = {"common": 15.0, "uncommon": 40.0, "rare": 100.0}
@@ -96,3 +105,17 @@ BY_RARITY: dict[str, tuple[Species, ...]] = {
     )
     for rarity in RARITIES
 }
+
+# Everything a chest or a wish may hand over: the twelve, and never the mustard
+# tree, which is given once and is in no bag anything reaches into.
+ROLLABLE: tuple[str, ...] = tuple(
+    row.id for rarity in RARITIES for row in BY_RARITY[rarity]
+)
+
+
+def missing(held: frozenset[str] | set[str]) -> list[str]:
+    """Which of the twelve an account has neither growing nor waiting.
+
+    In catalogue order, so the same plot always answers the same way.
+    """
+    return [species_id for species_id in ROLLABLE if species_id not in held]

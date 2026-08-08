@@ -1,9 +1,9 @@
-"""The satchel and the plot: three items, three verbs, and nothing to look at.
+"""The satchel and the plot: four items, four verbs, and nothing to look at.
 
 Every item a chest gives is a tool. A seed is planted, water is poured onto one
-planting, and oil is spent on a friend. There is no fourth thing and no way to
-merely hold one of them, which is why every endpoint here is a verb and none of
-them is a collection.
+planting, oil is spent on a friend, and a wish is spent on whichever seed is
+missing. There is no fifth thing and no way to merely hold one of them, which is
+why every endpoint here is a verb and none of them is a collection.
 
 Oil is the quiet one. Spending it says nothing to the person it is spent on:
 no notification, no feed event, and nothing in any response they can read. It
@@ -16,7 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app import fellowship, grove, models, progress, security, throttle
+from app import fellowship, grove, models, progress, security, species, throttle
 from app.db import get_db
 
 router = APIRouter(tags=["grove"])
@@ -28,6 +28,11 @@ class PourBody(BaseModel):
 
 class AnointBody(BaseModel):
     user_id: int
+
+
+class ChooseBody(BaseModel):
+    # Optional, because a plot with all twelve in it has nothing left to name.
+    species: str | None = None
 
 
 def _item(db: Session, user_id: int, item_id: int, kind: str) -> models.SatchelItem:
@@ -75,6 +80,44 @@ def plant_seed(
     planting = grove.plant(db, user.id, item, security.now_utc())
     db.commit()
     return grove.serialize_planting(planting)
+
+
+@router.post("/satchel/{item_id}/choose", status_code=status.HTTP_201_CREATED)
+def choose_seed(
+    item_id: int,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(security.current_user),
+    body: ChooseBody | None = None,
+) -> dict:
+    """Spend a wish on whichever seed you name, and hold it a moment later.
+
+    The wish is the only item whose verb takes an answer from the player rather
+    than a target: the rest of the chest decides what you get, and this one asks.
+    What comes back is the seed itself, waiting in the satchel to be planted like
+    any other.
+
+    A plot with all twelve in it has nothing left to name, and there the wish
+    pours water rather than becoming an item that can never be spent.
+    """
+    item = _item(db, user.id, item_id, "wish")
+    held = grove.held_species(db, user.id)
+    wanted = None if body is None else body.species
+    if not species.missing(held):
+        # Whatever was named is moot: the plot already holds all of it, so the
+        # wish falls to water rather than to nothing.
+        wanted = None
+    elif wanted is None or wanted not in species.ROLLABLE:
+        # The mustard tree answers here alongside everything that is not a
+        # species at all. It is given once and is in no bag anything reaches
+        # into, a wish included.
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "No such seed to wish for.")
+    elif wanted in held:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "You already have that one. Wish for something else."
+        )
+    made = grove.spend_wish(db, item, wanted, security.now_utc())
+    db.commit()
+    return grove.serialize_item(made)
 
 
 @router.post("/satchel/{item_id}/pour")

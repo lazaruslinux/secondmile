@@ -149,6 +149,34 @@ def plant(
     return row
 
 
+def spend_wish(
+    db: Session, item: models.SatchelItem, species_id: str | None, moment: dt.datetime
+) -> models.SatchelItem:
+    """Turn a wish into the seed it named, or into water when it named nothing.
+
+    The wish is spent and what it became is an item of its own, the same way a
+    chest hands over an item rather than changing into one. The new seed carries
+    its species' own rarity: a wish is how it arrived, not what it is worth. The
+    water it falls back to keeps the wish's rarity instead, because what a slot
+    was worth is what the water out of it is worth.
+    """
+    row = species.BY_ID.get(species_id or "")
+    made = models.SatchelItem(
+        user_id=item.user_id,
+        kind="seed" if row is not None else "water",
+        species=row.id if row is not None else None,
+        rarity=row.rarity if row is not None else item.rarity,
+        # The chest the wish came out of is the chest this came out of too.
+        chest_id=item.chest_id,
+        acquired_at=moment,
+        used_at=None,
+    )
+    item.used_at = moment
+    db.add(made)
+    db.flush()
+    return made
+
+
 def pour(row: models.Planting, moment: dt.datetime) -> None:
     """Empty one water item into one planting."""
     _advance(row, WATER_POUR_MI, moment)
@@ -211,14 +239,17 @@ def serialize_item(row: models.SatchelItem) -> dict:
     """One thing in the satchel. Its kind is its verb, so the client needs
     nothing else to know what can be done with it."""
     kind = species.BY_ID.get(row.species or "")
+    # A wish is named for what it promises, because it has not been spent on a
+    # species yet. Water and oil are named by nothing: they are the same
+    # wherever they came from.
+    seed_name = species.WISH_NAME if row.kind == "wish" else None
     return {
         "id": row.id,
         "kind": row.kind,
         "species": row.species,
         # Both names on every seed, so nothing on the client composes one: the
-        # satchel says the seed and the plot says what it becomes. Null for
-        # water and oil, which are the same wherever they came from.
-        "seed_name": kind.seed_name if kind is not None else None,
+        # satchel says the seed and the plot says what it becomes.
+        "seed_name": kind.seed_name if kind is not None else seed_name,
         "plant_name": kind.plant_name if kind is not None else None,
         "rarity": row.rarity,
         # The one species with something about it to explain says it here.

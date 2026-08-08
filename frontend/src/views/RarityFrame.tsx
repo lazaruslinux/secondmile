@@ -9,10 +9,11 @@ interface Props {
   children: ReactNode
 }
 
-// The square a plant or a seed is drawn in: a border in its rarity, and the
-// rarity named on a solid tab hanging off the foot of the square. Every square
-// that holds something growing uses this, so the plot, the satchel, and a chest
-// reveal all say how rare a thing is the same way.
+// The square a plant, a seed, or a tool with a rarity is drawn in: a border in
+// its rarity, and the rarity named on a solid tab hanging off the foot of the
+// square. Every square that holds something with a rarity uses this, so the
+// plot, the satchel, and a chest reveal all say how rare a thing is the same
+// way.
 export default function RarityFrame({ rarity, className, children }: Props) {
   const tier = rarityTier(rarity)
   const classes = `rarity-frame rarity-${tier}${className ? ` ${className}` : ''}`

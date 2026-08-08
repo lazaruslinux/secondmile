@@ -27,6 +27,7 @@ import {
   ACTIVITY_NAMES,
   ACTIVITY_ORDER,
   chestName,
+  chestTierClass,
   MEDAL_ORDER,
   medalName,
   plantingName,
@@ -544,7 +545,8 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
               <ul className="chests">
                 {chests.map((chest) => (
                   <li key={chest.id}>
-                    <span>{chestName(chest.tier)}</span>
+                    {/* Named in the colour of the step it dropped on. */}
+                    <span className={chestTierClass(chest.tier)}>{chestName(chest.tier)}</span>
                     <button
                       type="button"
                       className="secondary"

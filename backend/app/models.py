@@ -62,9 +62,11 @@ ActivityEnum = Enum(*ACTIVITIES, name="activity", native_enum=False)
 SourceEnum = Enum("sync", "manual", name="workout_source", native_enum=False)
 FriendshipEnum = Enum("pending", "accepted", name="friendship_status", native_enum=False)
 EncouragementEnum = Enum("cheer", "note", name="encouragement_kind", native_enum=False)
-# The three things a chest can hold. Every one of them is a tool with exactly
-# one verb, which is why there is no fourth value for something to look at.
-ItemKindEnum = Enum("seed", "water", "oil", name="satchel_kind", native_enum=False)
+# The things a chest can hold. Every one of them is a tool with exactly one
+# verb, which is why none of them is something to merely look at. The column is
+# a plain string of five characters with no constraint on it, so the wish that
+# joined the other three needed no migration to be storable.
+ItemKindEnum = Enum("seed", "water", "oil", "wish", name="satchel_kind", native_enum=False)
 
 
 class User(Base):

@@ -272,35 +272,58 @@ the picture, with nothing solid in the middle to hide the plant behind it.
 Gilded artwork per species is a later pass and is not built. When each species
 has its own, this file comes out and the drawings replace it.
 
-### Water and oil
+### The tools
 
-`frontend/src/assets/grove/water.svg` and `frontend/src/assets/grove/oil.svg`
+`frontend/src/assets/grove/water.svg`, `oil.svg`, and `wish.svg`
 
-The two things a chest holds that are not a seed. They live beside the plants
+The three things a chest holds that are not a seed. They live beside the plants
 because they are used on them, and each reads one file named after its kind, so
-swapping either is the same one-file swap as everything else here. A file that
-is not there costs the picture and nothing else: the satchel row and the chest
-reveal both still read.
+swapping any of them is the same one-file swap as everything else here. A file
+that is not there costs the picture and nothing else: the satchel row and the
+chest reveal both still read.
 
-| File | What it is |
-| --- | --- |
-| `water.svg` | Water, poured onto one plant |
-| `oil.svg` | Oil, used to anoint a friend |
+| File | What it is | Rarity |
+| --- | --- | --- |
+| `water.svg` | Water, poured onto one plant | none |
+| `oil.svg` | Oil, used to anoint a friend | Legendary |
+| `wish.svg` | The unmarked seed, spent on any species the grove is missing | Epic |
 
 Drawn in the same 64 by 64 viewBox as the plants, and shown at 72 pixels in the
-satchel and in a chest reveal. Unlike a plant, neither stands on a floor: each
-is centred in its square, so draw them to fill the box rather than to sit on the
-bottom of it. In a chest reveal the picture is what is pressed to find out what
-the thing is for, so give it enough shape to look pressable.
+satchel and in a chest reveal. Unlike a plant, none of them stands on a floor:
+each is centred in its square, so draw them to fill the box rather than to sit
+on the bottom of it. In a chest reveal the picture is what is pressed to find
+out what the thing is for, so give it enough shape to look pressable.
+
+Oil and the wish are drawn inside a rarity frame, so the two pixels around the
+square are the frame's rather than the drawing's; water is the one thing in the
+satchel with no rarity, and it is drawn in a plain square. The rarity of a tool
+is fixed by what it is rather than rolled, so a wish is always epic and oil is
+always legendary.
 
 ## Rarity frames
 
-Not artwork, and no file to swap: every square holding a plant or a seed is
-bordered in that thing's rarity, with the rarity named on a solid tab hanging
-off the foot of the square. Three frames, drawn from the palette below, and the
-tab prints its name in black on the same colour as the border. The gild is a
-separate treatment and stays on the drawing itself, so a fully grown rare plant
-carries both.
+Not artwork, and no file to swap: every square holding a plant, a seed, or a
+tool with a rarity is bordered in that rarity, with the rarity named on a solid
+tab hanging off the foot of the square. Five frames, drawn from the palette
+below, and the tab prints its name in black on the same colour as the border.
+The gild is a separate treatment and stays on the drawing itself, so a fully
+grown rare plant carries both.
+
+Seeds roll no higher than rare. The two steps above that belong to the tools,
+which is what makes an epic or a legendary frame mean something when it appears.
+
+| Rarity | Colour | What carries it |
+| --- | --- | --- |
+| Common | `--text` | Four species |
+| Uncommon | `--rarity-uncommon` | Four species |
+| Rare | `--rarity-rare` | Five species |
+| Epic | `--rarity-epic` | The unmarked seed |
+| Legendary | `--rarity-legendary` | Oil |
+
+The same five colours name the chests. A chest is named for the step of the
+ladder it dropped on, and that name is printed in the step's colour: a 5K chest
+in the type colour, a 10K in the uncommon blue, a Half in the rare gold, a
+Marathon in the epic purple, an Ultra in the legendary orange.
 
 ## Profile pictures
 
@@ -311,7 +334,7 @@ frontend build, so nothing in `assets` affects it.
 ## What is not a file yet
 
 The interface itself, the buttons, the colours, the type, is plain CSS in
-`frontend/src/styles.css`, not artwork. The whole palette is eight custom
+`frontend/src/styles.css`, not artwork. The whole palette is ten custom
 properties at the top of that file:
 
 | Property | Value | What it is |
@@ -322,10 +345,15 @@ properties at the top of that file:
 | `--text` | `#f4f4f5` | Type and numbers, and the common rarity frame |
 | `--muted` | `#9a9aa0` | Labels and secondary type |
 | `--accent` | `#dc143c` | The one accent, used sparingly |
-| `--rarity-uncommon` | `#4a8fd9` | The uncommon rarity frame and its tab |
-| `--rarity-rare` | `#d4af37` | The rare rarity frame and its tab |
+| `--rarity-uncommon` | `#4a8fd9` | The uncommon frame and its tab, and the 10K chest |
+| `--rarity-rare` | `#d4af37` | The rare frame and its tab, and the Half chest |
+| `--rarity-epic` | `#a06cd5` | The epic frame and its tab, and the Marathon chest |
+| `--rarity-legendary` | `#e0762e` | The legendary frame and its tab, and the Ultra chest |
 
-There is one theme and it is dark. Changing the eight values above is the whole
-of a recolour; `--accent` on its own is the quickest way to make the app look
-like something else. The two rarity colours are read on a near-black card and
-printed on in black, so a replacement has to work both ways round.
+There is one theme and it is dark. Changing the ten values above is the whole of
+a recolour; `--accent` on its own is the quickest way to make the app look like
+something else. The four rarity colours are read on a near-black card and
+printed on in black, so a replacement has to work both ways round: each of the
+four clears 5:1 against the card behind it and 5:1 against the black type on it.
+The legendary orange is deliberately not a second gold, so that a legendary tab
+is never mistaken for the rare one or for the gild on a finished plant.

@@ -296,6 +296,151 @@ def test_a_grown_plant_still_takes_water_toward_its_next_level(signed_in, db_ses
 
 
 # --------------------------------------------------------------------------
+# The wish
+# --------------------------------------------------------------------------
+
+
+def give_wish(db_session, user_id: int):
+    """One wish, which is what an epic slot is and the only item that asks."""
+    return give_item(db_session, user_id, "wish", rarity="epic")
+
+
+def hold_everything(db_session, user_id: int, *, keep: str | None = None) -> None:
+    """Put the whole twelve in the ground, less one if a species is named."""
+    for species_id in species.ROLLABLE:
+        if species_id != keep:
+            give_planting(db_session, user_id, species_id)
+
+
+def test_the_satchel_names_a_wish_for_what_it_promises(signed_in, db_session, member):
+    give_wish(db_session, member.id)
+    row = signed_in.get("/api/satchel").json()[0]
+    assert row["kind"] == "wish"
+    assert row["species"] is None
+    assert row["rarity"] == "epic"
+    assert row["seed_name"] == "Unmarked seed"
+    # It is not a species, so there is nothing yet for it to become.
+    assert row["plant_name"] is None
+    assert row["reveal"] is None
+
+
+def test_choosing_a_seed_spends_the_wish_and_hands_over_the_seed(
+    signed_in, db_session, member
+):
+    item = give_wish(db_session, member.id)
+    body = signed_in.post(f"/api/satchel/{item.id}/choose", json={"species": "pomegranate"})
+    assert body.status_code == 201, body.text
+    made = body.json()
+    assert made["kind"] == "seed"
+    assert made["species"] == "pomegranate"
+    assert made["seed_name"] == "Pomegranate seed"
+    # Its own rarity, not the wish's: a wish is how it arrived, not what it is.
+    assert made["rarity"] == "rare"
+
+    # The wish is gone and the seed is what is waiting, ready to be planted.
+    listed = signed_in.get("/api/satchel").json()
+    assert [row["id"] for row in listed] == [made["id"]]
+    assert db_session.get(models.SatchelItem, item.id).used_at is not None
+    assert signed_in.post(f"/api/satchel/{made['id']}/plant").status_code == 201
+
+
+def test_a_wish_cannot_name_the_one_that_is_only_ever_given(signed_in, db_session, member):
+    item = give_wish(db_session, member.id)
+    body = signed_in.post(f"/api/satchel/{item.id}/choose", json={"species": "mustard"})
+    assert body.status_code == 400
+    # And it is the same answer as a name that is not a species at all, so
+    # nothing about the mustard tree reads as a special case.
+    unknown = signed_in.post(f"/api/satchel/{item.id}/choose", json={"species": "sycamore"})
+    assert unknown.status_code == 400
+    assert unknown.json() == body.json()
+    assert db_session.get(models.SatchelItem, item.id).used_at is None
+
+
+def test_a_wish_needs_a_name_while_there_is_still_something_to_name(
+    signed_in, db_session, member
+):
+    item = give_wish(db_session, member.id)
+    assert signed_in.post(f"/api/satchel/{item.id}/choose", json={}).status_code == 400
+    assert signed_in.post(f"/api/satchel/{item.id}/choose").status_code == 400
+    assert db_session.get(models.SatchelItem, item.id).used_at is None
+
+
+def test_a_wish_refuses_something_already_growing_or_waiting(signed_in, db_session, member):
+    give_planting(db_session, member.id, "coffee")
+    give_item(db_session, member.id, "seed", "mango", rarity="uncommon")
+    item = give_wish(db_session, member.id)
+    for species_id in ("coffee", "mango"):
+        body = signed_in.post(f"/api/satchel/{item.id}/choose", json={"species": species_id})
+        assert body.status_code == 400, species_id
+    assert db_session.get(models.SatchelItem, item.id).used_at is None
+
+
+def test_somebody_elses_wish_answers_like_one_that_never_existed(
+    signed_in, db_session, admin, member
+):
+    theirs = give_wish(db_session, admin.id)
+    mine = signed_in.post(f"/api/satchel/{theirs.id}/choose", json={"species": "olive"})
+    missing = signed_in.post("/api/satchel/999999/choose", json={"species": "olive"})
+    assert mine.status_code == missing.status_code == 404
+    assert mine.json() == missing.json()
+    assert db_session.get(models.SatchelItem, theirs.id).used_at is None
+
+
+def test_a_wish_is_spent_exactly_once(signed_in, db_session, member):
+    item = give_wish(db_session, member.id)
+    assert signed_in.post(
+        f"/api/satchel/{item.id}/choose", json={"species": "olive"}
+    ).status_code == 201
+    again = signed_in.post(f"/api/satchel/{item.id}/choose", json={"species": "dates"})
+    assert again.status_code == 404
+    # And it gave out exactly one seed.
+    assert [row["species"] for row in signed_in.get("/api/satchel").json()] == ["olive"]
+
+
+def test_only_a_wish_is_chosen_from(signed_in, db_session, member):
+    water = give_item(db_session, member.id, "water")
+    body = signed_in.post(f"/api/satchel/{water.id}/choose", json={"species": "olive"})
+    assert body.status_code == 400
+    assert body.json()["detail"] == "That is not a wish."
+
+
+def test_a_wish_becomes_water_once_the_whole_plot_is_held(signed_in, db_session, member):
+    """The grove filled up after the wish dropped, which is the one way to hold
+    a wish with nothing left to want. It pours rather than going to waste."""
+    hold_everything(db_session, member.id)
+    item = give_wish(db_session, member.id)
+    body = signed_in.post(f"/api/satchel/{item.id}/choose")
+    assert body.status_code == 201, body.text
+    made = body.json()
+    assert made["kind"] == "water"
+    assert made["species"] is None
+    assert made["seed_name"] is None
+    # What the slot was worth is what the water out of it is worth.
+    assert made["rarity"] == "epic"
+    assert db_session.get(models.SatchelItem, item.id).used_at is not None
+
+
+def test_a_full_plot_pours_whatever_the_wish_was_pointed_at(signed_in, db_session, member):
+    """Naming something already held is normally refused; with nothing left
+    anywhere to name it is moot, and the wish pours all the same."""
+    hold_everything(db_session, member.id)
+    item = give_wish(db_session, member.id)
+    body = signed_in.post(f"/api/satchel/{item.id}/choose", json={"species": "olive"})
+    assert body.status_code == 201, body.text
+    assert body.json()["kind"] == "water"
+
+
+def test_the_last_seed_in_the_plot_is_still_a_wish(signed_in, db_session, member):
+    """One short of the twelve is still something to wish for, and the wish is
+    the way to name exactly it."""
+    hold_everything(db_session, member.id, keep="dates")
+    item = give_wish(db_session, member.id)
+    body = signed_in.post(f"/api/satchel/{item.id}/choose", json={"species": "dates"})
+    assert body.status_code == 201, body.text
+    assert (body.json()["kind"], body.json()["species"]) == ("seed", "dates")
+
+
+# --------------------------------------------------------------------------
 # Growth
 # --------------------------------------------------------------------------
 
@@ -764,6 +909,7 @@ def test_the_grove_endpoints_need_a_session(client):
     assert client.post("/api/satchel/1/plant").status_code == 401
     assert client.post("/api/satchel/1/pour", json={"planting_id": 1}).status_code == 401
     assert client.post("/api/satchel/1/anoint", json={"user_id": 1}).status_code == 401
+    assert client.post("/api/satchel/1/choose", json={"species": "olive"}).status_code == 401
 
 
 # --------------------------------------------------------------------------

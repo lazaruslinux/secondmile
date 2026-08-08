@@ -16,10 +16,13 @@
   --text: #f4f4f5;
   --muted: #9a9aa0;
   --accent: #dc143c;
-  /* The two rarities that are not the type colour. Common is drawn in --text,
-     so the three frames need only these two of their own. */
+  /* The four rarities that are not the type colour. Common is drawn in --text,
+     so the five frames need only these four of their own. Each is read on a
+     near-black card and printed on in black, so each works both ways round. */
   --rarity-uncommon: #4a8fd9;
   --rarity-rare: #d4af37;
+  --rarity-epic: #a06cd5;
+  --rarity-legendary: #e0762e;
   --radius: 6px;
   --gap: 0.5rem;
 }
@@ -1929,6 +1932,27 @@ button:disabled {
   border-bottom: none;
 }
 
+/* A chest is named for the step of the ladder it dropped on, and the name is
+   drawn in that step's colour, which is the same ladder the rarity frames use:
+   a Marathon chest reads as the purple of the thing inside it. Nothing else is
+   added, and a 5K chest is the type colour it always was. This is full-size
+   type, so the colour is never carried by small print. */
+.chest-tier-uncommon {
+  color: var(--rarity-uncommon);
+}
+
+.chest-tier-rare {
+  color: var(--rarity-rare);
+}
+
+.chest-tier-epic {
+  color: var(--rarity-epic);
+}
+
+.chest-tier-legendary {
+  color: var(--rarity-legendary);
+}
+
 /* The recap */
 
 /* A native dialog opened as a modal, so the focus trap, the page held still
@@ -2152,10 +2176,11 @@ button:disabled {
 }
 
 /* Rarity frames
-   Every square that holds a plant or a seed is bordered in that thing's rarity
-   and carries the rarity's name on a solid tab hanging off its foot. The tab is
-   the same colour as the border with black type on it, which reads on all
-   three. The gild is a separate thing and stays on the artwork itself. */
+   Every square that holds a plant, a seed, or a tool with a rarity is bordered
+   in that rarity and carries its name on a solid tab hanging off the foot of
+   the square. The tab is the same colour as the border with black type on it,
+   which reads on all five. The gild is a separate thing and stays on the
+   artwork itself. */
 
 .rarity-frame {
   display: flex;
@@ -2203,6 +2228,22 @@ button:disabled {
 
 .rarity-rare .rarity-tab {
   background: var(--rarity-rare);
+}
+
+.rarity-epic .rarity-square {
+  border-color: var(--rarity-epic);
+}
+
+.rarity-epic .rarity-tab {
+  background: var(--rarity-epic);
+}
+
+.rarity-legendary .rarity-square {
+  border-color: var(--rarity-legendary);
+}
+
+.rarity-legendary .rarity-tab {
+  background: var(--rarity-legendary);
 }
 
 /* The frame in the plot fills its cell; the two small ones are square. */
@@ -2277,9 +2318,31 @@ button:disabled {
   height: 100%;
 }
 
-/* Water and oil are drawn in a plain square: neither is rare, and neither has a
-   rarity to name. In a chest reveal the square is a button, and pressing it is
-   how the app says what the thing is for. */
+/* A tool with a rarity is drawn inside the frame, filling the square the same
+   way a seed does. */
+.item-art {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* In a chest reveal the picture of a tool is what is pressed to find out what
+   it is for. Framed, the button is only the picture: the square around it and
+   its border belong to the frame. */
+.item-art-button {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-radius: 0;
+}
+
+/* Water is drawn in a plain square: it is the one thing in the satchel with no
+   rarity to name. In a chest reveal that square is itself the button. */
 .item-square {
   display: flex;
   flex: 0 0 auto;
