@@ -125,7 +125,9 @@ as 40 pixels across in the feed, so keep the shapes bold enough to read there.
 `frontend/src/assets/badges/*.svg`
 
 The whole reward system is twelve medals in four families, drawn on the You
-screen family by family and again down the rail on Home. Every one of them is
+screen family by family, again down the rail on Home, and again as a chip on
+every feed card and Log row for the medals that workout earned. Every one of
+them is
 repeatable, so a medal is a count rather than a yes or a no: each is drawn once
 with its number under it rather than once per earning, and one not yet earned is
 the same file drawn dim.
@@ -168,9 +170,14 @@ screen of twelve does not read as twelve versions of the same object:
 
 Draw them as a set: the same size and weight, readable at a glance, because five
 of them share the width of a phone screen. Medals are drawn small, roughly 56
-pixels in the strip on You, 30 in the rail on Home, and 32 to 36 in the slots
-under the avatar, where they are drawn round. Keep the artwork inside a circle
-and off fine detail.
+pixels in the strip on You, 30 in the rail on Home, 28 in the chips on feed cards
+and Log rows, and 32 to 36 in the slots under the avatar, where they are drawn
+round. Keep the artwork inside a circle and off fine detail.
+
+Lettering inside a medal is gone by the chip size: MARATHON stamped across a
+plate is about three pixels tall there. That is why the chip prints the medal's
+name beside the drawing, and why the shape and colour of a medal, not its
+lettering, have to be what tells it apart.
 
 ### The stars
 

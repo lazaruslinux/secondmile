@@ -895,19 +895,34 @@ button:disabled {
   color: var(--accent);
 }
 
-/* The accent behind the letters rather than in them: crimson type this small
-   does not carry enough contrast, which is the rule the plate edges follow too. */
+/* The medal itself rather than its name in a crimson pill: what was won is a
+   drawing, and a feed card is where it is worth seeing. The name stays beside
+   it because the artwork alone cannot tell 5K from MARATHON at this size, and
+   the pill is now an outline so the drawing carries the colour. */
 .feed-badge {
-  display: inline-block;
-  padding: 0.05rem 0.45rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.1rem 0.5rem 0.1rem 0.15rem;
+  border: 1px solid var(--line);
   border-radius: 999px;
-  background: var(--accent);
-  color: #ffffff;
-  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* Big enough for the rim and the shape inside it to read, small enough that the
+   strip stays a strip. Stars are not drawn at this size and none are asked for. */
+.feed-badge .badge {
+  flex: 0 0 auto;
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+.feed-badge-label {
+  font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  white-space: nowrap;
+  color: var(--text);
 }
 
 /* What was written on a workout, own or a friend's. Line breaks are kept: what

@@ -20,9 +20,10 @@ import {
   formatStart,
   unitName,
 } from '../format.ts'
-import { ACTIVITY_NAMES, medalName, personName } from '../labels.ts'
+import { ACTIVITY_NAMES, personName } from '../labels.ts'
 import AvatarFrame from './AvatarFrame.tsx'
 import Icon from './Icon.tsx'
+import { MedalChip } from './Medals.tsx'
 import RouteLine from './RouteLine.tsx'
 
 const SOURCE_NAMES = {
@@ -494,9 +495,7 @@ export default function FeedCard({ item, units, avatarVersion, onChanged }: Prop
             {/* One chip per medal the workout earned. A long run started before
                 dawn earns two, and the strip wraps rather than truncates. */}
             {medals.map((id) => (
-              <span key={id} className="feed-badge">
-                {medalName(id)}
-              </span>
+              <MedalChip key={id} id={id} />
             ))}
           </p>
         )}
@@ -548,9 +547,7 @@ export default function FeedCard({ item, units, avatarVersion, onChanged }: Prop
       {medals.length > 0 && (
         <p className="feed-foot">
           {medals.map((id) => (
-            <span key={id} className="feed-badge">
-              {medalName(id)}
-            </span>
+            <MedalChip key={id} id={id} />
           ))}
         </p>
       )}

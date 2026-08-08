@@ -22,7 +22,8 @@ import {
   zonedDay,
   zonedInputValue,
 } from '../format.ts'
-import { ACTIVITY_NAMES, ACTIVITY_ORDER, medalName } from '../labels.ts'
+import { ACTIVITY_NAMES, ACTIVITY_ORDER } from '../labels.ts'
+import { MedalChip } from './Medals.tsx'
 import RouteLine from './RouteLine.tsx'
 
 const WORKOUT_PAGE = 50
@@ -377,9 +378,7 @@ export default function Log({ userId, units }: Props) {
                         )}
                         {/* One chip per medal the workout earned, up to two. */}
                         {(workout.medals ?? []).map((id) => (
-                          <span key={id} className="feed-badge">
-                            {medalName(id)}
-                          </span>
+                          <MedalChip key={id} id={id} />
                         ))}
                         {workout.source === 'manual' && <span className="tag">Manual</span>}
                         {notes.length > 0 && (
