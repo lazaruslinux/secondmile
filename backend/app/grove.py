@@ -77,6 +77,13 @@ def stage(row: models.Planting) -> int:
     return 1 if row.growth_mi < step * _SEEDLING_FRACTION else 2
 
 
+def growth_amount(miles: float, activity: str) -> float:
+    """What one workout's converted Miles are worth to a planting, swimming's
+    extra water included. One definition of it, because the recap has to take
+    the very same number back off again to say what a plant used to be."""
+    return miles * (1.0 + SWIM_GROWTH_BONUS) if activity == "swim" else miles
+
+
 def _advance(row: models.Planting, amount: float, moment: dt.datetime) -> None:
     """Add growth and note the day it came of age, once."""
     row.growth_mi += amount
@@ -100,7 +107,7 @@ def grow(
     """
     if miles <= 0:
         return
-    amount = miles * (1.0 + SWIM_GROWTH_BONUS) if activity == "swim" else miles
+    amount = growth_amount(miles, activity)
     rows = db.execute(
         select(models.Planting).where(
             models.Planting.user_id == user_id,

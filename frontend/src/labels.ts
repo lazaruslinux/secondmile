@@ -231,18 +231,34 @@ export function chestName(tier: string | null | undefined): string {
   return `${CHEST_TIER_NAMES[tier.toLowerCase()] ?? tier} chest`
 }
 
+// The five steps in the order they are walked, which is the order their squares
+// read in. A step nothing is waiting on simply has no square.
+export const CHEST_TIER_ORDER = ['5k', '10k', 'half', 'marathon', 'ultra']
+
+// The step on its own, for the tab under a chest square where the whole name
+// would not fit. A chest from before the ladder is only a chest.
+export function chestTierWord(tier: string | null | undefined): string {
+  return (tier ? CHEST_TIER_NAMES[tier.toLowerCase()] : undefined) ?? 'Chest'
+}
+
 // The chest ladder runs up the same five colours the frames do, so a Marathon
-// chest is named in the same purple the wish inside it is framed in. Common is
-// the type colour already, so it takes no class, and a chest from before the
-// ladder takes none either.
+// chest is drawn in the same purple the wish inside it is framed in. What the
+// colour means is the floor: the worst the chest can come up as. A chest from
+// before the ladder rolls as the first step and is coloured as one.
 const CHEST_TIER_RARITY: Record<string, RarityTier> = {
+  '5k': 'common',
   '10k': 'uncommon',
   half: 'rare',
   marathon: 'epic',
   ultra: 'legendary',
 }
 
+export function chestTierRarity(tier: string | null | undefined): RarityTier {
+  return (tier ? CHEST_TIER_RARITY[tier.toLowerCase()] : undefined) ?? 'common'
+}
+
+// Common is the type colour already, so it takes no class of its own.
 export function chestTierClass(tier: string | null | undefined): string | undefined {
-  const step = tier ? CHEST_TIER_RARITY[tier.toLowerCase()] : undefined
-  return step ? `chest-tier-${step}` : undefined
+  const step = chestTierRarity(tier)
+  return step === 'common' ? undefined : `chest-tier-${step}`
 }

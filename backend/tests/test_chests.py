@@ -3,7 +3,7 @@
 import datetime as dt
 import random
 
-from conftest import log_workout, neutral_start
+from conftest import give_planting, log_workout, neutral_start
 
 from app import models, progress, security, species
 from app.config import CHEST_LADDER, CHEST_TIER_FLOOR
@@ -18,6 +18,31 @@ def give_chest(db_session, user_id: int, tier: str | None = "5k") -> models.Ches
         opened_at=None,
     )
     db_session.add(chest)
+    db_session.commit()
+    return chest
+
+
+def give_gift_chest(db_session, user_id: int, giver_id: int, tier: str | None = "5k"):
+    """A chest somebody's oil paid for, wired the way the pipeline wires one:
+    a spent anointing, and the chest pointing back at it."""
+    anointing = models.Anointing(
+        from_user_id=giver_id,
+        to_user_id=user_id,
+        created_at=security.now_utc(),
+        consumed_at=security.now_utc(),
+    )
+    db_session.add(anointing)
+    db_session.flush()
+    chest = models.Chest(
+        user_id=user_id,
+        tier=tier,
+        from_anointing_id=anointing.id,
+        dropped_at=security.now_utc(),
+        opened_at=None,
+    )
+    db_session.add(chest)
+    db_session.flush()
+    anointing.consumed_chest_id = chest.id
     db_session.commit()
     return chest
 
@@ -508,26 +533,23 @@ def test_the_recap_carries_chests_medals_and_miles_then_clears(signed_in):
     recap = signed_in.get("/api/recap").json()
     assert list(recap) == [
         "since",
+        "last_sync_at",
         "miles",
         "encouragement",
         "medals",
-        "chests",
+        "plant_growth",
+        "chests_delivered",
+        "chest_givers",
         "flourish_stage",
         "flourish_rose",
     ]
     assert recap["since"] is None
     assert recap["miles"] == 11.0
-    assert recap["chests"], "eleven Miles should have dropped at least one chest"
-    assert set(recap["chests"][0]) == {
-        "id",
-        "dropped_at",
-        "tier",
-        "tier_id",
-        "from_username",
-    }
-    assert [row["tier"] for row in recap["chests"]] == ["5K", "10K"]
+    # Eleven Miles is the 5K chest and the 10K one, announced as a number
+    # rather than listed: the letter no longer opens anything.
+    assert recap["chests_delivered"] == 2
     # Nothing was given, so nothing is attributed to anybody.
-    assert all(row["from_username"] is None for row in recap["chests"])
+    assert recap["chest_givers"] == []
     # Eleven miles in one run is a 10K and a ten-mile week, and both families
     # are in the letter. Each entry is the id, the label, and the date.
     assert [row["id"] for row in recap["medals"]] == ["race_10k", "weekly_10"]
@@ -539,8 +561,96 @@ def test_the_recap_carries_chests_medals_and_miles_then_clears(signed_in):
     assert cleared["since"] is not None
     assert cleared["miles"] == 0.0
     assert cleared["medals"] == []
-    # Chests are not cleared by acknowledging: they wait to be opened.
-    assert cleared["chests"] == recap["chests"]
+    # Chests are not cleared by acknowledging: they wait in the inventory.
+    assert cleared["chests_delivered"] == 2
+
+
+def test_the_count_falls_as_chests_are_opened_elsewhere(signed_in, db_session, member):
+    """The letter counts what is closed, so opening one in the inventory is
+    what makes the announcement smaller. Nothing in the letter did it."""
+    log_workout(signed_in, "run", 11.0, pace_min=9)
+    assert signed_in.get("/api/recap").json()["chests_delivered"] == 2
+
+    waiting = signed_in.get("/api/chests").json()
+    assert signed_in.post(f"/api/chests/{waiting[0]['id']}/open").status_code == 200
+    assert signed_in.get("/api/recap").json()["chests_delivered"] == 1
+
+
+def test_the_letter_names_who_gave_a_chest(signed_in, db_session, member, admin):
+    """One name per gifted chest, so the letter can say which of them came from
+    somebody. The chests the miles earned are nobody's gift and are not named,
+    which is what makes the count and the names two different numbers."""
+    give_gift_chest(db_session, member.id, admin.id)
+    give_chest(db_session, member.id)
+    give_gift_chest(db_session, member.id, admin.id, tier="half")
+
+    recap = signed_in.get("/api/recap").json()
+    assert recap["chests_delivered"] == 3
+    assert recap["chest_givers"] == [admin.username, admin.username]
+
+
+def test_an_account_that_never_synced_has_no_sync_to_report(signed_in):
+    """Null rather than an error, and a workout typed in by hand is not a sync:
+    the line is about the phone, and this player has not got one talking yet."""
+    assert signed_in.get("/api/recap").json()["last_sync_at"] is None
+    log_workout(signed_in, "run", 3.0)
+    assert signed_in.get("/api/recap").json()["last_sync_at"] is None
+
+
+def test_the_letter_says_when_the_phone_last_synced(signed_in, ingest_token, db_session):
+    """The newest export's arrival, in UTC, for the client to render in the
+    instance timezone the way it renders every other stamp."""
+    for _ in range(2):
+        response = signed_in.post(
+            "/api/ingest",
+            json={"data": {"workouts": []}},
+            headers={"Authorization": f"Bearer {ingest_token}"},
+        )
+        assert response.status_code == 200, response.text
+
+    newest = (
+        db_session.query(models.IngestLog).order_by(models.IngestLog.received_at.desc()).first()
+    )
+    assert signed_in.get("/api/recap").json()["last_sync_at"] == newest.received_at.isoformat()
+
+
+def test_a_plant_that_finished_a_level_is_in_the_letter(signed_in, db_session, member):
+    """A strawberry costs fifteen Miles a level, so sixteen of them is one
+    level and the letter can say which plant reached what."""
+    give_planting(db_session, member.id, "strawberry")
+    log_workout(signed_in, "run", 16.0, pace_min=9)
+
+    grown = signed_in.get("/api/recap").json()["plant_growth"]
+    assert [(row["species"], row["level"], row["levels_gained"]) for row in grown] == [
+        ("strawberry", 1, 1)
+    ]
+    # The plot's own shape, so nothing on the client composes the name.
+    assert grown[0]["plant_name"] == "Strawberry bush"
+
+
+def test_a_plant_that_only_grew_a_little_says_nothing(signed_in, db_session, member):
+    """Silence, not a sentence about how far off the next level is. Five Miles
+    into a fifteen Mile level is not news."""
+    give_planting(db_session, member.id, "strawberry")
+    log_workout(signed_in, "run", 5.0)
+    assert signed_in.get("/api/recap").json()["plant_growth"] == []
+
+
+def test_a_level_already_announced_is_not_announced_again(signed_in, db_session, member):
+    """The level a plant stood at before is worked out by taking this letter's
+    miles back off again, so acknowledging one really does clear it."""
+    give_planting(db_session, member.id, "strawberry")
+    log_workout(signed_in, "run", 16.0, pace_min=9, offset_min=0)
+    assert len(signed_in.get("/api/recap").json()["plant_growth"]) == 1
+
+    assert signed_in.post("/api/recap/ack").status_code == 204
+    log_workout(signed_in, "run", 2.0, offset_min=300)
+    assert signed_in.get("/api/recap").json()["plant_growth"] == []
+
+    # And the next level is news again when it actually lands.
+    log_workout(signed_in, "run", 13.0, pace_min=9, offset_min=600)
+    grown = signed_in.get("/api/recap").json()["plant_growth"]
+    assert [(row["level"], row["levels_gained"]) for row in grown] == [(2, 1)]
 
 
 def test_a_medal_from_a_backdated_run_still_reaches_the_recap(signed_in, db_session, member):

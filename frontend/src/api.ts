@@ -406,10 +406,22 @@ export interface RecapEncouragement {
   cheer_count?: number
 }
 
+// One plant that put a level on since the letter was last read.
+export interface RecapGrowth extends Planting {
+  levels_gained: number
+}
+
 export interface RecapState {
   since: string | null
   miles: number
-  chests: Chest[]
+  // Chests are opened in the inventory now, so the letter counts them rather
+  // than carrying them. One giver entry per gifted chest, duplicates included,
+  // so two from the same friend can be said as two.
+  chests_delivered: number
+  chest_givers?: string[]
+  // When the phone last synced, or null for an account that never has.
+  last_sync_at?: string | null
+  plant_growth?: RecapGrowth[]
   // Medals earned since the last time this was read, one entry per earning
   // across every family. Optional, and each entry may carry nothing but its id.
   medals?: MedalEarn[]

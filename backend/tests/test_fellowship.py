@@ -541,10 +541,13 @@ def test_the_letter_reads_in_order_and_carries_the_words(friends, db_session):
     letter = mine.get("/api/recap").json()
     assert list(letter) == [
         "since",
+        "last_sync_at",
         "miles",
         "encouragement",
         "medals",
-        "chests",
+        "plant_growth",
+        "chests_delivered",
+        "chest_givers",
         "flourish_stage",
         "flourish_rose",
     ]

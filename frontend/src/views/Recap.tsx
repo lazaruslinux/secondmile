@@ -1,24 +1,29 @@
-import { useEffect, useRef, useState } from 'react'
-import { errorText, openChest, type RecapState, type SatchelItem } from '../api.ts'
-import { formatDate } from '../format.ts'
-import { chestName, chestTierClass, MEDAL_DETAILS, medalName } from '../labels.ts'
-import { chestGiver, flourishLine, noteAuthor, recapCheers, recapNotes } from '../recap.ts'
-import ChestItem from './ChestItem.tsx'
+import { useEffect, useRef } from 'react'
+import { type RecapState } from '../api.ts'
+import { formatDate, formatTimeOfDay } from '../format.ts'
+import { MEDAL_DETAILS, medalName, plantingName } from '../labels.ts'
+import { flourishLine, noteAuthor, recapCheers, recapNotes } from '../recap.ts'
 import { MedalMark } from './Medals.tsx'
 
 interface Props {
   recap: RecapState
-  // The parent acks the recap and reloads whatever the opened chests changed.
+  // The parent acks the recap and reloads whatever changed while away.
   onDismiss: () => void
+}
+
+// Who sent the gifts among the delivered chests. One entry per gifted chest, so
+// two from the same friend say two, and the names are said once each.
+function giftLine(givers: string[]): string {
+  if (givers.length === 0) return ''
+  const names = [...new Set(givers)]
+  const which = givers.length === 1 ? 'One of them is a gift' : `${givers.length} of them are gifts`
+  return `${which} from ${names.join(' and ')}.`
 }
 
 // The letter waiting on the mat. Everything in it already happened: the miles
 // were covered, the chests were dropped, the badges were earned. Opening the
 // app is how you read about it, never how you cause it.
 export default function Recap({ recap, onDismiss }: Props) {
-  const [opened, setOpened] = useState<Record<number, SatchelItem>>({})
-  const [busy, setBusy] = useState<number | null>(null)
-  const [errors, setErrors] = useState<Record<number, string>>({})
   const dialog = useRef<HTMLDialogElement>(null)
 
   // Opened as a modal rather than with the open attribute, because only the
@@ -27,20 +32,9 @@ export default function Recap({ recap, onDismiss }: Props) {
     dialog.current?.showModal()
   }, [])
 
-  async function open(chestId: number) {
-    setBusy(chestId)
-    try {
-      const result = await openChest(chestId)
-      setOpened((current) => ({ ...current, [chestId]: result }))
-      setErrors((current) => ({ ...current, [chestId]: '' }))
-    } catch (err) {
-      setErrors((current) => ({ ...current, [chestId]: errorText(err) }))
-    } finally {
-      setBusy(null)
-    }
-  }
-
-  const chests = recap.chests.length
+  const chests = recap.chests_delivered ?? 0
+  const gift = giftLine(recap.chest_givers ?? [])
+  const synced = recap.last_sync_at
 
   // The recap lists one entry per earning, so two 5K runs arrive as two rows
   // naming the same medal. Grouping them is what turns that into one line with
@@ -72,9 +66,11 @@ export default function Recap({ recap, onDismiss }: Props) {
       <section className="overlay-panel">
         <header className="overlay-head">
           <h2 id="recap-title">While you were away</h2>
+          {/* Chests are opened in the inventory now, so nothing here offers to
+              open one. What this says instead is how current the miles are. */}
           <p className="hint">
-            {recap.since ? `Since ${formatDate(recap.since)}.` : 'Everything so far.'} Chests
-            never expire. Open them here or later on the You screen.
+            {recap.since ? `Since ${formatDate(recap.since)}.` : 'Everything so far.'}
+            {synced ? ` Last health sync at ${formatTimeOfDay(synced)}.` : ''}
           </p>
         </header>
 
@@ -138,54 +134,26 @@ export default function Recap({ recap, onDismiss }: Props) {
 
           {chests > 0 && (
             <section className="recap-section">
-              <h3>
-                {chests} {chests === 1 ? 'chest' : 'chests'} waiting
-              </h3>
-              <p className="hint">Opened here or later. Nothing is lost either way.</p>
-              <ul className="chests">
-                {recap.chests.map((chest) => {
-                  const reveal = opened[chest.id]
-                  const giver = chestGiver(chest)
-                  return (
-                    <li key={chest.id} className="recap-chest">
-                      {/* Oil says nothing when it is used. This line is where
-                          the person who gave it is finally named, so it reads
-                          with the weight the words in the letter have. */}
-                      {giver !== '' && (
-                        <p className="recap-chest-from">
-                          {giver} sent this one. More than your miles earned.
-                        </p>
-                      )}
-                      <div className="chest-line">
-                        {/* Named in the colour of the step it dropped on. */}
-                        <span className={chestTierClass(chest.tier)}>
-                          {chestName(chest.tier)}
-                        </span>
-                        {!reveal && (
-                          <button
-                            type="button"
-                            className="secondary"
-                            aria-label={`Open ${chestName(chest.tier)}`}
-                            disabled={busy === chest.id}
-                            onClick={() => void open(chest.id)}
-                          >
-                            Open
-                          </button>
-                        )}
-                      </div>
-                      {errors[chest.id] && (
-                        <p className="error" role="alert">
-                          {errors[chest.id]}
-                        </p>
-                      )}
-                      {reveal && (
-                        <div className="reveal">
-                          <ChestItem item={reveal} />
-                        </div>
-                      )}
-                    </li>
-                  )
-                })}
+              <h3>Welcome back</h3>
+              <p>
+                {chests} {chests === 1 ? 'chest was' : 'chests were'} delivered to your
+                inventory.
+              </p>
+              {/* Oil says nothing when it is spent, so this is the only place
+                  the person who gave it is named. */}
+              {gift !== '' && <p className="hint">{gift}</p>}
+            </section>
+          )}
+
+          {(recap.plant_growth?.length ?? 0) > 0 && (
+            <section className="recap-section">
+              <h3>In the grove</h3>
+              <ul className="recap-growth">
+                {recap.plant_growth?.map((row) => (
+                  <li key={row.id}>
+                    {plantingName(row)} reached Lv {row.level}.
+                  </li>
+                ))}
               </ul>
             </section>
           )}

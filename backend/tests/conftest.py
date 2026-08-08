@@ -24,7 +24,7 @@ from sqlalchemy import create_engine, event  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
-from app import config, mail, models, security, throttle  # noqa: E402
+from app import config, mail, models, security, species, throttle  # noqa: E402
 from app.db import Base, get_db  # noqa: E402
 from app.main import app as fastapi_app  # noqa: E402
 
@@ -222,6 +222,22 @@ def log_workout(client, activity="run", miles=1.0, *, pace_min=12.0, offset_min=
     )
     assert response.status_code == 201, response.text
     return response.json()
+
+
+def give_planting(db_session, user_id: int, species_id="strawberry", *, growth=0.0, days_ago=1):
+    """One thing already in the ground. Shared because the plot is read from the
+    grove, the letter, and the profile, and all three want the same shortcut."""
+    row = models.Planting(
+        user_id=user_id,
+        species=species_id,
+        rarity=species.BY_ID[species_id].rarity,
+        planted_at=security.now_utc() - dt.timedelta(days=days_ago),
+        growth_mi=growth,
+        matured_at=None,
+    )
+    db_session.add(row)
+    db_session.commit()
+    return row
 
 
 @pytest.fixture()

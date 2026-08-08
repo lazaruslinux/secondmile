@@ -12,7 +12,7 @@ const HEADER =
   "Your plants grow with your distance covered. Water them (or a friend's) for a 10 mile " +
   'boost. Plants begin bearing fruit once mature (level 1) and are fully grown at level 33.'
 
-// What the oil in the inventory is for, said where the inventory is opened. The
+// What the oil in the inventory is for, said under the inventory itself. The
 // word is oil here rather than olive oil: this is the act, not the item.
 const ANOINT = 'Anoint a friend with oil and their next workout brings them a bonus chest.'
 
@@ -45,7 +45,6 @@ export default function Grove({ userId }: Props) {
   const [plantings, setPlantings] = useState<Planting[]>(() => cache.get(userId) ?? [])
   const [loading, setLoading] = useState(() => !cache.has(userId))
   const [loadError, setLoadError] = useState('')
-  const [inventory, setInventory] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -137,17 +136,13 @@ export default function Grove({ userId }: Props) {
         )}
       </section>
 
+      {/* The squares sit here on the page rather than behind a button: what is
+          held is half of what this screen is about. */}
       <section className="card">
         <h2 className="label">Inventory</h2>
-        <button type="button" className="secondary" onClick={() => setInventory(true)}>
-          Open inventory
-        </button>
+        <Inventory onChanged={() => void load()} />
         <p className="hint inv-explainer">{ANOINT}</p>
       </section>
-
-      {inventory && (
-        <Inventory onClose={() => setInventory(false)} onChanged={() => void load()} />
-      )}
     </>
   )
 }

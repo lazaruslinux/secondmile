@@ -2468,34 +2468,29 @@ button:disabled {
   color: inherit;
 }
 
-/* The line under the button that opens the grid, which is the only place the
-   app says what oil does before you spend it. */
+/* The line under the grid, which is the only place the app says what oil does
+   before you spend it. */
 .inv-explainer {
   margin: 0.6rem 0 0;
 }
 
-/* Home puts the grid behind its own heading in the card the grove already has,
-   so the two sit apart rather than reading as one pair of buttons. */
+/* Home's way to the grid, under its own heading in the card the grove already
+   has, so the two sit apart rather than reading as one pair of buttons. */
 .home-grove-part {
   margin: 1rem 0 0.4rem;
 }
 
-/* The grid itself: four squares across at every width, sixteen of them whether
-   or not there is anything to put in them, and equal rows so an empty socket is
-   the same size as a full one. Anything past sixteen scrolls with the panel
-   rather than paging, because a page control is another thing to learn and the
-   panel already scrolls. */
-.inv-body {
-  flex: 1;
-  padding: 0.75rem 1rem 1rem;
-  overflow-y: auto;
-}
-
+/* The grid itself: four squares across at every width, growing downward as
+   things are found, with equal rows so an empty socket is the same size as a
+   full one. It is capped rather than filling the grove screen, because four
+   columns across the whole of a desktop window would draw squares the size of a
+   hand. The page scrolls when it runs long; nothing pages. */
 .inv-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   grid-auto-rows: 1fr;
   gap: 0.35rem;
+  max-width: 32rem;
   list-style: none;
   margin: 0.5rem 0 0;
   padding: 0;
@@ -2578,6 +2573,48 @@ button:disabled {
 /* What came out of a chest, read where the chest was opened. */
 .inv-reveals {
   margin-bottom: 0.75rem;
+}
+
+/* What a tapped square opens. It is the same modal panel the pickers use, held
+   in the middle of the screen at every width rather than rising off the bottom
+   on a phone: the picture is the point, so it sits where the eye already is. */
+.overlay-middle[open] {
+  align-items: center;
+}
+
+.item-detail {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem 1rem;
+  overflow-y: auto;
+}
+
+/* The picture stays on screen, with what the thing is beside it. */
+.item-shown {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.item-shown .item-line {
+  margin: 0;
+}
+
+/* Water has no rarity to name, so it keeps its plain square here and the
+   picture fills it, the way a frame fills one. */
+.item-plain .inv-art {
+  width: 100%;
+  height: 100%;
+}
+
+/* The verbs, as the app's own buttons and full width, because the whole reason
+   for the modal is that a verb should look like something to press. */
+.item-verbs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 /* Narrowing a list of people. It is the app's own field, drawn the way the

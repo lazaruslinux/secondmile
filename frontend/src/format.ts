@@ -106,6 +106,20 @@ export function formatAcquired(iso: string): string {
   )}:${found.get('minute')}${meridiem}`
 }
 
+// A time of day on its own: 1:47pm. Same assembly as formatAcquired and for the
+// same reason, that no locale writes the meridiem without a space in front.
+export function formatTimeOfDay(iso: string): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: zone,
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).formatToParts(new Date(iso))
+  const found = new Map(parts.map((part) => [part.type, part.value]))
+  const meridiem = (found.get('dayPeriod') ?? '').toLowerCase()
+  return `${found.get('hour')}:${found.get('minute')}${meridiem}`
+}
+
 // Monday first, which is how the weeks are counted here and on the server.
 const WEEKDAY_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 

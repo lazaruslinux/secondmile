@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   anointFriend,
   chooseSeed,
@@ -24,7 +24,10 @@ import { itemArt } from '../art.ts'
 import { convertedValue } from '../format.ts'
 import { levelProgress } from '../grove.ts'
 import {
+  CHEST_TIER_ORDER,
   chestName,
+  chestTierRarity,
+  chestTierWord,
   itemFramed,
   itemName,
   itemRarity,
@@ -46,6 +49,8 @@ type StackKind = ItemKind | 'chest'
 interface Stack {
   key: string
   kind: StackKind
+  // Which step of the ladder a chest stack came off. Null for everything else.
+  tier: string | null
   name: string
   // What is behind the square, oldest first. A chest stack carries chests and
   // nothing else; every other stack carries satchel items.
@@ -54,9 +59,9 @@ interface Stack {
 }
 
 // The order the squares are laid out in, which is the order things are used:
-// sown, poured, given, the one that is spent to be given a seed at all, and the
-// unopened chests they all came out of.
-const KIND_ORDER: Record<StackKind, number> = { seed: 0, water: 1, oil: 2, wish: 3, chest: 4 }
+// sown, poured, given, and the one that is spent to be given a seed at all. The
+// chests come after all of them, in the ladder's own order.
+const KIND_ORDER: Record<ItemKind, number> = { seed: 0, water: 1, oil: 2, wish: 3 }
 
 // One verb each, said as the thing you are about to do. Nothing in here is kept
 // to be looked at, so there is no verb for looking.
@@ -71,19 +76,23 @@ const VERBS: Record<StackKind, { id: string; label: string }[]> = {
   chest: [{ id: 'open', label: 'Open Chest' }],
 }
 
-// What each square is for, said once, where the verb is.
-const KIND_LINES: Record<StackKind, string> = {
+// What each square is for, said once, in the modal the square opens.
+const KIND_LINES: Record<ItemKind, string> = {
   seed: 'Plant it and it grows with your miles.',
   water: 'Ten miles of growth, into one plant.',
   oil: 'Given to a friend. Their next workout brings them a bonus chest.',
   wish: 'Spent on any seed you have not yet found. One use.',
-  chest: 'Opened one at a time, oldest first.',
 }
 
-// A grid is sixteen squares whether or not there is anything to put in them: an
-// empty socket says there is room, which is half of what an inventory is for.
-const SLOTS = 16
+// Four across at every width, growing downward as things are found. A full case
+// is twelve species, three tools and the five steps of the ladder, so nothing
+// here counts the squares: the grid is however many there are.
 const COLUMNS = 4
+
+// Empty sockets under whatever is held, because a socket says there is room,
+// which is half of what an inventory is for. Two rows of them is enough to read
+// as one when almost nothing is in it.
+const LEAST_ROWS = 2
 
 // The one row a wish offers when there is no seed left to ask for. Its id is the
 // empty species, which is what the server reads as "there was nothing to
@@ -112,9 +121,18 @@ function growthLine(row: Planting): string {
   )} mi`
 }
 
+// What one square is, said in the modal it opens. A chest is described by its
+// floor, which is what its colour stands for: the worst it can come up as.
+function describe(stack: Stack): string {
+  if (stack.kind !== 'chest') return KIND_LINES[stack.kind]
+  const floor = rarityWord(chestTierRarity(stack.tier)).toLowerCase()
+  return `Never poorer than ${floor}. Opened one at a time.`
+}
+
 // Everything held, gathered into squares. Seeds are piled by species and every
-// tool by its kind; the chests come last as one pile, since what is inside them
-// is the same question whichever step of the ladder dropped them.
+// tool by its kind; the chests are piled by the step of the ladder that dropped
+// them, one square per step, because a Marathon chest and a 5K are not the same
+// thing to hold.
 function stacksOf(
   items: SatchelItem[],
   chests: Chest[],
@@ -132,48 +150,68 @@ function stacksOf(
     stacks.set(key, {
       key,
       kind: item.kind,
+      tier: null,
       name: item.kind === 'wish' && wishName !== '' ? wishName : itemName(item),
       items: [item],
       chests: [],
     })
   }
 
-  if (chests.length > 0) {
-    // Named for the step that dropped them while they all came off the same
-    // one, and called what they are once the pile is mixed.
-    const tier = chests[0].tier
-    const same = chests.every((chest) => chest.tier === tier)
-    stacks.set('chest', {
-      key: 'chest',
-      kind: 'chest',
-      name: same ? chestName(tier) : 'Chests',
-      items: [],
-      chests,
-    })
-  }
-
   // Seeds read in catalogue order where the server has said what that is, and
   // by name where it has not, so the grid does not reshuffle as things arrive.
   const rank = new Map((catalog ?? []).map((row, index) => [row.id, index]))
-  return [...stacks.values()].sort((a, b) => {
-    if (a.kind !== b.kind) return KIND_ORDER[a.kind] - KIND_ORDER[b.kind]
+  const held = [...stacks.values()].sort((a, b) => {
+    if (a.kind !== b.kind) {
+      return KIND_ORDER[a.kind as ItemKind] - KIND_ORDER[b.kind as ItemKind]
+    }
     const left = rank.get(a.items[0]?.species ?? '') ?? Number.MAX_SAFE_INTEGER
     const right = rank.get(b.items[0]?.species ?? '') ?? Number.MAX_SAFE_INTEGER
     return left === right ? a.name.localeCompare(b.name) : left - right
   })
+
+  // A chest dropped before the ladder existed carries no step and rolls as the
+  // first one, so it is piled with the first one.
+  const waiting = new Map<string, Chest[]>()
+  for (const chest of chests) {
+    const tier = (chest.tier ?? '').toLowerCase() || CHEST_TIER_ORDER[0]
+    const pile = waiting.get(tier)
+    if (pile) pile.push(chest)
+    else waiting.set(tier, [chest])
+  }
+  // The ladder's own order, and then anything the server named that this build
+  // has never heard of, so a step added on the server costs its place in the
+  // line rather than its square.
+  const known = new Set(CHEST_TIER_ORDER)
+  const ladder = [...CHEST_TIER_ORDER, ...[...waiting.keys()].filter((one) => !known.has(one))]
+
+  return [
+    ...held,
+    ...ladder.flatMap((tier) => {
+      const pile = waiting.get(tier)
+      if (!pile) return []
+      return [
+        {
+          key: `chest:${tier}`,
+          kind: 'chest' as const,
+          tier,
+          name: chestName(tier),
+          items: [],
+          chests: pile,
+        },
+      ]
+    }),
+  ]
 }
 
-// One square. The picture is the thing itself, framed in its rarity where it has
-// one, and the count sits in the corner of the picture the way it does in every
-// inventory anyone has ever seen. A single of anything carries no number: the
-// square is the one.
-function Square({ stack, onOpen }: { stack: Stack; onOpen: () => void }) {
+// The picture on a square: the thing itself, and the count in the corner the way
+// every inventory anyone has ever seen puts it. A single of anything carries no
+// number, because the square is the one.
+function StackArt({ stack }: { stack: Stack }) {
   const count = stack.items.length + stack.chests.length
   const first = stack.items[0]
   const art = stack.kind === 'seed' ? null : itemArt(stack.kind)
-  const framed = first !== undefined && (itemFramed(first) || first.species !== null)
 
-  const picture = (
+  return (
     <span className="inv-art">
       {stack.kind === 'seed' && first?.species ? (
         <PlantArt species={first.species} name={stack.name} stage={1} className="inv-thumb" />
@@ -185,6 +223,54 @@ function Square({ stack, onOpen }: { stack: Stack; onOpen: () => void }) {
       {count > 1 && <span className="inv-count">x{count}</span>}
     </span>
   )
+}
+
+// The picture in its frame. A chest is framed in the floor of its step and named
+// for the step; anything with a rarity of its own is framed and named by that;
+// water has neither and stays a plain square. Drawn the same in the grid and in
+// the modal, which is why the two sizing classes are handed in.
+function StackSquare({
+  stack,
+  frameClass,
+  plainClass,
+}: {
+  stack: Stack
+  frameClass: string
+  plainClass: string
+}) {
+  const first = stack.items[0]
+
+  if (stack.kind === 'chest') {
+    return (
+      <RarityFrame
+        rarity={chestTierRarity(stack.tier)}
+        label={chestTierWord(stack.tier)}
+        className={frameClass}
+      >
+        <StackArt stack={stack} />
+      </RarityFrame>
+    )
+  }
+
+  if (first !== undefined && (itemFramed(first) || first.species !== null)) {
+    return (
+      <RarityFrame rarity={itemRarity(first)} className={frameClass}>
+        <StackArt stack={stack} />
+      </RarityFrame>
+    )
+  }
+
+  return (
+    <span className={`item-square ${plainClass}`}>
+      <StackArt stack={stack} />
+    </span>
+  )
+}
+
+// One square of the grid, which is a button and nothing else: the whole picture
+// is the target.
+function Square({ stack, onOpen }: { stack: Stack; onOpen: () => void }) {
+  const count = stack.items.length + stack.chests.length
 
   return (
     <li className="inv-slot">
@@ -194,15 +280,101 @@ function Square({ stack, onOpen }: { stack: Stack; onOpen: () => void }) {
         aria-label={`${stack.name}, ${count}`}
         onClick={onOpen}
       >
-        {framed && first ? (
-          <RarityFrame rarity={itemRarity(first)} className="inv-frame">
-            {picture}
-          </RarityFrame>
-        ) : (
-          <span className="item-square inv-plain">{picture}</span>
-        )}
+        <StackSquare stack={stack} frameClass="inv-frame" plainClass="inv-plain" />
       </button>
     </li>
+  )
+}
+
+// What a tapped square opens: the picture still on screen, what the thing is,
+// and its verbs as the app's own buttons. The first verb is the one anybody came
+// for, so it is the primary; water's second way to spend it stands beside it.
+function ItemDialog({
+  stack,
+  verbs,
+  busy,
+  error,
+  cancelLabel,
+  children,
+  onRun,
+  onClose,
+}: {
+  stack: Stack
+  // Empty once the last of a stack has been spent, which leaves the picture and
+  // whatever came out of it with nothing left to do.
+  verbs: { id: string; label: string }[]
+  busy: boolean
+  error: string
+  cancelLabel: string
+  children?: ReactNode
+  onRun: (id: string) => void
+  onClose: () => void
+}) {
+  const dialog = useRef<HTMLDialogElement>(null)
+
+  // Opened as a modal rather than with the open attribute, because only the
+  // modal form brings the focus trap, the page behind held still, and Esc.
+  useEffect(() => {
+    dialog.current?.showModal()
+  }, [])
+
+  return (
+    <dialog
+      className="overlay overlay-middle"
+      ref={dialog}
+      aria-labelledby="item-title"
+      onCancel={(event) => {
+        // Esc. Closing is the caller's business, so the browser's own close is
+        // left undone and the caller takes this off the screen.
+        event.preventDefault()
+        onClose()
+      }}
+    >
+      <section className="overlay-panel">
+        <header className="overlay-head">
+          <h2 id="item-title">{stack.name}</h2>
+        </header>
+
+        <div className="item-detail">
+          <div className="item-shown">
+            <StackSquare stack={stack} frameClass="item-frame" plainClass="item-plain" />
+            <p className="hint item-line">{describe(stack)}</p>
+          </div>
+
+          {children}
+
+          {verbs.length > 0 ? (
+            <div className="item-verbs">
+              {verbs.map((verb, index) => (
+                <button
+                  key={verb.id}
+                  type="button"
+                  className={index === 0 ? 'primary' : 'secondary'}
+                  disabled={busy}
+                  onClick={() => onRun(verb.id)}
+                >
+                  {verb.label}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="hint">Nothing left.</p>
+          )}
+
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
+        </div>
+
+        <footer className="overlay-foot">
+          <button type="button" className="secondary" onClick={onClose}>
+            {cancelLabel}
+          </button>
+        </footer>
+      </section>
+    </dialog>
   )
 }
 
@@ -217,17 +389,15 @@ type Step =
   | { at: 'species' }
 
 interface Props {
-  onClose: () => void
-  // Something in here changed what the screen behind it is showing.
+  // Something in here changed what the screen around it is showing.
   onChanged: () => void
 }
 
 // Everything held and not yet used, as a grid of squares. It is the satchel it
 // replaces, read the way a game reads one: the pile, the count, and the one
-// thing there is to do with it.
-export default function Inventory({ onClose, onChanged }: Props) {
-  const dialog = useRef<HTMLDialogElement>(null)
-
+// thing there is to do with it. It sits on the page rather than behind a
+// button, because an inventory nobody can see is a list.
+export default function Inventory({ onChanged }: Props) {
   const [items, setItems] = useState<SatchelItem[]>([])
   const [chests, setChests] = useState<Chest[]>([])
   const [plantings, setPlantings] = useState<Planting[]>([])
@@ -237,10 +407,10 @@ export default function Inventory({ onClose, onChanged }: Props) {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
 
-  // Which square was tapped, what it is called, and how far into it the tapping
-  // has got.
-  const [openKey, setOpenKey] = useState<string | null>(null)
-  const [openName, setOpenName] = useState('')
+  // Which square was tapped, kept whole rather than by key: the last of a stack
+  // can be spent and its picture still has to be there to read what came out of
+  // it under. What is live is looked up beside it.
+  const [tapped, setTapped] = useState<Stack | null>(null)
   const [step, setStep] = useState<Step>({ at: 'verbs' })
   const [busy, setBusy] = useState(false)
   const [stepError, setStepError] = useState('')
@@ -249,12 +419,6 @@ export default function Inventory({ onClose, onChanged }: Props) {
   const [revealed, setRevealed] = useState<SatchelItem[]>([])
 
   const [friends, setFriends] = useState<Person[]>([])
-
-  // Opened as a modal rather than with the open attribute, because only the
-  // modal form brings the focus trap, the page behind held still, and Esc.
-  useEffect(() => {
-    dialog.current?.showModal()
-  }, [])
 
   const load = useCallback(async () => {
     try {
@@ -291,21 +455,20 @@ export default function Inventory({ onClose, onChanged }: Props) {
   }, [])
 
   const stacks = stacksOf(items, chests, catalog, wishName)
-  const active = openKey === null ? null : (stacks.find((one) => one.key === openKey) ?? null)
+  // What is still there of the square that was tapped, which is nothing once the
+  // last of it has been spent.
+  const live = tapped === null ? null : (stacks.find((one) => one.key === tapped.key) ?? null)
+  const shown = live ?? tapped
 
   function shut() {
-    setOpenKey(null)
+    setTapped(null)
     setStep({ at: 'verbs' })
     setStepError('')
     setRevealed([])
   }
 
   function tap(stack: Stack) {
-    setOpenKey(stack.key)
-    // The name is kept rather than read off the pile, because the last chest
-    // can be opened and what came out of it still has to be read under the
-    // heading it was opened from.
-    setOpenName(stack.name)
+    setTapped(stack)
     setStep({ at: 'verbs' })
     setStepError('')
     setRevealed([])
@@ -313,7 +476,7 @@ export default function Inventory({ onClose, onChanged }: Props) {
   }
 
   // Every act ends the same way: the server is asked again for everything, and
-  // the screen behind this one is told that what it draws has moved.
+  // the screen around this one is told that what it draws has moved.
   async function act(work: () => Promise<void>) {
     setBusy(true)
     setStepError('')
@@ -329,7 +492,7 @@ export default function Inventory({ onClose, onChanged }: Props) {
   }
 
   function plant() {
-    const item = active?.items[0]
+    const item = live?.items[0]
     if (!item) return
     void act(async () => {
       await plantSeed(item.id)
@@ -339,7 +502,7 @@ export default function Inventory({ onClose, onChanged }: Props) {
   }
 
   function pour(plantingId: number) {
-    const item = active?.items[0]
+    const item = live?.items[0]
     if (!item) return
     void act(async () => {
       await pourWater(item.id, plantingId)
@@ -349,7 +512,7 @@ export default function Inventory({ onClose, onChanged }: Props) {
   }
 
   function anoint(userId: number) {
-    const item = active?.items[0]
+    const item = live?.items[0]
     if (!item) return
     void act(async () => {
       await anointFriend(item.id, userId)
@@ -361,7 +524,7 @@ export default function Inventory({ onClose, onChanged }: Props) {
   // A wish is spent on a species rather than on a row, and what comes back is
   // the seed itself, which takes the wish's place on the grid.
   function spendWish(species: string) {
-    const item = active?.items[0]
+    const item = live?.items[0]
     if (!item) return
     void act(async () => {
       const made = await chooseSeed(item.id, species)
@@ -373,7 +536,7 @@ export default function Inventory({ onClose, onChanged }: Props) {
   // The one act that stays where it happened: what was inside is the whole
   // point, so it is read under the verb that opened it rather than behind it.
   function openOne() {
-    const chest = active?.chests[0]
+    const chest = live?.chests[0]
     if (!chest) return
     void act(async () => {
       const found = await openChest(chest.id)
@@ -453,75 +616,49 @@ export default function Inventory({ onClose, onChanged }: Props) {
           }))
         : [{ id: NO_SPECIES, label: 'Water', detail: 'The wish becomes water.' }]
 
-  const slots = Math.max(SLOTS, Math.ceil(stacks.length / COLUMNS) * COLUMNS)
-  const empties = Array.from({ length: Math.max(0, slots - stacks.length) }, (_, index) => index)
+  const rows = Math.max(LEAST_ROWS, Math.ceil(stacks.length / COLUMNS))
+  const empties = Array.from(
+    { length: Math.max(0, rows * COLUMNS - stacks.length) },
+    (_, index) => index,
+  )
 
   return (
     <>
-      <dialog
-        className="overlay"
-        ref={dialog}
-        aria-labelledby="inventory-title"
-        onCancel={(event) => {
-          // Esc. Closing is the caller's business, so the browser's own close is
-          // left undone and the caller takes this off the screen.
-          event.preventDefault()
-          onClose()
-        }}
-      >
-        <section className="overlay-panel">
-          <header className="overlay-head">
-            <h2 id="inventory-title">Inventory</h2>
-            <p className="hint">Everything found and not yet used. Tap a square to use it.</p>
-          </header>
+      <p className="hint">Everything found and not yet used. Tap a square to use it.</p>
 
-          <div className="inv-body">
-            {loading && <p className="notice">Loading.</p>}
-            {loadError && (
-              <p className="error" role="alert">
-                {loadError}
-              </p>
-            )}
-            {note && (
-              <p className="note note-success" role="status">
-                {note}
-              </p>
-            )}
+      {loading && <p className="notice">Loading.</p>}
+      {loadError && (
+        <p className="error" role="alert">
+          {loadError}
+        </p>
+      )}
+      {note && (
+        <p className="note note-success" role="status">
+          {note}
+        </p>
+      )}
 
-            <ul className="inv-grid">
-              {stacks.map((stack) => (
-                <Square key={stack.key} stack={stack} onOpen={() => tap(stack)} />
-              ))}
-              {empties.map((index) => (
-                <li key={`empty-${index}`} className="inv-slot">
-                  <span className="inv-cell inv-empty" />
-                </li>
-              ))}
-            </ul>
-          </div>
+      <ul className="inv-grid">
+        {stacks.map((stack) => (
+          <Square key={stack.key} stack={stack} onOpen={() => tap(stack)} />
+        ))}
+        {empties.map((index) => (
+          <li key={`empty-${index}`} className="inv-slot">
+            <span className="inv-cell inv-empty" />
+          </li>
+        ))}
+      </ul>
 
-          <footer className="overlay-foot">
-            <button type="button" className="secondary" onClick={onClose}>
-              Close
-            </button>
-          </footer>
-        </section>
-      </dialog>
-
-      {/* The verbs, and whatever came out of a chest opened from them. Drawn
-          outside the grid's own dialog so the two stack in the order they were
-          opened rather than one inside the other. */}
-      {openKey !== null && step.at === 'verbs' && (
-        <Chooser
-          title={openName}
-          hint={active ? KIND_LINES[active.kind] : ''}
-          choices={active ? VERBS[active.kind] : []}
-          empty="Nothing left."
+      {/* The item itself, and whatever came out of a chest opened from it. */}
+      {shown !== null && step.at === 'verbs' && (
+        <ItemDialog
+          stack={shown}
+          verbs={live ? VERBS[live.kind] : []}
           busy={busy}
           error={stepError}
           cancelLabel={revealed.length > 0 ? 'Close' : 'Cancel'}
-          onChoose={runVerb}
-          onCancel={shut}
+          onRun={runVerb}
+          onClose={shut}
         >
           {revealed.length > 0 && (
             <div className="item-reveals inv-reveals">
@@ -537,7 +674,7 @@ export default function Inventory({ onClose, onChanged }: Props) {
               ))}
             </div>
           )}
-        </Chooser>
+        </ItemDialog>
       )}
 
       {step.at === 'plants' && (

@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 from app import models, progress, security, species
 from app.config import WATER_POUR_MI
 from app.main import app as fastapi_app
-from conftest import log_workout, make_user
+from conftest import give_planting, log_workout, make_user
 
 
 def sign_in(db_session, username: str) -> tuple[models.User, TestClient]:
@@ -50,20 +50,6 @@ def give_item(db_session, user_id: int, kind: str, species_id: str | None = None
         chest_id=None,
         acquired_at=security.now_utc(),
         used_at=None,
-    )
-    db_session.add(row)
-    db_session.commit()
-    return row
-
-
-def give_planting(db_session, user_id: int, species_id="strawberry", *, growth=0.0, days_ago=1):
-    row = models.Planting(
-        user_id=user_id,
-        species=species_id,
-        rarity=species.BY_ID[species_id].rarity,
-        planted_at=security.now_utc() - dt.timedelta(days=days_ago),
-        growth_mi=growth,
-        matured_at=None,
     )
     db_session.add(row)
     db_session.commit()
@@ -813,18 +799,20 @@ def test_the_letter_is_where_the_gift_is_finally_attributed(
     log_workout(other_client, "run", 4.0)
 
     letter = other_client.get("/api/recap").json()
-    gifts = [row for row in letter["chests"] if row["from_username"]]
-    assert len(gifts) == 1
-    assert gifts[0]["from_username"] == member.username
-    # The chest the miles earned is still nobody's gift.
-    assert any(row["from_username"] is None for row in letter["chests"])
-    # And the letter still reads in the order it always has.
+    # Two chests landed and exactly one of them is named: the other is the one
+    # the four miles earned, and that one is nobody's gift.
+    assert letter["chests_delivered"] == 2
+    assert letter["chest_givers"] == [member.username]
+    # And the letter still reads in the order it reads in.
     assert list(letter) == [
         "since",
+        "last_sync_at",
         "miles",
         "encouragement",
         "medals",
-        "chests",
+        "plant_growth",
+        "chests_delivered",
+        "chest_givers",
         "flourish_stage",
         "flourish_rose",
     ]

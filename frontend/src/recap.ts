@@ -5,16 +5,7 @@
 // Everything is read defensively: a field that is missing means nothing
 // happened, never that anything is wrong.
 
-import type { Chest, RecapEncouragement, RecapNote, RecapState } from './api.ts'
-
-// Who sent a chest, when somebody did. Oil is silent until this moment: the
-// letter is the first and only place the giver is named, so the name is worth
-// digging for under whichever field the server put it in. An empty string means
-// the chest was simply earned.
-export function chestGiver(chest: Chest): string {
-  const who = chest.from_username ?? chest.giver_username ?? chest.giver ?? chest.from
-  return typeof who === 'string' ? who.trim() : ''
-}
+import type { RecapEncouragement, RecapNote, RecapState } from './api.ts'
 
 // Whoever wrote a note, under whichever of the field names the server used. An
 // empty string means the note goes out unsigned rather than signed "someone".
@@ -59,7 +50,8 @@ export function flourishLine(recap: RecapState): string {
 export function recapHasNews(recap: RecapState): boolean {
   return (
     recap.miles > 0 ||
-    recap.chests.length > 0 ||
+    (recap.chests_delivered ?? 0) > 0 ||
+    (recap.plant_growth?.length ?? 0) > 0 ||
     (recap.medals?.length ?? 0) > 0 ||
     recapNotes(recap.encouragement).length > 0 ||
     recapCheers(recap.encouragement) > 0 ||
