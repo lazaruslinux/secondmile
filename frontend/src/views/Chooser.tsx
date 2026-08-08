@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 // What is picked is usually a row in the database and so a number, but a wish
 // is spent on a species, which is a name. The id is whatever the list is a list
@@ -17,10 +17,20 @@ interface Props<Id> {
   title: string
   hint: string
   choices: Choice<Id>[]
-  // What the list says when there is nothing to choose from.
+  // What the list says when there is nothing to choose from. Left unsaid where
+  // something has been put above the list instead.
   empty: string
   busy: boolean
   error: string
+  // Anything to read above the list: what came out of a chest, said where the
+  // verb that opened it was.
+  children?: ReactNode
+  // A box to narrow the list with, where the list is of people rather than of
+  // the two or three things a satchel holds. Its own placeholder, or nothing.
+  searchPlaceholder?: string
+  // The way out, which is Cancel while there is still something to pick and
+  // Close once the picking is done and over with.
+  cancelLabel?: string
   onChoose: (id: Id) => void
   onCancel: () => void
 }
@@ -35,14 +45,22 @@ export default function Chooser<Id extends number | string>({
   empty,
   busy,
   error,
+  children,
+  searchPlaceholder,
+  cancelLabel = 'Cancel',
   onChoose,
   onCancel,
 }: Props<Id>) {
   const dialog = useRef<HTMLDialogElement>(null)
+  const [query, setQuery] = useState('')
 
   useEffect(() => {
     dialog.current?.showModal()
   }, [])
+
+  const wanted = query.trim().toLowerCase()
+  const shown =
+    wanted === '' ? choices : choices.filter((one) => one.label.toLowerCase().includes(wanted))
 
   return (
     <dialog
@@ -63,13 +81,30 @@ export default function Chooser<Id extends number | string>({
         </header>
 
         <div className="chooser-body">
-          {choices.length === 0 ? (
-            <p className="hint">{empty}</p>
-          ) : (
+          {children}
+
+          {searchPlaceholder !== undefined && choices.length > 0 && (
+            <input
+              className="chooser-search"
+              type="search"
+              value={query}
+              placeholder={searchPlaceholder}
+              aria-label={searchPlaceholder}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          )}
+
+          {choices.length === 0 && !children && <p className="hint">{empty}</p>}
+
+          {shown.length === 0 && choices.length > 0 && (
+            <p className="hint">Nobody by that name.</p>
+          )}
+
+          {shown.length > 0 && (
             <ul className="chooser-list">
-              {choices.map((choice, index) => (
+              {shown.map((choice, index) => (
                 <li key={choice.id}>
-                  {choice.group !== undefined && choice.group !== choices[index - 1]?.group && (
+                  {choice.group !== undefined && choice.group !== shown[index - 1]?.group && (
                     <p className="label chooser-group">{choice.group}</p>
                   )}
                   <button
@@ -97,7 +132,7 @@ export default function Chooser<Id extends number | string>({
 
         <footer className="overlay-foot">
           <button type="button" className="secondary" onClick={onCancel}>
-            Cancel
+            {cancelLabel}
           </button>
         </footer>
       </section>

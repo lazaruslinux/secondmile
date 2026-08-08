@@ -309,6 +309,23 @@ export interface SatchelItem {
   acquired_at: string
 }
 
+// The catalogue of what a seed can be. It is asked for rather than written down
+// here because a wish is spent on a species nobody owns yet, so no list of what
+// is held can answer what is missing, and two copies of twelve names drift.
+export interface SpeciesRow {
+  id: string
+  seed_name: string
+  plant_name: string
+  rarity: Rarity
+}
+
+export interface SpeciesCatalog {
+  species: SpeciesRow[]
+  // What an unmarked seed is called. It is not a species and has no row, so the
+  // server sends its name alongside the list rather than in it.
+  wish_name: string
+}
+
 // One thing growing in the plot. growth_mi is in converted miles: the same
 // miles the level bar counts, spent here as well.
 export interface Planting {
@@ -717,6 +734,12 @@ export async function openChest(chestId: number): Promise<SatchelItem> {
 // Everything held and not yet used.
 export function listSatchel(): Promise<SatchelItem[]> {
   return getJson<SatchelItem[]>('/satchel')
+}
+
+// The twelve species a chest can roll, in catalogue order. The server is the one
+// place they are written down.
+export function getSpecies(): Promise<SpeciesCatalog> {
+  return getJson<SpeciesCatalog>('/species')
 }
 
 // The plot: everything planted, whether it is still growing or done.

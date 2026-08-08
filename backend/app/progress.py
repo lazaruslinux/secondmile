@@ -298,8 +298,8 @@ def roll_loot(
 
     Two rolls: the tier decides the rarity slot, and the slot decides whether
     it is a seed or the tool that shares it. The three seed slots share theirs
-    with water; the two above them are tools outright, an epic being a wish and
-    a legendary being oil.
+    with water; the two above them are tools outright, an epic being half a
+    wish and half oil, and a legendary being oil.
 
     A plot holds one of each species, so a seed of something the account
     already has is rolled again inside its own rarity, among what it is

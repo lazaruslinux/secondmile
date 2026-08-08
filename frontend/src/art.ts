@@ -65,8 +65,9 @@ export function gildArt(): string | null {
   return grove.get('gild') ?? null
 }
 
-// The two things in the satchel that are not a plant. Each reads one file named
-// after its kind, water.svg and oil.svg, and a kind with no file draws nothing.
+// Everything on the inventory grid that is not a plant: water, oil, the
+// unmarked seed, and an unopened chest. Each reads one file named after its
+// kind, and a kind with no file of its own draws nothing.
 export function itemArt(kind: string): string | null {
   return grove.get(kind) ?? null
 }

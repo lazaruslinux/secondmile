@@ -170,9 +170,39 @@ def test_each_slot_holds_its_own_tools():
         share = seen[rarity].count("water") / len(seen[rarity])
         assert abs(share - wanted) < 0.03, rarity
         assert set(seen[rarity]) == {"seed", "water"}, rarity
-    # The two slots above the seeds are one tool each, every time.
-    assert set(seen["epic"]) == {"wish"}
+    # The two slots above the seeds hold no seed at all: the epic is the two
+    # tools in even halves and the legendary is oil, every time.
+    assert set(seen["epic"]) == {"wish", "oil"}
+    assert abs(seen["epic"].count("oil") / len(seen["epic"]) - 0.5) < 0.03
     assert set(seen["legendary"]) == {"oil"}
+
+
+def test_an_epic_slot_is_half_a_wish_and_half_oil():
+    """Why it is not the wish alone: a wish falls to water once the plot holds
+    all twelve, so a slot made only of wishes is water forever to anybody who
+    finished. The oil half keeps an epic chest worth opening at the end."""
+    rng = random.Random("epic-split")
+    kinds = [
+        kind
+        for kind, _species_id, rarity in (
+            progress.roll_loot(rng, "marathon", False) for _ in range(4000)
+        )
+        if rarity == "epic"
+    ]
+    assert set(kinds) == {"wish", "oil"}
+    assert abs(kinds.count("oil") / len(kinds) - 0.5) < 0.04
+
+    # And the half that is oil owes the plot nothing, so a finished grove still
+    # gets it: what used to be water end to end is now half a gift to give away.
+    full = {row.id for row in species.BY_ID.values()}
+    finished = [
+        kind
+        for kind, _species_id, rarity in (
+            progress.roll_loot(rng, "marathon", False, full) for _ in range(4000)
+        )
+        if rarity == "epic"
+    ]
+    assert set(finished) == {"water", "oil"}
 
 
 def test_a_seed_comes_out_of_the_slot_it_was_rolled_in():
@@ -304,7 +334,9 @@ def test_a_wish_falls_to_water_once_there_is_nothing_left_to_wish_for():
         rolls = [progress.roll_loot(rng, "marathon", False, held) for _ in range(500)]
         epic = [row for row in rolls if row[2] == "epic"]
         assert epic, "a Marathon chest floors at the epic slot"
-        assert {row[0] for row in epic} == {wanted}
+        # Oil is the other half of the slot and reads nothing about the plot,
+        # so it is there whatever is held; the wish half is what this is about.
+        assert {row[0] for row in epic} == {wanted, "oil"}
         assert all(row[1] is None for row in epic)
 
 

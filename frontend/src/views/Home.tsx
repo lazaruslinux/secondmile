@@ -33,6 +33,7 @@ import {
 import AvatarFrame from './AvatarFrame.tsx'
 import FeedCard from './FeedCard.tsx'
 import Icon from './Icon.tsx'
+import Inventory from './Inventory.tsx'
 import MedalNest from './MedalNest.tsx'
 import { MedalMark } from './Medals.tsx'
 
@@ -135,6 +136,7 @@ export default function Home({
   const [loadError, setLoadError] = useState('')
   const [moreBusy, setMoreBusy] = useState(false)
   const [moreError, setMoreError] = useState('')
+  const [inventory, setInventory] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -365,6 +367,13 @@ export default function Home({
           <button type="button" className="secondary" onClick={onOpenGrove}>
             Open grove
           </button>
+
+          {/* The same grid the Grove screen opens, opened from here as well:
+              what is held is worth reaching without changing screens first. */}
+          <h3 className="label home-grove-part">Inventory</h3>
+          <button type="button" className="secondary" onClick={() => setInventory(true)}>
+            Open inventory
+          </button>
         </section>
       </aside>
 
@@ -406,6 +415,10 @@ export default function Home({
           </button>
         )}
       </div>
+
+      {inventory && (
+        <Inventory onClose={() => setInventory(false)} onChanged={() => void load()} />
+      )}
     </div>
   )
 }

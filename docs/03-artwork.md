@@ -300,6 +300,17 @@ satchel with no rarity, and it is drawn in a plain square. The rarity of a tool
 is fixed by what it is rather than rolled, so a wish is always epic and oil is
 always legendary.
 
+### The chest
+
+`frontend/src/assets/grove/chest.svg`
+
+An unopened chest, which sits on the inventory grid alongside the tools and is
+read the same way: one file named after its kind, swapped on its own. Chests
+stack onto one square whatever step of the ladder dropped them, so this drawing
+carries no tier colour and is framed in no rarity. Same 64 by 64 viewBox,
+centred rather than standing on a floor, and still shut: what is inside is the
+whole of what opening it is for.
+
 ## Rarity frames
 
 Not artwork, and no file to swap: every square holding a plant, a seed, or a

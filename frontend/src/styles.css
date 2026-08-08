@@ -2272,52 +2272,149 @@ button:disabled {
   font-variant-numeric: tabular-nums;
 }
 
+/* The miles under the bar: the ones covered so far tracking the fill, and what
+   this level costs standing at the end of it. Both are read off the bar rather
+   than said in a sentence, so they sit in a strip of their own under it. */
+.plant-scale {
+  margin: 0.1rem 0 0.15rem;
+}
+
+.plant-numbers {
+  position: relative;
+  display: block;
+  height: 0.85rem;
+  margin: 0;
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+/* The number's right edge is the fill point, so it trails the bar the way a
+   figure trails a needle. It stops short of the target rather than running
+   underneath it on a nearly full bar. */
+.plant-now {
+  position: absolute;
+  left: 0;
+  max-width: calc(100% - 2.4rem);
+  padding-right: 0.2rem;
+  text-align: right;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.plant-target {
+  position: absolute;
+  right: 0;
+}
+
+/* Twenty-one steps of fill, because a width worked out per render would have to
+   be written on the element and the content security policy allows no inline
+   styles. Five per cent is under half a millimetre of bar on a phone. */
+.plant-fill-0 {
+  width: 0;
+}
+
+.plant-fill-5 {
+  width: 5%;
+}
+
+.plant-fill-10 {
+  width: 10%;
+}
+
+.plant-fill-15 {
+  width: 15%;
+}
+
+.plant-fill-20 {
+  width: 20%;
+}
+
+.plant-fill-25 {
+  width: 25%;
+}
+
+.plant-fill-30 {
+  width: 30%;
+}
+
+.plant-fill-35 {
+  width: 35%;
+}
+
+.plant-fill-40 {
+  width: 40%;
+}
+
+.plant-fill-45 {
+  width: 45%;
+}
+
+.plant-fill-50 {
+  width: 50%;
+}
+
+.plant-fill-55 {
+  width: 55%;
+}
+
+.plant-fill-60 {
+  width: 60%;
+}
+
+.plant-fill-65 {
+  width: 65%;
+}
+
+.plant-fill-70 {
+  width: 70%;
+}
+
+.plant-fill-75 {
+  width: 75%;
+}
+
+.plant-fill-80 {
+  width: 80%;
+}
+
+.plant-fill-85 {
+  width: 85%;
+}
+
+.plant-fill-90 {
+  width: 90%;
+}
+
+.plant-fill-95 {
+  width: 95%;
+}
+
+.plant-fill-100 {
+  width: 100%;
+}
+
 .plant-ready {
   margin: 0;
   font-size: 0.82rem;
   color: var(--muted);
 }
 
-/* The satchel */
+/* The inventory */
 
-.satchel-group + .satchel-group {
-  margin-top: 1rem;
-}
-
-.satchel-list {
-  list-style: none;
-  margin: 0.4rem 0 0;
-  padding: 0;
-}
-
-.satchel-row {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid var(--line);
-}
-
-.satchel-row:last-child {
-  border-bottom: 0;
-}
-
-/* The satchel and a chest reveal draw a seed at the same size. The square is
-   what carries the size now, because the frame around it is what says how rare
-   the seed is and the picture inside simply fills it. */
-.satchel-frame .rarity-square,
+/* A chest reveal draws a seed at a fixed size. The square is what carries that
+   size, because the frame around it is what says how rare the seed is and the
+   picture inside simply fills it. */
 .item-frame .rarity-square {
   min-width: 5rem;
   height: 5rem;
 }
 
-.satchel-thumb,
 .item-thumb {
   width: 100%;
   height: 100%;
 }
 
-.satchel-thumb img,
 .item-thumb img {
   width: 100%;
   height: 100%;
@@ -2371,14 +2468,122 @@ button:disabled {
   color: inherit;
 }
 
-.satchel-name {
-  flex: 1;
-  min-width: 0;
-  font-size: 0.95rem;
+/* The line under the button that opens the grid, which is the only place the
+   app says what oil does before you spend it. */
+.inv-explainer {
+  margin: 0.6rem 0 0;
 }
 
-.satchel-row button {
-  flex: 0 0 auto;
+/* Home puts the grid behind its own heading in the card the grove already has,
+   so the two sit apart rather than reading as one pair of buttons. */
+.home-grove-part {
+  margin: 1rem 0 0.4rem;
+}
+
+/* The grid itself: four squares across at every width, sixteen of them whether
+   or not there is anything to put in them, and equal rows so an empty socket is
+   the same size as a full one. Anything past sixteen scrolls with the panel
+   rather than paging, because a page control is another thing to learn and the
+   panel already scrolls. */
+.inv-body {
+  flex: 1;
+  padding: 0.75rem 1rem 1rem;
+  overflow-y: auto;
+}
+
+.inv-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+  gap: 0.35rem;
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+}
+
+.inv-slot {
+  display: flex;
+  min-width: 0;
+  min-height: 4.5rem;
+}
+
+/* The square is the button, so nothing of the button's own shape survives. */
+.inv-cell {
+  display: block;
+  width: 100%;
+  min-height: 0;
+  padding: 0;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-radius: 0;
+}
+
+.inv-empty {
+  background: #101014;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+.inv-frame {
+  width: 100%;
+}
+
+/* Whatever is on the square fills it and stays square, so a row of them lines
+   up whether it holds a seedling, a jar, or a chest. */
+.inv-art {
+  position: relative;
+  display: block;
+  aspect-ratio: 1;
+}
+
+.inv-art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.inv-thumb {
+  width: 100%;
+  height: 100%;
+}
+
+/* Water and the chests have no rarity to name, so they keep the plain square
+   the satchel drew water in. It fills the cell here rather than being 5rem. */
+.inv-plain {
+  width: 100%;
+  height: auto;
+}
+
+/* The count, in the corner of the picture where every inventory has ever put
+   it. One of a thing carries no number: the square itself is the one. */
+.inv-count {
+  position: absolute;
+  right: 0.1rem;
+  bottom: 0;
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--text);
+  text-shadow: 0 0 3px #000000, 0 1px 2px #000000;
+}
+
+/* The rarity tab has to carry LEGENDARY across a quarter of a phone. */
+.inv-cell .rarity-tab {
+  padding: 0.1rem 0.1rem;
+  font-size: 9px;
+  letter-spacing: 0.02em;
+}
+
+/* What came out of a chest, read where the chest was opened. */
+.inv-reveals {
+  margin-bottom: 0.75rem;
+}
+
+/* Narrowing a list of people. It is the app's own field, drawn the way the
+   forms are, and it only appears where a list is long enough to want it. */
+.chooser-search {
+  margin-bottom: 0.5rem;
 }
 
 /* What came out of a chest, with the one thing to do with it beside it. */

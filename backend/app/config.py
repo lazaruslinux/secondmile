@@ -163,13 +163,20 @@ LEGACY_CHEST_TIER = "5k"
 # What comes out of a rarity slot once it has been rolled, as (kind, chance)
 # summing to one. Every item is a tool with exactly one verb: a seed is
 # planted, water is poured, oil anoints somebody else, and a wish is spent on
-# whichever seed you are missing. The two top slots are the tools alone: a wish
-# is what an epic slot is, and oil is what a legendary slot is.
+# whichever seed you are missing. The two top slots are the tools alone: an
+# epic is the wish and oil in even halves, and a legendary is oil.
+#
+# The epic slot was once the wish and nothing else. A wish falls to water the
+# moment there is nothing left to wish for, so a plot with all twelve in it
+# turned every epic chest it ever earned into water, permanently. Splitting the
+# slot ends that, and it buys the same trade twice over: oil is the item that
+# is spent on somebody else, so the fuller a plot gets the more of it there is
+# to give away.
 CHEST_SLOT_ITEMS: dict[str, tuple[tuple[str, float], ...]] = {
     "common": (("seed", 0.85), ("water", 0.15)),
     "uncommon": (("seed", 0.70), ("water", 0.30)),
     "rare": (("seed", 0.80), ("water", 0.20)),
-    "epic": (("wish", 1.0),),
+    "epic": (("wish", 0.5), ("oil", 0.5)),
     "legendary": (("oil", 1.0),),
 }
 

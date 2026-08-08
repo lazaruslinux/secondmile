@@ -253,3 +253,32 @@ def read_friend_grove(
         .order_by(models.Planting.id)
     ).scalars()
     return [grove.serialize_for_friend(row) for row in rows]
+
+
+@router.get("/species")
+def read_species(_user: models.User = Depends(security.current_user)) -> dict:
+    """The twelve a seed can be, in catalogue order, and what a wish is called.
+
+    Authored content and nothing else: no account is read, no table is touched,
+    and everybody gets the same answer. It is served rather than written down a
+    second time on the client because a catalogue kept in two places disagrees
+    with itself the first time a species is renamed, and the client needs the
+    whole of it to offer a wish something nobody owns yet.
+
+    The mustard tree is not in here. This is the bag a chest and a wish reach
+    into, and that one is given rather than rolled; the plot it is planted in is
+    what names it. Behind a session like everything else in this file, which
+    costs a catalogue nothing and keeps one rule about who may read this app.
+    """
+    return {
+        "species": [
+            {
+                "id": row.id,
+                "seed_name": row.seed_name,
+                "plant_name": row.plant_name,
+                "rarity": row.rarity,
+            }
+            for row in (species.BY_ID[species_id] for species_id in species.ROLLABLE)
+        ],
+        "wish_name": species.WISH_NAME,
+    }

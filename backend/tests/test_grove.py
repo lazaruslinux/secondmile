@@ -301,7 +301,8 @@ def test_a_grown_plant_still_takes_water_toward_its_next_level(signed_in, db_ses
 
 
 def give_wish(db_session, user_id: int):
-    """One wish, which is what an epic slot is and the only item that asks."""
+    """One wish, which is half of what an epic slot is and the only item that
+    asks."""
     return give_item(db_session, user_id, "wish", rarity="epic")
 
 
@@ -906,6 +907,7 @@ def test_a_rebuild_keeps_a_chest_somebody_gave(signed_in, db_session, member, ma
 def test_the_grove_endpoints_need_a_session(client):
     assert client.get("/api/satchel").status_code == 401
     assert client.get("/api/grove").status_code == 401
+    assert client.get("/api/species").status_code == 401
     assert client.post("/api/satchel/1/plant").status_code == 401
     assert client.post("/api/satchel/1/pour", json={"planting_id": 1}).status_code == 401
     assert client.post("/api/satchel/1/anoint", json={"user_id": 1}).status_code == 401
@@ -958,3 +960,36 @@ def test_a_friends_plot_says_the_planted_form_too(signed_in, db_session, member,
     give_planting(db_session, member.id, "coffee")
     row = other_client.get(f"/api/grove/{member.id}").json()[0]
     assert (row["seed_name"], row["plant_name"]) == ("Coffee seed", "Coffee plant")
+
+
+# --------------------------------------------------------------------------
+# The catalogue, served rather than written down twice
+# --------------------------------------------------------------------------
+
+
+def test_the_catalogue_is_the_twelve_in_catalogue_order(signed_in):
+    body = signed_in.get("/api/species").json()
+    assert [row["id"] for row in body["species"]] == list(species.ROLLABLE)
+    # Four of each, low to high, which is the order the catalogue itself keeps.
+    assert [row["rarity"] for row in body["species"]] == (
+        ["common"] * 4 + ["uncommon"] * 4 + ["rare"] * 4
+    )
+
+
+def test_the_catalogue_says_both_names_and_nothing_else(signed_in):
+    body = signed_in.get("/api/species").json()
+    assert set(body) == {"species", "wish_name"}
+    for row in body["species"]:
+        assert set(row) == {"id", "seed_name", "plant_name", "rarity"}
+        kind = species.BY_ID[row["id"]]
+        assert (row["seed_name"], row["plant_name"]) == (kind.seed_name, kind.plant_name)
+    # The wish is not a species and has no row; it is named once, alongside.
+    assert body["wish_name"] == species.WISH_NAME == "Unmarked seed"
+
+
+def test_the_catalogue_leaves_out_the_one_that_is_given(signed_in):
+    """A wish is spent from this list, and the mustard tree is in no bag a wish
+    reaches into."""
+    body = signed_in.get("/api/species").json()
+    assert len(body["species"]) == 12
+    assert species.FIRST_CHEST_SPECIES not in {row["id"] for row in body["species"]}

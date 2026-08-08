@@ -85,6 +85,27 @@ export function formatStart(iso: string): string {
   })
 }
 
+// The moment a thing was acquired, written short enough to sit under a plant in
+// the plot: 08/08/26 12:00pm. Assembled from the parts rather than taken whole,
+// because no locale writes the meridiem without a space in front of it. Read on
+// the instance's clock like every other time on screen.
+export function formatAcquired(iso: string): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: zone,
+    year: '2-digit',
+    month: '2-digit',
+    day: '2-digit',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).formatToParts(new Date(iso))
+  const found = new Map(parts.map((part) => [part.type, part.value]))
+  const meridiem = (found.get('dayPeriod') ?? '').toLowerCase()
+  return `${found.get('month')}/${found.get('day')}/${found.get('year')} ${found.get(
+    'hour',
+  )}:${found.get('minute')}${meridiem}`
+}
+
 // Monday first, which is how the weeks are counted here and on the server.
 const WEEKDAY_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 

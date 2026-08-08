@@ -7,14 +7,14 @@ import RarityFrame from './RarityFrame.tsx'
 
 // What each thing is for, said plainly, and said only when it is asked for.
 const KIND_LINES: Record<string, string> = {
-  water: 'Pour it onto one plant in the grove.',
-  oil: 'Anoint a friend with it from the grove.',
+  water: 'Pour it onto one plant from your inventory.',
+  oil: 'Anoint a friend with it from your inventory.',
   wish: 'Choose what it will become: any seed you have not yet found.',
 }
 
 // Everything out of a chest goes the same place, and that is the whole of what
 // a reveal says about a tool until the picture is tapped.
-const STOWED = 'Added to satchel.'
+const STOWED = 'Added to inventory.'
 
 interface Props {
   item: SatchelItem

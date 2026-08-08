@@ -199,10 +199,13 @@ export function itemFramed(item: SatchelItem): boolean {
   return KIND_RARITY[item.kind] !== undefined
 }
 
+// Oil is named for what it is, which is what was poured over a head before ever
+// it was a game item. The kind stays 'oil' everywhere under the screen: this is
+// the word, not the thing.
 const KIND_NAMES: Record<ItemKind, string> = {
   seed: 'Seed',
   water: 'Water',
-  oil: 'Oil',
+  oil: 'Olive Oil',
   wish: 'Unmarked seed',
 }
 
@@ -212,26 +215,6 @@ export function itemName(item: SatchelItem): string {
   if (item.kind === 'seed' && item.species) return seedName(item)
   return KIND_NAMES[item.kind] ?? item.kind
 }
-
-// The twelve species a chest can roll, in catalogue order, each with the name
-// its seed is called by. The catalogue has to be written down here as well as
-// on the server because a wish is spent on a species nobody owns yet, and the
-// server names only what is already held. The thirteenth species is given
-// rather than rolled and is deliberately not on this list.
-export const SEED_SPECIES: { id: string; name: string; rarity: Rarity }[] = [
-  { id: 'strawberry', name: 'Strawberry seed', rarity: 'common' },
-  { id: 'banana', name: 'Banana seed', rarity: 'common' },
-  { id: 'raspberry', name: 'Raspberry seed', rarity: 'common' },
-  { id: 'blueberry', name: 'Blueberry seed', rarity: 'common' },
-  { id: 'blackberry', name: 'Blackberry seed', rarity: 'uncommon' },
-  { id: 'mango', name: 'Mango seed', rarity: 'uncommon' },
-  { id: 'grapevine', name: 'Grape seed', rarity: 'uncommon' },
-  { id: 'fig_bush', name: 'Fig seed', rarity: 'uncommon' },
-  { id: 'olive', name: 'Olive seed', rarity: 'rare' },
-  { id: 'dates', name: 'Date seed', rarity: 'rare' },
-  { id: 'coffee', name: 'Coffee seed', rarity: 'rare' },
-  { id: 'pomegranate', name: 'Pomegranate seed', rarity: 'rare' },
-]
 
 // The step of the ladder a chest dropped on. The names are the server's; a
 // chest from before the ladder simply has none.
