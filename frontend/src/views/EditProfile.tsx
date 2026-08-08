@@ -7,6 +7,7 @@ import {
   uploadAvatar,
   type Profile as ProfileData,
 } from '../api.ts'
+import { GENDERS } from '../labels.ts'
 import { ageOf } from '../profile.ts'
 
 // What the server accepts, checked here as well so an oversized picture is
@@ -228,12 +229,18 @@ export default function EditProfile({ profile, onAvatarChanged, onSaved, onClose
 
           <label>
             Gender
-            <input
-              type="text"
-              value={gender}
-              maxLength={32}
-              onChange={(event) => setGender(event.target.value)}
-            />
+            {/* The placeholder row is disabled, so an account that has never set
+                one shows "Select" and a chosen answer cannot be emptied again. */}
+            <select value={gender} onChange={(event) => setGender(event.target.value)}>
+              <option value="" disabled>
+                Select
+              </option>
+              {GENDERS.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
           </label>
           <p className="hint">
             Your birthdate and gender are shown to you only. Nobody else sees them.

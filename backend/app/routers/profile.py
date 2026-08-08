@@ -28,7 +28,9 @@ TOO_LARGE = (
 )
 
 MAX_NAME_LENGTH = 40
-MAX_GENDER_LENGTH = 32
+# The two the edit form offers. The API takes these and nothing else, so what is
+# stored can always be shown by the dropdown that wrote it.
+GENDERS = ("Male", "Female")
 # Old enough for anybody alive, and a floor that catches the typed year that
 # lost a digit. A birthdate is only ever used to work out an age.
 EARLIEST_BIRTHDATE = dt.date(1900, 1, 1)
@@ -82,6 +84,22 @@ def _clean_text(sent: str | None, limit: int, what: str) -> str | None:
             status.HTTP_400_BAD_REQUEST, f"{what} must be at most {limit} characters."
         )
     return cleaned or None
+
+
+def _clean_gender(sent: str | None) -> str | None:
+    """One of the two offered choices, or null once emptied.
+
+    A closed set rather than the free text this took before, so nothing reaches
+    the column that the edit form could not have put there.
+    """
+    if sent is None:
+        return None
+    cleaned = sent.strip()
+    if not cleaned:
+        return None
+    if cleaned not in GENDERS:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Gender must be Male or Female.")
+    return cleaned
 
 
 def _clean_birthdate(sent: str | None) -> dt.date | None:
@@ -226,7 +244,7 @@ def set_profile(
     if "birthdate" in body.model_fields_set:
         user.birthdate = _clean_birthdate(body.birthdate)
     if "gender" in body.model_fields_set:
-        user.gender = _clean_text(body.gender, MAX_GENDER_LENGTH, "Gender")
+        user.gender = _clean_gender(body.gender)
     db.commit()
     return serialize_profile(db, user, progress.ensure_progress(db, user.id))
 

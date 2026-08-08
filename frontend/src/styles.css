@@ -465,16 +465,21 @@ button:disabled {
   margin-bottom: 0.75rem;
 }
 
-.token button {
+.token button,
+.endpoint button {
   margin-top: 0.5rem;
 }
 
 /* Whatever the copy button has to say sits under it, not against it. */
-.token .note {
+.token .note,
+.endpoint .note {
   margin: 0.5rem 0 0;
 }
 
-.token code {
+/* The sync address borrows the token's code block but not its accent border:
+   it is something to copy, not a secret shown once. */
+.token code,
+.endpoint code {
   display: block;
   /* A token is one long unbroken string; without this it runs off a phone. */
   overflow-wrap: anywhere;

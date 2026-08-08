@@ -405,7 +405,7 @@ def test_every_new_field_can_be_cleared_again(signed_in, db_session, member):
             "first_name": "Avery",
             "last_name": "Case",
             "birthdate": "1990-05-04",
-            "gender": "man",
+            "gender": "Male",
         },
     )
     cleared = signed_in.patch(
@@ -470,22 +470,26 @@ def test_a_birthdate_the_day_before_today_is_allowed(signed_in):
     assert body["age"] == 0
 
 
-def test_the_name_and_gender_fields_have_limits(signed_in, db_session, member):
+def test_the_name_fields_have_limits(signed_in, db_session, member):
     too_long = signed_in.patch("/api/profile", json={"first_name": "j" * 41})
     assert too_long.status_code == 400
     assert signed_in.patch("/api/profile", json={"last_name": "c" * 41}).status_code == 400
-    assert signed_in.patch("/api/profile", json={"gender": "g" * 33}).status_code == 400
     # The longest each one will take is stored.
     assert signed_in.patch("/api/profile", json={"first_name": "j" * 40}).status_code == 200
-    assert signed_in.patch("/api/profile", json={"gender": "g" * 32}).status_code == 200
     db_session.refresh(member)
     assert len(member.first_name) == 40
-    assert len(member.gender) == 32
 
 
-def test_gender_is_free_text(signed_in):
-    body = signed_in.patch("/api/profile", json={"gender": "prefer not to say"}).json()
-    assert body["gender"] == "prefer not to say"
+def test_gender_takes_only_the_two_offered_choices(signed_in, db_session, member):
+    for choice in ("Male", "Female"):
+        body = signed_in.patch("/api/profile", json={"gender": choice}).json()
+        assert body["gender"] == choice
+    # Anything the dropdown cannot produce is refused, including the free text
+    # this field used to take and a right answer in the wrong case.
+    for refused in ("prefer not to say", "man", "male", "g" * 33):
+        assert signed_in.patch("/api/profile", json={"gender": refused}).status_code == 400
+    db_session.refresh(member)
+    assert member.gender == "Female"
 
 
 def test_patching_a_name_leaves_the_badge_slots_and_diamonds_alone(signed_in):

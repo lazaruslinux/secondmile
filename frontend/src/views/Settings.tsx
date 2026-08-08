@@ -47,8 +47,11 @@ export default function Settings({
   // Rotating breaks the phone until the new token is pasted, so the button asks
   // once before it does it.
   const [confirmingRotate, setConfirmingRotate] = useState(false)
-  // Empty until the Copy button is used, then which way it went.
-  const [copyState, setCopyState] = useState<'' | 'copied' | 'failed'>('')
+  // Null until a Copy button is used, then which of the two copyable things it
+  // was and whether it worked, so one message never appears under the other's
+  // button.
+  const [copyState, setCopyState] = useState<{ what: 'token' | 'url'; ok: boolean } | null>(null)
+  const ingestUrl = `${window.location.origin}/api/ingest`
 
   const [unitsError, setUnitsError] = useState('')
   const [savingUnits, setSavingUnits] = useState(false)
@@ -80,7 +83,7 @@ export default function Settings({
   async function rotate() {
     setRotating(true)
     setTokenError('')
-    setCopyState('')
+    setCopyState(null)
     try {
       setFreshToken(await rotateIngestToken())
       setTokenStatus(await getIngestTokenStatus())
@@ -92,14 +95,14 @@ export default function Settings({
     }
   }
 
-  async function copyToken() {
+  async function copy(text: string, what: 'token' | 'url') {
     try {
-      await navigator.clipboard.writeText(freshToken)
-      setCopyState('copied')
+      await navigator.clipboard.writeText(text)
+      setCopyState({ what, ok: true })
     } catch {
       // No clipboard on an insecure origin, or the browser refused. Nothing is
-      // lost: the token is on the screen and can be selected by hand.
-      setCopyState('failed')
+      // lost: the text is on the screen and can be selected by hand.
+      setCopyState({ what, ok: false })
     }
   }
 
@@ -329,15 +332,19 @@ export default function Settings({
                 It will not be shown again.
               </p>
               <code>{freshToken}</code>
-              <button type="button" className="secondary" onClick={() => void copyToken()}>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => void copy(freshToken, 'token')}
+              >
                 Copy
               </button>
-              {copyState === 'copied' && (
+              {copyState?.what === 'token' && copyState.ok && (
                 <p className="note note-success" role="status">
                   Copied.
                 </p>
               )}
-              {copyState === 'failed' && (
+              {copyState?.what === 'token' && !copyState.ok && (
                 <p className="note" role="status">
                   This browser would not copy it. Select the token and copy it by hand.
                 </p>
@@ -389,12 +396,35 @@ export default function Settings({
           <p className="hint">
             Workouts arrive from Health Auto Export, an iPhone app that reads Apple Health and
             posts to a URL you give it. In that app, add a REST API automation pointing at
-            this site's /api/ingest address, method POST, with the header Authorization:
-            Bearer followed by the token above. Set the data type to Workouts and the format
-            to JSON, then run it on a schedule. Walks, runs, rides, and swims are imported;
-            anything else in the export is ignored. Sending the same workouts twice changes
-            nothing, so overlapping exports are safe.
+            the address below, method POST, with the header Authorization: Bearer followed by
+            the token above. Set the data type to Workouts and the format to JSON, then run it
+            on a schedule. Walks, runs, rides, and swims are imported; anything else in the
+            export is ignored. Sending the same workouts twice changes nothing, so overlapping
+            exports are safe.
           </p>
+
+          {/* Built from the address this page was opened on, so it is right for
+              whoever is reading it rather than for whoever installed the site. */}
+          <div className="endpoint">
+            <code>{ingestUrl}</code>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => void copy(ingestUrl, 'url')}
+            >
+              Copy
+            </button>
+            {copyState?.what === 'url' && copyState.ok && (
+              <p className="note note-success" role="status">
+                Copied.
+              </p>
+            )}
+            {copyState?.what === 'url' && !copyState.ok && (
+              <p className="note" role="status">
+                This browser would not copy it. Select the address and copy it by hand.
+              </p>
+            )}
+          </div>
           <p className="hint">
             Turn Include Route Data on if you want the line drawn on your workout cards. No
             map is ever fetched from anywhere, and the start and end of every route are

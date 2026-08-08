@@ -22,6 +22,10 @@ export const ACTIVITY_NAMES: Record<Activity, string> = {
   swim: 'Swim',
 }
 
+// The two the edit form offers. The API accepts exactly these, so the list is
+// changed in both places or in neither.
+export const GENDERS = ['Male', 'Female']
+
 // The medal catalogue: twelve medals in four families, in the order every screen
 // draws them. Every one of them repeats, so a medal is a count rather than a
 // yes or a no, and the catalogue is fixed rather than grown: nothing here is
