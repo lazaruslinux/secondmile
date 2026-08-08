@@ -279,7 +279,10 @@ def roll_slot(rng: random.Random, tier: str | None) -> str:
 
 
 def roll_loot(
-    rng: random.Random, tier: str | None, first_ever: bool
+    rng: random.Random,
+    tier: str | None,
+    first_ever: bool,
+    held: frozenset[str] | set[str] = frozenset(),
 ) -> tuple[str, str | None, str]:
     """What one chest holds, as (kind, species id or None, rarity).
 
@@ -287,7 +290,14 @@ def roll_loot(
     it is a seed or the tool that shares it. Oil lives in the rare slot only,
     which is why it is mostly a Marathon and Ultra thing.
 
-    The first chest an account ever opens ignores both rolls. That is never
+    A plot holds one of each species, so a seed of something the account
+    already has is rolled again inside its own rarity, among what it is
+    missing. The first roll still happens either way, which is what keeps a
+    chest that was never a duplicate landing on exactly what it always did.
+    With nothing left to want in that rarity the slot pours water instead:
+    there is no such thing as an item worth nothing.
+
+    The first chest an account ever opens ignores all of it. That is never
     explained anywhere, and this is the only line that knows about it.
     """
     if first_ever:
@@ -300,7 +310,15 @@ def roll_loot(
     )[0]
     if kind != "seed":
         return kind, None, rarity
-    return "seed", rng.choice(species.BY_RARITY[rarity]).id, rarity
+    picked = rng.choice(species.BY_RARITY[rarity]).id
+    if picked not in held:
+        return "seed", picked, rarity
+    # The mustard tree is not in the bag rolled from, so it is not in this one
+    # either: it is given once and never made up for.
+    lacking = [row.id for row in species.BY_RARITY[rarity] if row.id not in held]
+    if not lacking:
+        return "water", None, rarity
+    return "seed", rng.choice(lacking), rarity
 
 
 def open_chest(
@@ -311,6 +329,9 @@ def open_chest(
     Seeded on the account and the chest, so the same chest opened twice in a
     race, or replayed by a rebuild, comes up with the same thing. Flushes but
     never commits: the caller owns the transaction.
+
+    What the plot already holds is read here, at the moment of opening, which
+    is where every other roll has always been decided.
     """
     # "First" means the first chest that ever yielded an item, not the first
     # chest row ever opened: an account migrated from the card era has opened
@@ -324,7 +345,9 @@ def open_chest(
         is None
     )
     rng = random.Random(f"{user_id}:chest:{chest.id}")
-    kind, species_id, rarity = roll_loot(rng, chest.tier, first_ever)
+    kind, species_id, rarity = roll_loot(
+        rng, chest.tier, first_ever, grove.held_species(db, user_id)
+    )
     now = now_utc()
     chest.opened_at = now
     item = models.SatchelItem(

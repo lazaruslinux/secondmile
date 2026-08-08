@@ -37,6 +37,183 @@ def migrated(tmp_path, monkeypatch):
         engine.dispose()
 
 
+@pytest.fixture()
+def at_0012(tmp_path, monkeypatch):
+    """A database at revision 0012, which is the shape the plot cleanup meets.
+
+    Its own fixture rather than the 0008 one: plantings and satchel_items do
+    not exist until 0009, so a case about them has to start further along.
+    """
+    url = f"sqlite:///{tmp_path}/plot.db"
+    monkeypatch.setattr(config.settings, "database_url", url)
+    cfg = Config(str(BACKEND / "alembic.ini"))
+    cfg.set_main_option("script_location", str(BACKEND / "migrations"))
+    command.upgrade(cfg, "0012")
+    engine = sa.create_engine(url)
+    try:
+        yield engine, (lambda: command.upgrade(cfg, "head"))
+    finally:
+        engine.dispose()
+
+
+def _account(connection, user_id: int, username: str) -> None:
+    connection.execute(
+        sa.text(
+            "INSERT INTO users (id, username, password_hash, email_verified, is_admin,"
+            " units, displayed_badges, created_at)"
+            f" VALUES ({user_id}, '{username}', 'x', 1, 0, 'imperial', '[]',"
+            " '2026-01-01 00:00:00')"
+        )
+    )
+
+
+def _planting(connection, planting_id, user_id, species, planted_at, growth, matured=None) -> None:
+    connection.execute(
+        sa.text(
+            "INSERT INTO plantings (id, user_id, species, rarity, planted_at, growth_mi,"
+            " matured_at) VALUES (:id, :user_id, :species, 'common', :planted_at, :growth,"
+            " :matured)"
+        ),
+        {
+            "id": planting_id,
+            "user_id": user_id,
+            "species": species,
+            "planted_at": planted_at,
+            "growth": growth,
+            "matured": matured,
+        },
+    )
+
+
+def _seed(connection, item_id, user_id, species, acquired_at, *, used_at=None, kind="seed") -> None:
+    connection.execute(
+        sa.text(
+            "INSERT INTO satchel_items (id, user_id, kind, species, rarity, chest_id,"
+            " acquired_at, used_at, earned_renown)"
+            " VALUES (:id, :user_id, :kind, :species, 'uncommon', NULL, :acquired_at,"
+            " :used_at, 0)"
+        ),
+        {
+            "id": item_id,
+            "user_id": user_id,
+            "kind": kind,
+            "species": species,
+            "acquired_at": acquired_at,
+            "used_at": used_at,
+        },
+    )
+
+
+def test_the_plot_cleanup_folds_every_duplicate_into_the_oldest_one(at_0012):
+    """0013: one plant per species, and the miles of the duplicates go into it
+    rather than anywhere near a bin."""
+    engine, upgrade = at_0012
+    with engine.connect() as connection:
+        _account(connection, 1, "runner")
+        _account(connection, 2, "mate")
+        # Three strawberries out of order, and the middle row is the oldest.
+        _planting(connection, 1, 1, "strawberry", "2026-03-01 00:00:00", 10.0)
+        _planting(connection, 2, 1, "strawberry", "2026-02-01 00:00:00", 5.0, "2026-04-01 00:00:00")
+        _planting(connection, 3, 1, "strawberry", "2026-05-01 00:00:00", 2.5)
+        # One of a kind, and untouched by any of it.
+        _planting(connection, 4, 1, "olive", "2026-01-01 00:00:00", 40.0)
+        # A keeper with no date of its own takes the earliest one folded in.
+        _planting(connection, 5, 2, "olive", "2026-01-05 00:00:00", 1.0)
+        _planting(connection, 6, 2, "olive", "2026-02-05 00:00:00", 2.0, "2026-06-01 00:00:00")
+        _planting(connection, 7, 2, "olive", "2026-03-05 00:00:00", 3.0, "2026-05-15 00:00:00")
+        connection.commit()
+
+    upgrade()
+
+    with engine.connect() as connection:
+        rows = connection.execute(
+            sa.text(
+                "SELECT id, user_id, species, growth_mi, matured_at FROM plantings ORDER BY id"
+            )
+        ).all()
+        assert [(row.id, row.user_id, row.species) for row in rows] == [
+            (2, 1, "strawberry"),
+            (4, 1, "olive"),
+            (5, 2, "olive"),
+        ]
+        by_id = {row.id: row for row in rows}
+        # Ten and two and a half added into the five the keeper had.
+        assert by_id[2].growth_mi == 17.5
+        # Its own date stands, even though a row folded in had none.
+        assert by_id[2].matured_at == "2026-04-01 00:00:00"
+        assert by_id[4].growth_mi == 40.0
+        assert by_id[5].growth_mi == 6.0
+        # The keeper had no date, so the earliest among the folded rows carries.
+        assert by_id[5].matured_at == "2026-05-15 00:00:00"
+
+
+def test_the_plot_cleanup_turns_the_spare_seeds_into_water(at_0012):
+    """A seed of something already growing, and every seed past the first of
+    something that is not, becomes water and keeps what its slot was worth."""
+    engine, upgrade = at_0012
+    with engine.connect() as connection:
+        _account(connection, 1, "runner")
+        _planting(connection, 1, 1, "strawberry", "2026-01-01 00:00:00", 4.0)
+        # Two of something already in the ground: both are water now.
+        _seed(connection, 1, 1, "strawberry", "2026-02-01 00:00:00")
+        _seed(connection, 2, 1, "strawberry", "2026-03-01 00:00:00")
+        # Three of something with nothing in the ground: the oldest survives.
+        _seed(connection, 3, 1, "mango", "2026-04-01 00:00:00")
+        _seed(connection, 4, 1, "mango", "2026-02-15 00:00:00")
+        _seed(connection, 5, 1, "mango", "2026-05-01 00:00:00")
+        # A seed already spent is the planting above and is never touched.
+        _seed(connection, 6, 1, "strawberry", "2026-01-01 00:00:00", used_at="2026-01-01 00:00:00")
+        # Water that was always water stays exactly as it is.
+        _seed(connection, 7, 1, None, "2026-01-02 00:00:00", kind="water")
+        connection.commit()
+
+    upgrade()
+
+    with engine.connect() as connection:
+        rows = {
+            row.id: row
+            for row in connection.execute(
+                sa.text("SELECT id, kind, species, rarity, used_at FROM satchel_items")
+            ).all()
+        }
+        for item_id in (1, 2, 3, 5):
+            assert (rows[item_id].kind, rows[item_id].species) == ("water", None), item_id
+            # The slot it came out of is what it is worth, converted or not.
+            assert rows[item_id].rarity == "uncommon", item_id
+        # The earliest mango is the one kept, and it is still a seed.
+        assert (rows[4].kind, rows[4].species) == ("seed", "mango")
+        # Neither the spent seed nor the water that was always water moved.
+        assert (rows[6].kind, rows[6].species, rows[6].used_at) == (
+            "seed",
+            "strawberry",
+            "2026-01-01 00:00:00",
+        )
+        assert (rows[7].kind, rows[7].species) == ("water", None)
+
+        # Nothing was invented and nothing was deleted.
+        assert len(rows) == 7
+
+
+def test_the_plot_cleanup_leaves_a_tidy_plot_alone(at_0012):
+    engine, upgrade = at_0012
+    with engine.connect() as connection:
+        _account(connection, 1, "runner")
+        _planting(connection, 1, 1, "strawberry", "2026-01-01 00:00:00", 4.0)
+        _planting(connection, 2, 1, "olive", "2026-01-02 00:00:00", 9.0)
+        _seed(connection, 1, 1, "mango", "2026-02-01 00:00:00")
+        connection.commit()
+
+    upgrade()
+
+    with engine.connect() as connection:
+        assert connection.execute(
+            sa.text("SELECT id, growth_mi FROM plantings ORDER BY id")
+        ).all() == [(1, 4.0), (2, 9.0)]
+        assert connection.execute(
+            sa.text("SELECT kind, species FROM satchel_items")
+        ).all() == [("seed", "mango")]
+
+
 def _fill(connection) -> None:
     """A little of everything the old shape held: an account partway up the
     old chest accumulator, two unopened chests, a filled album, both kinds of

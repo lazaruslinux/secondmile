@@ -547,11 +547,56 @@ def test_a_stranger_sees_nothing_of_somebody_elses_plot(signed_in, db_session, m
     assert other_client.get(f"/api/grove/{member.id}").status_code == 404
 
 
-def test_the_profile_counts_the_plot_and_never_a_total(signed_in, db_session, member):
+def test_the_profile_counts_what_was_found_and_the_levels_it_grew(
+    signed_in, db_session, member
+):
     give_planting(db_session, member.id, "blueberry", growth=15.0).matured_at = security.now_utc()
-    give_planting(db_session, member.id, "olive")
+    give_planting(db_session, member.id, "olive", growth=250.0)
+    # A seed nobody has planted yet is still one of the twelve, found.
+    give_item(db_session, member.id, "seed", "mango", rarity="uncommon")
     db_session.commit()
-    assert signed_in.get("/api/profile").json()["grove"] == {"planted": 2, "mature": 1}
+    # One level of a common and two of a rare, and three species between the
+    # ground and the satchel.
+    assert signed_in.get("/api/profile").json()["grove"] == {
+        "seeds_found": 3,
+        "plant_levels": 3,
+    }
+
+
+def test_the_mustard_tree_is_outside_the_twelve_and_inside_the_levels(
+    signed_in, db_session, member
+):
+    """It was given rather than found, so it counts toward nothing that could
+    be read as a collection, and toward everything that cannot."""
+    give_planting(db_session, member.id, "mustard", growth=250.0)
+    assert signed_in.get("/api/profile").json()["grove"] == {
+        "seeds_found": 0,
+        "plant_levels": 2,
+    }
+
+    # An unplanted one is left out of the count for the same reason.
+    give_item(db_session, member.id, "seed", "mustard", rarity="rare")
+    give_planting(db_session, member.id, "strawberry", growth=45.0)
+    assert signed_in.get("/api/profile").json()["grove"] == {
+        "seeds_found": 1,
+        "plant_levels": 5,
+    }
+
+
+def test_a_whole_plot_counts_twelve_and_never_thirteen(signed_in, db_session, member):
+    for row in species.BY_ID.values():
+        give_planting(db_session, member.id, row.id)
+    body = signed_in.get("/api/profile").json()["grove"]
+    # Thirteen things in the ground, twelve of them found.
+    assert body["seeds_found"] == 12
+    assert body["plant_levels"] == 0
+
+
+def test_the_level_sum_counts_the_level_a_plant_shows(signed_in, db_session, member):
+    """Capped, like the plot itself is: the miles keep counting past the last
+    level and the number the profile adds up is the one on the plant."""
+    give_planting(db_session, member.id, "strawberry", growth=5000.0)
+    assert signed_in.get("/api/profile").json()["grove"]["plant_levels"] == 33
 
 
 # --------------------------------------------------------------------------

@@ -163,6 +163,172 @@ def test_a_seed_comes_out_of_the_slot_it_was_rolled_in():
         assert species_id != species.FIRST_CHEST_SPECIES
 
 
+# --------------------------------------------------------------------------
+# One of each: what a chest does about something already held
+# --------------------------------------------------------------------------
+
+
+def hold(db_session, user_id: int, species_ids, *, planted: bool) -> None:
+    """Put species into an account, either in the ground or in the satchel.
+
+    Both count as held, which is the whole of the rule: a seed nobody has
+    planted yet is still a plant that account is going to have.
+    """
+    for species_id in species_ids:
+        rarity = species.BY_ID[species_id].rarity
+        if planted:
+            db_session.add(
+                models.Planting(
+                    user_id=user_id,
+                    species=species_id,
+                    rarity=rarity,
+                    planted_at=security.now_utc(),
+                    growth_mi=0.0,
+                    matured_at=None,
+                )
+            )
+        else:
+            db_session.add(
+                models.SatchelItem(
+                    user_id=user_id,
+                    kind="seed",
+                    species=species_id,
+                    rarity=rarity,
+                    chest_id=None,
+                    acquired_at=security.now_utc(),
+                    used_at=None,
+                )
+            )
+    db_session.commit()
+
+
+def test_a_seed_already_held_is_rolled_again_inside_its_own_rarity():
+    held = {"strawberry", "banana", "raspberry"}
+    rng = random.Random("reroll")
+    seen = set()
+    for _ in range(3000):
+        kind, species_id, rarity = progress.roll_loot(rng, "5k", False, held)
+        if kind != "seed":
+            continue
+        seen.add(species_id)
+        # Never a duplicate, and never a rarity other than the one rolled.
+        assert species_id not in held
+        assert species.BY_ID[species_id].rarity == rarity
+    # The one common left is still handed out, which is the point of re-rolling
+    # rather than simply refusing.
+    assert "blueberry" in seen
+
+
+def test_a_rarity_with_nothing_left_to_want_pours_water():
+    held = {row.id for row in species.BY_RARITY["common"]}
+    rng = random.Random("full")
+    kinds = set()
+    for _ in range(2000):
+        kind, species_id, rarity = progress.roll_loot(rng, "5k", False, held)
+        if rarity != "common":
+            continue
+        kinds.add(kind)
+        assert species_id is None
+    assert kinds == {"water"}
+
+
+def test_a_full_rare_slot_still_pays_oil_at_its_own_odds():
+    """The tools are untouched by the rule: only the seed half of the slot
+    changes, and a rare slot with nothing left to give still hands over oil as
+    often as it ever did."""
+    held = {row.id for row in species.BY_RARITY["rare"]}
+    rng = random.Random("rare-full")
+    rolls = [progress.roll_loot(rng, "ultra", False, held) for _ in range(4000)]
+    rare = [row for row in rolls if row[2] == "rare"]
+    assert {kind for kind, _species_id, _rarity in rare} == {"oil", "water"}
+    share = sum(1 for kind, _s, _r in rare if kind == "oil") / len(rare)
+    assert abs(share - 0.30) < 0.03
+    # The tree that is only ever given is in no bag this reaches into.
+    assert all(species_id is None for _kind, species_id, _rarity in rare)
+
+
+def test_water_and_oil_come_up_exactly_as_they_always_did():
+    """Same seed, same chest: a roll that was never a seed lands identically
+    whatever the account is already holding."""
+    held = {row.id for row in species.BY_ID.values()}
+    for seed in range(400):
+        empty = progress.roll_loot(random.Random(seed), "half", False)
+        full = progress.roll_loot(random.Random(seed), "half", False, held)
+        # The rarity slot is rolled before anything knows about the plot.
+        assert full[2] == empty[2]
+        if empty[0] != "seed":
+            assert full == empty
+
+
+def test_a_chest_from_before_the_ladder_obeys_the_rule_too():
+    held = {"strawberry", "banana"}
+    rng = random.Random("legacy-reroll")
+    for _ in range(2000):
+        kind, species_id, _rarity = progress.roll_loot(rng, None, False, held)
+        if kind == "seed":
+            assert species_id not in held
+
+
+def test_the_mustard_seed_is_given_whatever_the_plot_already_holds(
+    signed_in, db_session, member
+):
+    """The first chest overrides every roll, and the rule is one of the rolls."""
+    hold(db_session, member.id, [row.id for row in species.BY_RARITY["rare"]], planted=True)
+    first = give_chest(db_session, member.id, "ultra")
+    body = signed_in.post(f"/api/chests/{first.id}/open").json()
+    assert (body["kind"], body["species"], body["rarity"]) == ("seed", "mustard", "rare")
+
+
+def test_a_chest_lands_on_the_same_thing_however_often_it_is_replayed(
+    signed_in, db_session, member
+):
+    """Wind the account back to exactly where it was and open the same chest
+    again: the roll is seeded on the pair, so it comes up with the same item."""
+    open_one(signed_in, db_session, member.id)
+    chest = give_chest(db_session, member.id, "marathon")
+    first = signed_in.post(f"/api/chests/{chest.id}/open").json()
+
+    db_session.delete(db_session.get(models.SatchelItem, first["id"]))
+    db_session.get(models.Chest, chest.id).opened_at = None
+    db_session.commit()
+
+    again = signed_in.post(f"/api/chests/{chest.id}/open").json()
+    assert [again[field] for field in ("kind", "species", "rarity")] == [
+        first[field] for field in ("kind", "species", "rarity")
+    ]
+
+
+def test_no_chest_ever_hands_over_a_second_of_the_same_plant(
+    signed_in, db_session, member
+):
+    """Twelve chests over the whole ladder, against an account that already has
+    both a full plot of commons and a satchel of unplanted uncommons."""
+    open_one(signed_in, db_session, member.id)
+    hold(db_session, member.id, [row.id for row in species.BY_RARITY["common"]], planted=True)
+    hold(
+        db_session, member.id, [row.id for row in species.BY_RARITY["uncommon"]], planted=False
+    )
+
+    held = {row.id for row in species.BY_RARITY["common"]}
+    held |= {row.id for row in species.BY_RARITY["uncommon"]}
+    for step, (tier_id, _name, _cost) in enumerate(CHEST_LADDER * 3):
+        chest = give_chest(db_session, member.id, tier_id)
+        body = signed_in.post(f"/api/chests/{chest.id}/open").json()
+        if body["kind"] != "seed":
+            continue
+        assert body["species"] not in held, step
+        held.add(body["species"])
+
+    # And nothing anywhere in the account is doubled up.
+    planted = [row.species for row in db_session.query(models.Planting).all()]
+    waiting = [
+        row.species
+        for row in db_session.query(models.SatchelItem).all()
+        if row.kind == "seed" and row.used_at is None
+    ]
+    assert len(planted + waiting) == len(set(planted + waiting))
+
+
 def test_the_first_chest_an_account_opens_holds_the_mustard_seed(
     signed_in, db_session, member
 ):

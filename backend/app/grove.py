@@ -111,6 +111,26 @@ def grow(
         _advance(row, amount, moment)
 
 
+def held_species(db: Session, user_id: int) -> set[str]:
+    """Every species an account already has: growing in the plot, or waiting in
+    the satchel as a seed nobody has planted yet.
+
+    The plot holds one of each, so this is what a chest roll has to steer around.
+    A spent seed is not held: it is the planting it became.
+    """
+    planted = db.execute(
+        select(models.Planting.species).where(models.Planting.user_id == user_id)
+    ).scalars()
+    waiting = db.execute(
+        select(models.SatchelItem.species).where(
+            models.SatchelItem.user_id == user_id,
+            models.SatchelItem.kind == "seed",
+            models.SatchelItem.used_at.is_(None),
+        )
+    ).scalars()
+    return {row for row in (*planted, *waiting) if row}
+
+
 def plant(
     db: Session, user_id: int, item: models.SatchelItem, moment: dt.datetime
 ) -> models.Planting:
@@ -260,17 +280,25 @@ def serialize_for_friend(row: models.Planting) -> dict:
 
 
 def summary(db: Session, user_id: int) -> dict:
-    """What the profile says about the plot: how much is in it, how much grown."""
+    """What the profile says about the plot: how much of it has been found, and
+    how far everything in it has come.
+
+    The seeds found are the twelve, and the mustard tree is not one of them. It
+    was given rather than found, and a count it belonged to would read thirteen
+    and ask the question the game never answers. The levels are a sum across
+    everything in the ground, the mustard among them, because a sum has no
+    total to sit under and so no number to give away either.
+    """
     rows = db.execute(
         select(models.Planting.species, models.Planting.growth_mi).where(
             models.Planting.user_id == user_id
         )
     ).all()
+    found = held_species(db, user_id) - {species.FIRST_CHEST_SPECIES}
     return {
-        "planted": len(rows),
-        "mature": sum(
-            1
-            for species_id, growth_mi in rows
-            if level_for(species_id, growth_mi) >= species.MATURE_LEVEL
+        "seeds_found": len(found),
+        # The displayed level, so a plant at the top adds what it shows.
+        "plant_levels": sum(
+            level_for(species_id, growth_mi) for species_id, growth_mi in rows
         ),
     }

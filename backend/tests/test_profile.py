@@ -44,8 +44,8 @@ def test_a_fresh_profile_reports_the_whole_shape(signed_in, member):
     assert body["streak_weeks"] == 0
     assert body["week"] == {}
     assert body["lifetime"] == {}
-    # Nothing planted, and no total to fill: the plot is not a collection.
-    assert body["grove"] == {"planted": 0, "mature": 0}
+    # Nothing found and nothing growing: the plot is not a collection.
+    assert body["grove"] == {"seeds_found": 0, "plant_levels": 0}
     assert body["next_chest"] == {"tier": "5K", "tier_id": "5k", "miles_away": 3.1}
 
 
