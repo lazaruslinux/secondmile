@@ -7,7 +7,7 @@ the other keeps the hole.
 
 import io
 
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 from app.config import MAX_AVATAR_PIXELS, MAX_PHOTO_PIXELS
 
@@ -52,4 +52,10 @@ def decode(raw: bytes, max_pixels: int) -> Image.Image:
         image.load()
     except (OSError, ValueError, SyntaxError) as exc:
         raise RejectedImage("That file is not an image this server can read.") from exc
-    return image.convert("RGB")
+
+    # Turned upright here, before anybody crops or re-encodes. A phone writes
+    # the sensor's pixels and a tag saying which way up they go; every caller
+    # below strips metadata, so a picture left untransposed loses the tag and
+    # keeps the sideways pixels for good. Pillow's own helper rather than eight
+    # hand-written cases.
+    return ImageOps.exif_transpose(image).convert("RGB")

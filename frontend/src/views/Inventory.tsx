@@ -28,9 +28,9 @@ import {
   chestName,
   chestTierRarity,
   chestTierWord,
-  itemFramed,
   itemName,
   itemRarity,
+  itemTabLabel,
   personName,
   plantingName,
   rarityWord,
@@ -225,21 +225,12 @@ function StackArt({ stack }: { stack: Stack }) {
   )
 }
 
-// The picture in its frame. A chest is framed in the floor of its step and named
-// for the step; anything with a rarity of its own is framed and named by that;
-// water has neither and stays a plain square. Drawn the same in the grid and in
-// the modal, which is why the two sizing classes are handed in.
-function StackSquare({
-  stack,
-  frameClass,
-  plainClass,
-}: {
-  stack: Stack
-  frameClass: string
-  plainClass: string
-}) {
-  const first = stack.items[0]
-
+// The picture in its frame. Everything held is framed, so every square in a row
+// is the same height as the one beside it. Drawn the same in the grid and in the
+// modal, which is why the sizing class is handed in.
+function StackSquare({ stack, frameClass }: { stack: Stack; frameClass: string }) {
+  // A chest is coloured by the floor of its step and named for the step itself,
+  // neither of which the thing inside it can say yet.
   if (stack.kind === 'chest') {
     return (
       <RarityFrame
@@ -252,18 +243,16 @@ function StackSquare({
     )
   }
 
-  if (first !== undefined && (itemFramed(first) || first.species !== null)) {
-    return (
-      <RarityFrame rarity={itemRarity(first)} className={frameClass}>
-        <StackArt stack={stack} />
-      </RarityFrame>
-    )
-  }
+  const first = stack.items[0]
 
   return (
-    <span className={`item-square ${plainClass}`}>
+    <RarityFrame
+      rarity={first === undefined ? '' : itemRarity(first)}
+      label={first === undefined ? undefined : itemTabLabel(first)}
+      className={frameClass}
+    >
       <StackArt stack={stack} />
-    </span>
+    </RarityFrame>
   )
 }
 
@@ -280,7 +269,7 @@ function Square({ stack, onOpen }: { stack: Stack; onOpen: () => void }) {
         aria-label={`${stack.name}, ${count}`}
         onClick={onOpen}
       >
-        <StackSquare stack={stack} frameClass="inv-frame" plainClass="inv-plain" />
+        <StackSquare stack={stack} frameClass="inv-frame" />
       </button>
     </li>
   )
@@ -337,7 +326,7 @@ function ItemDialog({
 
         <div className="item-detail">
           <div className="item-shown">
-            <StackSquare stack={stack} frameClass="item-frame" plainClass="item-plain" />
+            <StackSquare stack={stack} frameClass="item-frame" />
             <p className="hint item-line">{describe(stack)}</p>
           </div>
 

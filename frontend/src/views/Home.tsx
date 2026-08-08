@@ -362,15 +362,10 @@ export default function Home({
               <span className="count-label">Plant levels</span>
             </li>
           </ul>
+          {/* The plot and the inventory are both on the Grove screen, so one
+              way in is the whole of what this card owes them. */}
           <button type="button" className="secondary" onClick={onOpenGrove}>
             Open grove
-          </button>
-
-          {/* The grid itself lives on the Grove screen and only there, so this
-              is the way to it rather than a second copy of it. */}
-          <h3 className="label home-grove-part">Inventory</h3>
-          <button type="button" className="secondary" onClick={onOpenGrove}>
-            Open inventory
           </button>
         </section>
       </aside>

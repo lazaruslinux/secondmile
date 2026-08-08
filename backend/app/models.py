@@ -475,6 +475,12 @@ class Planting(Base):
     growth_mi: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     # When it came to maturity, or null while it is still growing.
     matured_at: Mapped[dt.datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    # The level this stood at when the letter was last put down, which is what
+    # the next letter compares against. Written rather than worked out: growth
+    # comes from workouts and from poured water, and only the workouts leave a
+    # trail anything could subtract. Null on a plant that predates the column,
+    # and that plant says nothing until the next acknowledgement fills it in.
+    level_at_ack: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class Friendship(Base):

@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 from app import models, progress, security, species
 from app.config import WATER_POUR_MI
 from app.main import app as fastapi_app
-from conftest import give_planting, log_workout, make_user
+from conftest import give_item, give_planting, log_workout, make_user
 
 
 def sign_in(db_session, username: str) -> tuple[models.User, TestClient]:
@@ -39,21 +39,6 @@ def befriend(db_session, first: models.User, second: models.User) -> None:
         )
     )
     db_session.commit()
-
-
-def give_item(db_session, user_id: int, kind: str, species_id: str | None = None, rarity="common"):
-    row = models.SatchelItem(
-        user_id=user_id,
-        kind=kind,
-        species=species_id,
-        rarity=rarity,
-        chest_id=None,
-        acquired_at=security.now_utc(),
-        used_at=None,
-    )
-    db_session.add(row)
-    db_session.commit()
-    return row
 
 
 @pytest.fixture()

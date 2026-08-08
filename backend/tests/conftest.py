@@ -24,7 +24,7 @@ from sqlalchemy import create_engine, event  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
-from app import config, mail, models, security, species, throttle  # noqa: E402
+from app import config, grove, mail, models, security, species, throttle  # noqa: E402
 from app.db import Base, get_db  # noqa: E402
 from app.main import app as fastapi_app  # noqa: E402
 
@@ -234,6 +234,26 @@ def give_planting(db_session, user_id: int, species_id="strawberry", *, growth=0
         planted_at=security.now_utc() - dt.timedelta(days=days_ago),
         growth_mi=growth,
         matured_at=None,
+        # A plant that has been standing there a while, so whatever it has
+        # already grown is old news and only what a case does next is news.
+        level_at_ack=grove.level_for(species_id, growth),
+    )
+    db_session.add(row)
+    db_session.commit()
+    return row
+
+
+def give_item(db_session, user_id: int, kind: str, species_id: str | None = None, rarity="common"):
+    """One thing in the satchel, however it got there. Shared for the reason
+    the planting above is: the letter reads what water did to a plot too."""
+    row = models.SatchelItem(
+        user_id=user_id,
+        kind=kind,
+        species=species_id,
+        rarity=rarity,
+        chest_id=None,
+        acquired_at=security.now_utc(),
+        used_at=None,
     )
     db_session.add(row)
     db_session.commit()

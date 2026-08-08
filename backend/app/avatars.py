@@ -58,7 +58,9 @@ def encode(raw: bytes) -> bytes:
     """Turn uploaded bytes into the webp this server serves.
 
     Decoding IS the validation, and app/images.py is where that happens; what is
-    left here is the shape an avatar has to be.
+    left here is the shape an avatar has to be. The picture arrives from there
+    already turned upright, which the centred crop below depends on: the middle
+    of a sideways portrait is not the middle of the picture somebody framed.
     """
     square = _square(decode(raw, MAX_AVATAR_PIXELS))
     # Pasted onto a blank canvas: a converted image still carries its source's

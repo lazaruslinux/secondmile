@@ -151,6 +151,14 @@ export function plantingName(row: Planting | FriendPlanting): string {
   return speciesName(row.species, row.plant_name ?? row.name)
 }
 
+// The species on its own, for the tab under a seed's square. The name in the
+// hand already ends in the word seed and the square is plainly a seed, so the
+// word is dropped and what is left is the one thing the tab is there to say.
+export function seedSpecies(item: SatchelItem): string {
+  const shown = seedName(item)
+  return shown.replace(/\s*seeds?$/i, '').trim() || shown
+}
+
 const RARITY_NAMES: Record<Rarity, string> = {
   common: 'Common',
   uncommon: 'Uncommon',
@@ -184,19 +192,30 @@ export function rarityTier(rarity: Rarity | string): RarityTier {
 // the kind rather than off the row. Rows written before the tiers grew carry
 // older rarities and are not rewritten, and this is what makes an old oil and a
 // new one draw the same. A seed keeps the rarity it was rolled at.
-const KIND_RARITY: Record<string, Rarity> = {
+//
+// Water is the one thing held that has no rarity at all: its row carries
+// whichever slot it fell out of, which would colour one jar white and the next
+// one blue for no difference anybody can spend. The empty string is no rarity,
+// and the frame draws that in its plain white.
+const KIND_RARITY: Record<string, Rarity | ''> = {
+  water: '',
   wish: 'epic',
   oil: 'legendary',
 }
 
-export function itemRarity(item: SatchelItem): Rarity {
+export function itemRarity(item: SatchelItem): Rarity | string {
   return KIND_RARITY[item.kind] ?? item.rarity
 }
 
-// Whether a tool is drawn in a rarity frame at all. Water is the one thing in
-// the satchel with no rarity to name, and it stays a plain square.
-export function itemFramed(item: SatchelItem): boolean {
-  return KIND_RARITY[item.kind] !== undefined
+// What the tab under an item's square says. The colour is already the rarity,
+// so the tab is free to name the thing itself wherever the rarity alone cannot
+// tell two squares apart: twelve seeds are twelve species, and water has no
+// rarity to name in the first place. Everything else is one square of its own
+// and keeps the rarity word.
+export function itemTabLabel(item: SatchelItem): string | undefined {
+  if (item.kind === 'seed' && item.species) return seedSpecies(item)
+  if (item.kind === 'water') return KIND_NAMES.water
+  return undefined
 }
 
 // Oil is named for what it is, which is what was poured over a head before ever

@@ -127,7 +127,7 @@ def read_recap(
         "miles": round(miles, 2),
         "encouragement": _received(db, user.id, since),
         "medals": _fresh_medals(db, user.id, since),
-        "plant_growth": _plant_growth(db, user.id, since),
+        "plant_growth": _plant_growth(db, user.id),
         **_delivered(db, user.id),
         **_flourish(db, user.id, row, since),
     }
@@ -190,58 +190,36 @@ def _last_sync(db: Session, user_id: int) -> str | None:
     return stamp.isoformat() if stamp is not None else None
 
 
-def _plant_growth(db: Session, user_id: int, since: dt.datetime | None) -> list[dict]:
+def _plant_growth(db: Session, user_id: int) -> list[dict]:
     """The plants that put on at least a whole level since the letter was last
     cleared, in the shape the plot is read in, with the levels they gained.
 
-    Worked out by taking the growth back off again rather than by writing down
-    what a plant used to be, which is the same trick the flourish uses: every
-    workout that arrived since the acknowledgement is subtracted from what a
-    planting holds now, and the level it stood at before is read off the rest.
+    Read against the level written down when the letter was put down, rather
+    than worked out by taking this letter's growth back off again. Subtraction
+    could only ever see the workouts: nothing records which planting a water
+    item was poured into, so a level that water alone paid for went unsaid. A
+    number written at the time does not care where the growth came from, and
+    survives whatever the next release grows a plant with.
 
-    Water is the gap. Nothing records which planting a water item was poured
-    into, so growth that water paid for cannot be taken back off, and a level
-    that water alone carried is missed. Missing one is the quiet way to be
-    wrong: the alternative guesses, and a letter congratulating the wrong plant
-    is worse than a letter that says nothing.
+    A plant with nothing written down predates the column and says nothing.
+    That is the quiet side of being wrong: reading a missing number as zero
+    would congratulate somebody on every plant they have had for weeks. The
+    next acknowledgement writes it and the plant joins in from there.
+
+    Upward only, so a rebuild part way through emptying and replaying a plot
+    reads as no news rather than as growth running backwards.
     """
-    rows = list(
-        db.execute(
-            select(models.Planting)
-            .where(models.Planting.user_id == user_id)
-            .order_by(models.Planting.id)
-        ).scalars()
-    )
-    if not rows:
-        return []
-
-    stmt = select(
-        models.Workout.activity,
-        models.Workout.distance_mi,
-        models.Workout.created_at,
-        models.Workout.start_ts,
-    ).where(models.Workout.user_id == user_id)
-    if since is not None:
-        stmt = stmt.where(models.Workout.created_at > since)
-    # (when it landed, what it was worth to a plant), which is the same pair
-    # the growth was credited from in the first place.
-    arrivals = [
-        (
-            created_at or start_ts,
-            grove.growth_amount(converted_miles(activity, float(distance)), activity),
-        )
-        for activity, distance, created_at, start_ts in db.execute(stmt).all()
-    ]
-
     out = []
-    for row in rows:
-        # Only what was already in the ground when a workout landed grew from
-        # it, which is the rule grow() itself follows.
-        gained = sum(amount for moment, amount in arrivals if row.planted_at <= moment)
+    for row in db.execute(
+        select(models.Planting)
+        .where(models.Planting.user_id == user_id, models.Planting.level_at_ack.is_not(None))
+        .order_by(models.Planting.id)
+    ).scalars():
         level = grove.level_of(row)
-        before = grove.level_for(row.species, max(row.growth_mi - gained, 0.0))
-        if level > before:
-            out.append({**grove.serialize_planting(row), "levels_gained": level - before})
+        if level > row.level_at_ack:
+            out.append(
+                {**grove.serialize_planting(row), "levels_gained": level - row.level_at_ack}
+            )
     return out
 
 
@@ -354,9 +332,19 @@ def ack_recap(
     db: Session = Depends(get_db),
     user: models.User = Depends(security.current_user),
 ) -> Response:
-    """Mark the recap read. Chests are not touched: they wait to be opened."""
+    """Mark the recap read. Chests are not touched: they wait to be opened.
+
+    Where every plant stood is written down here too, because this is the one
+    moment the answer is known for certain: whatever the letter just said, from
+    now on it has been said. The next letter compares against these numbers
+    instead of trying to work out where the growth came from.
+    """
     row = progress.ensure_progress(db, user.id)
     row.last_ack_at = security.now_utc()
+    for planting in db.execute(
+        select(models.Planting).where(models.Planting.user_id == user.id)
+    ).scalars():
+        planting.level_at_ack = grove.level_of(planting)
     db.commit()
     response.status_code = status.HTTP_204_NO_CONTENT
     return response

@@ -3,7 +3,7 @@
 import datetime as dt
 import random
 
-from conftest import give_planting, log_workout, neutral_start
+from conftest import give_item, give_planting, log_workout, neutral_start
 
 from app import models, progress, security, species
 from app.config import CHEST_LADDER, CHEST_TIER_FLOOR
@@ -636,9 +636,44 @@ def test_a_plant_that_only_grew_a_little_says_nothing(signed_in, db_session, mem
     assert signed_in.get("/api/recap").json()["plant_growth"] == []
 
 
+def test_a_level_water_alone_paid_for_is_in_the_letter(signed_in, db_session, member):
+    """Nothing records which planting a water item went into, so this is the
+    case the old subtraction could not see: five Miles short of a level, and the
+    ten a watering can is worth carries it over."""
+    planting = give_planting(db_session, member.id, "strawberry", growth=10.0)
+    item = give_item(db_session, member.id, "water")
+    poured = signed_in.post(
+        f"/api/satchel/{item.id}/pour", json={"planting_id": planting.id}
+    )
+    assert poured.status_code == 200, poured.text
+
+    grown = signed_in.get("/api/recap").json()["plant_growth"]
+    assert [(row["species"], row["level"], row["levels_gained"]) for row in grown] == [
+        ("strawberry", 1, 1)
+    ]
+
+
+def test_a_plant_with_no_recorded_level_says_nothing(signed_in, db_session, member):
+    """A plant that predates the column. Silence rather than announcing a level
+    it reached weeks ago, and it joins in once an acknowledgement writes the
+    number down."""
+    planting = give_planting(db_session, member.id, "strawberry", growth=40.0)
+    planting.level_at_ack = None
+    db_session.commit()
+    log_workout(signed_in, "run", 16.0, pace_min=9)
+    assert signed_in.get("/api/recap").json()["plant_growth"] == []
+
+    assert signed_in.post("/api/recap/ack").status_code == 204
+    db_session.refresh(planting)
+    assert planting.level_at_ack == 3
+    log_workout(signed_in, "run", 16.0, pace_min=9, offset_min=300)
+    grown = signed_in.get("/api/recap").json()["plant_growth"]
+    assert [(row["level"], row["levels_gained"]) for row in grown] == [(4, 1)]
+
+
 def test_a_level_already_announced_is_not_announced_again(signed_in, db_session, member):
-    """The level a plant stood at before is worked out by taking this letter's
-    miles back off again, so acknowledging one really does clear it."""
+    """Acknowledging the letter writes down where every plant stood, so the
+    next one really does start from there."""
     give_planting(db_session, member.id, "strawberry")
     log_workout(signed_in, "run", 16.0, pace_min=9, offset_min=0)
     assert len(signed_in.get("/api/recap").json()["plant_growth"]) == 1

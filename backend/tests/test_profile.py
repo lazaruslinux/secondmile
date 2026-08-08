@@ -119,6 +119,45 @@ def test_uploading_an_avatar_re_encodes_it_to_a_square_webp(
     assert profile["avatar_version"] == body["avatar_version"]
 
 
+def sideways_portrait_bytes() -> bytes:
+    """A portrait photo the way a phone writes one: a landscape frame of pixels
+    plus the tag that says to stand it up. Red at the top of the picture the
+    person framed, blue at the bottom.
+
+    Orientation 6 is turned back by a quarter anticlockwise, so the pixels are
+    stored a quarter clockwise from upright. Built here rather than committed as
+    a binary, which nobody could read to check what it claims.
+    """
+    upright = Image.new("RGB", (400, 600), (20, 20, 220))
+    upright.paste((220, 20, 20), (0, 0, 400, 300))
+    exif = Image.Exif()
+    exif[0x0112] = 6
+    out = io.BytesIO()
+    upright.transpose(Image.ROTATE_90).save(out, format="JPEG", exif=exif, quality=95)
+    return out.getvalue()
+
+
+def test_a_photo_with_an_orientation_tag_is_stored_the_right_way_up(
+    signed_in, member, avatar_dir
+):
+    """The tag does not survive the strip, so the pixels have to be turned
+    before it goes: an avatar stored sideways is sideways forever."""
+    assert upload(signed_in, sideways_portrait_bytes(), "me.jpg", "image/jpeg").status_code == 200
+
+    with Image.open(avatar_dir / f"{member.id}.webp") as written:
+        # Sampled off the centre line: sideways, the split runs down the middle
+        # of the frame, and a sample sitting on it proves nothing either way.
+        top = written.getpixel((180, 40))
+        bottom = written.getpixel((180, 470))
+        # Red above blue, which is only true of the upright picture. Compared
+        # channel against channel rather than to exact values: this has been
+        # through a JPEG and a webp.
+        assert top[0] > top[2], top
+        assert bottom[2] > bottom[0], bottom
+        # Turning it upright must not smuggle the metadata back in with it.
+        assert not written.info.get("exif")
+
+
 def test_an_uploaded_avatar_can_be_fetched_and_deleted(signed_in, member, avatar_dir):
     upload(signed_in, image_bytes())
     served = signed_in.get(f"/api/profile/avatar/{member.id}")

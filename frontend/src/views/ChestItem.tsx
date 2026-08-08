@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { errorText, plantSeed, type SatchelItem } from '../api.ts'
 import { itemArt } from '../art.ts'
-import { itemFramed, itemName, itemRarity } from '../labels.ts'
+import { itemName, itemRarity, itemTabLabel } from '../labels.ts'
 import PlantArt from './PlantArt.tsx'
 import RarityFrame from './RarityFrame.tsx'
 
@@ -51,15 +51,14 @@ export default function ChestItem({ item, onPlanted }: Props) {
   const seedLine = 'Plant it and it grows with your miles.'
   const art = seed ? null : itemArt(item.kind)
   const line = KIND_LINES[item.kind] ?? ''
-  // Oil and a wish carry a rarity and are framed in it; water carries none.
-  const framed = itemFramed(item)
 
-  // The picture of a tool is what is pressed to find out what it is for. Framed
-  // or not, it is the same button; the frame only changes what is around it.
+  // The picture of a tool is what is pressed to find out what it is for. The
+  // square around it and its border belong to the frame, so the button is only
+  // the picture.
   const picture = art && (
     <button
       type="button"
-      className={framed ? 'item-art-button' : 'item-square item-square-button'}
+      className="item-art-button"
       aria-expanded={telling}
       aria-label={`What ${itemName(item)} is for`}
       onClick={() => setTelling((shown) => !shown)}
@@ -71,7 +70,7 @@ export default function ChestItem({ item, onPlanted }: Props) {
   return (
     <div className="item-reveal">
       {/* A seed is drawn as what it grows into, framed in its rarity. A tool is
-          drawn as itself, framed only where it has a rarity to name. */}
+          drawn as itself, in a frame of its own. */}
       {seed && item.species !== null && (
         <RarityFrame rarity={item.rarity} className="item-frame">
           <PlantArt
@@ -83,14 +82,14 @@ export default function ChestItem({ item, onPlanted }: Props) {
         </RarityFrame>
       )}
 
-      {framed ? (
-        picture && (
-          <RarityFrame rarity={itemRarity(item)} className="item-frame">
-            {picture}
-          </RarityFrame>
-        )
-      ) : (
-        picture
+      {picture && (
+        <RarityFrame
+          rarity={itemRarity(item)}
+          label={itemTabLabel(item)}
+          className="item-frame"
+        >
+          {picture}
+        </RarityFrame>
       )}
 
       <div className="item-body">

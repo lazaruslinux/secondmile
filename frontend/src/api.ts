@@ -707,9 +707,12 @@ export async function setDiamondSports(sports: Activity[] | null): Promise<Profi
 
 // One part, named "file", and nothing else in the form. The browser writes the
 // Content-Type with its own boundary, which is why none is set here.
-export async function uploadAvatar(file: File): Promise<AvatarState> {
+export async function uploadAvatar(picture: Blob): Promise<AvatarState> {
   const body = new FormData()
-  body.append('file', file)
+  // Named here rather than taken from whatever was chosen: the picture sent is
+  // one this app made, the server derives the stored path from the account, and
+  // a filename off somebody's phone has no business in either.
+  body.append('file', picture, 'avatar.jpg')
   const res = await send('/profile/avatar', { method: 'POST', body })
   return (await res.json()) as AvatarState
 }

@@ -9,6 +9,7 @@ import {
 } from '../api.ts'
 import { GENDERS } from '../labels.ts'
 import { ageOf } from '../profile.ts'
+import AvatarCrop from './AvatarCrop.tsx'
 
 // What the server accepts, checked here as well so an oversized picture is
 // answered at once instead of after a whole upload.
@@ -36,8 +37,8 @@ function orNull(value: string): string | null {
 
 interface Props {
   profile: ProfileData
-  // The picture is saved the moment it is chosen, so the screen behind this is
-  // told about it separately from the rest of the form.
+  // The picture is saved as soon as it has been framed, so the screen behind
+  // this is told about it separately from the rest of the form.
   onAvatarChanged: (hasAvatar: boolean, version: number | null) => void
   onSaved: (profile: ProfileData) => void
   onClose: () => void
@@ -60,6 +61,9 @@ export default function EditProfile({ profile, onAvatarChanged, onSaved, onClose
   const [avatarBusy, setAvatarBusy] = useState<'' | 'upload' | 'remove'>('')
   const [avatarError, setAvatarError] = useState('')
   const [hasAvatar, setHasAvatar] = useState(profile.has_avatar)
+  // A chosen picture waiting to be framed. Nothing is uploaded until the square
+  // is settled, because the square is what the account becomes.
+  const [chosen, setChosen] = useState<File | null>(null)
 
   // Opened as a modal rather than with the open attribute, because only the
   // modal form brings the focus trap, the page behind held still, and Esc.
@@ -67,22 +71,32 @@ export default function EditProfile({ profile, onAvatarChanged, onSaved, onClose
     dialog.current?.showModal()
   }, [])
 
-  async function pickAvatar(event: ChangeEvent<HTMLInputElement>) {
+  function pickAvatar(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
     // Cleared either way, so choosing the same file twice still counts as a
     // change and the picker does not sit there naming a spent upload.
     event.target.value = ''
     if (!file) return
+    // The framed square is a fraction of this, but a picture too large to send
+    // is answered now rather than after it has been read and drawn.
     if (file.size > MAX_AVATAR_BYTES) {
       setAvatarError(TOO_LARGE)
       return
     }
+    setAvatarError('')
+    setChosen(file)
+  }
+
+  // What the framing step hands back: a square of exactly what was inside the
+  // frame, which is what the account is given.
+  async function uploadFramed(framed: Blob) {
     setAvatarBusy('upload')
     setAvatarError('')
     try {
-      const state = await uploadAvatar(file)
+      const state = await uploadAvatar(framed)
       setHasAvatar(state.has_avatar)
       onAvatarChanged(state.has_avatar, state.avatar_version)
+      setChosen(null)
     } catch (err) {
       setAvatarError(uploadErrorText(err))
     } finally {
@@ -130,138 +144,155 @@ export default function EditProfile({ profile, onAvatarChanged, onSaved, onClose
   const age = ageOf({ ...profile, age: null, birthdate })
 
   return (
-    <dialog
-      className="overlay"
-      ref={dialog}
-      aria-labelledby="edit-title"
-      onCancel={(event) => {
-        // Esc. Closing is the caller's business, so the browser's own close is
-        // left undone and the caller takes this off the screen.
-        event.preventDefault()
-        onClose()
-      }}
-    >
-      <section className="overlay-panel">
-        <header className="overlay-head">
-          <h2 id="edit-title">Edit profile</h2>
-          <p className="hint">
-            All of this is optional. Your username is what you sign in with and does not
-            change here.
-          </p>
-        </header>
-
-        <form className="edit-form" onSubmit={save}>
-          {/* The picture saves itself the moment one is chosen, which is why it
-              sits above the fields rather than inside what Save sends. */}
-          <div className="edit-avatar">
-            <label className="file-field">
-              Profile picture
-              <input
-                type="file"
-                accept="image/*"
-                disabled={avatarBusy !== ''}
-                onChange={pickAvatar}
-              />
-            </label>
-            {hasAvatar && (
-              <button
-                type="button"
-                className="secondary"
-                disabled={avatarBusy !== ''}
-                onClick={() => void removeAvatar()}
-              >
-                Remove picture
-              </button>
-            )}
-            {avatarBusy === 'upload' && (
-              <p className="hint" role="status">
-                Uploading.
-              </p>
-            )}
-            {avatarBusy === 'remove' && (
-              <p className="hint" role="status">
-                Removing.
-              </p>
-            )}
-            {avatarError && (
-              <p className="error" role="alert">
-                {avatarError}
-              </p>
-            )}
-          </div>
-
-          <div className="field-row">
-            <label>
-              First name
-              <input
-                type="text"
-                value={firstName}
-                maxLength={40}
-                autoComplete="given-name"
-                onChange={(event) => setFirstName(event.target.value)}
-              />
-            </label>
-            <label>
-              Last name
-              <input
-                type="text"
-                value={lastName}
-                maxLength={40}
-                autoComplete="family-name"
-                onChange={(event) => setLastName(event.target.value)}
-              />
-            </label>
-          </div>
-          <p className="hint">
-            Shown as your name on your profile and on your workouts. Leave both empty to go
-            by your username.
-          </p>
-
-          <label>
-            Birthdate
-            <input
-              type="date"
-              value={birthdate}
-              onChange={(event) => setBirthdate(event.target.value)}
-            />
-          </label>
-          {age !== null && <p className="hint edit-age">Age {age}, from your birthdate.</p>}
-
-          <label>
-            Gender
-            {/* The placeholder row is disabled, so an account that has never set
-                one shows "Select" and a chosen answer cannot be emptied again. */}
-            <select value={gender} onChange={(event) => setGender(event.target.value)}>
-              <option value="" disabled>
-                Select
-              </option>
-              {GENDERS.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <p className="hint">
-            Your birthdate and gender are shown to you only. Nobody else sees them.
-          </p>
-
-          {saveError && (
-            <p className="error" role="alert">
-              {saveError}
+    <>
+      <dialog
+        className="overlay"
+        ref={dialog}
+        aria-labelledby="edit-title"
+        onCancel={(event) => {
+          // Esc. Closing is the caller's business, so the browser's own close is
+          // left undone and the caller takes this off the screen.
+          event.preventDefault()
+          onClose()
+        }}
+      >
+        <section className="overlay-panel">
+          <header className="overlay-head">
+            <h2 id="edit-title">Edit profile</h2>
+            <p className="hint">
+              All of this is optional. Your username is what you sign in with and does not
+              change here.
             </p>
-          )}
+          </header>
 
-          <div className="choice">
-            <button type="submit" className="primary" disabled={saving}>
-              Save
-            </button>
-            <button type="button" className="secondary" onClick={onClose}>
-              Cancel
-            </button>
-          </div>
-        </form>
-      </section>
-    </dialog>
+          <form className="edit-form" onSubmit={save}>
+            {/* The picture saves itself once it has been framed, which is why it
+                sits above the fields rather than inside what Save sends. */}
+            <div className="edit-avatar">
+              <label className="file-field">
+                Profile picture
+                <input
+                  type="file"
+                  accept="image/*"
+                  disabled={avatarBusy !== ''}
+                  onChange={pickAvatar}
+                />
+              </label>
+              {hasAvatar && (
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={avatarBusy !== ''}
+                  onClick={() => void removeAvatar()}
+                >
+                  Remove picture
+                </button>
+              )}
+              {avatarBusy === 'upload' && (
+                <p className="hint" role="status">
+                  Uploading.
+                </p>
+              )}
+              {avatarBusy === 'remove' && (
+                <p className="hint" role="status">
+                  Removing.
+                </p>
+              )}
+              {avatarError && (
+                <p className="error" role="alert">
+                  {avatarError}
+                </p>
+              )}
+            </div>
+
+            <div className="field-row">
+              <label>
+                First name
+                <input
+                  type="text"
+                  value={firstName}
+                  maxLength={40}
+                  autoComplete="given-name"
+                  onChange={(event) => setFirstName(event.target.value)}
+                />
+              </label>
+              <label>
+                Last name
+                <input
+                  type="text"
+                  value={lastName}
+                  maxLength={40}
+                  autoComplete="family-name"
+                  onChange={(event) => setLastName(event.target.value)}
+                />
+              </label>
+            </div>
+            <p className="hint">
+              Shown as your name on your profile and on your workouts. Leave both empty to go
+              by your username.
+            </p>
+
+            <label>
+              Birthdate
+              <input
+                type="date"
+                value={birthdate}
+                onChange={(event) => setBirthdate(event.target.value)}
+              />
+            </label>
+            {age !== null && <p className="hint edit-age">Age {age}, from your birthdate.</p>}
+
+            <label>
+              Gender
+              {/* The placeholder row is disabled, so an account that has never set
+                  one shows "Select" and a chosen answer cannot be emptied again. */}
+              <select value={gender} onChange={(event) => setGender(event.target.value)}>
+                <option value="" disabled>
+                  Select
+                </option>
+                {GENDERS.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="hint">
+              Your birthdate and gender are shown to you only. Nobody else sees them.
+            </p>
+
+            {saveError && (
+              <p className="error" role="alert">
+                {saveError}
+              </p>
+            )}
+
+            <div className="choice">
+              <button type="submit" className="primary" disabled={saving}>
+                Save
+              </button>
+              <button type="button" className="secondary" onClick={onClose}>
+                Cancel
+              </button>
+            </div>
+          </form>
+        </section>
+      </dialog>
+
+      {/* Chosen, not yet sent: the square is settled here first, so what is
+          framed is what the picture becomes everywhere. */}
+      {chosen !== null && (
+        <AvatarCrop
+          file={chosen}
+          busy={avatarBusy === 'upload'}
+          error={avatarError}
+          onUse={(framed) => void uploadFramed(framed)}
+          onCancel={() => {
+            setChosen(null)
+            setAvatarError('')
+          }}
+        />
+      )}
+    </>
   )
 }

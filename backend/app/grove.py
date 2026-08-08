@@ -79,8 +79,7 @@ def stage(row: models.Planting) -> int:
 
 def growth_amount(miles: float, activity: str) -> float:
     """What one workout's converted Miles are worth to a planting, swimming's
-    extra water included. One definition of it, because the recap has to take
-    the very same number back off again to say what a plant used to be."""
+    extra water included."""
     return miles * (1.0 + SWIM_GROWTH_BONUS) if activity == "swim" else miles
 
 
@@ -149,6 +148,10 @@ def plant(
         planted_at=moment,
         growth_mi=0.0,
         matured_at=None,
+        # Bare ground is level zero, and writing it down now is what lets the
+        # letter announce the first level a new plant reaches without waiting
+        # for an acknowledgement to record where it started.
+        level_at_ack=0,
     )
     item.used_at = moment
     db.add(row)

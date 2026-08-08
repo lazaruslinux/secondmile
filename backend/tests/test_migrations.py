@@ -194,6 +194,26 @@ def test_the_plot_cleanup_turns_the_spare_seeds_into_water(at_0012):
         assert len(rows) == 7
 
 
+def test_the_recorded_level_arrives_empty_on_the_plants_already_growing(at_0012):
+    """0014 is purely additive, and deliberately backfills nothing: a plant
+    that predates it has no recorded level, which is what keeps the first
+    letter after the release quiet about plants somebody has had for weeks."""
+    engine, upgrade = at_0012
+    with engine.connect() as connection:
+        _account(connection, 1, "runner")
+        _planting(connection, 1, 1, "strawberry", "2026-01-01 00:00:00", 40.0)
+        connection.commit()
+
+    upgrade()
+
+    with engine.connect() as connection:
+        columns = {row[1] for row in connection.execute(sa.text("PRAGMA table_info(plantings)"))}
+        assert "level_at_ack" in columns
+        assert connection.execute(
+            sa.text("SELECT growth_mi, level_at_ack FROM plantings")
+        ).all() == [(40.0, None)]
+
+
 def test_the_plot_cleanup_leaves_a_tidy_plot_alone(at_0012):
     engine, upgrade = at_0012
     with engine.connect() as connection:

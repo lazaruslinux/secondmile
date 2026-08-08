@@ -2429,8 +2429,8 @@ button:disabled {
 }
 
 /* In a chest reveal the picture of a tool is what is pressed to find out what
-   it is for. Framed, the button is only the picture: the square around it and
-   its border belong to the frame. */
+   it is for. The button is only the picture: the square around it and its
+   border belong to the frame. */
 .item-art-button {
   display: block;
   width: 100%;
@@ -2443,41 +2443,10 @@ button:disabled {
   border-radius: 0;
 }
 
-/* Water is drawn in a plain square: it is the one thing in the satchel with no
-   rarity to name. In a chest reveal that square is itself the button. */
-.item-square {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  width: 5rem;
-  height: 5rem;
-  padding: 2px;
-  background: #17171b;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-}
-
-.item-square img {
-  width: 100%;
-  height: 100%;
-}
-
-.item-square-button {
-  min-height: 0;
-  color: inherit;
-}
-
 /* The line under the grid, which is the only place the app says what oil does
    before you spend it. */
 .inv-explainer {
   margin: 0.6rem 0 0;
-}
-
-/* Home's way to the grid, under its own heading in the card the grove already
-   has, so the two sit apart rather than reading as one pair of buttons. */
-.home-grove-part {
-  margin: 1rem 0 0.4rem;
 }
 
 /* The grid itself: four squares across at every width, growing downward as
@@ -2543,13 +2512,6 @@ button:disabled {
   height: 100%;
 }
 
-/* Water and the chests have no rarity to name, so they keep the plain square
-   the satchel drew water in. It fills the cell here rather than being 5rem. */
-.inv-plain {
-  width: 100%;
-  height: auto;
-}
-
 /* The count, in the corner of the picture where every inventory has ever put
    it. One of a thing carries no number: the square itself is the one. */
 .inv-count {
@@ -2563,11 +2525,17 @@ button:disabled {
   text-shadow: 0 0 3px #000000, 0 1px 2px #000000;
 }
 
-/* The rarity tab has to carry LEGENDARY across a quarter of a phone. */
+/* The tab has to carry POMEGRANATE across a quarter of a phone. It stays one
+   line whatever it says, because a tab that wrapped would make its own square
+   taller than the three beside it, and the last letters are worth less than the
+   row staying straight. */
 .inv-cell .rarity-tab {
   padding: 0.1rem 0.1rem;
   font-size: 9px;
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* What came out of a chest, read where the chest was opened. */
@@ -2600,13 +2568,6 @@ button:disabled {
 
 .item-shown .item-line {
   margin: 0;
-}
-
-/* Water has no rarity to name, so it keeps its plain square here and the
-   picture fills it, the way a frame fills one. */
-.item-plain .inv-art {
-  width: 100%;
-  height: 100%;
 }
 
 /* The verbs, as the app's own buttons and full width, because the whole reason
@@ -2675,6 +2636,54 @@ button:disabled {
 .edit-avatar .hint,
 .edit-avatar .error {
   margin: 0;
+}
+
+/* Framing a picture before it is sent. The canvas is the frame: what it draws
+   is the rectangle of the photograph that leaves, so there is no dimmed
+   surround and nothing outside the square to mislead anybody. The corner is the
+   3px the avatar itself is drawn with, so the preview is the thing. */
+.crop-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem 1rem;
+  overflow-y: auto;
+}
+
+.crop-view {
+  display: block;
+  width: 100%;
+  max-width: 18rem;
+  height: auto;
+  aspect-ratio: 1;
+  margin: 0 auto;
+  background: #17171b;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  cursor: move;
+  /* The picture takes the drag; the page underneath must not also take it. */
+  touch-action: none;
+}
+
+/* A zoom that works without a wheel or a second finger, and the only part of
+   this a keyboard can reach. */
+.crop-zoom {
+  display: flex;
+  /* Beside the slider rather than above it: the form labels elsewhere stack,
+     and a line of caption is a line of picture on a phone. */
+  flex-direction: row;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0 auto;
+  width: 100%;
+  max-width: 18rem;
+}
+
+.crop-zoom input {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--accent);
 }
 
 /* Worked out from the box above it, and it belongs to that box. */
