@@ -65,6 +65,12 @@ export function gildArt(): string | null {
   return grove.get('gild') ?? null
 }
 
+// The two things in the satchel that are not a plant. Each reads one file named
+// after its kind, water.svg and oil.svg, and a kind with no file draws nothing.
+export function itemArt(kind: string): string | null {
+  return grove.get(kind) ?? null
+}
+
 export function borderArt(tier: number): string | null {
   return borders.get(`border-t${tier}`) ?? null
 }

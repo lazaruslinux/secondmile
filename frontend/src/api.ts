@@ -259,9 +259,11 @@ export interface Profile {
   // way the weekly totals behave.
   week: Partial<Record<Activity, ActivityStats>>
   lifetime: Partial<Record<Activity, ActivityStats>>
-  // How much is in the plot. Optional so the app still renders against a server
-  // that predates the grove.
-  grove?: { planted: number; mature: number }
+  // What the plot has come to. seeds_found counts the distinct species owned,
+  // out of the twelve a chest can hold; plant_levels is every level on every
+  // plant added up. Optional so the app still renders against a server that
+  // predates the grove.
+  grove?: { seeds_found: number; plant_levels: number }
   // The next chest and how far off it is, if the server says. Both shapes a
   // server might reasonably use are allowed for, and the line is left out
   // entirely when neither is there.

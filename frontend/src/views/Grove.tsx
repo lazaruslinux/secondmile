@@ -14,11 +14,13 @@ import {
   type Planting,
   type SatchelItem,
 } from '../api.ts'
+import { itemArt } from '../art.ts'
 import { convertedValue } from '../format.ts'
 import { levelProgress, plantStage } from '../grove.ts'
-import { itemName, personName, plantingName, rarityWord } from '../labels.ts'
+import { itemName, personName, plantingName } from '../labels.ts'
 import Chooser, { type Choice } from './Chooser.tsx'
 import PlantArt from './PlantArt.tsx'
+import RarityFrame from './RarityFrame.tsx'
 
 // The satchel is grouped in the order things are used: sown, watered, given.
 const KIND_ORDER: ItemKind[] = ['seed', 'water', 'oil']
@@ -246,13 +248,15 @@ export default function Grove({ userId }: Props) {
               const line = growthLine(row)
               return (
                 <li key={row.id} className="plant">
-                  <PlantArt
-                    species={row.species}
-                    name={plantingName(row)}
-                    stage={plantStage(row)}
-                    gilded={row.gilded}
-                    className="plant-picture"
-                  />
+                  <RarityFrame rarity={row.rarity} className="plant-frame">
+                    <PlantArt
+                      species={row.species}
+                      name={plantingName(row)}
+                      stage={plantStage(row)}
+                      gilded={row.gilded}
+                      className="plant-picture"
+                    />
+                  </RarityFrame>
                   <p className="plant-name">{plantingName(row)}</p>
                   {/* A progress element rather than a div with a width on it:
                       the content security policy allows no inline styles, and
@@ -297,36 +301,42 @@ export default function Grove({ userId }: Props) {
             <div key={kind} className="satchel-group">
               <h3 className="label">{GROUP_TITLES[kind]}</h3>
               <ul className="satchel-list">
-                {held.map((item) => (
-                  <li key={item.id} className="satchel-row">
-                    {/* A seed is drawn as what it grows into. Water and oil
-                        have nothing to draw, so nothing is drawn for them. */}
-                    {item.kind === 'seed' && item.species !== null && (
-                      <PlantArt
-                        species={item.species}
-                        name={itemName(item)}
-                        stage={1}
-                        className="satchel-thumb"
-                      />
-                    )}
-                    <span className="satchel-name">
-                      {itemName(item)}
-                      {rarityWord(item.rarity) !== '' && item.kind === 'seed' && (
-                        <span className="muted"> {rarityWord(item.rarity)}</span>
+                {held.map((item) => {
+                  // A seed is drawn as what it grows into, framed in its
+                  // rarity, which is where the rarity is said. Water and oil
+                  // are drawn as themselves and have no rarity to say.
+                  const art = item.kind === 'seed' ? null : itemArt(item.kind)
+                  return (
+                    <li key={item.id} className="satchel-row">
+                      {item.kind === 'seed' && item.species !== null && (
+                        <RarityFrame rarity={item.rarity} className="satchel-frame">
+                          <PlantArt
+                            species={item.species}
+                            name={itemName(item)}
+                            stage={1}
+                            className="satchel-thumb"
+                          />
+                        </RarityFrame>
                       )}
-                    </span>
-                    <button
-                      type="button"
-                      className="secondary"
-                      disabled={busyId === item.id}
-                      onClick={() =>
-                        item.kind === 'seed' ? void plant(item) : void startChoosing(item)
-                      }
-                    >
-                      {VERBS[item.kind]}
-                    </button>
-                  </li>
-                ))}
+                      {art && (
+                        <span className="item-square">
+                          <img src={art} alt="" />
+                        </span>
+                      )}
+                      <span className="satchel-name">{itemName(item)}</span>
+                      <button
+                        type="button"
+                        className="secondary"
+                        disabled={busyId === item.id}
+                        onClick={() =>
+                          item.kind === 'seed' ? void plant(item) : void startChoosing(item)
+                        }
+                      >
+                        {VERBS[item.kind]}
+                      </button>
+                    </li>
+                  )
+                })}
               </ul>
             </div>
           )
@@ -336,7 +346,7 @@ export default function Grove({ userId }: Props) {
       {choosing?.kind === 'water' && (
         <Chooser
           title="Pour it onto"
-          hint="Ten miles of growth, into one planting. Yours or a friend's."
+          hint="Ten miles of growth, into one plant. Yours or a friend's."
           choices={plantingChoices}
           empty="Nothing is growing yet, here or in a friend's plot."
           busy={busyId !== null}

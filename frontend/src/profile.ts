@@ -2,11 +2,12 @@
 // form of the You screen in its side column, so the rules for what appears there
 // are written once here rather than twice in the views.
 
-import type { Activity, Medal, Profile } from './api.ts'
-import { ACTIVITY_ORDER, chestName } from './labels.ts'
+import type { Medal, Profile } from './api.ts'
+import { chestName } from './labels.ts'
 
-// How many sports get a diamond. The server enforces the same number.
-export const MAX_DIAMONDS = 3
+// How many seeds there are to find. The species outside the catalogue is not
+// counted, on the server or here, so this never reads as one more than twelve.
+export const SEEDS_TO_FIND = 12
 
 // One star for every fifty earnings of the same medal, and never more than
 // thirty three of them. Nothing about the stars comes from the server: they are
@@ -45,19 +46,6 @@ export function ageOf(profile: Profile): number | null {
   const month = now.getMonth() - date.getMonth()
   if (month < 0 || (month === 0 && now.getDate() < date.getDate())) years -= 1
   return years >= 0 && years < 150 ? years : null
-}
-
-// Which sports get a diamond. The server sends the effective list; a server that
-// predates the field leaves the same choice to be made here, which is the three
-// sports with the most lifetime distance behind them.
-export function diamondsOf(profile: Profile): Activity[] {
-  if (profile.diamond_sports) return profile.diamond_sports.slice(0, MAX_DIAMONDS)
-  return ACTIVITY_ORDER.filter((name) => (profile.lifetime[name]?.distance_mi ?? 0) > 0)
-    .sort(
-      (left, right) =>
-        (profile.lifetime[right]?.distance_mi ?? 0) - (profile.lifetime[left]?.distance_mi ?? 0),
-    )
-    .slice(0, MAX_DIAMONDS)
 }
 
 // How many times each medal has been earned, by medal id. A server that

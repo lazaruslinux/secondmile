@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" fill="none">
+  <!-- Placeholder water: a watering can, poured onto one plant. Swap this file
+       for real artwork; nothing in the code names the shapes inside it. -->
+  <path d="M22 21c2-10 14-10 16 0" stroke="#8fb3c4" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+  <path d="M43 33 54 24" stroke="#8fb3c4" stroke-width="4" stroke-linecap="round"/>
+  <path d="M49.5 18.5 58.5 29.5" stroke="#8fb3c4" stroke-width="4" stroke-linecap="round"/>
+  <path d="M17 26h26v20c0 4-3 7-7 7H24c-4 0-7-3-7-7z" fill="#3d5a68" stroke="#8fb3c4" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M14 21h32v6H14z" fill="#4a6a7a" stroke="#8fb3c4" stroke-width="2" stroke-linejoin="round"/>
+  <g fill="#6fb6d9">
+    <circle cx="55" cy="34" r="2"/>
+    <circle cx="59" cy="41" r="1.6"/>
+    <circle cx="51" cy="42" r="1.4"/>
+  </g>
+</svg>

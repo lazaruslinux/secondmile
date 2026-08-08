@@ -6,7 +6,6 @@ import {
   listChests,
   listGrove,
   openChest,
-  setDiamondSports,
   setDisplayedBadges,
   type ActivityStats,
   type Activity,
@@ -34,11 +33,10 @@ import {
 } from '../labels.ts'
 import {
   ageOf,
-  diamondsOf,
   displayNameOf,
-  MAX_DIAMONDS,
   medalCountsOf,
   nextChestLine,
+  SEEDS_TO_FIND,
 } from '../profile.ts'
 import AvatarFrame from './AvatarFrame.tsx'
 import ChestItem from './ChestItem.tsx'
@@ -156,11 +154,6 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
   const [badgeBusy, setBadgeBusy] = useState(false)
   const [badgeError, setBadgeError] = useState('')
 
-  const [pickingSports, setPickingSports] = useState(false)
-  const [chosenSports, setChosenSports] = useState<Activity[]>([])
-  const [sportsBusy, setSportsBusy] = useState(false)
-  const [sportsError, setSportsError] = useState('')
-
   const [opened, setOpened] = useState<SatchelItem[]>([])
   const [openingChest, setOpeningChest] = useState<number | null>(null)
   const [chestError, setChestError] = useState('')
@@ -230,37 +223,6 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
     }
   }
 
-  function startPickingSports() {
-    setChosenSports(profile ? diamondsOf(profile) : [])
-    setSportsError('')
-    setPickingSports(true)
-  }
-
-  function toggleSport(name: Activity) {
-    setChosenSports((current) =>
-      current.includes(name)
-        ? current.filter((held) => held !== name)
-        : current.length >= MAX_DIAMONDS
-          ? current
-          : [...current, name],
-    )
-  }
-
-  async function saveSports() {
-    setSportsBusy(true)
-    setSportsError('')
-    try {
-      // Choosing nothing is a reset rather than an instruction to show nothing,
-      // which is what the server reads a null as.
-      setProfile(await setDiamondSports(chosenSports.length === 0 ? null : chosenSports))
-      setPickingSports(false)
-    } catch (err) {
-      setSportsError(errorText(err))
-    } finally {
-      setSportsBusy(false)
-    }
-  }
-
   async function open(chestId: number) {
     setOpeningChest(chestId)
     setChestError('')
@@ -288,7 +250,6 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
   }
 
   const nextLevel = profile.level + 1
-  const diamonds = diamondsOf(profile)
 
   // Any medal that has been earned can go in a slot, so the picker and the
   // strip below read the same catalogue and the same counts.
@@ -433,9 +394,13 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
               </li>
               <li>
                 <span className="count-value">
-                  {profile.grove?.mature ?? 0} / {profile.grove?.planted ?? plantings.length}
+                  {profile.grove?.seeds_found ?? 0} / {SEEDS_TO_FIND}
                 </span>
-                <span className="count-label">Grown</span>
+                <span className="count-label">Seeds found</span>
+              </li>
+              <li>
+                <span className="count-value">{profile.grove?.plant_levels ?? 0}</span>
+                <span className="count-label">Plant levels</span>
               </li>
               <li>
                 <span className="count-value">
@@ -445,89 +410,25 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
               </li>
             </ul>
 
-            {/* Lifetime distance in the sports this account cares about, up to
-                three. Nothing is ranked against anyone else here. */}
+            {/* Lifetime distance in all four sports, always in the same order
+                and always all four, a sport never done reading as zero.
+                Nothing is ranked against anyone else here. */}
             <div className="diamonds">
-              {diamonds.length === 0 ? (
-                <p className="hint">
-                  Sync a workout and your sports show up here with their lifetime distance.
-                </p>
-              ) : (
-                <ul className="diamond-chips">
-                  {diamonds.map((name) => (
-                    <li key={name} className="diamond-chip">
-                      <span className="diamond diamond-on">
-                        <Icon name="diamond" />
-                      </span>
-                      <span className="chip-value">
-                        {distanceValue(profile.lifetime[name]?.distance_mi ?? 0, units)}
-                        <span className="chip-unit">{unitName(units)}</span>
-                      </span>
-                      <span className="label">{ACTIVITY_NAMES[name]}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => (pickingSports ? setPickingSports(false) : startPickingSports())}
-              >
-                {pickingSports ? 'Close sports' : 'Choose sports'}
-              </button>
+              <ul className="diamond-chips">
+                {ACTIVITY_ORDER.map((name) => (
+                  <li key={name} className="diamond-chip">
+                    <span className="diamond diamond-on">
+                      <Icon name="diamond" />
+                    </span>
+                    <span className="chip-value">
+                      {distanceValue(profile.lifetime[name]?.distance_mi ?? 0, units)}
+                      <span className="chip-unit">{unitName(units)}</span>
+                    </span>
+                    <span className="label">{ACTIVITY_NAMES[name]}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
-
-            {pickingSports && (
-              <div className="picker">
-                <p className="hint">
-                  Up to {MAX_DIAMONDS} sports. {chosenSports.length} chosen. Choosing none lets
-                  the app pick your busiest three.
-                </p>
-                <ul className="picker-list">
-                  {ACTIVITY_ORDER.map((name) => {
-                    const held = chosenSports.includes(name)
-                    return (
-                      <li key={name}>
-                        <label className="picker-option">
-                          <input
-                            type="checkbox"
-                            checked={held}
-                            disabled={!held && chosenSports.length >= MAX_DIAMONDS}
-                            onChange={() => toggleSport(name)}
-                          />
-                          <span className="diamond diamond-on">
-                            <Icon name="diamond" />
-                          </span>
-                          <span>{ACTIVITY_NAMES[name]}</span>
-                        </label>
-                      </li>
-                    )
-                  })}
-                </ul>
-                {sportsError && (
-                  <p className="error" role="alert">
-                    {sportsError}
-                  </p>
-                )}
-                <div className="choice">
-                  <button
-                    type="button"
-                    className="primary"
-                    disabled={sportsBusy}
-                    onClick={() => void saveSports()}
-                  >
-                    Save sports
-                  </button>
-                  <button
-                    type="button"
-                    className="secondary"
-                    onClick={() => setPickingSports(false)}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
 
             <div className="profile-edit">
               <div className="choice">

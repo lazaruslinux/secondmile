@@ -26,6 +26,7 @@ import {
   displayNameOf,
   lifetimeWorkouts,
   medalCountsOf,
+  SEEDS_TO_FIND,
   starsFor,
   weekTotals,
 } from '../profile.ts'
@@ -351,12 +352,14 @@ export default function Home({
           <h2 className="label">Grove</h2>
           <ul className="grove-counts">
             <li>
-              <span className="count-value">{profile.grove?.planted ?? 0}</span>
-              <span className="count-label">Planted</span>
+              <span className="count-value">
+                {profile.grove?.seeds_found ?? 0} / {SEEDS_TO_FIND}
+              </span>
+              <span className="count-label">Seeds found</span>
             </li>
             <li>
-              <span className="count-value">{profile.grove?.mature ?? 0}</span>
-              <span className="count-label">Grown</span>
+              <span className="count-value">{profile.grove?.plant_levels ?? 0}</span>
+              <span className="count-label">Plant levels</span>
             </li>
           </ul>
           <button type="button" className="secondary" onClick={onOpenGrove}>

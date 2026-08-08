@@ -160,6 +160,15 @@ export function rarityWord(rarity: Rarity | string): string {
   return RARITY_NAMES[rarity as Rarity] ?? ''
 }
 
+// Which of the three frames a plant or a seed is drawn in. The rarity that
+// never rolls is framed as the rarest rather than given a frame of its own, so
+// the frames stay three and nothing is said about it.
+export function rarityTier(rarity: Rarity | string): 'common' | 'uncommon' | 'rare' {
+  if (rarity === 'uncommon') return 'uncommon'
+  if (rarity === 'rare' || rarity === 'special') return 'rare'
+  return 'common'
+}
+
 const KIND_NAMES: Record<ItemKind, string> = {
   seed: 'Seed',
   water: 'Water',

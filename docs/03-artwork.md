@@ -253,7 +253,7 @@ missing file costs a picture rather than a screen.
   seedling is how growth shows. Make each stage plainly bigger than the last,
   and let a rare tree tower over a common bush.
 - **They are drawn small.** Roughly 88 pixels tall in the plot, 36 to 52 in the
-  band across the top of the profile, and 44 in the satchel and a chest reveal.
+  band across the top of the profile, and 72 in the satchel and a chest reveal.
   Silhouettes read at that size; fine detail does not.
 - **Distinct at a glance.** Thirteen species share one plot, so shape carries
   more than colour: a vine on a wire, an arching bramble, a flat olive crown, a
@@ -272,6 +272,36 @@ the picture, with nothing solid in the middle to hide the plant behind it.
 Gilded artwork per species is a later pass and is not built. When each species
 has its own, this file comes out and the drawings replace it.
 
+### Water and oil
+
+`frontend/src/assets/grove/water.svg` and `frontend/src/assets/grove/oil.svg`
+
+The two things a chest holds that are not a seed. They live beside the plants
+because they are used on them, and each reads one file named after its kind, so
+swapping either is the same one-file swap as everything else here. A file that
+is not there costs the picture and nothing else: the satchel row and the chest
+reveal both still read.
+
+| File | What it is |
+| --- | --- |
+| `water.svg` | Water, poured onto one plant |
+| `oil.svg` | Oil, used to anoint a friend |
+
+Drawn in the same 64 by 64 viewBox as the plants, and shown at 72 pixels in the
+satchel and in a chest reveal. Unlike a plant, neither stands on a floor: each
+is centred in its square, so draw them to fill the box rather than to sit on the
+bottom of it. In a chest reveal the picture is what is pressed to find out what
+the thing is for, so give it enough shape to look pressable.
+
+## Rarity frames
+
+Not artwork, and no file to swap: every square holding a plant or a seed is
+bordered in that thing's rarity, with the rarity named on a solid tab hanging
+off the foot of the square. Three frames, drawn from the palette below, and the
+tab prints its name in black on the same colour as the border. The gild is a
+separate treatment and stays on the drawing itself, so a fully grown rare plant
+carries both.
+
 ## Profile pictures
 
 Not artwork, and not replaceable here: each player uploads their own. The
@@ -281,7 +311,7 @@ frontend build, so nothing in `assets` affects it.
 ## What is not a file yet
 
 The interface itself, the buttons, the colours, the type, is plain CSS in
-`frontend/src/styles.css`, not artwork. The whole palette is six custom
+`frontend/src/styles.css`, not artwork. The whole palette is eight custom
 properties at the top of that file:
 
 | Property | Value | What it is |
@@ -289,10 +319,13 @@ properties at the top of that file:
 | `--bg` | `#000000` | The page, and the gutters between cards |
 | `--surface` | `#0d0d0f` | Cards |
 | `--line` | `#26262b` | Every border and rule |
-| `--text` | `#f4f4f5` | Type and numbers |
+| `--text` | `#f4f4f5` | Type and numbers, and the common rarity frame |
 | `--muted` | `#9a9aa0` | Labels and secondary type |
 | `--accent` | `#dc143c` | The one accent, used sparingly |
+| `--rarity-uncommon` | `#4a8fd9` | The uncommon rarity frame and its tab |
+| `--rarity-rare` | `#d4af37` | The rare rarity frame and its tab |
 
-There is one theme and it is dark. Changing the six values above is the whole
+There is one theme and it is dark. Changing the eight values above is the whole
 of a recolour; `--accent` on its own is the quickest way to make the app look
-like something else.
+like something else. The two rarity colours are read on a near-black card and
+printed on in black, so a replacement has to work both ways round.
