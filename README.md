@@ -221,6 +221,15 @@ modified version for other people you have to share your changes with them
 too. That is the point; this project exists so people can own their own
 software.
 
+### Bundled fonts
+
+The interface is set in Barlow and Barlow Semi Condensed, which are licensed
+separately under the SIL Open Font License 1.1. The files live in
+`frontend/src/assets/fonts/` and the licence travels with them in `OFL.txt` in
+that same directory. They are bundled rather than loaded from a font service
+because nothing in this app is fetched from another origin, which is also why
+the content security policy can say `font-src 'self'`.
+
 ## A note on how this was built
 
 This project was built with Claude Code. The code was largely written by the
