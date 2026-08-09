@@ -1973,6 +1973,135 @@ button:disabled {
   color: var(--rarity-legendary);
 }
 
+/* The chest ladder: the whole five-step cycle as one bar, with a chest at the
+   end of every step drawn in that step's colour, and the miles walked filling
+   the rail behind it. The five steps are equal widths rather than shares of the
+   79.7 miles they cost, because the thing being read is which step is next, and
+   a 5K drawn at a twentieth of the bar would be unreadable. It sits on this
+   screen, which is a tab: the side rail never reaches a phone. */
+.chest-bar {
+  margin: 0 0 0.6rem;
+}
+
+.chest-track {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.3rem;
+  margin: 0.2rem 0 0.5rem;
+  padding: 0;
+  list-style: none;
+}
+
+.chest-step {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.25rem;
+  /* The step's own colour, taken by the chest at the end of it. Common is the
+     type colour, so the first step needs no rule of its own. */
+  color: var(--text);
+}
+
+.chest-step-uncommon {
+  color: var(--rarity-uncommon);
+}
+
+.chest-step-rare {
+  color: var(--rarity-rare);
+}
+
+.chest-step-epic {
+  color: var(--rarity-epic);
+}
+
+.chest-step-legendary {
+  color: var(--rarity-legendary);
+}
+
+/* A step still to come is dimmed rather than recoloured, so the ladder reads
+   as one row of five and the colours still say what each step is worth. */
+.chest-step-ahead {
+  opacity: 0.4;
+}
+
+.chest-lane {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.chest-rail {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+}
+
+/* Crimson is the walker and nothing else. The rarity colours belong to the
+   chests; the miles covered are the app's own accent, the same as everywhere. */
+.chest-rail-fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.chest-mark {
+  position: relative;
+  flex: 0 0 auto;
+  width: 1.4rem;
+  height: 1.4rem;
+}
+
+.chest-mark .icon {
+  width: 100%;
+  height: 100%;
+}
+
+/* Double, on the chest a friend's oil is waiting to lift. Crimson, because it
+   is the only thing on this bar that somebody did on purpose. */
+.chest-gift {
+  position: absolute;
+  right: -0.35rem;
+  bottom: -0.3rem;
+  padding: 0 0.15rem;
+  border-radius: 3px;
+  background: var(--accent);
+  color: var(--text);
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+/* The step's name, under the chest it belongs to and pushed to the same end.
+   Marathon is the long one and sets the size: eight capitals have to sit inside
+   a fifth of a phone. */
+.chest-step-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--muted);
+}
+
+/* The step being walked names itself in full brightness; the walked ones and
+   the ones to come stay quiet. */
+.chest-step-next .chest-step-label {
+  color: var(--text);
+}
+
+.chest-away,
+.chest-gifted,
+.chest-waiting {
+  margin: 0 0 0.3rem;
+}
+
 /* The recap */
 
 /* A native dialog opened as a modal, so the focus trap, the page held still
@@ -2324,88 +2453,89 @@ button:disabled {
 
 /* Twenty-one steps of fill, because a width worked out per render would have to
    be written on the element and the content security policy allows no inline
-   styles. Five per cent is under half a millimetre of bar on a phone. */
-.plant-fill-0 {
+   styles. Five per cent is under half a millimetre of bar on a phone. Named for
+   nothing in particular: the plant bars and the chest ladder both fill by it. */
+.fill-0 {
   width: 0;
 }
 
-.plant-fill-5 {
+.fill-5 {
   width: 5%;
 }
 
-.plant-fill-10 {
+.fill-10 {
   width: 10%;
 }
 
-.plant-fill-15 {
+.fill-15 {
   width: 15%;
 }
 
-.plant-fill-20 {
+.fill-20 {
   width: 20%;
 }
 
-.plant-fill-25 {
+.fill-25 {
   width: 25%;
 }
 
-.plant-fill-30 {
+.fill-30 {
   width: 30%;
 }
 
-.plant-fill-35 {
+.fill-35 {
   width: 35%;
 }
 
-.plant-fill-40 {
+.fill-40 {
   width: 40%;
 }
 
-.plant-fill-45 {
+.fill-45 {
   width: 45%;
 }
 
-.plant-fill-50 {
+.fill-50 {
   width: 50%;
 }
 
-.plant-fill-55 {
+.fill-55 {
   width: 55%;
 }
 
-.plant-fill-60 {
+.fill-60 {
   width: 60%;
 }
 
-.plant-fill-65 {
+.fill-65 {
   width: 65%;
 }
 
-.plant-fill-70 {
+.fill-70 {
   width: 70%;
 }
 
-.plant-fill-75 {
+.fill-75 {
   width: 75%;
 }
 
-.plant-fill-80 {
+.fill-80 {
   width: 80%;
 }
 
-.plant-fill-85 {
+.fill-85 {
   width: 85%;
 }
 
-.plant-fill-90 {
+.fill-90 {
   width: 90%;
 }
 
-.plant-fill-95 {
+.fill-95 {
   width: 95%;
 }
 
-.plant-fill-100 {
+.fill-100 {
   width: 100%;
 }
 

@@ -211,10 +211,33 @@ def reset_growth(db: Session, user_id: int) -> None:
 
 
 def pending_anointings(db: Session, user_id: int) -> list[models.Anointing]:
-    """Everything spent on this account and not yet turned into a chest."""
+    """Everything spent on this account and not yet attached to a chest.
+
+    Oldest first, which is the order they are spent in: one gift lifts one
+    chest, and the friend who gave first is the friend the next chest names.
+    """
     return list(
         db.execute(
             select(models.Anointing)
+            .where(
+                models.Anointing.to_user_id == user_id,
+                models.Anointing.consumed_at.is_(None),
+            )
+            .order_by(models.Anointing.id)
+        ).scalars()
+    )
+
+
+def pending_gift_names(db: Session, user_id: int) -> list[str]:
+    """Who the gifts still waiting on this account came from, oldest first.
+
+    Names rather than rows, because this is the reading side: the profile says
+    which friend's oil is on the chest ahead and which are queued behind it.
+    """
+    return list(
+        db.execute(
+            select(models.User.username)
+            .join(models.Anointing, models.Anointing.from_user_id == models.User.id)
             .where(
                 models.Anointing.to_user_id == user_id,
                 models.Anointing.consumed_at.is_(None),

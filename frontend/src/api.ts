@@ -270,11 +270,23 @@ export interface Profile {
   // predates the grove.
   grove?: { seeds_found: number; plant_levels: number }
   // The next chest and how far off it is, if the server says. Both shapes a
-  // server might reasonably use are allowed for, and the line is left out
+  // server might reasonably use are allowed for, and the bar is left out
   // entirely when neither is there.
-  next_chest?: { tier?: string | null; miles_away?: number; mi_away?: number }
+  next_chest?: {
+    tier?: string | null
+    tier_id?: string | null
+    miles_away?: number
+    mi_away?: number
+    // The friend whose oil lifts this chest a step when it drops. Null when
+    // nothing is waiting and also when this step has no room to be lifted,
+    // which is why a waiting gift and a named one are two different questions.
+    gifted_by?: string | null
+  }
   next_chest_tier?: string | null
   next_chest_mi?: number
+  // Oil spent on this account and not yet landed on a chest. Optional: a server
+  // that predates gifts says nothing, which reads as none.
+  pending_gifts?: { from: string }[]
 }
 
 export interface AvatarState {

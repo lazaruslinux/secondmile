@@ -377,9 +377,10 @@ class Anointing(Base):
         ),
     )
 
-    # One person spending oil on another. Nothing here is ever shown to the
-    # recipient while it waits: no notification, no feed event, nothing in the
-    # API. It surfaces once, in the letter, when the chest it becomes lands.
+    # One person spending oil on another, which lifts one chest the recipient's
+    # own miles bring. Nothing is pushed at anybody: no notification and no feed
+    # event. It shows on the recipient's profile as the name on the chest ahead,
+    # and in the letter once that chest has landed.
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     from_user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
@@ -388,9 +389,9 @@ class Anointing(Base):
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     created_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
-    # Null until the recipient's next credited workout turns it into a chest.
+    # Null until one of the recipient's own chests drops with room to be lifted.
     consumed_at: Mapped[dt.datetime | None] = mapped_column(UtcDateTime, nullable=True)
-    # Which chest it became. A record rather than a live pointer, and so not a
+    # Which chest it lifted. A record rather than a live pointer, and so not a
     # foreign key: a rebuild is allowed to throw chests away, and what one
     # person gave another is not derived from anything and must survive it.
     consumed_chest_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -407,10 +408,11 @@ class Chest(Base):
     # against when it is opened. Null on a chest that predates the ladder;
     # those roll against the first step's odds.
     tier: Mapped[str | None] = mapped_column(String(16), nullable=True)
-    # Set when the chest is a gift rather than a distance: somebody spent oil,
-    # and this is the row that says who, so the letter can tell the player.
-    # Null for every chest the miles themselves earned. Not a foreign key, the
-    # same as the pointer back the other way: the two tables are records of
+    # Set when somebody's oil was spent on this chest, which is the row that
+    # says whose. The chest is still a distance: the gift is the guaranteed
+    # step up its roll takes when the lid comes off, and the letter is where it
+    # says who paid for it. Null for a chest nobody lifted. Not a foreign key,
+    # the same as the pointer back the other way: the two tables are records of
     # each other rather than owners, and a migration that can add this column
     # on either database is worth more here than a constraint.
     from_anointing_id: Mapped[int | None] = mapped_column(Integer, nullable=True)

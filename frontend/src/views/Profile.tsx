@@ -32,14 +32,9 @@ import {
   medalName,
   plantingName,
 } from '../labels.ts'
-import {
-  ageOf,
-  displayNameOf,
-  medalCountsOf,
-  nextChestLine,
-  SEEDS_TO_FIND,
-} from '../profile.ts'
+import { ageOf, chestBar, displayNameOf, medalCountsOf, SEEDS_TO_FIND } from '../profile.ts'
 import AvatarFrame from './AvatarFrame.tsx'
+import ChestBar from './ChestBar.tsx'
 import ChestItem from './ChestItem.tsx'
 import EditProfile from './EditProfile.tsx'
 import Fellowship from './Fellowship.tsx'
@@ -255,7 +250,7 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
   // Any medal that has been earned can go in a slot, so the picker and the
   // strip below read the same catalogue and the same counts.
   const counts = medalCountsOf(profile.medals)
-  const nextChest = nextChestLine(profile)
+  const ladder = chestBar(profile)
   const shownName = displayNameOf(profile)
   const age = ageOf(profile)
   const ownedMedals = MEDAL_ORDER.filter((id) => (counts.get(id) ?? 0) > 0)
@@ -533,12 +528,17 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
           <section className="card">
             <h2>Chests</h2>
             {chests.length === 0 && opened.length === 0 && (
+              // Not "nothing waiting" any more: a gift can be waiting on this
+              // card at the same time, and one word cannot mean both.
               <p className="hint">
-                Nothing waiting. Chests arrive as you cover miles, and they never expire.
+                No chests to open. They arrive as you cover miles, and they never expire.
               </p>
             )}
-            {/* Only drawn when the server says how far off the next one is. */}
-            {nextChest !== '' && <p className="hint">{nextChest}</p>}
+            {/* The whole cycle rather than the one line it replaced: where the
+                next chest sits on the ladder, how far into that step the miles
+                have got, and which chest a friend's oil is waiting on. Only
+                drawn when the server has said which chest is coming. */}
+            {ladder && <ChestBar bar={ladder} />}
             {chestError && (
               <p className="error" role="alert">
                 {chestError}

@@ -22,9 +22,9 @@ def give_chest(db_session, user_id: int, tier: str | None = "5k") -> models.Ches
     return chest
 
 
-def give_gift_chest(db_session, user_id: int, giver_id: int, tier: str | None = "5k"):
-    """A chest somebody's oil paid for, wired the way the pipeline wires one:
-    a spent anointing, and the chest pointing back at it."""
+def give_lifted_chest(db_session, user_id: int, giver_id: int, tier: str | None = "5k"):
+    """A chest somebody's oil was spent on, wired the way the pipeline wires
+    one: a spent anointing, and the chest pointing back at it."""
     anointing = models.Anointing(
         from_user_id=giver_id,
         to_user_id=user_id,
@@ -111,7 +111,14 @@ def test_the_accumulator_carries_between_workouts(signed_in, db_session, member)
 def test_the_profile_says_which_chest_is_coming(signed_in):
     log_workout(signed_in, "run", 2.0)
     body = signed_in.get("/api/profile").json()
-    assert body["next_chest"] == {"tier": "5K", "tier_id": "5k", "miles_away": 1.1}
+    # Nobody has spent oil on this account, so nothing is lifting it.
+    assert body["next_chest"] == {
+        "tier": "5K",
+        "tier_id": "5k",
+        "miles_away": 1.1,
+        "gifted_by": None,
+    }
+    assert body["pending_gifts"] == []
 
 
 def test_every_activity_fuels_the_ladder(signed_in, db_session, member):
@@ -166,6 +173,46 @@ def test_an_ultra_chest_is_always_a_legendary():
     """The top of the ladder has nothing above it to climb to."""
     rng = random.Random("ultra")
     assert {progress.roll_slot(rng, "ultra") for _ in range(4000)} == {"legendary"}
+
+
+def test_a_lifted_chest_takes_the_step_up_every_time():
+    """Oil is that same upgrade promised rather than risked, so a chest a
+    friend paid for is never merely its own step."""
+    rng = random.Random("lifted")
+    for tier_id, _name, _cost in CHEST_LADDER:
+        step = species.RARITY_LADDER.index(CHEST_TIER_FLOOR[tier_id])
+        above = species.RARITY_LADDER[min(step + 1, len(species.RARITY_LADDER) - 1)]
+        assert {progress.roll_slot(rng, tier_id, True) for _ in range(500)} == {above}, tier_id
+    # Which is why an Ultra is worth nothing to give: the step it takes is the
+    # rung it already stood on.
+    assert progress.can_lift("ultra") is False
+    assert all(progress.can_lift(tier_id) for tier_id, _name, _cost in CHEST_LADDER[:4])
+    # A chest from before the ladder rolls as the first step here too.
+    assert progress.can_lift(None) is True
+
+
+def test_a_lifted_chest_draws_the_same_rolls_as_a_plain_one():
+    """The upgrade roll still happens on a lifted chest, so the generator is
+    left in the same place either way and nothing after it shifts."""
+    plain = random.Random("stream")
+    lifted = random.Random("stream")
+    for _ in range(200):
+        progress.roll_slot(plain, "5k")
+        progress.roll_slot(lifted, "5k", True)
+    assert plain.random() == lifted.random()
+
+
+def test_opening_a_lifted_chest_hands_over_the_better_slot(
+    signed_in, db_session, member, admin
+):
+    """The promise is kept at the lid, which is where every other roll happens."""
+    open_one(signed_in, db_session, member.id)
+    chest = give_lifted_chest(db_session, member.id, admin.id, tier="half")
+    body = signed_in.post(f"/api/chests/{chest.id}/open").json()
+    # A Half floors at rare; lifted, it is an epic, and the epic slot is the
+    # two tools.
+    assert body["rarity"] == "epic"
+    assert body["kind"] in ("wish", "oil")
 
 
 def test_a_chest_from_before_the_ladder_rolls_the_first_step(signed_in, db_session, member):
@@ -576,13 +623,13 @@ def test_the_count_falls_as_chests_are_opened_elsewhere(signed_in, db_session, m
     assert signed_in.get("/api/recap").json()["chests_delivered"] == 1
 
 
-def test_the_letter_names_who_gave_a_chest(signed_in, db_session, member, admin):
-    """One name per gifted chest, so the letter can say which of them came from
-    somebody. The chests the miles earned are nobody's gift and are not named,
-    which is what makes the count and the names two different numbers."""
-    give_gift_chest(db_session, member.id, admin.id)
+def test_the_letter_names_who_lifted_a_chest(signed_in, db_session, member, admin):
+    """One name per lifted chest, so the letter can say which of them a friend
+    paid for. The chests nobody's oil touched are not named, which is what makes
+    the count and the names two different numbers."""
+    give_lifted_chest(db_session, member.id, admin.id)
     give_chest(db_session, member.id)
-    give_gift_chest(db_session, member.id, admin.id, tier="half")
+    give_lifted_chest(db_session, member.id, admin.id, tier="half")
 
     recap = signed_in.get("/api/recap").json()
     assert recap["chests_delivered"] == 3

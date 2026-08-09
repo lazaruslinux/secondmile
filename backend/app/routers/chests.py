@@ -52,9 +52,9 @@ def list_chests(
 ) -> list[dict]:
     """Every chest still closed, oldest first.
 
-    A chest that came from somebody's oil looks exactly like one the miles
-    earned. It is told apart in the letter and nowhere else, because being
-    surprised by it is the whole of what was given.
+    A chest somebody's oil lifted looks exactly like any other here. Every chest
+    in this list was earned by the miles, and what a gift did to one of them is
+    a rarity nobody can see until the lid comes off.
     """
     progress.process_user(db, user.id)
     return [_chest(row) for row in _pending(db, user.id)]
@@ -134,16 +134,15 @@ def read_recap(
 
 
 def _delivered(db: Session, user_id: int) -> dict:
-    """How many chests are waiting in the inventory, and who gave any of them.
+    """How many chests are waiting in the inventory, and who lifted any of them.
 
     A count rather than a list: the letter says they arrived, the inventory is
     where they are opened, and a letter that also opened them would be two
     places doing one job.
 
-    The names are what a count cannot carry on its own, and they are the whole
-    of the reveal. Spending oil is silent when it happens, silent while it
-    waits, and silent in every other response; the first the recipient hears of
-    it is here, once the chest has actually landed.
+    The names are what a count cannot carry on its own. Every chest here was
+    earned by the miles; a named one is a chest a friend's oil made better, and
+    saying so is the thanks the giver never asked for.
     """
     rows = _pending(db, user_id)
     gifts = {
@@ -160,9 +159,9 @@ def _delivered(db: Session, user_id: int) -> dict:
     }
     return {
         "chests_delivered": len(rows),
-        # One name per gifted chest, in the order they landed, so two from the
+        # One name per lifted chest, in the order they landed, so two from the
         # same friend are still two things given. Empty on the ordinary letter,
-        # where every chest is one the miles themselves earned.
+        # where nobody's oil was on any of them.
         "chest_givers": [
             gifts[row.from_anointing_id] for row in rows if row.from_anointing_id in gifts
         ],

@@ -121,6 +121,7 @@ def _clean_birthdate(sent: str | None) -> dt.date | None:
 def serialize_profile(db: Session, user: models.User, row: models.UserProgress) -> dict:
     """Everything the profile screen needs in one response."""
     level, into_level, level_span = progress.level_bounds(row.xp)
+    gifts = grove.pending_gift_names(db, user.id)
     return {
         "user_id": user.id,
         "username": user.username,
@@ -165,8 +166,12 @@ def serialize_profile(db: Session, user: models.User, row: models.UserProgress) 
         # collection: there is no total to fill, only what somebody planted.
         "grove": grove.summary(db, user.id),
         # Which chest is coming and how far off it is, so the banner can say
-        # so without asking a second endpoint.
-        "next_chest": progress.next_chest(row),
+        # so without asking a second endpoint, and whose oil is on it.
+        "next_chest": progress.next_chest(row, gifts),
+        # Every gift still waiting, oldest first. One waiting while
+        # next_chest.gifted_by is null is one the next chest has no room for:
+        # it is not lost, it is holding out for a chest it can lift.
+        "pending_gifts": [{"from": name} for name in gifts],
     }
 
 

@@ -46,7 +46,13 @@ def test_a_fresh_profile_reports_the_whole_shape(signed_in, member):
     assert body["lifetime"] == {}
     # Nothing found and nothing growing: the plot is not a collection.
     assert body["grove"] == {"seeds_found": 0, "plant_levels": 0}
-    assert body["next_chest"] == {"tier": "5K", "tier_id": "5k", "miles_away": 3.1}
+    assert body["next_chest"] == {
+        "tier": "5K",
+        "tier_id": "5k",
+        "miles_away": 3.1,
+        "gifted_by": None,
+    }
+    assert body["pending_gifts"] == []
 
 
 def test_the_profile_carries_week_and_lifetime_totals(signed_in):

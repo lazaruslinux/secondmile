@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { errorText, listGrove, type Planting } from '../api.ts'
-import { convertedValue, formatAcquired } from '../format.ts'
+import { convertedValue, fillClass, formatAcquired } from '../format.ts'
 import { levelProgress, plantStage } from '../grove.ts'
 import { plantingName } from '../labels.ts'
 import Inventory from './Inventory.tsx'
@@ -13,22 +13,13 @@ const HEADER =
   'boost. Plants begin bearing fruit once mature (level 1) and are fully grown at level 33.'
 
 // What the oil in the inventory is for, said under the inventory itself. The
-// word is oil here rather than olive oil: this is the act, not the item.
-const ANOINT = 'Anoint a friend with oil and their next workout brings them a bonus chest.'
+// word is oil here rather than olive oil: this is the act, not the item. It
+// lifts a chest they earn themselves; it never sends one.
+const ANOINT =
+  'Anoint a friend with oil and one chest they earn opens one step rarer than it would have.'
 
 // Said under anything that has reached the last level.
 const FULLY_GROWN = 'Fully grown.'
-
-// Where the miles so far are written under the bar. The content security policy
-// allows no inline styles, so the fill point cannot be a width computed per
-// render: it is snapped to the nearest twentieth and carried as a class.
-const FILL_STEP = 5
-
-function fillClass(into: number, step: number): string {
-  const part = step > 0 ? (into / step) * 100 : 0
-  const snapped = Math.min(100, Math.max(0, Math.round(part / FILL_STEP) * FILL_STEP))
-  return `plant-fill-${snapped}`
-}
 
 interface Props {
   userId: number
@@ -116,7 +107,9 @@ export default function Grove({ userId }: Props) {
                         {convertedValue(into)} of {convertedValue(step)} mi
                       </progress>
                       <p className="plant-numbers" aria-hidden="true">
-                        <span className={`plant-now ${fillClass(into, step)}`}>
+                        <span
+                          className={`plant-now ${fillClass(step > 0 ? (into / step) * 100 : 0)}`}
+                        >
                           {convertedValue(into)}
                         </span>
                         <span className="plant-target">{convertedValue(step)}</span>

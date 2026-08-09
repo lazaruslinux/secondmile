@@ -260,3 +260,15 @@ export function formatPace(
   }
   return `${minutes}:${pad(secs)} ${units === 'metric' ? '/km' : '/mi'}`
 }
+
+// How far along a bar something is, as a class rather than a width. The content
+// security policy allows no inline styles, so a width worked out per render
+// cannot be written onto the element: the fill point is snapped to the nearest
+// twentieth and carried as one of the stylesheet's twenty-one steps. Five per
+// cent is under half a millimetre of bar on a phone.
+const FILL_STEP = 5
+
+export function fillClass(percent: number): string {
+  const part = isFinite(percent) ? percent : 0
+  return `fill-${Math.min(100, Math.max(0, Math.round(part / FILL_STEP) * FILL_STEP))}`
+}

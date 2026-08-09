@@ -1,9 +1,9 @@
 """The satchel, the plot, and the oil one friend spends on another.
 
 Every account and every workout here is invented. The anointing cases are the
-careful ones: what matters about oil is as much what the recipient is never
-told as what they eventually get, so the silence is asserted against whole
-responses rather than against one field.
+careful ones: oil lifts a chest the recipient's own miles bring, so what matters
+is as much where it does not land as where it does, and the cases walk whole
+responses rather than one field.
 """
 
 import datetime as dt
@@ -12,7 +12,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import models, progress, security, species
-from app.config import WATER_POUR_MI
+from app.config import MAX_PENDING_ANOINTINGS, WATER_POUR_MI
 from app.main import app as fastapi_app
 from conftest import give_item, give_planting, log_workout, make_user
 
@@ -721,7 +721,15 @@ def test_the_level_sum_counts_the_level_a_plant_shows(signed_in, db_session, mem
 # --------------------------------------------------------------------------
 
 
-def test_anointing_says_nothing_to_anybody_until_the_chest_lands(
+def stand_at(db_session, user_id: int, cycle_pos: int) -> None:
+    """Put an account at a step of the chest ladder with nothing banked yet."""
+    row = progress.ensure_progress(db_session, user_id)
+    row.cycle_pos = cycle_pos
+    row.chest_progress_mi = 0.0
+    db_session.commit()
+
+
+def test_a_gift_shows_on_the_chest_ahead_and_nowhere_else(
     signed_in, db_session, member, mate
 ):
     other, other_client = mate
@@ -735,43 +743,185 @@ def test_anointing_says_nothing_to_anybody_until_the_chest_lands(
     # The oil is spent, and the giver is told nothing more than that.
     assert signed_in.get("/api/satchel").json() == []
 
-    # Nothing the recipient can read has changed in any way.
-    for path in ("/api/profile", "/api/recap", "/api/chests", "/api/satchel", "/api/feed"):
-        body = other_client.get(path).text
-        assert "anoint" not in body.lower(), path
-        assert member.username not in body, path
+    # The recipient reads it in one place: the chest it is waiting on.
+    body = other_client.get("/api/profile").json()
+    assert body["next_chest"]["gifted_by"] == member.username
+    assert body["pending_gifts"] == [{"from": member.username}]
+
+    # Nothing was pushed at them, and nothing has landed to open.
+    for path in ("/api/recap", "/api/chests", "/api/satchel", "/api/feed"):
+        text = other_client.get(path).text
+        assert "anoint" not in text.lower(), path
+        assert member.username not in text, path
     assert other_client.get("/api/chests").json() == []
 
 
-def test_the_bonus_chest_lands_on_the_next_workout_without_costing_miles(
+def test_the_gift_lifts_a_chest_the_miles_earned_and_drops_none_of_its_own(
     signed_in, db_session, member, mate
 ):
     other, other_client = mate
     befriend(db_session, member, other)
     oil = give_item(db_session, member.id, "oil", rarity="rare")
-    # The recipient is partway up the ladder already.
-    log_workout(other_client, "run", 4.0, offset_min=0)
-    before = db_session.get(models.UserProgress, other.id)
-    assert (before.cycle_pos, round(before.chest_progress_mi, 2)) == (1, 0.9)
-
     signed_in.post(f"/api/satchel/{oil.id}/anoint", json={"user_id": other.id})
-    log_workout(other_client, "run", 1.0, offset_min=200)
 
-    after = db_session.get(models.UserProgress, other.id)
-    # One mile of credit, and the cycle is exactly where the mile put it: the
-    # gift did not move it along.
-    assert after.cycle_pos == 1
-    assert round(after.chest_progress_mi, 2) == 1.9
-    # The 5K chest the four miles earned, and the one that was given.
+    log_workout(other_client, "run", 4.0)
+
+    row = db_session.get(models.UserProgress, other.id)
+    # Four miles is the 5K chest and nine tenths of a mile toward the 10K. The
+    # gift moved none of that: it is not a distance.
+    assert (row.cycle_pos, round(row.chest_progress_mi, 2)) == (1, 0.9)
+    # One chest, not two. Nothing drops a bonus chest any more.
     waiting = other_client.get("/api/chests").json()
-    assert [row["tier_id"] for row in waiting] == ["5k", "10k"]
-    # At the tier the recipient is working toward, not the giver's, and it
-    # looks like any other chest until the letter says otherwise.
-    assert set(waiting[1]) == {"id", "dropped_at", "tier", "tier_id"}
+    assert [chest["tier_id"] for chest in waiting] == ["5k"]
+    # And it is the shape of every other chest: what the oil did to it is not
+    # visible until the lid comes off.
+    assert set(waiting[0]) == {"id", "dropped_at", "tier", "tier_id"}
 
-    row = db_session.get(models.Anointing, 1)
-    assert row.consumed_at is not None
-    assert row.consumed_chest_id == waiting[1]["id"]
+    anointing = db_session.get(models.Anointing, 1)
+    assert anointing.consumed_at is not None
+    assert anointing.consumed_chest_id == waiting[0]["id"]
+    assert db_session.get(models.Chest, waiting[0]["id"]).from_anointing_id == anointing.id
+    assert other_client.get("/api/profile").json()["pending_gifts"] == []
+
+
+def test_an_ultra_is_skipped_and_the_gift_waits_for_a_chest_with_room(
+    signed_in, db_session, member, mate
+):
+    """An Ultra floors at legendary and legendary is the top rung, so there is
+    no step for a gift to buy. It holds rather than being spent on nothing."""
+    other, other_client = mate
+    befriend(db_session, member, other)
+    stand_at(db_session, other.id, 4)
+    oil = give_item(db_session, member.id, "oil", rarity="rare")
+    signed_in.post(f"/api/satchel/{oil.id}/anoint", json={"user_id": other.id})
+
+    # The chest ahead is the Ultra, and the gift is not on it: waiting, and
+    # named nowhere yet.
+    body = other_client.get("/api/profile").json()
+    assert body["next_chest"]["tier_id"] == "ultra"
+    assert body["next_chest"]["gifted_by"] is None
+    assert body["pending_gifts"] == [{"from": member.username}]
+
+    log_workout(other_client, "run", 31.1, offset_min=0)
+    landed = other_client.get("/api/chests").json()
+    assert [chest["tier_id"] for chest in landed] == ["ultra"]
+    assert db_session.get(models.Chest, landed[0]["id"]).from_anointing_id is None
+    assert db_session.get(models.Anointing, 1).consumed_at is None
+    # The wheel has turned, and now the gift has somewhere to go.
+    body = other_client.get("/api/profile").json()
+    assert body["next_chest"]["tier_id"] == "5k"
+    assert body["next_chest"]["gifted_by"] == member.username
+
+    log_workout(other_client, "run", 3.1, offset_min=200)
+    landed = other_client.get("/api/chests").json()
+    assert [chest["tier_id"] for chest in landed] == ["ultra", "5k"]
+    assert db_session.get(models.Chest, landed[1]["id"]).from_anointing_id == 1
+    assert other_client.get("/api/profile").json()["pending_gifts"] == []
+
+
+def test_two_gifts_lift_two_chests_and_never_the_same_one(
+    signed_in, db_session, member, mate
+):
+    """One gift lifts one chest. Two friends lift the next two with room, one
+    each, rather than stacking into a chest two rarities up."""
+    other, other_client = mate
+    third, third_client = sign_in(db_session, "third")
+    befriend(db_session, member, other)
+    befriend(db_session, third, other)
+    first = give_item(db_session, member.id, "oil", rarity="rare")
+    second = give_item(db_session, third.id, "oil", rarity="rare")
+    signed_in.post(f"/api/satchel/{first.id}/anoint", json={"user_id": other.id})
+    third_client.post(f"/api/satchel/{second.id}/anoint", json={"user_id": other.id})
+
+    body = other_client.get("/api/profile").json()
+    # In the order they arrived, and the first in the queue is on the chest ahead.
+    assert body["pending_gifts"] == [{"from": member.username}, {"from": third.username}]
+    assert body["next_chest"]["gifted_by"] == member.username
+
+    # Ten miles is the 5K and the 10K, and one gift lands on each.
+    log_workout(other_client, "run", 10.0)
+    landed = other_client.get("/api/chests").json()
+    assert [chest["tier_id"] for chest in landed] == ["5k", "10k"]
+    assert [
+        db_session.get(models.Chest, chest["id"]).from_anointing_id for chest in landed
+    ] == [1, 2]
+    assert other_client.get("/api/profile").json()["pending_gifts"] == []
+
+
+def test_a_backfill_spends_one_gift_across_all_of_it(signed_in, db_session, member, mate):
+    """A week of history swept in one pass drops several chests, and the one
+    gift waiting lifts the first of them and no other."""
+    other, _other_client = mate
+    befriend(db_session, member, other)
+    oil = give_item(db_session, member.id, "oil", rarity="rare")
+    signed_in.post(f"/api/satchel/{oil.id}/anoint", json={"user_id": other.id})
+
+    for day in range(3):
+        db_session.add(
+            models.Workout(
+                user_id=other.id,
+                activity="run",
+                start_ts=security.now_utc() - dt.timedelta(hours=3 + day * 24),
+                duration_s=3600,
+                distance_mi=5.0,
+                active_kcal=500.0,
+                avg_hr=None,
+                source="sync",
+                flags={},
+                created_at=security.now_utc(),
+            )
+        )
+    db_session.commit()
+    progress.process_user(db_session, other.id)
+
+    lifted = [
+        row.id
+        for row in db_session.query(models.Chest)
+        .filter(models.Chest.user_id == other.id)
+        .order_by(models.Chest.id)
+        if row.from_anointing_id is not None
+    ]
+    assert len(lifted) == 1
+    assert db_session.get(models.Anointing, 1).consumed_chest_id == lifted[0]
+
+
+def test_a_walker_holds_only_so_many_gifts_at_once(signed_in, db_session, member, mate):
+    """Counted on the receiver across every giver, so nobody's whole coming
+    ladder can be lifted before they have run any of it."""
+    other, other_client = mate
+    for index in range(MAX_PENDING_ANOINTINGS):
+        giver, giver_client = sign_in(db_session, f"giver{index}")
+        befriend(db_session, giver, other)
+        oil = give_item(db_session, giver.id, "oil", rarity="rare")
+        assert (
+            giver_client.post(
+                f"/api/satchel/{oil.id}/anoint", json={"user_id": other.id}
+            ).status_code
+            == 204
+        )
+
+    befriend(db_session, member, other)
+    late = give_item(db_session, member.id, "oil", rarity="rare")
+    refused = signed_in.post(f"/api/satchel/{late.id}/anoint", json={"user_id": other.id})
+    assert refused.status_code == 409
+    assert refused.json()["detail"] == (
+        "They already have all the gifts they can hold. Try again once they have run."
+    )
+    # The oil is still in the satchel. A refusal never destroys the item, which
+    # is the whole reason it is a refusal.
+    assert [row["id"] for row in signed_in.get("/api/satchel").json()] == [late.id]
+    assert db_session.get(models.SatchelItem, late.id).used_at is None
+    assert (
+        len(other_client.get("/api/profile").json()["pending_gifts"])
+        == MAX_PENDING_ANOINTINGS
+    )
+
+    # A chest lands, one gift is spent on it, and there is room to give again.
+    log_workout(other_client, "run", 4.0)
+    assert (
+        signed_in.post(f"/api/satchel/{late.id}/anoint", json={"user_id": other.id}).status_code
+        == 204
+    )
 
 
 def test_the_letter_is_where_the_gift_is_finally_attributed(
@@ -784,9 +934,9 @@ def test_the_letter_is_where_the_gift_is_finally_attributed(
     log_workout(other_client, "run", 4.0)
 
     letter = other_client.get("/api/recap").json()
-    # Two chests landed and exactly one of them is named: the other is the one
-    # the four miles earned, and that one is nobody's gift.
-    assert letter["chests_delivered"] == 2
+    # One chest landed, and it is named: the miles earned it and a friend's oil
+    # made it better.
+    assert letter["chests_delivered"] == 1
     assert letter["chest_givers"] == [member.username]
     # And the letter still reads in the order it reads in.
     assert list(letter) == [
@@ -814,9 +964,9 @@ def test_anointing_pays_the_giver_and_diminishes_like_everything_else(
     spent = db_session.get(models.SatchelItem, first.id)
     assert (spent.given_to_user_id, spent.earned_renown) == (other.id, True)
 
-    # The gift lands, and a second one on the same friend inside the window
-    # arrives all the same and pays nothing.
-    log_workout(other_client, "run", 1.0, offset_min=0)
+    # The gift is spent on a chest, and a second one on the same friend inside
+    # the window arrives all the same and pays nothing.
+    log_workout(other_client, "run", 4.0, offset_min=0)
     second = give_item(db_session, member.id, "oil", rarity="rare")
     assert (
         signed_in.post(f"/api/satchel/{second.id}/anoint", json={"user_id": other.id}).status_code
@@ -840,8 +990,8 @@ def test_only_one_anointing_can_wait_on_the_same_friend(signed_in, db_session, m
     # The refused oil is still in the satchel.
     assert [row["id"] for row in signed_in.get("/api/satchel").json()] == [second.id]
 
-    # Once the first has landed, the same pair can give again.
-    log_workout(other_client, "run", 1.0)
+    # Once the first has been spent on a chest, the same pair can give again.
+    log_workout(other_client, "run", 4.0)
     assert (
         signed_in.post(f"/api/satchel/{second.id}/anoint", json={"user_id": other.id}).status_code
         == 204
@@ -862,19 +1012,24 @@ def test_oil_is_for_somebody_else_and_only_for_a_friend(signed_in, db_session, m
     assert db_session.get(models.SatchelItem, oil.id).used_at is None
 
 
-def test_a_rebuild_keeps_a_chest_somebody_gave(signed_in, db_session, member, mate):
+def test_a_rebuild_walks_the_ladder_again_and_a_spent_gift_stays_spent(
+    signed_in, db_session, member, mate
+):
     other, other_client = mate
     befriend(db_session, member, other)
     oil = give_item(db_session, member.id, "oil", rarity="rare")
     signed_in.post(f"/api/satchel/{oil.id}/anoint", json={"user_id": other.id})
     log_workout(other_client, "run", 4.0)
-    assert len(other_client.get("/api/chests").json()) == 2
+    assert len(other_client.get("/api/chests").json()) == 1
 
     progress.recompute(db_session, other.id)
     left = other_client.get("/api/chests").json()
-    # The earned chest is rebuilt and the gift is simply left alone.
-    assert len(left) == 2
+    # The same miles, so the same one chest. Every chest is a distance now, so
+    # none is held back from the rebuild and none is dropped twice by it.
+    assert [chest["tier_id"] for chest in left] == ["5k"]
+    # The gift was given once and is not handed back to be given again.
     assert db_session.get(models.Anointing, 1).consumed_at is not None
+    assert other_client.get("/api/profile").json()["pending_gifts"] == []
 
 
 def test_the_grove_endpoints_need_a_session(client):

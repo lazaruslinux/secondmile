@@ -8,6 +8,7 @@ deterministic.
 
 import datetime as dt
 import random
+from collections.abc import Sequence
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
@@ -168,14 +169,13 @@ def _credit(db: Session, progress: models.UserProgress, workout: models.Workout)
     # this one in it. The whole week is walked again rather than added to, which
     # is what makes a backfill arriving out of order land on the same rows.
     medals.update_week_for(db, progress.user_id, workout)
-    _advance_chests(db, progress, miles)
     # When the workout arrived rather than when it happened, so a week of
     # history synced this morning waters what is in the ground this morning,
     # and so a rebuild replays to the same numbers. Falls back to the start
     # time for a row written without an arrival stamp.
     moment = workout.created_at or workout.start_ts
+    _advance_chests(db, progress, miles, moment)
     grove.grow(db, progress.user_id, miles, workout.activity, moment)
-    _honour_anointings(db, progress, moment)
 
 
 # --------------------------------------------------------------------------
@@ -201,8 +201,23 @@ def tier_of(chest: models.Chest) -> tuple[str, str]:
     return CHEST_LADDER[0][0], CHEST_LADDER[0][1]
 
 
-def next_chest(progress: models.UserProgress) -> dict:
-    """Which chest is coming and how far off it is.
+def tier_floor(tier: str | None) -> str:
+    """The rarity a chest of this tier is worth at worst, legacy chests included."""
+    return CHEST_TIER_FLOOR.get(tier or "", CHEST_TIER_FLOOR[LEGACY_CHEST_TIER])
+
+
+def can_lift(tier: str | None) -> bool:
+    """Whether a gift has anywhere to go on a chest of this tier.
+
+    An Ultra floors at legendary and legendary is the top rung, so oil spent on
+    one would buy nothing. A gift skips such a chest and waits for the next with
+    room rather than being spent on a step it cannot climb.
+    """
+    return species.RARITY_LADDER.index(tier_floor(tier)) < len(species.RARITY_LADDER) - 1
+
+
+def next_chest(progress: models.UserProgress, gifts: Sequence[str] = ()) -> dict:
+    """Which chest is coming, how far off it is, and whose oil is on it.
 
     tier is the name to print and tier_id is the stable one to key on, the
     same pair every chest carries.
@@ -212,16 +227,28 @@ def next_chest(progress: models.UserProgress) -> dict:
         "tier": name,
         "tier_id": tier_id,
         "miles_away": round(max(cost - progress.chest_progress_mi, 0.0), 2),
+        # The friend whose gift this chest will take, oldest gift first. Null
+        # when none is waiting, and null on a chest with no room for one: that
+        # gift is still waiting, for a later chest.
+        "gifted_by": gifts[0] if gifts and can_lift(tier_id) else None,
     }
 
 
-def _advance_chests(db: Session, progress: models.UserProgress, miles: float) -> None:
+def _advance_chests(
+    db: Session, progress: models.UserProgress, miles: float, moment: dt.datetime
+) -> None:
     """Bank converted Miles toward the next chest and drop what falls out.
 
     The accumulator carries between workouts, so a run that ends short of a
     chest leaves what it covered here rather than losing it, and one long
     workout can climb several steps of the ladder at once.
+
+    Whatever oil has been spent on this account rides along: one gift lifts one
+    chest, in the order the gifts arrived, and a chest with no room for one is
+    passed over. A gift is never spent on the miles themselves, only on what
+    they were already going to bring.
     """
+    waiting = grove.pending_anointings(db, progress.user_id)
     remaining = miles
     while True:
         tier_id, _name, cost = ladder_step(progress.cycle_pos)
@@ -232,7 +259,13 @@ def _advance_chests(db: Session, progress: models.UserProgress, miles: float) ->
         remaining -= room
         progress.chest_progress_mi = 0.0
         progress.cycle_pos = (progress.cycle_pos + 1) % len(CHEST_LADDER)
-        _drop_chest(db, progress.user_id, tier_id)
+        lifted = waiting.pop(0) if waiting and can_lift(tier_id) else None
+        chest = _drop_chest(
+            db, progress.user_id, tier_id, lifted.id if lifted is not None else None
+        )
+        if lifted is not None:
+            lifted.consumed_at = moment
+            lifted.consumed_chest_id = chest.id
 
 
 def _drop_chest(
@@ -240,7 +273,8 @@ def _drop_chest(
 ) -> models.Chest:
     """Drop one chest. What is in it is rolled when it is opened, against the
     odds of the tier stored here: the ladder decides how good a chest is, and
-    the roll happens once, on the way out."""
+    the roll happens once, on the way out. A gift attached here is the promise
+    that the roll will climb; it is kept at the moment the lid comes off."""
     chest = models.Chest(
         user_id=user_id,
         tier=tier,
@@ -253,37 +287,21 @@ def _drop_chest(
     return chest
 
 
-def _honour_anointings(
-    db: Session, progress: models.UserProgress, moment: dt.datetime
-) -> None:
-    """Turn whatever oil has been spent on this account into chests.
-
-    At the tier the account is already working toward, and without moving it
-    along: a gift adds to somebody's day, it does not spend their miles. The
-    recipient has been told nothing until now; the chest is the first they
-    hear of it, and the letter is where it says who it came from.
-    """
-    waiting = grove.pending_anointings(db, progress.user_id)
-    if not waiting:
-        return
-    tier_id, _name, _cost = ladder_step(progress.cycle_pos)
-    for anointing in waiting:
-        chest = _drop_chest(db, progress.user_id, tier_id, from_anointing_id=anointing.id)
-        anointing.consumed_at = moment
-        anointing.consumed_chest_id = chest.id
-
-
-def roll_slot(rng: random.Random, tier: str | None) -> str:
+def roll_slot(rng: random.Random, tier: str | None, lifted: bool = False) -> str:
     """Which rarity slot a chest of this tier comes up with.
 
     The step of the ladder sets the floor and the chest is never worth less
     than it: four times in five it is exactly its own step, and the fifth time
     it is the one above. An Ultra already stands on the top rung, so the roll
     still happens and lands where it started.
+
+    A chest somebody's oil lifted takes that step for certain. The gift is the
+    same upgrade, promised rather than risked, which is why it is worth nothing
+    on a chest already standing at the top. The roll is still drawn, so a lifted
+    chest and a plain one leave the generator in the same place.
     """
-    floor = CHEST_TIER_FLOOR.get(tier or "", CHEST_TIER_FLOOR[LEGACY_CHEST_TIER])
-    step = species.RARITY_LADDER.index(floor)
-    if rng.random() < CHEST_UPGRADE_CHANCE:
+    step = species.RARITY_LADDER.index(tier_floor(tier))
+    if rng.random() < CHEST_UPGRADE_CHANCE or lifted:
         step = min(step + 1, len(species.RARITY_LADDER) - 1)
     return species.RARITY_LADDER[step]
 
@@ -293,6 +311,7 @@ def roll_loot(
     tier: str | None,
     first_ever: bool,
     held: frozenset[str] | set[str] = frozenset(),
+    lifted: bool = False,
 ) -> tuple[str, str | None, str]:
     """What one chest holds, as (kind, species id or None, rarity).
 
@@ -315,7 +334,7 @@ def roll_loot(
     if first_ever:
         seed = species.BY_ID[species.FIRST_CHEST_SPECIES]
         return "seed", seed.id, seed.rarity
-    rarity = roll_slot(rng, tier)
+    rarity = roll_slot(rng, tier, lifted)
     choices = CHEST_SLOT_ITEMS[rarity]
     kind = rng.choices(
         [kind for kind, _weight in choices], weights=[weight for _kind, weight in choices], k=1
@@ -345,7 +364,9 @@ def open_chest(
     never commits: the caller owns the transaction.
 
     What the plot already holds is read here, at the moment of opening, which
-    is where every other roll has always been decided.
+    is where every other roll has always been decided. A gift attached at the
+    drop is kept here too: the promised step up is taken now, with everything
+    else the chest decides.
     """
     # "First" means the first chest that ever yielded an item, not the first
     # chest row ever opened: an account migrated from the card era has opened
@@ -360,7 +381,11 @@ def open_chest(
     )
     rng = random.Random(f"{user_id}:chest:{chest.id}")
     kind, species_id, rarity = roll_loot(
-        rng, chest.tier, first_ever, grove.held_species(db, user_id)
+        rng,
+        chest.tier,
+        first_ever,
+        grove.held_species(db, user_id),
+        chest.from_anointing_id is not None,
     )
     now = now_utc()
     chest.opened_at = now
@@ -389,14 +414,14 @@ def recompute(db: Session, user_id: int) -> models.UserProgress:
     Nothing anybody chose is rebuilt. The satchel, what is planted, and every
     anointing are actions rather than consequences, so they are left exactly as
     they are; only the growth in the plot is replayed, from the same workouts.
-    Chests that came from somebody's oil stay too, for the same reason: that
-    one was a gift, not a distance.
+
+    Every chest goes, lifted ones included, because every chest is a distance
+    now: oil raises a chest the miles earned rather than dropping one of its
+    own, and holding one back would only have the replay drop it a second time.
+    An anointing already spent stays spent. Giving an old gift back to be given
+    again would be minting one nobody sent.
     """
-    db.execute(
-        delete(models.Chest).where(
-            models.Chest.user_id == user_id, models.Chest.from_anointing_id.is_(None)
-        )
-    )
+    db.execute(delete(models.Chest).where(models.Chest.user_id == user_id))
     grove.reset_growth(db, user_id)
     medals.clear_earns(db, user_id)
     # processed_workouts is keyed by workout; the workout is what has an owner.

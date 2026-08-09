@@ -5,9 +5,9 @@ planting, oil is spent on a friend, and a wish is spent on whichever seed is
 missing. There is no fifth thing and no way to merely hold one of them, which is
 why every endpoint here is a verb and none of them is a collection.
 
-Oil is the quiet one. Spending it says nothing to the person it is spent on:
-no notification, no feed event, and nothing in any response they can read. It
-surfaces once, as a chest, in their letter.
+Oil is the quiet one. Spending it says nothing at the moment it is spent: no
+notification and no feed event. It surfaces on the receiving side as a name
+against the chest it will lift, and again in the letter once that chest lands.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -17,6 +17,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app import fellowship, grove, models, progress, security, species, throttle
+from app.config import MAX_PENDING_ANOINTINGS
 from app.db import get_db
 
 router = APIRouter(tags=["grove"])
@@ -168,12 +169,16 @@ def anoint_friend(
     db: Session = Depends(get_db),
     user: models.User = Depends(security.current_user),
 ) -> Response:
-    """Spend oil on a friend, and say nothing to them about it.
+    """Spend oil on a friend, and lift one of the chests their own miles bring.
 
-    Their next credited workout brings them a chest they did not earn. Until
-    then there is nothing to see, on either side: no notification goes out, no
-    feed event is written, and no response of theirs changes. The letter is
-    where it finally says who it came from.
+    A chest is normally its own step of the ladder, and one time in five the
+    step above. A gift promises that step instead of risking it, on the next
+    chest with room for one: the miles are still theirs, and what falls out of
+    them is better for somebody having given.
+
+    Nothing is said as it happens. The receiving side reads it on their own
+    screen, as a name against the chest it is waiting on, and again in the
+    letter once that chest has landed.
     """
     if throttle.encourage_limiter.hit(throttle.client_address(request)):
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many. Wait a minute.")
@@ -189,6 +194,16 @@ def anoint_friend(
     if grove.anointing_waits(db, user.id, body.user_id):
         raise HTTPException(
             status.HTTP_409_CONFLICT, "You already have oil waiting on that friend."
+        )
+    if len(grove.pending_anointings(db, body.user_id)) >= MAX_PENDING_ANOINTINGS:
+        # How much of one walker's coming ladder may be lifted before they have
+        # run any of it. Refused rather than swallowed: oil is a legendary item
+        # and spending it on nothing would be the worse answer by far. Counted
+        # here and not in an index, so two givers racing can leave a fourth
+        # waiting; the miles spend them all the same, one chest each.
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "They already have all the gifts they can hold. Try again once they have run.",
         )
 
     now = security.now_utc()

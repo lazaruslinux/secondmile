@@ -80,7 +80,7 @@ const VERBS: Record<StackKind, { id: string; label: string }[]> = {
 const KIND_LINES: Record<ItemKind, string> = {
   seed: 'Plant it and it grows with your miles.',
   water: 'Ten miles of growth, into one plant.',
-  oil: 'Given to a friend. Their next workout brings them a bonus chest.',
+  oil: 'Given to a friend. One chest they earn opens one step rarer.',
   wish: 'Spent on any seed you have not yet found. One use.',
 }
 
@@ -100,9 +100,15 @@ const LEAST_ROWS = 2
 const NO_SPECIES = ''
 const COMPLETE = 'Your grove is complete. The seed became water.'
 
-// Said after oil is given. The chest is a gift of its own, dropped when their
-// miles next land, and the letter is where it says who it came from.
-const ANOINTED = 'Done. Their next workout brings them a bonus chest.'
+// Said after oil is given. Nothing is sent: it waits on a chest their own miles
+// earn and lifts it a step when it drops, and the letter is where it finally
+// says who it came from.
+const ANOINTED = 'Done. One chest they earn will open one step rarer.'
+
+// Added to whatever the server says when it refuses. Every refusal here leaves
+// the oil where it was, and a legendary item that looks spent for nothing is
+// the one thing worth saying outright.
+const OIL_KEPT = 'The oil is still in your inventory.'
 
 // A friend's plot comes back with a stage rather than miles, so the quiet half
 // of the row says how far along it is in words.
@@ -465,8 +471,9 @@ export default function Inventory({ onChanged }: Props) {
   }
 
   // Every act ends the same way: the server is asked again for everything, and
-  // the screen around this one is told that what it draws has moved.
-  async function act(work: () => Promise<void>) {
+  // the screen around this one is told that what it draws has moved. A refusal
+  // is the server's own sentence, with whatever the act wants added to it.
+  async function act(work: () => Promise<void>, refused = '') {
     setBusy(true)
     setStepError('')
     try {
@@ -474,7 +481,8 @@ export default function Inventory({ onChanged }: Props) {
       await load()
       onChanged()
     } catch (err) {
-      setStepError(errorText(err))
+      const said = errorText(err)
+      setStepError(refused === '' ? said : `${said} ${refused}`)
     } finally {
       setBusy(false)
     }
@@ -500,6 +508,10 @@ export default function Inventory({ onChanged }: Props) {
     })
   }
 
+  // Oil can be turned down: nobody holds more than three gifts at once, and the
+  // answer to that is the server's sentence with the oil's own fate added, said
+  // where the person was picked rather than anywhere they would have to go
+  // looking for it.
   function anoint(userId: number) {
     const item = live?.items[0]
     if (!item) return
@@ -507,7 +519,7 @@ export default function Inventory({ onChanged }: Props) {
       await anointFriend(item.id, userId)
       setNote(ANOINTED)
       shut()
-    })
+    }, OIL_KEPT)
   }
 
   // A wish is spent on a species rather than on a row, and what comes back is
@@ -685,7 +697,7 @@ export default function Inventory({ onChanged }: Props) {
           hint={
             step.then === 'water'
               ? 'Whose plot it goes onto.'
-              : 'Their next workout brings them a bonus chest.'
+              : 'One chest they earn will open one step rarer.'
           }
           choices={friendChoices}
           empty="No friends yet. Invite someone from the You screen."

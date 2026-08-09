@@ -11,13 +11,15 @@ interface Props {
   onDismiss: () => void
 }
 
-// Who sent the gifts among the delivered chests. One entry per gifted chest, so
-// two from the same friend say two, and the names are said once each.
+// Who lifted which of the chests that landed. One entry per gifted chest, so
+// two from the same friend say two, and the names are said once each. Gifted is
+// the word for it: the chest was earned, and somebody else made it richer.
 function giftLine(givers: string[]): string {
   if (givers.length === 0) return ''
   const names = [...new Set(givers)]
-  const which = givers.length === 1 ? 'One of them is a gift' : `${givers.length} of them are gifts`
-  return `${which} from ${names.join(' and ')}.`
+  const which =
+    givers.length === 1 ? 'One of them was gifted' : `${givers.length} of them were gifted`
+  return `${which} by ${names.join(' and ')}.`
 }
 
 // The letter waiting on the mat. Everything in it already happened: the miles

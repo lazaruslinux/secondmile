@@ -156,6 +156,12 @@ CHEST_TIER_FLOOR: dict[str, str] = {
 # top of the ladder has nothing above it, so an Ultra keeps its own.
 CHEST_UPGRADE_CHANCE = 0.20
 
+# How many gifts one account may have waiting at once, counted across every
+# friend who has spent oil on them. Oil promises the upgrade above rather than
+# risking it, so this is a cap on how much of somebody's coming ladder can be
+# lifted before they have run any of it.
+MAX_PENDING_ANOINTINGS = 3
+
 # The step a chest that predates the ladder is worth. Those chests were dropped
 # without a tier and roll as the first step in every respect.
 LEGACY_CHEST_TIER = "5k"

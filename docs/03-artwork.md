@@ -16,11 +16,17 @@ whole of what a commission would cover.
 | Medals | 11 | One face per medal in the catalogue | You screen, Home rail, feed and Log chips, avatar slots |
 | Avatar borders | 6 | One per level tier, `border-t1` to `border-t6` | Around every avatar, every screen |
 | Flourishes | 3 | The growth earned by encouraging people, `f1` to `f3` | Over the border, on every avatar |
-| Interface icons | 8 | Tab bar, cheer, gear, pencil, sport diamond | Chrome, everywhere |
+| Interface icons | 9 | Tab bar, cheer, gear, pencil, sport diamond, chest ladder marker | Chrome, everywhere |
 | Plants | 39 | Thirteen species at three growth stages each | The plot, and the reveal when a seed is found |
 | Loose pieces | 5 | Chest, gilding overlay, oil, water, unmarked seed | Inventory squares, chest reveals, finished plants |
 
-Seventy-two files in total, all under `frontend/src/assets/`.
+Seventy-three files in total, all under `frontend/src/assets/`.
+
+There are two chest drawings on purpose. `grove/chest.svg` is a picture loaded
+by URL with its own colours, used for an inventory square. `icons/chest.svg` is
+placed straight into the page and drawn in `currentColor`, which is what lets
+each marker on the chest ladder take the colour of its own rarity tier. They can
+be redrawn to match each other, but they cannot become one file.
 
 Four things a commission has to know, each learned the hard way here:
 
@@ -89,6 +95,7 @@ both.
 | `pencil.svg` | The edit button in the You header |
 | `diamond.svg` | The week strip on Home, and the sport diamonds on You |
 | `cheer.svg` | The cheer button under a friend's workout on Home |
+| `chest.svg` | The markers along the chest ladder on You |
 
 Three rules on top of the two above, because these files are placed straight
 into the page:
