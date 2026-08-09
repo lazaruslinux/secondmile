@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 from app import models, progress, security, species
 from app.config import MAX_PENDING_ANOINTINGS, WATER_POUR_MI
 from app.main import app as fastapi_app
-from conftest import give_item, give_planting, log_workout, make_user
+from conftest import LETTER_KEYS, give_item, give_planting, log_workout, make_user
 
 
 def sign_in(db_session, username: str) -> tuple[models.User, TestClient]:
@@ -934,23 +934,11 @@ def test_the_letter_is_where_the_gift_is_finally_attributed(
     log_workout(other_client, "run", 4.0)
 
     letter = other_client.get("/api/recap").json()
-    # One chest landed, and it is named: the miles earned it and a friend's oil
-    # made it better.
-    assert letter["chests_delivered"] == 1
-    assert letter["chest_givers"] == [member.username]
+    # One chest landed, and it carries the name: the miles earned it and a
+    # friend's oil made it better.
+    assert letter["chests"] == [{"tier_id": "5k", "tier": "5K", "gifted_by": member.username}]
     # And the letter still reads in the order it reads in.
-    assert list(letter) == [
-        "since",
-        "last_sync_at",
-        "miles",
-        "encouragement",
-        "medals",
-        "plant_growth",
-        "chests_delivered",
-        "chest_givers",
-        "flourish_stage",
-        "flourish_rose",
-    ]
+    assert list(letter) == LETTER_KEYS
 
 
 def test_anointing_pays_the_giver_and_diminishes_like_everything_else(

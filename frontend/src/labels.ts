@@ -60,20 +60,25 @@ export const MEDAL_NAMES: Record<string, string> = {
   night_owl: 'Night Owl',
 }
 
-// What earns each one. The thresholds are the server's, in statute miles, and
-// they are written out in docs/03-artwork.md as well.
+// How to earn each one, written as the instruction it is rather than as a
+// description of it. The thresholds are the server's, in raw miles and never in
+// XP, and they are written out in docs/03-artwork.md as well. The five race
+// medals and the two time medals are running only; a week counts every activity,
+// which is why only those four say so. The clock times are the instance's
+// timezone, which is every account's local time only while one instance serves
+// one place.
 export const MEDAL_DETAILS: Record<string, string> = {
-  race_5k: 'One run of 3.1 miles or more.',
-  race_10k: 'One run of 6.2 miles or more.',
-  race_half: 'One run of 13.1 miles or more.',
-  race_marathon: 'One run of 26.2 miles or more.',
-  race_ultra: 'One run of 31.1 miles or more.',
-  weekly_10: 'Ten miles inside one week, any activity.',
-  weekly_15: 'Fifteen miles inside one week.',
-  weekly_25: 'Twenty-five miles inside one week.',
-  weekly_40: 'Forty miles inside one week.',
-  early_riser: 'A run of 5K or more started between four and six in the morning.',
-  night_owl: 'A run of 5K or more started between eight at night and four in the morning.',
+  race_5k: 'Complete a 5K (3.1mi) run.',
+  race_10k: 'Complete a 10K (6.2mi) run.',
+  race_half: 'Complete a half-marathon (13.1mi)',
+  race_marathon: 'Complete a marathon (26.2mi)',
+  race_ultra: 'Complete an Ultra marathon (31.1mi)',
+  weekly_10: 'Cover 10 or more miles in one week, in any activity.',
+  weekly_15: 'Cover 15 or more miles in one week, in any activity.',
+  weekly_25: 'Cover 25 or more miles in one week, in any activity.',
+  weekly_40: 'Cover 40 or more miles in one week, in any activity.',
+  early_riser: 'Start a 5K run (3.1mi) or more between 4am-5:59am local time.',
+  night_owl: 'Start a 5K run (3.1mi) or more between 8pm-3:59am local time.',
 }
 
 // A medal id the server sent that this build has no name for still has to read

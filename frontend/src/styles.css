@@ -2152,7 +2152,11 @@ button:disabled {
   border-radius: var(--radius);
 }
 
+/* The head and the foot keep their whole size and the body is what gives way,
+   so a long letter scrolls between them rather than pushing Done off the
+   bottom of the panel and out of reach. */
 .overlay-head {
+  flex: 0 0 auto;
   padding: 1rem 1rem 0.5rem;
   border-bottom: 1px solid var(--line);
 }
@@ -2162,6 +2166,7 @@ button:disabled {
 }
 
 .overlay-foot {
+  flex: 0 0 auto;
   padding: 0.75rem 1rem;
   border-top: 1px solid var(--line);
 }
@@ -2170,27 +2175,59 @@ button:disabled {
   width: 100%;
 }
 
+/* min-height is the whole of it: a flex item will not shrink below its content
+   without this, so the scrollbar would never appear and the panel would grow
+   past its own maximum instead. */
 .recap {
   flex: 1;
+  min-height: 0;
   padding: 0.5rem 1rem 1rem;
   overflow-y: auto;
 }
 
-/* The one number the letter is about. */
-.recap-miles {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  margin: 0.5rem 0 1rem;
+/* What the body covered: four rows and the total of them, one line each, with
+   the figures in a column of their own so the eye adds them up down the page. */
+.recap-ledger {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
 }
 
-.recap-miles-value {
-  font-size: 2.5rem;
-  font-weight: 800;
+.recap-ledger li {
+  padding: 0.15rem 0;
+}
+
+.recap-ledger-value {
+  display: inline-block;
+  min-width: 3.5rem;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.03em;
-  line-height: 1;
-  color: var(--accent);
+  text-align: right;
+}
+
+.recap-ledger-total {
+  margin-top: 0.25rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--line);
+  font-weight: 700;
+}
+
+/* A line with a label on the front of it: what was found, and what it was
+   worth. The label carries the weight and the answer reads at normal size. */
+.recap-line {
+  margin: 0 0 0.5rem;
+}
+
+.recap-line-label {
+  font-weight: 700;
+}
+
+/* When the numbers above were last brought in. Quiet: it is the date on the
+   letter rather than any of its news. */
+.recap-sync {
+  margin: 0 0 0.75rem;
+  font-size: 0.9rem;
+  color: var(--muted);
 }
 
 /* The words somebody wrote, given the weight of the thing they are: the name of
@@ -2231,9 +2268,74 @@ button:disabled {
   color: var(--muted);
 }
 
-/* Said once, quietly, at the foot of the letter. */
+/* Said once, quietly, near the foot of the letter. Room on both sides because
+   it is a line on its own rather than part of what it sits between: with only
+   a margin above it, the heading below reads as though the sentence introduced
+   it. */
 .recap-grew {
-  margin: 1rem 0 0;
+  margin: 1rem 0 1.25rem;
+}
+
+/* The grove keeps its bullets, which is how his markup wrote it and the only
+   place in the letter that lists whole sentences. Pulled in so the marks sit
+   under the heading rather than out at the browser's own indent. */
+.recap-growth {
+  margin: 0.25rem 0 0;
+  padding-left: 1.2rem;
+}
+
+/* One row per workout that arrived, with the way into the edit panel on the
+   right of it. The panel opens underneath the row it belongs to, so what is
+   being written is read where it will be read from. */
+.recap-activities {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+}
+
+.recap-activity {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.recap-activity:last-child {
+  border-bottom: none;
+}
+
+.recap-activity-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.recap-activity-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.recap-activity-name {
+  margin: 0;
+  font-weight: 700;
+}
+
+.recap-activity-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.9rem;
+  margin: 0.1rem 0 0;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.recap-activity-title {
+  margin: 0.2rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+/* The pencil keeps its size whatever the row beside it does. */
+.recap-activity .icon-button {
+  flex: 0 0 auto;
 }
 
 .recap-section {

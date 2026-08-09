@@ -3,7 +3,7 @@
 import datetime as dt
 import random
 
-from conftest import give_item, give_planting, log_workout, neutral_start
+from conftest import LETTER_KEYS, give_item, give_planting, log_workout, neutral_start
 
 from app import models, progress, security, species
 from app.config import CHEST_LADDER, CHEST_TIER_FLOOR
@@ -578,62 +578,182 @@ def test_the_achievements_endpoint_is_gone(signed_in):
 def test_the_recap_carries_chests_medals_and_miles_then_clears(signed_in):
     log_workout(signed_in, "run", 11.0, pace_min=9)
     recap = signed_in.get("/api/recap").json()
-    assert list(recap) == [
-        "since",
-        "last_sync_at",
-        "miles",
-        "encouragement",
-        "medals",
-        "plant_growth",
-        "chests_delivered",
-        "chest_givers",
-        "flourish_stage",
-        "flourish_rose",
-    ]
+    assert list(recap) == LETTER_KEYS
     assert recap["since"] is None
-    assert recap["miles"] == 11.0
-    # Eleven Miles is the 5K chest and the 10K one, announced as a number
-    # rather than listed: the letter no longer opens anything.
-    assert recap["chests_delivered"] == 2
-    # Nothing was given, so nothing is attributed to anybody.
-    assert recap["chest_givers"] == []
+    # Eleven miles run, and running is the one activity where the miles a body
+    # covered and the XP the game counts are the same number.
+    assert recap["miles"] == {"walk": 0.0, "run": 11.0, "cycle": 0.0, "swim": 0.0}
+    assert (recap["miles_total"], recap["xp"]) == (11.0, 11.0)
+    # Eleven XP is the 5K chest and the 10K one, named rather than counted: the
+    # letter says which steps dropped, and still opens nothing.
+    assert recap["chests"] == [
+        {"tier_id": "5k", "tier": "5K", "gifted_by": None},
+        {"tier_id": "10k", "tier": "10K", "gifted_by": None},
+    ]
     # Eleven miles in one run is a 10K and a ten-mile week, and both families
     # are in the letter. Each entry is the id, the label, and the date.
     assert [row["id"] for row in recap["medals"]] == ["race_10k", "weekly_10"]
     assert set(recap["medals"][0]) == {"id", "name", "earned_at"}
     assert recap["medals"][1]["name"] == "10-mile week"
+    # And the run itself, in the shape the edit panel takes.
+    assert recap["workouts_total"] == 1
+    assert set(recap["workouts"][0]) == {
+        "workout_id",
+        "activity",
+        "start_ts",
+        "duration_s",
+        "distance_mi",
+        "title",
+        "post",
+        "photos",
+    }
+    listed = recap["workouts"][0]
+    assert (listed["activity"], listed["distance_mi"]) == ("run", 11.0)
 
     assert signed_in.post("/api/recap/ack").status_code == 204
     cleared = signed_in.get("/api/recap").json()
     assert cleared["since"] is not None
-    assert cleared["miles"] == 0.0
+    assert cleared["miles"] == {"walk": 0.0, "run": 0.0, "cycle": 0.0, "swim": 0.0}
+    assert (cleared["miles_total"], cleared["xp"]) == (0.0, 0.0)
     assert cleared["medals"] == []
-    # Chests are not cleared by acknowledging: they wait in the inventory.
-    assert cleared["chests_delivered"] == 2
+    assert (cleared["workouts"], cleared["workouts_total"]) == ([], 0)
+    # The chests themselves are untouched and still waiting in the inventory;
+    # what clears is the letter's account of them, like every other number here.
+    assert cleared["chests"] == []
+    assert len(signed_in.get("/api/chests").json()) == 2
 
 
-def test_the_count_falls_as_chests_are_opened_elsewhere(signed_in, db_session, member):
-    """The letter counts what is closed, so opening one in the inventory is
-    what makes the announcement smaller. Nothing in the letter did it."""
+def test_a_chest_left_unopened_does_not_follow_you_into_the_next_letter(signed_in):
+    """Saving your chests must not make the app interrupt you forever.
+
+    An unopened chest is a permanent fact about an account, so a letter that
+    reported every one of them would have news on every sign-in for somebody who
+    simply has not opened them yet. The letter reports the window; the inventory
+    holds the chests.
+    """
     log_workout(signed_in, "run", 11.0, pace_min=9)
-    assert signed_in.get("/api/recap").json()["chests_delivered"] == 2
+    assert len(signed_in.get("/api/recap").json()["chests"]) == 2
+    assert signed_in.post("/api/recap/ack").status_code == 204
+
+    # Nothing opened, nothing run: the chests are still there and the letter has
+    # stopped talking about them.
+    assert signed_in.get("/api/recap").json()["chests"] == []
+    assert len(signed_in.get("/api/chests").json()) == 2
+
+    # Fresh miles, and only what they dropped is named. Eleven miles left 1.7
+    # banked against the 13.1 the Half step costs, so twelve more clears it and
+    # nothing else, which is what makes this one chest rather than three.
+    log_workout(signed_in, "run", 12.0, pace_min=9)
+    assert [row["tier_id"] for row in signed_in.get("/api/recap").json()["chests"]] == ["half"]
+
+
+def test_a_quiet_letter_still_carries_all_four_activities(signed_in):
+    """Four rows whatever the week held. The client prints walked, ran, swam and
+    biked every time, and inventing the missing ones is not its job."""
+    recap = signed_in.get("/api/recap").json()
+    assert recap["miles"] == {"walk": 0.0, "run": 0.0, "cycle": 0.0, "swim": 0.0}
+    assert (recap["miles_total"], recap["xp"]) == (0.0, 0.0)
+
+
+def test_a_mile_swum_is_one_mile_and_four_xp(signed_in):
+    """The regression the whole shape exists for. A mile in the pool is one mile
+    a body covered; four is what the game makes of it, and the letter had been
+    printing the four under the word Miles."""
+    log_workout(signed_in, "swim", 1.0, pace_min=40)
+    recap = signed_in.get("/api/recap").json()
+    assert recap["miles"]["swim"] == 1.0
+    assert recap["miles_total"] == 1.0
+    assert recap["xp"] == 4.0
+
+
+def test_a_ride_diverges_the_other_way(signed_in):
+    """Cycling converts down, so here the miles are the bigger number and the XP
+    is the smaller. Three miles ridden is one XP, and both are true."""
+    log_workout(signed_in, "cycle", 3.0, pace_min=5)
+    recap = signed_in.get("/api/recap").json()
+    assert recap["miles"]["cycle"] == 3.0
+    assert recap["miles_total"] == 3.0
+    assert recap["xp"] == 1.0
+
+
+def test_the_total_is_the_sum_of_the_four_rows(signed_in):
+    """The total under the rows is the total of the rows. It is added up from
+    the four numbers as sent, so the letter always visibly adds up."""
+    log_workout(signed_in, "run", 2.5, offset_min=0)
+    log_workout(signed_in, "walk", 1.25, pace_min=20, offset_min=60)
+    log_workout(signed_in, "cycle", 6.0, pace_min=5, offset_min=120)
+    log_workout(signed_in, "swim", 0.5, pace_min=40, offset_min=180)
+
+    recap = signed_in.get("/api/recap").json()
+    assert recap["miles"] == {"walk": 1.25, "run": 2.5, "cycle": 6.0, "swim": 0.5}
+    assert recap["miles_total"] == round(sum(recap["miles"].values()), 2) == 10.25
+    # A different number entirely, off the same four workouts: the ride converts
+    # down and the swim converts up.
+    assert recap["xp"] == 7.75
+
+
+def test_the_list_shortens_as_chests_are_opened_elsewhere(signed_in):
+    """The letter lists what is closed, so opening one in the inventory is what
+    makes the announcement smaller. Nothing in the letter did it."""
+    log_workout(signed_in, "run", 11.0, pace_min=9)
+    listed = signed_in.get("/api/recap").json()["chests"]
+    assert [row["tier_id"] for row in listed] == ["5k", "10k"]
 
     waiting = signed_in.get("/api/chests").json()
     assert signed_in.post(f"/api/chests/{waiting[0]['id']}/open").status_code == 200
-    assert signed_in.get("/api/recap").json()["chests_delivered"] == 1
+    assert [row["tier_id"] for row in signed_in.get("/api/recap").json()["chests"]] == ["10k"]
 
 
-def test_the_letter_names_who_lifted_a_chest(signed_in, db_session, member, admin):
-    """One name per lifted chest, so the letter can say which of them a friend
-    paid for. The chests nobody's oil touched are not named, which is what makes
-    the count and the names two different numbers."""
+def test_the_letter_names_the_chests_and_who_lifted_them(signed_in, db_session, member, admin):
+    """Every chest is named by the step that dropped it, and the ones a friend's
+    oil paid for carry the friend. The rest carry nobody, which is what makes the
+    thanks worth reading."""
     give_lifted_chest(db_session, member.id, admin.id)
     give_chest(db_session, member.id)
     give_lifted_chest(db_session, member.id, admin.id, tier="half")
 
+    assert signed_in.get("/api/recap").json()["chests"] == [
+        {"tier_id": "5k", "tier": "5K", "gifted_by": admin.username},
+        {"tier_id": "5k", "tier": "5K", "gifted_by": None},
+        {"tier_id": "half", "tier": "Half", "gifted_by": admin.username},
+    ]
+
+
+def test_the_letter_lists_ten_workouts_and_owns_up_to_the_rest(signed_in):
+    """Twelve arrived, ten are listed, and the letter says twelve. A season of
+    history imported in one go must not draw a dialog the length of itself, and
+    the cut is never silent."""
+    posted = [
+        log_workout(signed_in, "walk", 1.0, pace_min=20, offset_min=index * 30)
+        for index in range(12)
+    ]
+
     recap = signed_in.get("/api/recap").json()
-    assert recap["chests_delivered"] == 3
-    assert recap["chest_givers"] == [admin.username, admin.username]
+    assert recap["workouts_total"] == 12
+    # Newest first, by when the row arrived, so the ten listed are the last ten
+    # posted and the two oldest are the ones left in the log.
+    assert [row["workout_id"] for row in recap["workouts"]] == [
+        row["id"] for row in reversed(posted[2:])
+    ]
+
+
+def test_a_listed_workout_carries_what_was_written_on_it(signed_in):
+    """The rows are handed to the same panel the feed edits with, so they carry
+    the same fields it edits and the key it reads them by."""
+    workout = log_workout(signed_in, "run", 3.0)
+    edited = signed_in.patch(
+        f"/api/workouts/{workout['id']}",
+        json={"title": "Morning loop", "post": "Cold enough for gloves."},
+    )
+    assert edited.status_code == 200, edited.text
+
+    row = signed_in.get("/api/recap").json()["workouts"][0]
+    assert (row["workout_id"], row["title"], row["post"], row["photos"]) == (
+        workout["id"],
+        "Morning loop",
+        "Cold enough for gloves.",
+        [],
+    )
 
 
 def test_an_account_that_never_synced_has_no_sync_to_report(signed_in):
@@ -673,6 +793,9 @@ def test_a_plant_that_finished_a_level_is_in_the_letter(signed_in, db_session, m
     ]
     # The plot's own shape, so nothing on the client composes the name.
     assert grown[0]["plant_name"] == "Strawberry bush"
+    # Where it started, which is both ends of "0 -> 1" and the only way the
+    # client can tell a plant that came up from one that gained a level.
+    assert grown[0]["level_before"] == 0
 
 
 def test_a_plant_that_only_grew_a_little_says_nothing(signed_in, db_session, member):
@@ -729,10 +852,13 @@ def test_a_level_already_announced_is_not_announced_again(signed_in, db_session,
     log_workout(signed_in, "run", 2.0, offset_min=300)
     assert signed_in.get("/api/recap").json()["plant_growth"] == []
 
-    # And the next level is news again when it actually lands.
+    # And the next level is news again when it actually lands, counted from the
+    # level the last letter wrote down rather than from nothing.
     log_workout(signed_in, "run", 13.0, pace_min=9, offset_min=600)
     grown = signed_in.get("/api/recap").json()["plant_growth"]
-    assert [(row["level"], row["levels_gained"]) for row in grown] == [(2, 1)]
+    assert [(row["level_before"], row["level"], row["levels_gained"]) for row in grown] == [
+        (1, 2, 1)
+    ]
 
 
 def test_a_medal_from_a_backdated_run_still_reaches_the_recap(signed_in, db_session, member):

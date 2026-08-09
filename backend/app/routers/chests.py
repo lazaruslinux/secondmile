@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app import fellowship, grove, medals, models, progress, security
 from app.activity import converted_miles
 from app.db import get_db
+from app.routers.workouts import photos_for
 
 router = APIRouter(tags=["chests"])
 
@@ -16,6 +17,11 @@ router = APIRouter(tags=["chests"])
 # somebody who comes back to more than this many notes has a very good week's
 # worth either way; the rest are still on the workouts they were written on.
 MAX_RECAP = 200
+
+# How many of the new workouts the letter lists. A season of history imported in
+# one go would otherwise draw a dialog nobody can reach the end of, and the rows
+# are an invitation to annotate rather than a record: the log has all of them.
+MAX_RECAP_WORKOUTS = 10
 
 
 def _chest(row: models.Chest) -> dict:
@@ -35,8 +41,8 @@ def _chest(row: models.Chest) -> dict:
 
 
 def _pending(db: Session, user_id: int) -> list[models.Chest]:
-    """Every chest still closed, oldest first. Never capped: the letter counts
-    them now, and a count that stopped at some number would be a lie."""
+    """Every chest still closed, oldest first. Never capped: the letter names
+    them now, and a list that stopped at some number would be a lie."""
     return list(
         db.execute(
             select(models.Chest)
@@ -103,48 +109,92 @@ def read_recap(
     """
     row = progress.process_user(db, user.id)
     since = row.last_ack_at
+    miles, xp = _miles(db, user.id, since)
 
-    # Miles from workouts that landed since the last acknowledgement, by when
-    # the row arrived rather than when the workout started: a week of history
-    # synced this morning is news this morning, whatever date is on it.
-    miles_stmt = select(
-        models.Workout.activity, func.coalesce(func.sum(models.Workout.distance_mi), 0.0)
-    ).where(models.Workout.user_id == user.id)
-    if since is not None:
-        miles_stmt = miles_stmt.where(models.Workout.created_at > since)
-    miles = sum(
-        converted_miles(activity, float(total))
-        for activity, total in db.execute(
-            miles_stmt.group_by(models.Workout.activity)
-        ).all()
-    )
-
-    # Ordered as the letter reads: what window it covers, the miles in it, what
-    # people said about them, then the medals, what grew, and what landed.
+    # Ordered as the letter reads: what window it covers, what the body did in
+    # it, what landed, what people said, what grew, and the workouts themselves,
+    # which the letter invites a word on rather than merely reporting.
     return {
         "since": since.isoformat() if since is not None else None,
         "last_sync_at": _last_sync(db, user.id),
-        "miles": round(miles, 2),
-        "encouragement": _received(db, user.id, since),
+        "miles": miles,
+        # Added up from the four numbers as sent rather than from the sums
+        # behind them, so the total under the four rows is always the total of
+        # the rows the reader can see.
+        "miles_total": round(sum(miles.values()), 2),
+        "xp": round(xp, 2),
+        "chests": _delivered(db, user.id, since),
         "medals": _fresh_medals(db, user.id, since),
+        "encouragement": _received(db, user.id, since),
         "plant_growth": _plant_growth(db, user.id),
-        **_delivered(db, user.id),
+        **_arrived(db, user.id, since),
         **_flourish(db, user.id, row, since),
     }
 
 
-def _delivered(db: Session, user_id: int) -> dict:
-    """How many chests are waiting in the inventory, and who lifted any of them.
+def _miles(
+    db: Session, user_id: int, since: dt.datetime | None
+) -> tuple[dict[str, float], float]:
+    """What was covered since the last acknowledgement, both ways: the raw
+    distance per activity, and what the game made of the lot of it.
 
-    A count rather than a list: the letter says they arrived, the inventory is
-    where they are opened, and a letter that also opened them would be two
-    places doing one job.
+    Two numbers because they are two different things. Miles are what a body
+    covered and are the only thing ever printed as miles; XP is that distance
+    weighted by how hard the activity is, and is what levels, the chest ladder
+    and the grove run on. A mile swum is one mile and four XP, and one of those
+    numbers wearing the other's name is the whole reason this returns a pair.
 
-    The names are what a count cannot carry on its own. Every chest here was
+    Counted by when the row arrived rather than when the workout started: a week
+    of history synced this morning is news this morning, whatever date is on it.
+
+    All four activities, always, zeros included, because the letter prints four
+    rows and the client should never have to invent the ones nobody did.
+    """
+    stmt = select(
+        models.Workout.activity, func.coalesce(func.sum(models.Workout.distance_mi), 0.0)
+    ).where(models.Workout.user_id == user_id)
+    if since is not None:
+        stmt = stmt.where(models.Workout.created_at > since)
+    miles = dict.fromkeys(models.ACTIVITIES, 0.0)
+    xp = 0.0
+    for activity, total in db.execute(stmt.group_by(models.Workout.activity)).all():
+        miles[activity] = round(float(total), 2)
+        xp += converted_miles(activity, float(total))
+    return miles, xp
+
+
+def _delivered(db: Session, user_id: int, since: dt.datetime | None) -> list[dict]:
+    """The chests the miles in this letter dropped, in the order they landed,
+    each named by the step of the ladder that dropped it and saying who lifted
+    it.
+
+    Named rather than counted, because "10K chest" is the thing that happened
+    and "2" is only the size of it. Still nothing about what is inside: the
+    inventory is where the lid comes off, and a letter that also opened them
+    would be two places doing one job.
+
+    Windowed on when the chest dropped, like every other number in the letter,
+    rather than being every chest still closed. Two reasons, and the second is
+    the serious one. A section headed "Chests found" inside a report about one
+    stretch of time has to mean the chests found in it, or it disagrees with the
+    miles printed beside it. And an unopened chest is a permanent fact about an
+    account: reporting those would make the letter have news forever, so it
+    would interrupt every single sign-in, for somebody who is simply saving
+    their chests. Nothing is lost by leaving them out, because a chest never
+    expires and the inventory counts them on their own squares.
+
+    The giver is what the chest cannot say on its own. Every chest here was
     earned by the miles; a named one is a chest a friend's oil made better, and
     saying so is the thanks the giver never asked for.
     """
-    rows = _pending(db, user_id)
+    where = [models.Chest.user_id == user_id, models.Chest.opened_at.is_(None)]
+    if since is not None:
+        where.append(models.Chest.dropped_at > since)
+    rows = list(
+        db.execute(select(models.Chest).where(*where).order_by(models.Chest.id)).scalars()
+    )
+    # One query for every giver on the letter. A lookup per chest would be a
+    # query per chest, and the count is not bounded.
     gifts = {
         anointing_id: username
         for anointing_id, username in db.execute(
@@ -157,14 +207,72 @@ def _delivered(db: Session, user_id: int) -> dict:
             )
         ).all()
     }
+    out = []
+    for row in rows:
+        tier_id, tier_name = progress.tier_of(row)
+        out.append(
+            {
+                "tier_id": tier_id,
+                "tier": tier_name,
+                # Null on the ordinary chest, where nobody's oil was on it.
+                "gifted_by": gifts.get(row.from_anointing_id),
+            }
+        )
+    return out
+
+
+def _arrived(db: Session, user_id: int, since: dt.datetime | None) -> dict:
+    """The workouts that landed since the last letter, newest first, and how
+    many there really were.
+
+    Filtered by the same arrival rule the miles are summed by, so the list and
+    the numbers above it can never describe two different sets of workouts.
+
+    Nothing is held back from the feed by being here. These were credited and
+    published when they arrived; the letter is a second chance to say something
+    about them, which is what the rows carry a title, a post and photos for.
+
+    The true count travels beside a capped list, because a cut nobody is told
+    about is the same as a lie.
+    """
+    where = [models.Workout.user_id == user_id]
+    if since is not None:
+        where.append(models.Workout.created_at > since)
+    rows = list(
+        db.execute(
+            select(models.Workout)
+            .where(*where)
+            # By when the workout happened, not by when the row arrived. Which
+            # is which only matters once a sync brings several at once, and
+            # then it matters a lot: arrival order reads as shuffled, because
+            # it puts this morning's run above yesterday evening's ride for a
+            # reason nobody can see. By id within a timestamp, so a batch that
+            # arrived together reads the same way twice.
+            .order_by(models.Workout.start_ts.desc(), models.Workout.id.desc())
+            .limit(MAX_RECAP_WORKOUTS)
+        ).scalars()
+    )
+    total = db.execute(
+        select(func.count()).select_from(models.Workout).where(*where)
+    ).scalar_one()
+    pictures = photos_for(db, rows)
     return {
-        "chests_delivered": len(rows),
-        # One name per lifted chest, in the order they landed, so two from the
-        # same friend are still two things given. Empty on the ordinary letter,
-        # where nobody's oil was on any of them.
-        "chest_givers": [
-            gifts[row.from_anointing_id] for row in rows if row.from_anointing_id in gifts
+        "workouts": [
+            {
+                # workout_id rather than id, because the edit panel and the feed
+                # already read that key and one of them was not going to change.
+                "workout_id": row.id,
+                "activity": row.activity,
+                "start_ts": row.start_ts.isoformat(),
+                "duration_s": row.duration_s,
+                "distance_mi": round(row.distance_mi, 3),
+                "title": row.title,
+                "post": row.post,
+                "photos": pictures.get(row.id, []),
+            }
+            for row in rows
         ],
+        "workouts_total": total,
     }
 
 
@@ -193,6 +301,11 @@ def _plant_growth(db: Session, user_id: int) -> list[dict]:
     """The plants that put on at least a whole level since the letter was last
     cleared, in the shape the plot is read in, with the levels they gained.
 
+    Both ends of the climb travel, because "7 -> 8" needs the number it started
+    from and a plant that came up from nothing is a different sentence from one
+    that gained a level. Which sentence to write is the client's call: the level
+    it started at is the fact, and maturing is what that fact means.
+
     Read against the level written down when the letter was put down, rather
     than worked out by taking this letter's growth back off again. Subtraction
     could only ever see the workouts: nothing records which planting a water
@@ -217,7 +330,11 @@ def _plant_growth(db: Session, user_id: int) -> list[dict]:
         level = grove.level_of(row)
         if level > row.level_at_ack:
             out.append(
-                {**grove.serialize_planting(row), "levels_gained": level - row.level_at_ack}
+                {
+                    **grove.serialize_planting(row),
+                    "level_before": row.level_at_ack,
+                    "levels_gained": level - row.level_at_ack,
+                }
             )
     return out
 
@@ -232,9 +349,8 @@ def _received(db: Session, user_id: int, since: dt.datetime | None) -> dict:
     stmt = select(models.Encouragement).where(models.Encouragement.to_user_id == user_id)
     if since is not None:
         stmt = stmt.where(models.Encouragement.created_at > since)
-    # Capped at MAX_RECAP, which is the only thing in the letter that still is:
-    # a count of chests costs nothing to be honest about, and a wall of notes
-    # does.
+    # Capped at MAX_RECAP, the same bargain the workout list makes: a handful of
+    # chests costs nothing to be honest about, and a wall of notes does.
     rows = list(
         db.execute(stmt.order_by(models.Encouragement.created_at).limit(MAX_RECAP)).scalars()
     )

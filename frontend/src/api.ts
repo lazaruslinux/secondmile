@@ -426,16 +426,50 @@ export interface RecapEncouragement {
 // One plant that put a level on since the letter was last read.
 export interface RecapGrowth extends Planting {
   levels_gained: number
+  // Where the climb started, which is what turns a level into a sentence: a
+  // plant that stood at zero came up out of the ground, and one that stood at
+  // seven simply grew. Optional, since a plant from before the column was
+  // written says nothing about where it began.
+  level_before?: number
+}
+
+// One chest that landed while the app was shut. Named by the step of the ladder
+// that dropped it, and carrying the friend whose oil lifted it when there was
+// one. The count and the list of givers are worked out from these here.
+export interface RecapChest {
+  tier_id?: string | null
+  tier?: string | null
+  gifted_by?: string | null
+}
+
+// One workout that arrived while the app was shut. It was credited and
+// published when it landed; the letter lists it so it can be given a name and
+// some words after the fact. workout_id rather than id, because that is the key
+// the feed and the edit panel already read.
+export interface RecapWorkout {
+  workout_id: number
+  activity: Activity
+  start_ts: string
+  duration_s: number
+  distance_mi: number
+  title?: string | null
+  post?: string | null
+  photos?: number[]
 }
 
 export interface RecapState {
   since: string | null
-  miles: number
-  // Chests are opened in the inventory now, so the letter counts them rather
-  // than carrying them. One giver entry per gifted chest, duplicates included,
-  // so two from the same friend can be said as two.
-  chests_delivered: number
-  chest_givers?: string[]
+  // Raw miles, per activity: the distance a body actually covered. All four
+  // keys arrive, zeros included, and each one is still read as optional so a
+  // key that goes missing reads as none rather than throwing.
+  miles: Partial<Record<Activity, number>>
+  miles_total?: number
+  // The weighted number the game runs on. Never called miles anywhere.
+  xp?: number
+  // Chests are opened in the inventory now, so the letter names what landed
+  // rather than carrying it. One entry per chest, duplicates included, so two
+  // of the same step are said twice.
+  chests?: RecapChest[]
   // When the phone last synced, or null for an account that never has.
   last_sync_at?: string | null
   plant_growth?: RecapGrowth[]
@@ -444,6 +478,11 @@ export interface RecapState {
   medals?: MedalEarn[]
   // Words and cheers received since the last read. Optional throughout.
   encouragement?: RecapEncouragement
+  // The newest workouts that arrived, capped by the server, and how many there
+  // really were. The cap is why the count travels: a list of ten out of a
+  // hundred and fifty has to say so.
+  workouts?: RecapWorkout[]
+  workouts_total?: number
   // Whether the border's growth moved on, and how far it got. Either may be
   // absent; a stage on its own is read as a rise.
   flourish_rose?: boolean

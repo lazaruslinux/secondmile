@@ -62,10 +62,10 @@ export function lifetimeWorkouts(profile: Profile): number {
   return count
 }
 
-// What each step of the ladder costs, in converted miles. Written down here
-// rather than asked for because the steps are named after the distances: a 5K
-// step is a 5K. The order itself is the labels' business and is not repeated.
-const STEP_MILES: Record<string, number> = {
+// What each step of the ladder costs, in XP. Written down here rather than
+// asked for because the steps are named after the distances: a 5K step is a 5K.
+// The order itself is the labels' business and is not repeated.
+const STEP_XP: Record<string, number> = {
   '5k': 3.1,
   '10k': 6.2,
   half: 13.1,
@@ -86,8 +86,9 @@ export interface ChestStep {
 
 export interface ChestBarState {
   steps: ChestStep[]
-  // "Half chest, 1.1 mi away", or nothing where the server has not said how far
-  // off it is. A made-up distance would be worse than no line.
+  // "Half chest, 1.1 XP away", or nothing where the server has not said how far
+  // off it is. The ladder is climbed on the weighted number, so this is XP and
+  // never miles. A made-up distance would be worse than no line.
   away: string
   // Whoever's oil has no chest to land on yet. A gift on a step that cannot be
   // lifted waits rather than being spent, so it belongs to a later chest and
@@ -125,7 +126,7 @@ export function chestBar(profile: Profile): ChestBarState | null {
 
   // A step this build has never heard of leaves the walker off the bar rather
   // than on the wrong rung: every step reads as still to come.
-  const cost = STEP_MILES[tier] ?? 0
+  const cost = STEP_XP[tier] ?? 0
   const into = known && cost > 0 ? Math.min(100, Math.max(0, ((cost - away) / cost) * 100)) : 0
 
   const giftedBy = profile.next_chest?.gifted_by?.trim() ?? ''
@@ -145,7 +146,7 @@ export function chestBar(profile: Profile): ChestBarState | null {
 
   return {
     steps,
-    away: known ? `${chestName(tier)}, ${(away as number).toFixed(1)} mi away` : '',
+    away: known ? `${chestName(tier)}, ${(away as number).toFixed(1)} XP away` : '',
     waiting,
     nextIsTop: tier === CHEST_TIER_ORDER[CHEST_TIER_ORDER.length - 1],
   }
@@ -153,7 +154,7 @@ export function chestBar(profile: Profile): ChestBarState | null {
 
 // This week across every activity. The profile carries per-activity rows and no
 // sum of them, so the adding up happens here. distance is raw miles: what the
-// body covered, not the game's weighted Miles.
+// body covered, not the weighted number the game runs on, which is XP.
 export function weekTotals(profile: Profile) {
   let distance = 0
   let kcal = 0
@@ -166,11 +167,19 @@ export function weekTotals(profile: Profile) {
   return { distance, kcal, workouts }
 }
 
+// Everything an account has ever covered, in raw miles. This is the distance a
+// body went, never the weighted number the game counts as XP, and it is the
+// only number the screens are allowed to call miles.
+export function lifetimeMiles(profile: Profile): number {
+  let distance = 0
+  for (const row of Object.values(profile.lifetime)) distance += row.distance_mi
+  return distance
+}
+
 // The weekly medals and the raw miles each one is earned at, which is the
 // server's ladder written down a second time so a target can be shown before
-// it is reached. Raw miles, never converted Miles: a week is twenty-five miles
-// walked, run, ridden or swum, and no conversion rate has any business changing
-// what it is.
+// it is reached. Raw miles, never XP: a week is twenty-five miles walked, run,
+// ridden or swum, and no conversion rate has any business changing what it is.
 const WEEKLY_TARGETS: { id: string; miles: number }[] = [
   { id: 'weekly_10', miles: 10 },
   { id: 'weekly_15', miles: 15 },

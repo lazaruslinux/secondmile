@@ -31,6 +31,24 @@ from app.main import app as fastapi_app  # noqa: E402
 ADMIN = {"username": "admin", "password": "admin-password-1"}
 MEMBER = {"username": "runner", "password": "runner-password-1"}
 
+# The recap's keys, in the order it sends them. Shared because three files read
+# the letter and a shape written down three times drifts in two of them.
+LETTER_KEYS = [
+    "since",
+    "last_sync_at",
+    "miles",
+    "miles_total",
+    "xp",
+    "chests",
+    "medals",
+    "encouragement",
+    "plant_growth",
+    "workouts",
+    "workouts_total",
+    "flourish_stage",
+    "flourish_rose",
+]
+
 
 @pytest.fixture(autouse=True)
 def _reset_rate_limits():

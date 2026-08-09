@@ -154,7 +154,7 @@ export default function App() {
       {/* Nothing to read is not worth interrupting anyone for, so the letter
           only appears when it says something. */}
       {recap !== null && recapHasNews(recap) && (
-        <Recap recap={recap} onDismiss={() => void dismissRecap()} />
+        <Recap recap={recap} units={me.units} onDismiss={() => void dismissRecap()} />
       )}
 
       {/* The view names its own column, which is all the wide layouts need to

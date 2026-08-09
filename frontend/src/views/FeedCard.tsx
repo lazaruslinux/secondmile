@@ -239,17 +239,38 @@ function ChosenMedals({ ids }: { ids: string[] }) {
   )
 }
 
-interface EditProps {
-  item: FeedItem
-  onChanged: (item: FeedItem) => void
+// The parts of a workout the panel below actually touches, which is all it ever
+// needed to know about one. A feed row satisfies it and so does a row in the
+// letter, so both open the same panel rather than growing a second one.
+export interface EditableWorkout {
+  workout_id: number
+  title?: string | null
+  post?: string | null
+  photos?: number[]
+}
+
+interface EditProps<T extends EditableWorkout> {
+  item: T
+  // Handed back as the same shape it came in as, so whoever owns the row can
+  // put the change back where it lives without losing the rest of the row.
+  onChanged: (item: T) => void
   onClose: () => void
+  // Whether to open with the line saying what can and cannot be edited. The
+  // feed keeps it; the letter drops it, because a letter that lists several
+  // workouts would repeat the same paragraph down the page.
+  explain?: boolean
 }
 
 // The owner's panel, on the card itself rather than over the page: what is being
 // written is read in the place it will be read from. The words are saved
 // together by Save; a picture is its own act and is added or taken away the
 // moment it is chosen.
-function EditPanel({ item, onChanged, onClose }: EditProps) {
+export function EditPanel<T extends EditableWorkout>({
+  item,
+  onChanged,
+  onClose,
+  explain = true,
+}: EditProps<T>) {
   const [title, setTitle] = useState(item.title ?? '')
   const [post, setPost] = useState(item.post ?? '')
   const [saving, setSaving] = useState(false)
@@ -314,10 +335,12 @@ function EditPanel({ item, onChanged, onClose }: EditProps) {
 
   return (
     <form className="feed-edit-panel" onSubmit={save}>
-      <p className="hint">
-        Your title, your words, and up to {PHOTO_LIMIT} photos. The distance, the time, and
-        when it happened are not editable.
-      </p>
+      {explain && (
+        <p className="hint">
+          Your title, your words, and up to {PHOTO_LIMIT} photos. The distance, the time, and
+          when it happened are not editable.
+        </p>
+      )}
 
       <label className="label">
         Title

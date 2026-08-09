@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 
 from app import config, fellowship, models, security
 from app.main import app as fastapi_app
-from conftest import make_user, neutral_start
+from conftest import LETTER_KEYS, make_user, neutral_start
 
 # The photo upload helper, borrowed rather than written twice: what a friend
 # sees of a picture is tested here, and how one is stored is tested there.
@@ -540,18 +540,7 @@ def test_the_letter_reads_in_order_and_carries_the_words(friends, db_session):
     )
 
     letter = mine.get("/api/recap").json()
-    assert list(letter) == [
-        "since",
-        "last_sync_at",
-        "miles",
-        "encouragement",
-        "medals",
-        "plant_growth",
-        "chests_delivered",
-        "chest_givers",
-        "flourish_stage",
-        "flourish_rose",
-    ]
+    assert list(letter) == LETTER_KEYS
     received = letter["encouragement"]
     assert received["cheer_count"] == 2
     assert sorted(row["workout_id"] for row in received["cheers"]) == sorted(

@@ -32,7 +32,14 @@ import {
   medalName,
   plantingName,
 } from '../labels.ts'
-import { ageOf, chestBar, displayNameOf, medalCountsOf, SEEDS_TO_FIND } from '../profile.ts'
+import {
+  ageOf,
+  chestBar,
+  displayNameOf,
+  lifetimeMiles,
+  medalCountsOf,
+  SEEDS_TO_FIND,
+} from '../profile.ts'
 import AvatarFrame from './AvatarFrame.tsx'
 import ChestBar from './ChestBar.tsx'
 import ChestItem from './ChestItem.tsx'
@@ -62,8 +69,8 @@ interface StatsProps {
 }
 
 // Distance is what the body covered, in whichever unit the account reads in.
-// Miles are the game's unit, weighted per activity, and the same number on
-// every account.
+// XP is the game's own number, that distance weighted per activity, and it
+// reads the same on every account whatever unit is set.
 function Stats({ stats, units, empty }: StatsProps) {
   const rows = ACTIVITY_ORDER.filter((name) => stats[name])
   if (rows.length === 0) return <p className="hint">{empty}</p>
@@ -75,9 +82,11 @@ function Stats({ stats, units, empty }: StatsProps) {
         <tr>
           <th scope="col">Activity</th>
           <th scope="col">Distance</th>
-          {/* The weighted number the game counts in, so a swim and a bike ride
-              are worth what they cost rather than what they measure. */}
-          <th scope="col">Adjusted</th>
+          {/* The weighted number the game runs on, so a swim and a bike ride
+              are worth what they cost rather than what they measure. It is
+              called XP everywhere it is shown, because miles on screen mean
+              the distance itself. */}
+          <th scope="col">XP</th>
           <th scope="col">Workouts</th>
           <th scope="col">Calories</th>
         </tr>
@@ -339,7 +348,7 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
             <h2 className="profile-name">{shownName || profile.username}</h2>
             {shownName !== '' && <p className="profile-username">{profile.username}</p>}
             <p className="you-level">
-              Level {profile.level}, {convertedValue(profile.xp)} mi
+              Level {profile.level}, {convertedValue(profile.xp)} XP
             </p>
           </div>
         </div>
@@ -361,17 +370,17 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
               </p>
             )}
 
-            {/* Miles rather than points on this screen. They are the same number
-                the feed counts as XP; the profile is where the app says what it
-                is really about. The level itself is the headline of the card, so
-                it is drawn at the size the recap gives the one number it is
-                about, and the word stays small beside it. */}
+            {/* XP rather than miles on this line, because the ladder is climbed
+                on the weighted number and miles on screen only ever mean the
+                distance a body covered. The level itself is the headline of the
+                card, so it is drawn at the size the recap gives the one number
+                it is about, and the word stays small beside it. */}
             <p className="level-line">
               <span className="level-tag">Level</span>
               <span className="level-number">{profile.level}</span>
               <span className="muted">
                 {convertedValue(profile.xp_into_level)} of{' '}
-                {convertedValue(profile.xp_for_next_level)} mi toward level {nextLevel}
+                {convertedValue(profile.xp_for_next_level)} XP toward level {nextLevel}
               </span>
             </p>
             {/* A progress element rather than a div with a width on it: the
@@ -383,12 +392,15 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
               max={profile.xp_for_next_level}
             >
               {convertedValue(profile.xp_into_level)} of{' '}
-              {convertedValue(profile.xp_for_next_level)}
+              {convertedValue(profile.xp_for_next_level)} XP
             </progress>
 
             <ul className="profile-counts">
               <li>
-                <span className="count-value">{convertedValue(profile.xp)}</span>
+                {/* Raw miles, summed across the four activities: the distance
+                    this account actually covered. The weighted total is XP and
+                    is named as such wherever it is shown. */}
+                <span className="count-value">{lifetimeMiles(profile).toFixed(1)}</span>
                 <span className="count-label">Miles</span>
               </li>
               <li>
@@ -531,13 +543,13 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
               // Not "nothing waiting" any more: a gift can be waiting on this
               // card at the same time, and one word cannot mean both.
               <p className="hint">
-                No chests to open. They arrive as you cover miles, and they never expire.
+                No chests to open. They arrive as you earn XP, and they never expire.
               </p>
             )}
             {/* The whole cycle rather than the one line it replaced: where the
-                next chest sits on the ladder, how far into that step the miles
-                have got, and which chest a friend's oil is waiting on. Only
-                drawn when the server has said which chest is coming. */}
+                next chest sits on the ladder, how far into that step the XP has
+                got, and which chest a friend's oil is waiting on. Only drawn
+                when the server has said which chest is coming. */}
             {ladder && <ChestBar bar={ladder} />}
             {chestError && (
               <p className="error" role="alert">

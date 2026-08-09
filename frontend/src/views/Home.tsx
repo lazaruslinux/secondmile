@@ -21,6 +21,7 @@ import {
 import { ACTIVITY_NAMES, medalName } from '../labels.ts'
 import {
   displayNameOf,
+  lifetimeMiles,
   lifetimeWorkouts,
   medalCountsOf,
   nextWeeklyTarget,
@@ -168,8 +169,8 @@ function RecentMedals({ recent }: { recent: Recent[] }) {
 
 // The next weekly medal and how far into it this week is, on the same terms as
 // the medals above: one place, two homes. The distance is raw miles, which is
-// what the medal is measured in; showing converted Miles here would name a
-// number the server never counts a week in.
+// what the medal is measured in; showing XP here would name a number the server
+// never counts a week in.
 function Challenge({ distance, counts }: { distance: number; counts: Map<string, number> }) {
   const target = nextWeeklyTarget(distance)
   return (
@@ -342,7 +343,9 @@ export default function Home({ userId, units, refreshToken, onOpenLog, onOpenPro
 
           <ul className="summary-stats">
             <li>
-              <span className="count-value">{convertedValue(profile.xp)}</span>
+              {/* Raw miles, the same number the You screen leads with: what the
+                  body covered rather than what the game weighted it at. */}
+              <span className="count-value">{lifetimeMiles(profile).toFixed(1)}</span>
               <span className="count-label">Miles</span>
             </li>
             <li>
@@ -400,13 +403,13 @@ export default function Home({ userId, units, refreshToken, onOpenLog, onOpenPro
               max={profile.xp_for_next_level}
             >
               {convertedValue(profile.xp_into_level)} of{' '}
-              {convertedValue(profile.xp_for_next_level)}
+              {convertedValue(profile.xp_for_next_level)} XP
             </progress>
-            {/* Miles here as on the You screen. The feed below still counts the
-                same number as XP on each card. */}
+            {/* XP here as on the You screen, since the level is climbed on the
+                weighted number. The miles tile above is the raw distance. */}
             <p className="hint summary-xp">
               {convertedValue(profile.xp_into_level)} of{' '}
-              {convertedValue(profile.xp_for_next_level)} mi toward level {profile.level + 1}
+              {convertedValue(profile.xp_for_next_level)} XP toward level {profile.level + 1}
             </p>
           </div>
         </section>

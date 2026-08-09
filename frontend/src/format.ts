@@ -2,8 +2,8 @@
 //
 // Distances are stored in miles whatever the account displays, so the
 // conversion happens at the edge: here on the way out, and in the entry form on
-// the way in. Adjusted miles are the game's own weighted unit and are never
-// converted: they are the same number in every account.
+// the way in. XP is the game's own weighted unit and is never converted: it is
+// the same number in every account, and it is never called miles.
 
 import type { Activity, Units } from './api.ts'
 
@@ -30,11 +30,32 @@ export function distanceValue(miles: number, units: Units): string {
   return toDisplayDistance(miles, units).toFixed(2)
 }
 
-// Adjusted miles on screen: one decimal, and never converted, whether the word
-// beside it is miles on the profile or XP on a workout card. They are the same
-// number in every account.
+// XP on screen: one decimal, and never converted. XP is distance weighted by
+// how hard the activity is, so a mile swum is one mile and four XP, and it is
+// the same figure in every account whatever unit that account reads distances
+// in. The word beside it is always XP, never miles and never mi.
 export function convertedValue(miles: number): string {
   return miles.toFixed(1)
+}
+
+// How long it has been, in the largest unit that fits whole: "2 days", "1 day",
+// "3 hours", "22 minutes", or "a moment" for anything under a minute. Rounded
+// down, so the gap is never overstated. Days do not roll up into weeks or
+// months, because "it has been 40 days" is a truer sentence than "a month" and
+// this line is read as a fact rather than as a headline. A stamp that will not
+// parse answers with nothing, so the sentence around it can be dropped whole
+// rather than printed half built.
+export function formatElapsed(iso: string): string {
+  const at = Date.parse(iso)
+  if (isNaN(at)) return ''
+  const seconds = Math.max(0, (Date.now() - at) / 1000)
+  const days = Math.floor(seconds / 86400)
+  if (days >= 1) return `${days} ${days === 1 ? 'day' : 'days'}`
+  const hours = Math.floor(seconds / 3600)
+  if (hours >= 1) return `${hours} ${hours === 1 ? 'hour' : 'hours'}`
+  const minutes = Math.floor(seconds / 60)
+  if (minutes >= 1) return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`
+  return 'a moment'
 }
 
 // The zone the instance keeps, learned from GET /api/status when the app boots.
