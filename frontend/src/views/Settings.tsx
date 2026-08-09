@@ -291,13 +291,6 @@ export default function Settings({
           </form>
         </div>
 
-        <div className="card">
-          <h3>Sign out</h3>
-          <p className="hint">Signs this browser out. Your other devices stay signed in.</p>
-          <button type="button" className="secondary" onClick={() => void signOut()}>
-            Sign out
-          </button>
-        </div>
       </section>
 
       <section className="settings-group">
@@ -461,6 +454,20 @@ export default function Settings({
             {unitsError}
           </p>
         )}
+      </section>
+
+      {/* Last on the page and in a group of its own, because the end is where
+          people scroll to look for it. It used to sit inside Account, between
+          the email form and the sync token, where it was findable only by
+          somebody who already knew it was there. */}
+      <section className="settings-group">
+        <div className="card">
+          <h3>Sign out</h3>
+          <p className="hint">Signs this browser out. Your other devices stay signed in.</p>
+          <button type="button" className="secondary" onClick={() => void signOut()}>
+            Sign out
+          </button>
+        </div>
       </section>
     </>
   )

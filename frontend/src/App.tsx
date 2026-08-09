@@ -13,6 +13,7 @@ import {
 } from './api.ts'
 import { setInstanceTimezone } from './format.ts'
 import { recapHasNews } from './recap.ts'
+import Landing from './views/Landing.tsx'
 import Login from './views/Login.tsx'
 import Grove from './views/Grove.tsx'
 import Home from './views/Home.tsx'
@@ -37,6 +38,9 @@ const TABS: { id: View; label: string; icon: string }[] = [
 export default function App() {
   const [me, setMe] = useState<Me | null>(null)
   const [checkingSession, setCheckingSession] = useState(true)
+  // Which of the two signed-out screens is on. Null is the landing page, and a
+  // string is the form, opened on the tab whichever button asked for.
+  const [gate, setGate] = useState<'signin' | 'register' | null>(null)
   const [view, setView] = useState<View>('home')
   const [verifyNote, setVerifyNote] = useState('')
   const [recap, setRecap] = useState<RecapState | null>(null)
@@ -47,7 +51,17 @@ export default function App() {
   useEffect(() => {
     // One place decides that a lost session means the login screen, so no
     // individual request has to handle it.
-    setUnauthorizedHandler(() => setMe(null))
+    setUnauthorizedHandler(() =>
+      setMe((current) => {
+        // Only a session that was actually in use goes to the form. Every
+        // signed-out visitor's first request is a 401 from the boot-time check
+        // below, and sending those to the form would mean nobody ever saw the
+        // landing page. Read through the updater rather than the closure,
+        // which was captured before anybody signed in.
+        if (current) setGate('signin')
+        return null
+      }),
+    )
 
     async function boot() {
       // The verification mail links here with the token in the URL fragment,
@@ -115,11 +129,22 @@ export default function App() {
   if (checkingSession) return <p className="notice">Loading.</p>
 
   if (!me) {
+    // A verification link goes straight to the form. Its note is about an
+    // account that already exists, so showing that person what the app is
+    // would be answering a question they did not ask.
+    if (gate === null && verifyNote === '') {
+      return <Landing onEnter={(registering) => setGate(registering ? 'register' : 'signin')} />
+    }
     return (
       <Login
         notice={verifyNote}
+        startRegistering={gate === 'register'}
+        // No way back from a verification link, because there is nothing
+        // behind it: that address was opened from an email, not from the page.
+        onBack={verifyNote === '' ? () => setGate(null) : undefined}
         onSignedIn={(user) => {
           setMe(user)
+          setGate(null)
           setView('home')
         }}
       />

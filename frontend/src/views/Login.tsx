@@ -13,10 +13,16 @@ import {
 interface Props {
   notice: string
   onSignedIn: (me: Me) => void
+  // Which of the two the landing page's button promised, so the form opens on
+  // the one that was clicked rather than making it the first thing to fix.
+  startRegistering?: boolean
+  // Back to the landing page. Absent when there is nothing behind this screen,
+  // which is the case for a session that expired mid-use.
+  onBack?: () => void
 }
 
-export default function Login({ notice, onSignedIn }: Props) {
-  const [registering, setRegistering] = useState(false)
+export default function Login({ notice, onSignedIn, startRegistering = false, onBack }: Props) {
+  const [registering, setRegistering] = useState(startRegistering)
   // Null until the server says which mode it is in, so the invite field is not
   // shown and then yanked away half a second later on an open instance.
   const [inviteRequired, setInviteRequired] = useState<boolean | null>(null)
@@ -95,6 +101,12 @@ export default function Login({ notice, onSignedIn }: Props) {
     <div className="gate">
       <h1 className="wordmark wordmark-large">secondmile</h1>
       <p className="notice">Still being built. Your miles already count.</p>
+
+      {onBack && (
+        <button type="button" className="link gate-back" onClick={onBack}>
+          Back
+        </button>
+      )}
 
       <form className="card" onSubmit={submit}>
         <h2>{registering ? 'Create an account' : 'Sign in'}</h2>

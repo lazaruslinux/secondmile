@@ -3288,3 +3288,133 @@ button:disabled {
     gap: 1rem;
   }
 }
+
+/* ------------------------------------------------------------------------ */
+/* The landing page                                                          */
+/*                                                                           */
+/* The only screen anybody sees before they have an account. Type on black    */
+/* and nothing else: no photograph, no screenshots, no artwork. That is not   */
+/* an economy, it is the point. A page made of the app's own type cannot go   */
+/* stale when a screen is redesigned, and it loads nothing from anywhere.     */
+/* ------------------------------------------------------------------------ */
+
+.landing {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 0 1.1rem 3rem;
+}
+
+.landing-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 54px;
+}
+
+/* The verse carries the page, so the room above and below it is doing as much
+   work as the size is. Tight leading and a little negative tracking keep three
+   big lines reading as one sentence rather than as three. */
+.landing-hero {
+  padding: 2.6rem 0 2.4rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.landing-verse {
+  font-size: clamp(2rem, 7.4vw, 3.5rem);
+  font-weight: 800;
+  line-height: 1.04;
+  letter-spacing: -0.025em;
+  margin: 0 0 1rem;
+}
+
+.landing-sub {
+  font-size: clamp(1rem, 2.6vw, 1.2rem);
+  color: var(--muted);
+  margin: 0 0 1.5rem;
+}
+
+/* The same diamonds the profile wears, which is the one visual thing this page
+   borrows from the app. Four sports, always all four, in the app's own order. */
+.landing-sports {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.2rem;
+  list-style: none;
+  margin: 0 0 1.9rem;
+  padding: 0;
+}
+
+.landing-sports li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.landing-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+}
+
+/* Sized to its words rather than to the column: a call to action stretched the
+   width of a page reads as a form field. */
+.landing-actions .primary {
+  padding: 0.7rem 1.6rem;
+}
+
+.landing-invite {
+  margin: 0.6rem 0 0;
+}
+
+/* The link inside the invite sentence sits in running text, so it takes the
+   line's own size rather than the standalone link size. */
+.landing-invite .link {
+  font-size: inherit;
+  padding: 0;
+  min-height: 0;
+}
+
+.landing-section {
+  padding: 2rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+/* The app's own small shouty label, in the accent, naming what the section is
+   about in one word before the sentence says it properly. Scoped to the
+   section rather than left bare: it is a paragraph inside .landing-section,
+   so the muted body colour below outranks a lone class and the accent would
+   never show. */
+.landing-section .landing-eyebrow {
+  color: var(--accent);
+  margin: 0 0 0.45rem;
+}
+
+.landing-section h2 {
+  font-size: clamp(1.3rem, 3.4vw, 1.7rem);
+  line-height: 1.15;
+  margin: 0 0 0.5rem;
+}
+
+.landing-section p {
+  color: var(--muted);
+  margin: 0;
+  max-width: 40rem;
+}
+
+.landing-foot {
+  padding: 1.6rem 0 0;
+}
+
+.landing-foot p {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: 0;
+}
+
+/* Back to the landing page from the form. Pulled to the left edge of the card
+   column so it reads as leaving rather than as one of the form's own buttons. */
+.gate-back {
+  align-self: flex-start;
+  padding-left: 0;
+}
