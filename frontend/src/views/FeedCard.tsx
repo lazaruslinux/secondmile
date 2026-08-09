@@ -23,6 +23,7 @@ import {
 import { ACTIVITY_NAMES, personName } from '../labels.ts'
 import AvatarFrame from './AvatarFrame.tsx'
 import Icon from './Icon.tsx'
+import { MAX_MEDAL_SLOTS } from './MedalNest.tsx'
 import { MedalChip } from './Medals.tsx'
 import RouteLine from './RouteLine.tsx'
 
@@ -215,6 +216,24 @@ function PhotoStrip({ workoutId, photos }: { workoutId: number; photos: number[]
         </li>
       ))}
     </ul>
+  )
+}
+
+// The medals somebody chose to show, beside their name. These are who they are
+// rather than what this workout earned, which is why they sit at the top of the
+// card and the earned ones stay along the foot. They are drawn at the foot's
+// size and not nestled on the picture: four nested medals come to about three
+// times the width of a 2.5rem feed avatar and would lie across the name, and
+// shrinking them takes the word off the plate, which is the only thing telling
+// 5K from MARATHON.
+function ChosenMedals({ ids }: { ids: string[] }) {
+  if (ids.length === 0) return null
+  return (
+    <p className="feed-chosen">
+      {ids.slice(0, MAX_MEDAL_SLOTS).map((id) => (
+        <MedalChip key={id} id={id} />
+      ))}
+    </p>
   )
 }
 
@@ -414,22 +433,25 @@ export default function FeedCard({ item, units, avatarVersion, onChanged }: Prop
   const medals = item.medals ?? []
   // The name they go by if they gave one, and their username otherwise.
   const who = personName(user)
+  // Read as optional on purpose: the field arrives on the person card, and a
+  // card without it draws no medals rather than throwing.
+  const chosen = user.displayed_badges ?? []
 
   if (item.own) {
     return (
       <article className="card feed">
         <header className="feed-head">
-          {user.has_avatar ? (
-            <img
-              className="feed-avatar"
-              src={avatarUrl(user.user_id, avatarVersion)}
-              alt=""
-            />
-          ) : (
-            <span className="feed-avatar feed-avatar-empty" aria-hidden="true">
-              {who.slice(0, 1).toUpperCase()}
-            </span>
-          )}
+          {/* The same frame a friend's card has always had. Your own border and
+              your own growth are worth as much on your own workout as on
+              somebody else's, and the version is here because a picture just
+              uploaded has to show straight away. */}
+          <AvatarFrame
+            name={who}
+            src={user.has_avatar ? avatarUrl(user.user_id, avatarVersion) : null}
+            borderTier={user.border_tier}
+            flourish={user.flourish}
+            frameClass="feed-frame"
+          />
           <div className="feed-who">
             <p className="feed-name">{who}</p>
             <p className="feed-when">{when}</p>
@@ -448,6 +470,11 @@ export default function FeedCard({ item, units, avatarVersion, onChanged }: Prop
           >
             <Icon name="pencil" />
           </button>
+
+          {/* Last in the header so it takes a line of its own across the whole
+              card: chosen medals are wide, and the same four have to break the
+              same way here as they do on a friend's card. */}
+          <ChosenMedals ids={chosen} />
         </header>
 
         {editing ? (
@@ -517,6 +544,7 @@ export default function FeedCard({ item, units, avatarVersion, onChanged }: Prop
           <p className="feed-name">{who}</p>
           <p className="feed-when">{when}</p>
         </div>
+        <ChosenMedals ids={chosen} />
       </header>
 
       <h2 className="feed-title">{headline}</h2>

@@ -808,33 +808,14 @@ button:disabled {
 
 /* Home: the feed */
 
+/* Top-aligned rather than centred: the picture belongs beside the name. It
+   wraps because the chosen medals below the name are the width of the card
+   rather than the width of what is left beside the picture. */
 .feed-head {
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
+  align-items: flex-start;
   gap: 0.7rem;
-}
-
-/* Square, the same corner the framed pictures beside a friend's workout have.
-   The outline stands in for the border artwork those carry: a squared-off crop
-   with nothing around it reads as an unfinished image rather than a picture in
-   a frame, and it is the placeholder letter that shows it worst. */
-.feed-avatar {
-  width: 2.5rem;
-  height: 2.5rem;
-  flex: 0 0 auto;
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  object-fit: cover;
-  background: #17171b;
-}
-
-.feed-avatar-empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--accent);
 }
 
 .feed-who {
@@ -852,6 +833,20 @@ button:disabled {
   margin: 0;
   font-size: 0.78rem;
   color: var(--muted);
+}
+
+/* The medals somebody chose to show, on their own line under the name and
+   across the card. The same pill the foot uses, so the feed has one kind of
+   medal chip rather than two, and it wraps instead of shrinking: four of them
+   are wider than a phone, and the word on the plate is the only thing telling
+   one race medal from another. */
+.feed-chosen {
+  flex: 0 0 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  margin: 0;
 }
 
 .feed-title {
@@ -1532,6 +1527,18 @@ button:disabled {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+  color: var(--accent);
+}
+
+/* The recap's treatment for the one number a screen is about, at the size the
+   card can carry: the level reads across the room, and the line about the next
+   one keeps its place beside it and drops below when the screen is narrow. */
+.level-number {
+  font-size: 2.5rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  line-height: 1;
   color: var(--accent);
 }
 

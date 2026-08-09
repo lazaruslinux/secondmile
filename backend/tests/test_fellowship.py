@@ -144,6 +144,7 @@ def test_a_friend_card_carries_no_counts_and_no_renown(signed_in, db_session, me
         "has_avatar",
         "border_tier",
         "flourish",
+        "displayed_badges",
     }
     assert card["display_name"] is None
     assert card["flourish"] == 2
@@ -654,6 +655,100 @@ def test_the_email_change_limiter_is_registered_for_the_reset():
     names = {limiter.name for limiter in throttle._ALL_LIMITERS}
     assert "email-change" in names
     assert throttle.email_change_limiter.max_attempts == 3
+
+
+# --------------------------------------------------------------------------
+# The medals a person wears
+# --------------------------------------------------------------------------
+
+# Everything a person card is allowed to carry, asserted as a whole set so a
+# field cannot quietly leave it either.
+PERSON_CARD_KEYS = {
+    "user_id",
+    "username",
+    "display_name",
+    "has_avatar",
+    "border_tier",
+    "flourish",
+    "displayed_badges",
+}
+
+
+def wear(db_session, user: models.User, *badge_ids: str) -> None:
+    """Fill somebody's slots straight from the column, rather than through the
+    profile, which would first make them earn each one."""
+    user.displayed_badges = list(badge_ids)
+    db_session.commit()
+
+
+def test_a_feed_row_carries_the_medals_that_person_chose(
+    signed_in, db_session, member, mate
+):
+    other, theirs = mate
+    befriend(db_session, member, other)
+    wear(db_session, other, "race_half", "weekly_25")
+    post_workout(theirs, miles=4.0)
+
+    card = signed_in.get("/api/feed").json()[0]["user"]
+    # Slot order, kept as stored: the client draws them left to right.
+    assert card["displayed_badges"] == ["race_half", "weekly_25"]
+
+
+def test_your_own_row_carries_yours(signed_in, db_session, member):
+    wear(db_session, member, "second_mile")
+    post_workout(signed_in, miles=2.0)
+    row = signed_in.get("/api/feed").json()[0]
+    assert row["own"] is True
+    assert row["user"]["displayed_badges"] == ["second_mile"]
+
+
+def test_wearing_none_reads_as_an_empty_list(signed_in, db_session, member, mate):
+    """Never null: the frontend defaults this field, and a null would make the
+    two halves disagree about what "no medals" looks like."""
+    other, theirs = mate
+    befriend(db_session, member, other)
+    post_workout(theirs, miles=2.0)
+
+    card = signed_in.get("/api/feed").json()[0]["user"]
+    assert card["displayed_badges"] == []
+    assert isinstance(card["displayed_badges"], list)
+
+
+def test_the_friends_list_carries_them_too(signed_in, db_session, member, mate):
+    other, _ = mate
+    befriend(db_session, member, other)
+    wear(db_session, other, "night_owl")
+    assert signed_in.get("/api/friends").json()["friends"][0]["displayed_badges"] == [
+        "night_owl"
+    ]
+
+
+def test_the_medals_join_the_card_without_disturbing_it(
+    signed_in, db_session, member, mate
+):
+    """The whole card, asserted at once: the six fields that were there before
+    still read the same, and the medals a workout earned are a separate thing
+    on a separate key."""
+    other, theirs = mate
+    befriend(db_session, member, other)
+    other.first_name, other.last_name = "Sam", "Fields"
+    wear(db_session, other, "early_riser")
+    post_workout(theirs, miles=3.5)
+
+    row = signed_in.get("/api/feed").json()[0]
+    assert set(row["user"]) == PERSON_CARD_KEYS
+    assert row["user"] == {
+        "user_id": other.id,
+        "username": "mate",
+        "display_name": "Sam Fields",
+        "has_avatar": False,
+        "border_tier": 1,
+        "flourish": 0,
+        "displayed_badges": ["early_riser"],
+    }
+    # Earned by that run, not chosen for the profile, and untouched by any of
+    # this.
+    assert row["medals"] == ["race_5k"]
 
 
 # --------------------------------------------------------------------------

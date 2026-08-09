@@ -368,9 +368,12 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
 
             {/* Miles rather than points on this screen. They are the same number
                 the feed counts as XP; the profile is where the app says what it
-                is really about. */}
+                is really about. The level itself is the headline of the card, so
+                it is drawn at the size the recap gives the one number it is
+                about, and the word stays small beside it. */}
             <p className="level-line">
-              <span className="level-tag">Level {profile.level}</span>
+              <span className="level-tag">Level</span>
+              <span className="level-number">{profile.level}</span>
               <span className="muted">
                 {convertedValue(profile.xp_into_level)} of{' '}
                 {convertedValue(profile.xp_for_next_level)} mi toward level {nextLevel}

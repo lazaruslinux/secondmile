@@ -281,8 +281,8 @@ def people(db: Session, user_ids) -> dict[int, dict]:
 
     Two queries for any number of people, because the feed needs one of these
     per row and a per-row query is how a feed stops being fast. Nothing in it
-    is private: a name, whether there is a picture, and the two things worn on
-    the frame.
+    is private: a name, whether there is a picture, the two things worn on the
+    frame, and the medals they chose to wear.
     """
     ids = list(user_ids)
     if not ids:
@@ -304,10 +304,14 @@ def people(db: Session, user_ids) -> dict[int, dict]:
             models.User.avatar_path,
             models.User.first_name,
             models.User.last_name,
+            # Read alongside the rest rather than asked for per person: the
+            # medals are the reason a feed row says who somebody is, and one
+            # more round trip per row would undo what this function is for.
+            models.User.displayed_badges,
         ).where(models.User.id.in_(ids))
     ).all()
     cards = {}
-    for user_id, username, avatar_path, first_name, last_name in rows:
+    for user_id, username, avatar_path, first_name, last_name, badges in rows:
         level, renown = state.get(user_id, (0, 0))
         cards[user_id] = {
             "user_id": user_id,
@@ -318,6 +322,10 @@ def people(db: Session, user_ids) -> dict[int, dict]:
             "has_avatar": avatar_path is not None,
             "border_tier": progress.border_tier(level),
             "flourish": flourish_stage(renown),
+            # The four they chose to wear, in slot order, never the ones a
+            # workout earned. Copied into a list so an account wearing none
+            # arrives as [] and the client never has to read a null.
+            "displayed_badges": list(badges or []),
         }
     return cards
 
