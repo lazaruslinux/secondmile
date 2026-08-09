@@ -2314,6 +2314,18 @@ button:disabled {
   border-radius: var(--radius);
 }
 
+/* THE RULE FOR EVERY SCROLLING REGION INSIDE ONE OF THESE PANELS, and there are
+   five of them: the letter, the item, the crop, the edit form and the chooser.
+   Each needs overflow-y and both of these, or it does not scroll at all.
+
+   min-height: 0 because a flex item will not shrink below its own content
+   without it, so the region grows to whatever it holds, the overflow never
+   activates, and the panel clips what will not fit.
+
+   overscroll-behavior: contain because once the inside has reached its end a
+   touch scroll otherwise chains outward and drags the page behind the dialog,
+   which is what it looks like when a modal list will not move. */
+
 /* The head and the foot keep their whole size and the body is what gives way,
    so a long letter scrolls between them rather than pushing Done off the
    bottom of the panel and out of reach. */
@@ -2337,14 +2349,14 @@ button:disabled {
   width: 100%;
 }
 
-/* min-height is the whole of it: a flex item will not shrink below its content
-   without this, so the scrollbar would never appear and the panel would grow
-   past its own maximum instead. */
+/* The letter itself, which is the part that gives way between the head and the
+   foot so a long one scrolls rather than pushing Done out of reach. */
 .recap {
   flex: 1;
   min-height: 0;
   padding: 0.5rem 1rem 1rem;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 /* What the body covered: four rows and the total of them, one line each, with
@@ -2966,10 +2978,12 @@ button:disabled {
 .item-detail {
   display: flex;
   flex: 1;
+  min-height: 0;
   flex-direction: column;
   gap: 0.75rem;
   padding: 0.75rem 1rem 1rem;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 /* The picture stays on screen, with what the thing is beside it. */
@@ -2989,6 +3003,15 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+}
+
+/* Picking a thing to spend, as the inventory's own squares rather than a list of
+   names. The panel is narrower than the others because it holds one kind of
+   thing rather than the whole satchel, and a wide panel with two squares in the
+   corner of it would say the opposite. The squares themselves are the grid the
+   satchel draws, so nothing here sizes them a second time. */
+.pick-panel {
+  max-width: 22rem;
 }
 
 /* Narrowing a list of people. It is the app's own field, drawn the way the
@@ -3032,8 +3055,10 @@ button:disabled {
    the scrolling part, so a long panel on a phone keeps its heading in view. */
 .edit-form {
   flex: 1;
+  min-height: 0;
   padding: 0.75rem 1rem 1rem;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 /* The picture saves itself as soon as one is chosen, so it stands apart from
@@ -3058,10 +3083,12 @@ button:disabled {
 .crop-body {
   display: flex;
   flex: 1;
+  min-height: 0;
   flex-direction: column;
   gap: 0.75rem;
   padding: 0.75rem 1rem 1rem;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .crop-view {
@@ -3105,8 +3132,10 @@ button:disabled {
 }
 
 .chooser-body {
+  min-height: 0;
   padding: 0.5rem 1rem 1rem;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .chooser-group {
@@ -3192,11 +3221,33 @@ button:disabled {
   margin-top: 1rem;
 }
 
-/* The destructive one, kept away from the two that give something: its own
+/* The destructive one, kept away from the verb that gives something: its own
    line, at the foot, on its own rather than beside a verb it is nothing like. */
 .friend-remove {
   align-self: flex-start;
   margin-top: 0.4rem;
+}
+
+/* Their plot, drawn as the Grove screen's own tiles so a plant looks the same
+   wherever it is standing. The tile is the target here rather than a label on
+   it, so a cell holds one child and that child fills it, whether it is the
+   button that starts a watering or the plain tile of something finished. */
+.plot-slot {
+  display: flex;
+  min-width: 0;
+}
+
+.plot-slot > * {
+  flex: 1;
+  min-width: 0;
+}
+
+/* The tile as a button. The background, the border and the padding are already
+   .plant's, so all that is left is undoing what a button brings with it: the
+   centred text and the system colour. */
+.plant-tap {
+  text-align: left;
+  color: inherit;
 }
 
 /* Their activities, drawn as the feed's own cards, so the heading needs a

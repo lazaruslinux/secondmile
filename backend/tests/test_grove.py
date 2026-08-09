@@ -182,6 +182,7 @@ def test_watering_a_friends_plot_grows_it_and_pays_the_giver(
         "plant_name",
         "rarity",
         "growth",
+        "level",
         "stage",
         "mature",
         "gilded",
@@ -622,14 +623,16 @@ def test_a_rebuild_replays_growth_and_touches_nothing_chosen(signed_in, db_sessi
 # --------------------------------------------------------------------------
 
 
-def test_a_friend_sees_the_plants_and_not_one_number(signed_in, db_session, member, mate):
+def test_a_friend_sees_the_plants_and_their_levels_and_no_miles(signed_in, db_session, member, mate):
     other, other_client = mate
     befriend(db_session, member, other)
     give_planting(db_session, member.id, "pomegranate", growth=50.0)
 
     rows = other_client.get(f"/api/grove/{member.id}").json()
     assert len(rows) == 1
-    # Enough to pick one and water it, and no miles and no dates behind that.
+    # Enough to pick one, water it, and see how it is doing. The level is the
+    # one number that crossed the fence; the miles behind it and the dates did
+    # not, because those describe the owner rather than the garden.
     assert set(rows[0]) == {
         "id",
         "species",
@@ -637,6 +640,7 @@ def test_a_friend_sees_the_plants_and_not_one_number(signed_in, db_session, memb
         "plant_name",
         "rarity",
         "growth",
+        "level",
         "stage",
         "mature",
         "gilded",
@@ -653,9 +657,13 @@ def test_a_friend_sees_that_a_plant_is_finished(signed_in, db_session, member, m
     befriend(db_session, member, other)
     give_planting(db_session, member.id, "olive", growth=100.0 * species.MAX_LEVEL)
     row = other_client.get(f"/api/grove/{member.id}").json()[0]
-    # Enough to know there is no point pouring water into it, and no numbers.
+    # Enough to know there is no point pouring water into it.
     assert (row["gilded"], row["mature"], row["stage"]) == (True, True, 3)
-    assert "level" not in row and "growth_mi" not in row
+    # The level crossed the fence on his word, so a friend can see how a plant
+    # is doing. The miles behind it and the dates did not: those describe how
+    # somebody spent their weeks rather than how their garden looks.
+    assert row["level"] == species.MAX_LEVEL
+    assert "growth_mi" not in row and "planted_at" not in row
 
 
 def test_a_stranger_sees_nothing_of_somebody_elses_plot(signed_in, db_session, member, mate):

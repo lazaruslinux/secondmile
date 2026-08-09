@@ -35,28 +35,11 @@ import {
   plantingName,
   rarityWord,
 } from '../labels.ts'
+import { pileItems, type Stack, type StackKind } from '../satchel.ts'
 import ChestItem from './ChestItem.tsx'
 import Chooser, { type Choice } from './Chooser.tsx'
 import PlantArt from './PlantArt.tsx'
 import RarityFrame from './RarityFrame.tsx'
-
-// A chest is not a satchel item and never sits in one, but it is held and
-// unspent, which is the whole of what a square in here means.
-type StackKind = ItemKind | 'chest'
-
-// One square of the grid. Everything of a kind piles onto one square with a
-// count on it, so nine seeds are nine squares rather than nine rows.
-interface Stack {
-  key: string
-  kind: StackKind
-  // Which step of the ladder a chest stack came off. Null for everything else.
-  tier: string | null
-  name: string
-  // What is behind the square, oldest first. A chest stack carries chests and
-  // nothing else; every other stack carries satchel items.
-  items: SatchelItem[]
-  chests: Chest[]
-}
 
 // The order the squares are laid out in, which is the order things are used:
 // sown, poured, given, and the one that is spent to be given a seed at all. The
@@ -145,28 +128,10 @@ function stacksOf(
   catalog: SpeciesRow[] | null,
   wishName: string,
 ): Stack[] {
-  const stacks = new Map<string, Stack>()
-  for (const item of items) {
-    const key = item.kind === 'seed' ? `seed:${item.species ?? ''}` : item.kind
-    const held = stacks.get(key)
-    if (held) {
-      held.items.push(item)
-      continue
-    }
-    stacks.set(key, {
-      key,
-      kind: item.kind,
-      tier: null,
-      name: item.kind === 'wish' && wishName !== '' ? wishName : itemName(item),
-      items: [item],
-      chests: [],
-    })
-  }
-
   // Seeds read in catalogue order where the server has said what that is, and
   // by name where it has not, so the grid does not reshuffle as things arrive.
   const rank = new Map((catalog ?? []).map((row, index) => [row.id, index]))
-  const held = [...stacks.values()].sort((a, b) => {
+  const held = pileItems(items, wishName).sort((a, b) => {
     if (a.kind !== b.kind) {
       return KIND_ORDER[a.kind as ItemKind] - KIND_ORDER[b.kind as ItemKind]
     }
@@ -234,7 +199,7 @@ function StackArt({ stack }: { stack: Stack }) {
 // The picture in its frame. Everything held is framed, so every square in a row
 // is the same height as the one beside it. Drawn the same in the grid and in the
 // modal, which is why the sizing class is handed in.
-function StackSquare({ stack, frameClass }: { stack: Stack; frameClass: string }) {
+export function StackSquare({ stack, frameClass }: { stack: Stack; frameClass: string }) {
   // A chest is coloured by the floor of its step and named for the step itself,
   // neither of which the thing inside it can say yet.
   if (stack.kind === 'chest') {
@@ -264,7 +229,7 @@ function StackSquare({ stack, frameClass }: { stack: Stack; frameClass: string }
 
 // One square of the grid, which is a button and nothing else: the whole picture
 // is the target.
-function Square({ stack, onOpen }: { stack: Stack; onOpen: () => void }) {
+export function Square({ stack, onOpen }: { stack: Stack; onOpen: () => void }) {
   const count = stack.items.length + stack.chests.length
 
   return (
@@ -284,8 +249,9 @@ function Square({ stack, onOpen }: { stack: Stack; onOpen: () => void }) {
 // What a tapped square opens: the picture still on screen, what the thing is,
 // and its verbs as the app's own buttons. The first verb is the one anybody came
 // for, so it is the primary; water's second way to spend it stands beside it.
-function ItemDialog({
+export function ItemDialog({
   stack,
+  line,
   verbs,
   busy,
   error,
@@ -295,6 +261,10 @@ function ItemDialog({
   onClose,
 }: {
   stack: Stack
+  // What is said beside the picture. Left out here, where it is what the thing
+  // is for; handed in where the same panel asks a question about spending it,
+  // because there the sentence names what it is being spent on.
+  line?: string
   // Empty once the last of a stack has been spent, which leaves the picture and
   // whatever came out of it with nothing left to do.
   verbs: { id: string; label: string }[]
@@ -333,7 +303,7 @@ function ItemDialog({
         <div className="item-detail">
           <div className="item-shown">
             <StackSquare stack={stack} frameClass="item-frame" />
-            <p className="hint item-line">{describe(stack)}</p>
+            <p className="hint item-line">{line ?? describe(stack)}</p>
           </div>
 
           {children}
@@ -382,6 +352,17 @@ type Step =
   | { at: 'people'; then: 'water' | 'anoint' }
   | { at: 'friend'; person: Person; plot: FriendPlanting[] }
   | { at: 'species' }
+  // The last thing before an item is gone. Water and oil cannot be got back
+  // and cannot be undone, so every path that spends one asks the same question
+  // in the same words, whether it started here or on a friend's own page. The
+  // deed rides in the step rather than a callback, so the step stays a value
+  // that can be read, compared and gone back from.
+  | {
+      at: 'confirm'
+      line: string
+      deed: { verb: 'pour'; plantingId: number } | { verb: 'anoint'; userId: number }
+      back: Step
+    }
 
 interface Props {
   // Something in here changed what the screen around it is showing.
@@ -506,6 +487,19 @@ export default function Inventory({ onChanged }: Props) {
       setNote('Poured. Ten miles of growth.')
       shut()
     })
+  }
+
+  // Between choosing what it goes on and it being gone. Every path here that
+  // spends an item goes through this, so the inventory asks the same question
+  // a friend's own page does rather than pouring the moment a name is tapped.
+  function askFirst(line: string, deed: Extract<Step, { at: 'confirm' }>['deed']) {
+    setStepError('')
+    setStep((from) => ({ at: 'confirm', line, deed, back: from }))
+  }
+
+  function doDeed(deed: Extract<Step, { at: 'confirm' }>['deed']) {
+    if (deed.verb === 'pour') pour(deed.plantingId)
+    else anoint(deed.userId)
   }
 
   // Oil can be turned down: nobody holds more than three gifts at once, and the
@@ -686,7 +680,12 @@ export default function Inventory({ onChanged }: Props) {
           empty="Nothing of yours is growing yet."
           busy={busy}
           error={stepError}
-          onChoose={(id) => pour(id)}
+          onChoose={(id) =>
+            askFirst(
+              `Use 1 water on your ${ownChoices.find((one) => one.id === id)?.label ?? 'plant'}?`,
+              { verb: 'pour', plantingId: id },
+            )
+          }
           onCancel={() => setStep({ at: 'verbs' })}
         />
       )}
@@ -707,8 +706,9 @@ export default function Inventory({ onChanged }: Props) {
           onChoose={(id) => {
             const person = friends.find((one) => one.user_id === id)
             if (!person) return
-            if (step.then === 'anoint') anoint(id)
-            else void toFriendPlot(person)
+            if (step.then === 'anoint') {
+              askFirst(`Use 1 oil on ${personName(person)}?`, { verb: 'anoint', userId: id })
+            } else void toFriendPlot(person)
           }}
           onCancel={() => setStep({ at: 'verbs' })}
         />
@@ -722,7 +722,12 @@ export default function Inventory({ onChanged }: Props) {
           empty="Nothing of theirs is growing yet."
           busy={busy}
           error={stepError}
-          onChoose={(id) => pour(id)}
+          onChoose={(id) =>
+            askFirst(
+              `Use 1 water on their ${friendPlot.find((one) => one.id === id)?.label ?? 'plant'}?`,
+              { verb: 'pour', plantingId: id },
+            )
+          }
           onCancel={() => setStep({ at: 'people', then: 'water' })}
         />
       )}
@@ -730,6 +735,23 @@ export default function Inventory({ onChanged }: Props) {
       {/* The same list the other pickers use, spent on a species instead of a
           row. A grove with every seed in it has one thing left to be given, so
           the list says so plainly rather than being empty. */}
+      {/* The same panel the verbs came from, asking the last question. Cancel
+          goes back to the list that was being chosen from rather than closing
+          everything, because changing your mind about which plant is not
+          changing your mind about watering one. */}
+      {shown !== null && step.at === 'confirm' && (
+        <ItemDialog
+          stack={shown}
+          line={step.line}
+          verbs={[{ id: 'use', label: 'Use' }]}
+          busy={busy}
+          error={stepError}
+          cancelLabel="Cancel"
+          onRun={() => doDeed(step.deed)}
+          onClose={() => setStep(step.back)}
+        />
+      )}
+
       {step.at === 'species' && (
         <Chooser
           title={wishName === '' ? 'Unmarked seed' : wishName}

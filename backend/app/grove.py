@@ -324,9 +324,13 @@ def serialize_for_friend(row: models.Planting) -> dict:
     """What a friend sees of somebody else's plot.
 
     Enough to pick one and pour water into it: which plant it is, how far along
-    it has come, and whether it is already grown. Never the miles behind that
-    fraction, and never a date. A garden is something seen over the fence, not
-    a page of somebody's statistics.
+    it has come, how many levels it has put on, and whether it is already grown.
+
+    The level is here on his word, and it is the one number that crossed the
+    fence. Still never the miles behind it and still never a date: a level says
+    how a plant is doing, which is what somebody looking over the fence would
+    see anyway, while the miles and the dates are a record of how its owner
+    spent their weeks. The first is a garden and the second is a ledger.
     """
     kind = species.BY_ID.get(row.species)
     return {
@@ -336,6 +340,7 @@ def serialize_for_friend(row: models.Planting) -> dict:
         "plant_name": kind.plant_name if kind is not None else row.species,
         "rarity": row.rarity,
         "growth": growth_fraction(row),
+        "level": level_of(row),
         "stage": stage(row),
         "mature": is_mature(row),
         # Finished, so a friend knows there is no point pouring water into it.

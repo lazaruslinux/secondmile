@@ -405,6 +405,14 @@ export interface FriendPlanting {
   species: string
   name?: string
   plant_name?: string | null
+  rarity?: Rarity | string
+  // How many levels it has put on, which is how a plant is doing and so what
+  // somebody over the fence would see anyway.
+  level?: number
+  // How far through its current level it is, from 0 to 1, and full at the top
+  // where there is no next level. It is the bar and nothing more: the miles
+  // behind it are the owner's record of their weeks and never cross the fence.
+  growth?: number
   // 1 seedling, 2 growing, 3 grown. Read defensively: any of these may be
   // missing, and a plant that is finished takes no more water.
   stage?: number

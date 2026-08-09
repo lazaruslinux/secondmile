@@ -15,14 +15,16 @@ import {
   type Units,
 } from '../api.ts'
 import { formatDate } from '../format.ts'
-import { itemName, plantingName } from '../labels.ts'
+import { plantingName } from '../labels.ts'
 import { SEEDS_TO_FIND } from '../profile.ts'
+import { pileItems, type Stack } from '../satchel.ts'
 import AvatarFrame from './AvatarFrame.tsx'
-import Chooser, { type Choice } from './Chooser.tsx'
 import FeedCard from './FeedCard.tsx'
+import ItemPicker from './ItemPicker.tsx'
 import MedalNest from './MedalNest.tsx'
 import Medals from './Medals.tsx'
 import PlantArt from './PlantArt.tsx'
+import RarityFrame from './RarityFrame.tsx'
 
 // The three sentences the inventory says after the same three acts, said the
 // same way here so one verb does not read as two different things depending on
@@ -31,9 +33,9 @@ const POURED = 'Poured. Ten miles of growth.'
 const ANOINTED = 'Done. One chest they earn will open one step rarer.'
 const OIL_KEPT = 'The oil is still in your inventory.'
 
-// A friend's plot comes back with a stage rather than miles, so the quiet half
-// of a row says how far along it is in words.
-const STAGE_WORDS = ['Seedling', 'Growing', 'Grown']
+// Said on anything of theirs that has reached the last level, which is the one
+// thing on their plot that cannot be watered.
+const FULLY_GROWN = 'Fully grown.'
 
 // What ending a friendship costs, said before it is done rather than after.
 const REMOVE_WARNING =
@@ -47,6 +49,15 @@ const REMOVE_WARNING =
 function friendStage(row: FriendPlanting): number {
   if (row.stage != null) return Math.min(3, Math.max(1, row.stage))
   return row.mature === true ? 3 : 1
+}
+
+// How full their bar is. The server sends the fraction of the level already
+// covered rather than the miles behind it, so this is the whole of what the bar
+// can be drawn from, and a row that arrived without it draws empty.
+function friendFill(row: FriendPlanting): number {
+  const part = row.growth
+  if (typeof part !== 'number' || !isFinite(part)) return 0
+  return Math.min(1, Math.max(0, part))
 }
 
 // Their activities, read as defensively as anything crossing the seam: a row
@@ -76,10 +87,16 @@ function words(value: string | null | undefined): string {
   return typeof value === 'string' ? value.trim() : ''
 }
 
-// Where a tap on one of the three verbs has got to. Water goes through what is
-// held and then onto one of their plants; oil is one pick; ending a friendship
-// asks first, on the card rather than in a dialog.
-type Step = 'none' | 'water' | 'plants' | 'oil' | 'remove'
+// Where a tap has got to. Watering starts from one of their plants and carries
+// it the whole way, so the question at the end can name a real plant rather than
+// asking about a picked item on its own. Oil targets the person, so it starts
+// from a button beside their name and skips the plant. Ending a friendship asks
+// first, on the card rather than in a dialog.
+type Step =
+  | { at: 'none' }
+  | { at: 'water'; plant: FriendPlanting }
+  | { at: 'oil' }
+  | { at: 'remove' }
 
 interface Props {
   // Whose screen this is. Their own account decides everything on it; this one
@@ -104,9 +121,7 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
 
-  const [step, setStep] = useState<Step>('none')
-  // Which water was picked, kept while its plant is being chosen.
-  const [watering, setWatering] = useState<SatchelItem | null>(null)
+  const [step, setStep] = useState<Step>({ at: 'none' })
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState('')
   const [note, setNote] = useState('')
@@ -174,14 +189,15 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
     }
   }
 
-  function pour(plantingId: number) {
-    const item = watering
+  // A square is a pile of the same thing, so spending one means spending the
+  // oldest of them; which of the identical jars leaves is nobody's business.
+  function pour(stack: Stack, plantingId: number) {
+    const item = stack.items[0]
     if (!item) return
     void act(async () => {
       await pourWater(item.id, plantingId)
       setNote(POURED)
-      setWatering(null)
-      setStep('none')
+      setStep({ at: 'none' })
     })
   }
 
@@ -189,11 +205,13 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
   // answer to that is the server's own sentence with the oil's fate added,
   // said where the oil was picked rather than anywhere anyone has to go looking
   // for it. Nothing is spent on a refusal.
-  function anoint(itemId: number) {
+  function anoint(stack: Stack) {
+    const item = stack.items[0]
+    if (!item) return
     void act(async () => {
-      await anointFriend(itemId, userId)
+      await anointFriend(item.id, userId)
       setNote(ANOINTED)
-      setStep('none')
+      setStep({ at: 'none' })
     }, OIL_KEPT)
   }
 
@@ -262,22 +280,14 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
       ? formatDate(profile.created_at)
       : ''
 
-  // While a picker is up it is the one showing what went wrong, so the card
-  // does not say the same sentence a second time behind it.
-  const choosing = step === 'water' || step === 'plants' || step === 'oil'
+  // While a popup is up it is the one showing what went wrong, so the card does
+  // not say the same sentence a second time behind it.
+  const choosing = step.at === 'water' || step.at === 'oil'
 
-  const waters = held.filter((one) => one.kind === 'water')
-  const oils = held.filter((one) => one.kind === 'oil')
-  const waterChoices: Choice[] = waters.map((one) => ({ id: one.id, label: itemName(one) }))
-  const oilChoices: Choice[] = oils.map((one) => ({ id: one.id, label: itemName(one) }))
-  // Nothing fully grown is offered a drink: it has all the growth there is.
-  const plantChoices: Choice[] = plot
-    .filter((row) => row.gilded !== true)
-    .map((row) => ({
-      id: row.id,
-      label: plantingName(row),
-      detail: STAGE_WORDS[friendStage(row) - 1] ?? 'Growing',
-    }))
+  // What is held that could be spent on them, as the satchel's own squares.
+  const waters = pileItems(held.filter((one) => one.kind === 'water'))
+  const oils = pileItems(held.filter((one) => one.kind === 'oil'))
+  const hasWater = waters.length > 0
 
   return (
     <>
@@ -285,9 +295,11 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
 
       {/* The band across the top, exactly as the You screen draws one: their
           plot stands along its floor and their picture rides up over its lower
-          edge. Nothing in the band is pressable, here least of all: the plot is
-          theirs and the one thing that may be done to it is watering, which is
-          a verb on the card below. */}
+          edge. It stays decoration and stays unpressable. These are silhouettes
+          two thirds of an inch tall with no names on them and no room for any,
+          and spending something out of the satchel should not begin with a tap
+          on a picture that small. The plot below is where it begins, drawn full
+          size with a name under every plant. */}
       <div className="you-banner">
         <div className="you-band">
           {plot.length > 0 && (
@@ -349,23 +361,12 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
           </li>
         </ul>
 
-        {/* The three things one person may do to another. Two of them spend
-            something out of this account's own satchel, so a button with
-            nothing behind it says so rather than opening an empty list. */}
+        {/* What may be done to the person themselves, which is anointing them
+            and ending the friendship. Watering is not here any more: it is done
+            to a plant rather than to a person, so it starts from the plant, in
+            their plot below. */}
         <div className="friend-actions">
           <div className="choice">
-            <button
-              type="button"
-              className="secondary"
-              disabled={busy || waters.length === 0}
-              onClick={() => {
-                setNote('')
-                setActionError('')
-                setStep('water')
-              }}
-            >
-              Water a plant
-            </button>
             <button
               type="button"
               className="secondary"
@@ -373,21 +374,15 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
               onClick={() => {
                 setNote('')
                 setActionError('')
-                setStep('oil')
+                setStep({ at: 'oil' })
               }}
             >
               Anoint
             </button>
           </div>
 
-          {(waters.length === 0 || oils.length === 0) && (
-            <p className="hint">
-              {waters.length === 0 && oils.length === 0
-                ? 'Water and oil come out of chests. You are holding neither.'
-                : waters.length === 0
-                  ? 'No water in your inventory.'
-                  : 'No oil in your inventory.'}
-            </p>
+          {oils.length === 0 && (
+            <p className="hint">No oil in your inventory. It comes out of chests.</p>
           )}
 
           {note && (
@@ -403,7 +398,7 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
 
           {/* Destructive, on a screen opened casually, so it asks first and the
               question says what is lost. */}
-          {step === 'remove' ? (
+          {step.at === 'remove' ? (
             <>
               <p className="hint">{REMOVE_WARNING}</p>
               <div className="choice">
@@ -419,7 +414,7 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
                   type="button"
                   className="secondary"
                   disabled={busy}
-                  onClick={() => setStep('none')}
+                  onClick={() => setStep({ at: 'none' })}
                 >
                   Cancel
                 </button>
@@ -433,7 +428,7 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
               onClick={() => {
                 setNote('')
                 setActionError('')
-                setStep('remove')
+                setStep({ at: 'remove' })
               }}
             >
               Remove friend
@@ -444,8 +439,16 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
 
       <Medals medals={medals} />
 
-      {/* The numbers their plot has come to. The plants themselves are in the
-          band at the top, which is where the You screen puts a grove. */}
+      {/* Their plot, drawn properly rather than counted: what is standing in it,
+          how far along each one is, and what it is called. Every plant that can
+          still take water is the target that starts a watering, which is why
+          this is the only place on the screen watering begins.
+
+          What is not here is deliberate. The server sends a level and how full
+          the current one is and nothing else, so there are no miles and no
+          dates: a level is how a plant is doing, which is what anybody over the
+          fence can see, while the miles behind it are their own record of how
+          they spent their weeks. */}
       <section className="card">
         <h2 className="label">Grove</h2>
         <ul className="profile-counts">
@@ -460,7 +463,79 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
             <span className="count-label">Plant levels</span>
           </li>
         </ul>
-        {plot.length === 0 && <p className="hint">Nothing planted yet.</p>}
+
+        {plot.length === 0 ? (
+          <p className="hint">Nothing planted yet.</p>
+        ) : (
+          <>
+            <p className="hint">
+              {hasWater
+                ? 'Tap one of their plants to water it.'
+                : 'Water comes out of chests. You are holding none.'}
+            </p>
+            <ul className="plot">
+              {plot.map((row) => {
+                const grown = row.gilded === true
+                // Nothing fully grown is offered a drink: it has all the growth
+                // there is. Everything else is pressable whether there is water
+                // to pour or not, because the popup saying the satchel is empty
+                // is a better answer than a tile that quietly does nothing.
+                const waterable = !grown
+                const name = plantingName(row)
+                const tile = (
+                  <>
+                    <RarityFrame rarity={row.rarity ?? ''} className="plant-frame">
+                      <PlantArt
+                        species={row.species}
+                        name={name}
+                        stage={friendStage(row)}
+                        gilded={row.gilded}
+                        className="plant-picture"
+                      />
+                    </RarityFrame>
+                    <span className="plant-name">{name}</span>
+                    {/* A progress element rather than a div with a width on it:
+                        the content security policy allows no inline styles, and
+                        this one reads correctly to a screen reader as well.
+                        Nothing rides under it here, because what rides under it
+                        on their owner's own screen is miles. */}
+                    {!grown && (
+                      <progress className="xp-meter" value={friendFill(row)} max={1}>
+                        {Math.round(friendFill(row) * 100)}% of this level
+                      </progress>
+                    )}
+                    {typeof row.level === 'number' && (
+                      <span className="plant-growth">Lv {row.level}</span>
+                    )}
+                    {grown && <span className="plant-ready">{FULLY_GROWN}</span>}
+                  </>
+                )
+
+                return (
+                  <li key={row.id} className="plot-slot">
+                    {waterable ? (
+                      <button
+                        type="button"
+                        className="plant plant-tap"
+                        disabled={busy}
+                        aria-label={`Water ${name}`}
+                        onClick={() => {
+                          setNote('')
+                          setActionError('')
+                          setStep({ at: 'water', plant: row })
+                        }}
+                      >
+                        {tile}
+                      </button>
+                    ) : (
+                      <div className="plant">{tile}</div>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          </>
+        )}
       </section>
 
       {/* The feed's own cards, so what a friend's activity may show is written
@@ -489,56 +564,40 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
         </p>
       )}
 
-      {step === 'water' && (
-        <Chooser
+      {/* Started from one of their plants, so the question at the end of it can
+          name that plant rather than asking about water in the abstract. */}
+      {step.at === 'water' && (
+        <ItemPicker
           title="Water"
-          hint="Which of yours goes onto their plot."
-          choices={waterChoices}
+          hint={`What you hold that could help their ${plantingName(step.plant)}.`}
+          stacks={waters}
+          onto={`their ${plantingName(step.plant)}`}
           empty="No water in your inventory. It comes out of chests."
           busy={busy}
           error={actionError}
-          onChoose={(id) => {
-            const item = waters.find((one) => one.id === id)
-            if (!item) return
-            setWatering(item)
-            setActionError('')
-            setStep('plants')
-          }}
+          onUse={(stack) => pour(stack, step.plant.id)}
           onCancel={() => {
             setActionError('')
-            setStep('none')
+            setStep({ at: 'none' })
           }}
         />
       )}
 
-      {step === 'plants' && (
-        <Chooser
-          title={who}
-          hint="Which of their plants it goes onto."
-          choices={plantChoices}
-          empty="Nothing of theirs is growing yet."
-          busy={busy}
-          error={actionError}
-          onChoose={(id) => pour(id)}
-          onCancel={() => {
-            setActionError('')
-            setStep('water')
-          }}
-        />
-      )}
-
-      {step === 'oil' && (
-        <Chooser
+      {/* Oil goes onto the person rather than onto anything of theirs, so there
+          is no plant in front of it and the question names them. */}
+      {step.at === 'oil' && (
+        <ItemPicker
           title="Anoint"
           hint="One chest they earn will open one step rarer."
-          choices={oilChoices}
+          stacks={oils}
+          onto={who}
           empty="No oil in your inventory. It comes out of chests."
           busy={busy}
           error={actionError}
-          onChoose={(id) => anoint(id)}
+          onUse={(stack) => anoint(stack)}
           onCancel={() => {
             setActionError('')
-            setStep('none')
+            setStep({ at: 'none' })
           }}
         />
       )}
