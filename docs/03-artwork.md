@@ -4,6 +4,45 @@ Every picture in secondmile is a file you can open in a vector editor or an
 image editor. The application shipped with placeholder art on purpose, and
 replacing it does not require touching any code.
 
+## The register: everything waiting to be redrawn
+
+Every file below is placeholder art, drawn to hold the shape until real art
+arrives. Nothing here is final. The list is kept current as the app grows: a
+round that adds a picture adds its row here in the same round, so this stays the
+whole of what a commission would cover.
+
+| Group | Files | What they are | Where they appear |
+| --- | --- | --- | --- |
+| Medals | 11 | One face per medal in the catalogue | You screen, Home rail, feed and Log chips, avatar slots |
+| Avatar borders | 6 | One per level tier, `border-t1` to `border-t6` | Around every avatar, every screen |
+| Flourishes | 3 | The growth earned by encouraging people, `f1` to `f3` | Over the border, on every avatar |
+| Interface icons | 8 | Tab bar, cheer, gear, pencil, sport diamond | Chrome, everywhere |
+| Plants | 39 | Thirteen species at three growth stages each | The plot, and the reveal when a seed is found |
+| Loose pieces | 5 | Chest, gilding overlay, oil, water, unmarked seed | Inventory squares, chest reveals, finished plants |
+
+Seventy-two files in total, all under `frontend/src/assets/`.
+
+Four things a commission has to know, each learned the hard way here:
+
+1. **Medals must tell each other apart at 28 pixels.** The placeholder races are
+   one plate distinguished only by a stamped word, and that word is about three
+   pixels tall in a feed chip. It has already forced two rounds of rework. Shape
+   and colour have to carry the difference, not lettering.
+2. **Borders keep their middle empty.** The photograph is inset inside the
+   border at 13%, not cropped by it, so a border that fills its centre covers
+   the face.
+3. **Interface icons are drawn inline, not loaded as pictures.** That is what
+   lets them take the colour of whatever holds them, which is how the bottom bar
+   highlights the current tab. A replacement that hard-codes its own colours
+   stops the highlight working.
+4. **Plants are read as a sequence.** Three stages of one species have to look
+   like one thing growing rather than three different plants, and the gilding
+   overlay is drawn over the last stage rather than replacing it.
+
+The two hard constraints in the next section apply to every file here, and both
+fail silently rather than loudly, so they are worth reading before drawing
+anything.
+
 The rule the code follows: it reads the asset files as they are, addressed only
 by the file names listed below. Everything else about a file, its shapes,
 colours, layers, and size, is yours.
@@ -124,9 +163,9 @@ as 40 pixels across in the feed, so keep the shapes bold enough to read there.
 
 `frontend/src/assets/badges/*.svg`
 
-The whole reward system is twelve medals in four families, drawn on the You
-screen family by family, again down the rail on Home, and again as a chip on
-every feed card and Log row for the medals that workout earned. Every one of
+The whole reward system is eleven medals, drawn on the You screen as one list,
+again down the rail on Home as the few earned most recently, and again as a chip
+on every feed card and Log row for the medals that workout earned. Every one of
 them is
 repeatable, so a medal is a count rather than a yes or a no: each is drawn once
 with its number under it rather than once per earning, and one not yet earned is
@@ -150,14 +189,13 @@ the file names are the mapping's, and it lives in `frontend/src/art.ts`.
 | `weekly_40` | `weekly-40.svg` | Forty miles inside one week |
 | `early_riser` | `time-early-riser.svg` | A run of 5K or more started between four and six in the morning |
 | `night_owl` | `time-night-owl.svg` | A run of 5K or more started between eight at night and four in the morning |
-| `second_mile` | `second-mile.svg` | Twenty miles inside one week, which is double the smallest weekly target |
 
 The medal ids are in `backend/app/medals.py`, in the catalogue near the top of
-the file. The catalogue is twelve and fixed: a family gains a medal by gaining a
-row there and a file here, and the mapping in `art.ts` gaining a line.
+the file. The catalogue is eleven and fixed: it gains a medal by gaining a row
+there and a file here, and the mapping in `art.ts` gaining a line.
 
-Four families, and the placeholder art gives each one a shape of its own so a
-screen of twelve does not read as twelve versions of the same object:
+Medals are still drawn in three shapes, so a screen of eleven does not read as
+eleven versions of the same object:
 
 - **Distance**, the five races: a struck plate with the distance in a band
   across the middle, and the step of the ladder counted in marks above it.
@@ -166,7 +204,6 @@ screen of twelve does not read as twelve versions of the same object:
 - **Hours**, the two times of day: a plate again, with a picture on it and no
   lettering. Early Riser is a steaming coffee cup in front of a sunrise. Night
   Owl is an owl, with a crescent moon behind it.
-- **Second mile**, on its own: a milestone marker reading II.
 
 Draw them as a set: the same size and weight, readable at a glance, because five
 of them share the width of a phone screen. Medals are drawn small, roughly 56

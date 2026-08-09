@@ -168,7 +168,6 @@ export default function App() {
             units={me.units}
             refreshToken={refreshToken}
             onOpenLog={() => setView('log')}
-            onOpenGrove={() => setView('grove')}
             onOpenProfile={() => setView('you')}
           />
         )}

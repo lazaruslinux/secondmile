@@ -24,7 +24,6 @@ import {
   lifetimeWorkouts,
   medalCountsOf,
   nextWeeklyTarget,
-  SEEDS_TO_FIND,
   starsFor,
   weekTotals,
 } from '../profile.ts'
@@ -61,6 +60,28 @@ function recentMedals(medals: Medal[] | undefined): Recent[] {
   }
   earned.sort((first, second) => Date.parse(second.at) - Date.parse(first.at))
   return earned.slice(0, RECENT_MEDALS)
+}
+
+// The width the side rails appear at, written exactly as the stylesheet writes
+// its own breakpoint. The two are separate copies of one number and have to
+// flip together, so neither is changed without the other.
+const WIDE = '(min-width: 900px)'
+
+// Which arrangement this screen is wide enough for. The rail and the phone's
+// streak card hold the same components, so this chooses where they are put
+// rather than which of two copies is shown: nothing is drawn twice.
+function useWide(): boolean {
+  const [wide, setWide] = useState(() => window.matchMedia(WIDE).matches)
+  useEffect(() => {
+    const query = window.matchMedia(WIDE)
+    // Read again on the way in, in case the window changed between the first
+    // read and this line.
+    setWide(query.matches)
+    const onChange = (event: MediaQueryListEvent) => setWide(event.matches)
+    query.addEventListener('change', onChange)
+    return () => query.removeEventListener('change', onChange)
+  }, [])
+  return wide
 }
 
 // Weeks start on Monday, which is what the server counts in as well.
@@ -118,6 +139,68 @@ function Streak({ streak, days }: { streak: number; days: boolean[] }) {
   )
 }
 
+// What came in lately rather than the whole catalogue: the catalogue is a
+// screen of its own on You, and this much room is better spent on what has just
+// happened. Written once and put in the rail on a wide screen or in the streak
+// card on a phone, so the two arrangements can never say different things.
+function RecentMedals({ recent }: { recent: Recent[] }) {
+  return (
+    <>
+      <h2 className="label">Recent medals</h2>
+      {recent.length === 0 ? (
+        <p className="hint">
+          Nothing earned yet. A 5K, a ten-mile week, or a run before six all start one.
+        </p>
+      ) : (
+        <ul className="medal-list">
+          {recent.map((row) => (
+            <li key={row.id} className="medal-row">
+              <MedalMark id={row.id} earned stars={starsFor(row.count)} />
+              <span className="medal-name">{medalName(row.id)}</span>
+              <span className="medal-when">{formatShortDate(row.at)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  )
+}
+
+// The next weekly medal and how far into it this week is, on the same terms as
+// the medals above: one place, two homes. The distance is raw miles, which is
+// what the medal is measured in; showing converted Miles here would name a
+// number the server never counts a week in.
+function Challenge({ distance, counts }: { distance: number; counts: Map<string, number> }) {
+  const target = nextWeeklyTarget(distance)
+  return (
+    <>
+      <h2 className="label">Challenges</h2>
+      {target ? (
+        <>
+          <div className="challenge">
+            <MedalMark id={target.id} earned={(counts.get(target.id) ?? 0) > 0} />
+            <div className="challenge-text">
+              <p className="challenge-name">{medalName(target.id)}</p>
+              <p className="challenge-progress">
+                {distance.toFixed(1)} of {target.miles} mi
+              </p>
+            </div>
+          </div>
+          <progress className="xp-meter" value={distance} max={target.miles}>
+            {distance.toFixed(1)} of {target.miles} mi
+          </progress>
+        </>
+      ) : (
+        /* Past forty miles there is no rung left this week, so the section says
+           what was done rather than inventing a target above the ladder. */
+        <p className="challenge-done">
+          Every weekly medal earned this week, at {distance.toFixed(1)} mi.
+        </p>
+      )}
+    </>
+  )
+}
+
 interface Cached {
   profile: ProfileData
   feed: FeedItem[]
@@ -137,18 +220,10 @@ interface Props {
   // The app owns which screen is up, so the rows that go somewhere are handed
   // the switch rather than reaching for it.
   onOpenLog: () => void
-  onOpenGrove: () => void
   onOpenProfile: () => void
 }
 
-export default function Home({
-  userId,
-  units,
-  refreshToken,
-  onOpenLog,
-  onOpenGrove,
-  onOpenProfile,
-}: Props) {
+export default function Home({ userId, units, refreshToken, onOpenLog, onOpenProfile }: Props) {
   // Coming back to the tab draws what was here before and asks the server again
   // underneath, so switching tabs is not a blank screen every time.
   const [profile, setProfile] = useState<ProfileData | null>(
@@ -160,6 +235,7 @@ export default function Home({
   const [loadError, setLoadError] = useState('')
   const [moreBusy, setMoreBusy] = useState(false)
   const [moreError, setMoreError] = useState('')
+  const wide = useWide()
 
   const load = useCallback(async () => {
     try {
@@ -230,9 +306,6 @@ export default function Home({
   const mine = feed.find((item) => item.own)
   const counts = medalCountsOf(profile.medals)
   const recent = recentMedals(profile.medals)
-  // Raw miles, the unit the weekly medals are earned in, whatever this account
-  // displays distances as.
-  const target = nextWeeklyTarget(week.distance)
   const shownName = displayNameOf(profile)
   // Own growth stage, from the profile when the server puts it there and from
   // this account's own feed row when it does not.
@@ -340,88 +413,42 @@ export default function Home({
       </aside>
 
       <aside className="home-col home-right">
-        {/* The phone's copy of the streak. The wide layout shows the one inside
-            the summary card instead and hides this. */}
+        {/* The phone's copy of the streak, and on a phone the only card this
+            column has: the wide layout shows the streak inside the summary card
+            instead and hides this one. */}
         <section className="card home-streak">
           <Streak streak={streak} days={days} />
           <p className="hint">
             Miles counted this week. Your phone syncs on its own, so nothing here needs
             opening the app.
           </p>
-        </section>
-
-        {/* What came in lately rather than the whole catalogue: the catalogue
-            is a screen of its own on You, and a rail is better spent on what
-            has just happened. The rows are tighter here than the strip there. */}
-        <section className="card home-medals">
-          <h2 className="label">Recent medals</h2>
-          {recent.length === 0 ? (
-            <p className="hint">
-              Nothing earned yet. A 5K, a ten-mile week, or a run before six all start one.
-            </p>
-          ) : (
-            <ul className="medal-list">
-              {recent.map((row) => (
-                <li key={row.id} className="medal-row">
-                  <MedalMark id={row.id} earned stars={starsFor(row.count)} />
-                  <span className="medal-name">{medalName(row.id)}</span>
-                  <span className="medal-when">{formatShortDate(row.at)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
-        {/* The next weekly medal and how far into it this week is. Raw miles,
-            which is what the medal is measured in: showing converted Miles here
-            would name a number the server never counts a week in. */}
-        <section className="card home-challenges">
-          <h2 className="label">Challenges</h2>
-          {target ? (
+          {/* There is no rail on a phone, so what the rail holds is folded in
+              here under a rule rather than lost. */}
+          {!wide && (
             <>
-              <div className="challenge">
-                <MedalMark id={target.id} earned={(counts.get(target.id) ?? 0) > 0} />
-                <div className="challenge-text">
-                  <p className="challenge-name">{medalName(target.id)}</p>
-                  <p className="challenge-progress">
-                    {week.distance.toFixed(1)} of {target.miles} mi
-                  </p>
-                </div>
+              <div className="streak-fold">
+                <RecentMedals recent={recent} />
               </div>
-              <progress className="xp-meter" value={week.distance} max={target.miles}>
-                {week.distance.toFixed(1)} of {target.miles} mi
-              </progress>
+              <div className="streak-fold">
+                <Challenge distance={week.distance} counts={counts} />
+              </div>
             </>
-          ) : (
-            /* Past forty miles there is no rung left this week, so the section
-               says what was done rather than inventing a target above the
-               ladder. */
-            <p className="challenge-done">
-              Every weekly medal earned this week, at {week.distance.toFixed(1)} mi.
-            </p>
           )}
         </section>
 
-        <section className="card home-grove">
-          <h2 className="label">Grove</h2>
-          <ul className="grove-counts">
-            <li>
-              <span className="count-value">
-                {profile.grove?.seeds_found ?? 0} / {SEEDS_TO_FIND}
-              </span>
-              <span className="count-label">Seeds found</span>
-            </li>
-            <li>
-              <span className="count-value">{profile.grove?.plant_levels ?? 0}</span>
-              <span className="count-label">Plant levels</span>
-            </li>
-          </ul>
-          {/* The plot and the inventory are both on the Grove screen, so one
-              way in is the whole of what this card owes them. */}
-          <button type="button" className="secondary" onClick={onOpenGrove}>
-            Open grove
-          </button>
-        </section>
+        {/* The same two blocks with room to be cards of their own. Only the
+            arrangement differs, which is why they are rendered here rather than
+            written out a second time. */}
+        {wide && (
+          <>
+            <section className="card">
+              <RecentMedals recent={recent} />
+            </section>
+            <section className="card">
+              <Challenge distance={week.distance} counts={counts} />
+            </section>
+          </>
+        )}
       </aside>
 
       <div className="home-col home-main">

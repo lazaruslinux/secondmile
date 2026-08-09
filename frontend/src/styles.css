@@ -518,12 +518,10 @@ button:disabled {
   gap: var(--gap);
 }
 
-/* The rails either side of the feed are matter that only the wide layout has
-   room for. The phone keeps its own copy of the streak instead. */
-.home-left,
-.home-medals,
-.home-challenges,
-.home-grove {
+/* The left rail is matter that only the wide layout has room for. What the
+   right rail holds is not hidden on a phone: it is drawn inside the streak card
+   instead, which the view itself decides. */
+.home-left {
   display: none;
 }
 
@@ -636,10 +634,11 @@ button:disabled {
   margin: 0.4rem 0 0;
 }
 
-/* Home: the recent medals, the challenge, and the grove in the right rail
+/* Home: the recent medals and the challenge, in the right rail on a wide screen
+   and in the streak card on a phone
 
-   A few rows in a narrow column, so this is tighter than the strip on You:
-   smaller artwork and no rule between the rows. */
+   A few rows in a narrow column either way, so this is tighter than the strip on
+   You: smaller artwork and no rule between the rows. */
 .medal-list {
   list-style: none;
   margin: 0.15rem 0 0;
@@ -716,21 +715,6 @@ button:disabled {
 .challenge-done {
   margin: 0.4rem 0 0;
   font-size: 0.85rem;
-}
-
-.grove-counts {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.5rem 1rem;
-  list-style: none;
-  margin: 0.5rem 0 0.75rem;
-  padding: 0;
-}
-
-.grove-counts li {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
 }
 
 /* Home: this week's totals */
@@ -827,6 +811,16 @@ button:disabled {
 
 .diamond-off svg * {
   fill: none;
+}
+
+/* What the rail holds, folded into the streak card on a phone. A rule above
+   each block rather than a card of its own, on the same terms as the streak
+   inside the summary card, so the phone's home opens with one block and not
+   three. */
+.streak-fold {
+  margin-top: 0.9rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--line);
 }
 
 /* Home: the feed */
@@ -2920,15 +2914,9 @@ button:disabled {
   }
 
   /* The streak has a home inside the summary card here, so the phone's copy of
-     it stands down and the rail shows the medals and the grove instead. */
+     it stands down and the rail shows the medals and the challenge instead. */
   .home-streak {
     display: none;
-  }
-
-  .home-medals,
-  .home-challenges,
-  .home-grove {
-    display: block;
   }
 
   /* The band is taller where there is height to spare, and what grows in it
