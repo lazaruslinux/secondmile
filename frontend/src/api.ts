@@ -289,6 +289,37 @@ export interface Profile {
   pending_gifts?: { from: string }[]
 }
 
+// Somebody else, as a deliberate tap on one person is allowed to see them.
+// Friends only, and nothing private travels in it: no email, no birthdate, no
+// age, no gender, no pace, no heart rate, no chests, no inventory. Everything
+// but the name and the picture is optional, because this screen is opened
+// casually and a field that is not there has to draw as nothing rather than
+// take the app down.
+export interface FriendProfile {
+  user_id: number
+  username: string
+  display_name?: string | null
+  has_avatar: boolean
+  // The server's own word for which picture this is, appended to its address so
+  // a new one is seen straight away. A string here rather than the number the
+  // own profile carries, and only ever pasted onto a URL.
+  avatar_version?: string | null
+  created_at?: string
+  border_tier?: number
+  flourish?: number
+  displayed_badges?: string[]
+  level?: number
+  // Raw lifetime distance, the same number the You screen leads with: what
+  // their body covered. Never the weighted number the game counts as XP.
+  miles?: number
+  medals?: Medal[]
+  // The summary only. The plot itself comes from the grove endpoint.
+  grove?: { seeds_found?: number; plant_levels?: number }
+  // Their latest activities in the feed's own row shape, newest first, so what
+  // a card may show cannot drift between here and the feed.
+  workouts?: FeedItem[]
+}
+
 export interface AvatarState {
   has_avatar: boolean
   avatar_version: number
@@ -737,6 +768,14 @@ export function getProfile(): Promise<Profile> {
   return getJson<Profile>('/profile')
 }
 
+// A friend's profile. Friends only: anybody else is a 404 that says nothing
+// about whether the account exists, which is why there is no way to look
+// somebody up anywhere in this app. Self is allowed and answers the same
+// friend-shaped view, exactly as the grove endpoint does.
+export function getFriendProfile(userId: number): Promise<FriendProfile> {
+  return getJson<FriendProfile>(`/profile/${userId}`)
+}
+
 // Answers with the whole profile, so the slots under the picture can be
 // redrawn from the server's word rather than from what was just sent to it.
 export async function setDisplayedBadges(badges: string[]): Promise<Profile> {
@@ -777,7 +816,10 @@ export async function deleteAvatar(): Promise<void> {
   await send('/profile/avatar', { method: 'DELETE' })
 }
 
-export function avatarUrl(userId: number, version: number | null): string {
+// The version is only ever pasted onto the address, so whichever way a server
+// counts it reads the same here: the own profile sends a number and a friend's
+// sends a string.
+export function avatarUrl(userId: number, version: number | string | null): string {
   return `${BASE}/profile/avatar/${userId}${version === null ? '' : `?v=${version}`}`
 }
 

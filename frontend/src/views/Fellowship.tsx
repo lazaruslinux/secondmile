@@ -26,20 +26,40 @@ const EMPTY: Friends = { friends: [], pending_in: [], pending_out: [] }
 
 interface RowProps {
   person: Person
+  // Opens their profile. Only a friend's row carries it: an invitation is not
+  // yet somebody there is anything to see about.
+  onOpen?: () => void
   children?: ReactNode
 }
 
-function PersonRow({ person, children }: RowProps) {
+function PersonRow({ person, onOpen, children }: RowProps) {
+  const name = personName(person)
+  const face = (
+    <AvatarFrame
+      name={name}
+      src={person.has_avatar ? avatarUrl(person.user_id, null) : null}
+      borderTier={person.border_tier}
+      flourish={person.flourish}
+      frameClass="friend-frame"
+    />
+  )
+
   return (
     <li className="friend-row">
-      <AvatarFrame
-        name={personName(person)}
-        src={person.has_avatar ? avatarUrl(person.user_id, null) : null}
-        borderTier={person.border_tier}
-        flourish={person.flourish}
-        frameClass="friend-frame"
-      />
-      <span className="friend-name">{personName(person)}</span>
+      {/* The picture and the name are one control, so a row that goes somewhere
+          is pressed anywhere along it rather than only on the two letters of a
+          short name. Stripped back to nothing: the row looks as it always did. */}
+      {onOpen ? (
+        <button type="button" className="friend-open" onClick={onOpen}>
+          {face}
+          <span className="friend-name">{name}</span>
+        </button>
+      ) : (
+        <>
+          {face}
+          <span className="friend-name">{name}</span>
+        </>
+      )}
       {children}
     </li>
   )
@@ -47,12 +67,15 @@ function PersonRow({ person, children }: RowProps) {
 
 interface Props {
   userId: number
+  // The app owns which screen is up, so the rows that go somewhere are handed
+  // the switch rather than reaching for it.
+  onOpenPerson: (userId: number) => void
 }
 
 // Friends, both ways round: who is one, who asked, and who was asked. There are
 // no numbers on this card and no way to look anybody up; a friendship starts
 // with a name typed by somebody who already knows it.
-export default function Fellowship({ userId }: Props) {
+export default function Fellowship({ userId, onOpenPerson }: Props) {
   const [state, setState] = useState<Friends>(() => cache.get(userId) ?? EMPTY)
   const [loading, setLoading] = useState(() => !cache.has(userId))
   const [loadError, setLoadError] = useState('')
@@ -140,7 +163,11 @@ export default function Fellowship({ userId }: Props) {
       {friends.length > 0 && (
         <ul className="friend-list">
           {friends.map((person) => (
-            <PersonRow key={person.user_id} person={person} />
+            <PersonRow
+              key={person.user_id}
+              person={person}
+              onOpen={() => onOpenPerson(person.user_id)}
+            />
           ))}
         </ul>
       )}

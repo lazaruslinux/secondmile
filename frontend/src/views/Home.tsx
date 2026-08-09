@@ -222,9 +222,19 @@ interface Props {
   // the switch rather than reaching for it.
   onOpenLog: () => void
   onOpenProfile: () => void
+  // A friend's card goes to their screen. Own cards ignore it, which is what
+  // keeps your own rows from being a way back to the screen you came from.
+  onOpenPerson: (userId: number) => void
 }
 
-export default function Home({ userId, units, refreshToken, onOpenLog, onOpenProfile }: Props) {
+export default function Home({
+  userId,
+  units,
+  refreshToken,
+  onOpenLog,
+  onOpenProfile,
+  onOpenPerson,
+}: Props) {
   // Coming back to the tab draws what was here before and asks the server again
   // underneath, so switching tabs is not a blank screen every time.
   const [profile, setProfile] = useState<ProfileData | null>(
@@ -472,6 +482,7 @@ export default function Home({ userId, units, refreshToken, onOpenLog, onOpenPro
             units={units}
             avatarVersion={profile.avatar_version}
             onChanged={cardChanged}
+            onOpenPerson={onOpenPerson}
           />
         ))}
 

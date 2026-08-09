@@ -4,11 +4,16 @@ import datetime as dt
 import io
 
 import pytest
-from conftest import log_workout
+from conftest import give_planting, log_workout, neutral_start
 from PIL import Image
 
 from app import medals, models, progress, security
 from app.config import MAX_AVATAR_BYTES
+
+# The second-account helpers, borrowed rather than written twice: how a
+# friendship is made is tested over there, and what a friend may read is
+# tested here.
+from test_grove import befriend, sign_in
 
 pytest.importorskip("PIL")
 
@@ -563,3 +568,235 @@ def test_patching_a_name_leaves_the_badge_slots_and_diamonds_alone(signed_in):
     assert body["displayed_badges"] == owned[:1]
     assert body["diamond_sports"] == ["swim"]
     assert body["display_name"] == "Avery"
+
+
+# --------------------------------------------------------------------------
+# Somebody else's profile
+# --------------------------------------------------------------------------
+
+# Everything GET /api/profile/{user_id} is allowed to send, asserted as a whole
+# set: a field copied across from the private profile out of habit has to fail
+# here rather than pass because nobody thought to go looking for it.
+FRIEND_PROFILE_KEYS = {
+    "user_id",
+    "username",
+    "display_name",
+    "has_avatar",
+    "avatar_version",
+    "created_at",
+    "border_tier",
+    "flourish",
+    "displayed_badges",
+    "level",
+    "miles",
+    "medals",
+    "grove",
+    "workouts",
+}
+
+# Nothing on this list may appear at any depth of the response. The first group
+# is somebody's own business, which the You screen already says of the age and
+# the gender; the second is the two numbers a friend's row has never carried;
+# the rest is game state, which is a different thing from how somebody is doing.
+FORBIDDEN_KEYS = {
+    "email",
+    "birthdate",
+    "age",
+    "gender",
+    "first_name",
+    "last_name",
+    "avg_hr",
+    "heart_rate",
+    "pace",
+    "active_kcal",
+    "calories",
+    "xp",
+    "xp_into_level",
+    "xp_for_next_level",
+    "next_chest",
+    "pending_gifts",
+    "chest_progress_mi",
+    "cycle_pos",
+    "renown",
+    "satchel",
+    "inventory",
+    "items",
+    "plantings",
+    "ingest_token",
+    "flags",
+}
+
+
+def every_key(payload) -> set[str]:
+    """Every key anywhere in a response, however deeply it is nested.
+
+    Walked rather than read off the top: an absent-key check that only looks at
+    the outside passes happily while a workout row underneath carries a heart
+    rate, which is the one thing these cases exist to catch.
+    """
+    found: set[str] = set()
+    if isinstance(payload, dict):
+        for key, value in payload.items():
+            found.add(key)
+            found |= every_key(value)
+    elif isinstance(payload, list):
+        for value in payload:
+            found |= every_key(value)
+    return found
+
+
+@pytest.fixture()
+def friend(client, db_session, member):
+    """An account the member is already friends with, and its own cookie jar."""
+    other, other_client = sign_in(db_session, "mate")
+    befriend(db_session, member, other)
+    return other, other_client
+
+
+def test_a_friend_profile_reports_the_whole_shape_and_no_more(signed_in, friend):
+    other, other_client = friend
+    other_client.patch("/api/profile", json={"first_name": "Avery", "last_name": "Case"})
+    log_workout(other_client, "run", 4.0, pace_min=9)
+    mine = other_client.get("/api/profile").json()
+
+    body = signed_in.get(f"/api/profile/{other.id}").json()
+    assert set(body) == FRIEND_PROFILE_KEYS
+    assert body["user_id"] == other.id
+    assert body["username"] == "mate"
+    assert body["display_name"] == "Avery Case"
+    assert body["has_avatar"] is False
+    assert body["avatar_version"] is None
+    assert body["created_at"] == mine["created_at"]
+    # The frame, the flourish and the slots are what the feed already draws
+    # beside every one of their workouts.
+    assert body["border_tier"] == mine["border_tier"]
+    assert body["flourish"] == mine["flourish"]
+    assert body["displayed_badges"] == []
+    # His call: a level and a lifetime are shown, because reaching them takes a
+    # deliberate tap on one person rather than a ranked list of everybody.
+    assert body["level"] == mine["level"] >= 1
+    assert body["miles"] == 4.0
+    assert [row["id"] for row in body["medals"]] == [medal.id for medal in medals.CATALOG]
+    assert body["grove"] == {"seeds_found": 0, "plant_levels": 0}
+    assert len(body["workouts"]) == 1
+
+
+def test_a_friend_profile_carries_none_of_the_private_fields(signed_in, db_session, friend):
+    """The whole point of the endpoint, asserted against the response itself."""
+    other, other_client = friend
+    other_client.patch(
+        "/api/profile", json={"birthdate": "1990-05-04", "gender": "Male"}
+    )
+    log_workout(other_client, "run", 5.0, pace_min=9)
+    give_planting(db_session, other.id, "strawberry", growth=2.0)
+
+    body = signed_in.get(f"/api/profile/{other.id}").json()
+    assert every_key(body) & FORBIDDEN_KEYS == set()
+    # And the values are not hiding under other names either.
+    assert "1990-05-04" not in signed_in.get(f"/api/profile/{other.id}").text
+    assert "Male" not in signed_in.get(f"/api/profile/{other.id}").text
+
+
+def test_a_workout_row_carries_no_pace_and_no_heart_rate(signed_in, friend):
+    """The feed's rule, reached through the feed's own serializer: a row says
+    what somebody did, not how their body was doing while they did it."""
+    other, other_client = friend
+    other_client.post(
+        "/api/workouts",
+        json={
+            "activity": "run",
+            "start_ts": neutral_start().isoformat(),
+            "duration_s": 2700,
+            "distance_mi": 5.0,
+            "avg_hr": 148.0,
+        },
+    )
+    row = signed_in.get(f"/api/profile/{other.id}").json()["workouts"][0]
+    assert every_key(row) & FORBIDDEN_KEYS == set()
+    assert row["distance_mi"] == 5.0
+    assert row["duration_s"] == 2700
+    # Not your own row, even though it is on a profile you asked for by id:
+    # own rows carry the experience they earned and this view sends none.
+    assert row["own"] is False
+
+
+def test_lifetime_miles_are_raw_distance_rather_than_experience(signed_in, friend):
+    """A swim is worth four times its distance on the ladder, so the two numbers
+    have to disagree here or the miles line is quietly printing a score."""
+    other, other_client = friend
+    log_workout(other_client, "swim", 2.0, pace_min=60)
+    mine = other_client.get("/api/profile").json()
+
+    body = signed_in.get(f"/api/profile/{other.id}").json()
+    assert body["miles"] == 2.0
+    assert mine["xp"] == 8.0
+    assert body["miles"] < mine["xp"]
+
+
+def test_a_friend_profile_shows_ten_workouts_newest_first(signed_in, db_session, friend):
+    other, _ = friend
+    made = [
+        add_workout(db_session, other.id, NOW - dt.timedelta(hours=hours_back))
+        for hours_back in range(12)
+    ]
+
+    rows = signed_in.get(f"/api/profile/{other.id}").json()["workouts"]
+    assert len(rows) == 10
+    # The ten it kept are the ten most recent, newest first; the two oldest are
+    # simply not there, and there is no cursor to go and ask for them.
+    assert [row["workout_id"] for row in rows] == [row.id for row in made[:10]]
+    stamps = [row["start_ts"] for row in rows]
+    assert stamps == sorted(stamps, reverse=True)
+
+
+def test_a_stranger_and_an_account_that_does_not_exist_answer_identically(
+    signed_in, db_session, client
+):
+    """404 rather than 403 on purpose, and the same 404 either way: an endpoint
+    that told the two apart would be a way to ask whether somebody has an
+    account here, which is exactly what the invite form refuses to answer."""
+    stranger, _ = sign_in(db_session, "stranger")
+    real = signed_in.get(f"/api/profile/{stranger.id}")
+    invented = signed_in.get("/api/profile/9999")
+
+    assert real.status_code == invented.status_code == 404
+    assert real.json() == {"detail": "No such friend."}
+    assert real.content == invented.content
+
+
+def test_a_pending_invite_is_not_a_friendship(signed_in, db_session, member):
+    """Asked for, not agreed to. Everything in this app is mutual, and a profile
+    a request alone opened would be the one thing that is not."""
+    asked, _ = sign_in(db_session, "asked")
+    db_session.add(
+        models.Friendship(
+            requester_id=member.id,
+            addressee_id=asked.id,
+            status="pending",
+            created_at=security.now_utc(),
+        )
+    )
+    db_session.commit()
+    assert signed_in.get(f"/api/profile/{asked.id}").status_code == 404
+
+
+def test_removing_a_friend_closes_their_profile_again(signed_in, friend):
+    other, _ = friend
+    assert signed_in.get(f"/api/profile/{other.id}").status_code == 200
+    assert signed_in.delete(f"/api/friends/{other.id}").status_code == 204
+    assert signed_in.get(f"/api/profile/{other.id}").status_code == 404
+
+
+def test_your_own_id_answers_with_the_friend_shaped_view(signed_in, member):
+    """Allowed, the way the friend's grove allows it, and shaped the same as
+    anybody else's: the private profile is what GET /api/profile is for."""
+    log_workout(signed_in, "run", 3.0)
+    body = signed_in.get(f"/api/profile/{member.id}")
+    assert body.status_code == 200
+    assert set(body.json()) == FRIEND_PROFILE_KEYS
+    assert every_key(body.json()) & FORBIDDEN_KEYS == set()
+    assert body.json()["user_id"] == member.id
+
+
+def test_a_friend_profile_needs_a_session(client, member):
+    assert client.get(f"/api/profile/{member.id}").status_code == 401

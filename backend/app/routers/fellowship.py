@@ -166,7 +166,7 @@ def remove_friend(
     return response
 
 
-def _row(
+def feed_row(
     workout: models.Workout,
     person: dict,
     own: bool,
@@ -176,6 +176,10 @@ def _row(
     encouragement: dict,
 ) -> dict:
     """One feed event.
+
+    Named rather than private because the friend profile serves these same
+    rows, and this function is the only place the rule below is written down.
+    A second copy of it is a copy somebody can edit on its own.
 
     Distance and duration and nothing finer. A friend's row deliberately
     carries no heart rate, no calories, no flags, and no pace field: the feed
@@ -241,7 +245,7 @@ def read_feed(
     people = fellowship.people(db, {row.user_id for row in rows})
     counts = fellowship.counts(db, [row.id for row in rows], user.id)
     return [
-        _row(
+        feed_row(
             row,
             people[row.user_id],
             row.user_id == user.id,

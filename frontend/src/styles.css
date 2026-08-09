@@ -398,6 +398,13 @@ input,
 select,
 textarea {
   font: inherit;
+  /* Sixteen pixels exactly, in px, and never smaller. Safari on iOS zooms the
+     whole page in when you tap a field set below 16px, and then leaves you
+     there. The density lever on the root is 15px, which fields would otherwise
+     inherit, so this has to be stated rather than left to cascade: the same
+     reason the thumb targets below are in px. It reads a shade larger than the
+     body text, which is the ordinary price of not being zoomed. */
+  font-size: 16px;
   color: var(--text);
   background: var(--bg);
   border: 1px solid var(--line);
@@ -938,6 +945,34 @@ button:disabled {
   font-weight: 700;
 }
 
+/* The two ways into a friend's profile: their picture and their name. Both are
+   buttons stripped back to nothing, so the card reads exactly as it did before
+   either of them became a control. The outline on focus is the app's own and is
+   deliberately left alone. */
+.feed-identity {
+  flex: 0 0 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: inherit;
+}
+
+.feed-name-open {
+  display: inline;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
 .feed-when,
 .feed-source {
   margin: 0;
@@ -1204,10 +1239,14 @@ button:disabled {
   gap: 0.4rem;
 }
 
+/* No size of its own, deliberately. It used to be 0.9rem, which is under the
+   16px that stops Safari on iOS zooming the page in when a field is tapped, and
+   this is the field somebody taps most: the note under a friend's workout.
+   Every field takes its size from the one rule near the top of this sheet, and
+   nothing here should be given a smaller one. */
 .encourage-input {
   flex: 1 1 auto;
   min-width: 0;
-  font-size: 0.9rem;
 }
 
 /* No word on it on purpose: a cheer carries no message. */
@@ -1798,6 +1837,26 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
+/* A friend's row goes to their profile, and the whole of the row is the target
+   rather than the two letters of a short name. Stripped back to nothing so it
+   looks as the row always did. Only friends' rows are drawn this way: an
+   invitation is not yet somebody there is anything to see about. */
+.friend-open {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: inherit;
+  text-align: left;
+}
+
 .friend-buttons {
   display: flex;
   gap: 0.4rem;
@@ -2226,21 +2285,21 @@ button:disabled {
   background: transparent;
 }
 
-/* A closed dialog is hidden by the browser, so the layout waits for open. */
+/* A closed dialog is hidden by the browser, so the layout waits for open.
+
+   Centred at every width. It used to sit against the bottom edge on a phone,
+   as a sheet does, and centre only from 600px up, which made the phone the odd
+   one out rather than the desktop. A letter is something read rather than a
+   tray of controls to reach with a thumb, so it belongs in the middle of the
+   screen wherever it is opened. */
 .overlay[open] {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: center;
 }
 
 .overlay::backdrop {
   background: rgba(0, 0, 0, 0.75);
-}
-
-@media (min-width: 600px) {
-  .overlay[open] {
-    align-items: center;
-  }
 }
 
 .overlay-panel {
@@ -3120,6 +3179,36 @@ button:disabled {
 
 .band-plant-grown {
   height: 3.25rem;
+}
+
+/* A friend's profile. It borrows the You screen's band, picture, name and
+   counts whole, so the only thing written here is the verbs underneath them and
+   the column their activities stand in. */
+
+.friend-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+/* The destructive one, kept away from the two that give something: its own
+   line, at the foot, on its own rather than beside a verb it is nothing like. */
+.friend-remove {
+  align-self: flex-start;
+  margin-top: 0.4rem;
+}
+
+/* Their activities, drawn as the feed's own cards, so the heading needs a
+   column of the same rhythm the page has rather than a card around it. */
+.friend-feed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.friend-feed .label {
+  margin: 0;
 }
 
 /* Small phones: the narrowest layout still has to read cleanly at 360px. */

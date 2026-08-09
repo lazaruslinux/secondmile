@@ -6,6 +6,7 @@ import os
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 # Straight from starlette: the multipart parser produces starlette's
@@ -19,6 +20,8 @@ from app import avatars, fellowship, grove, images, medals, models, progress, se
 from app.config import MAX_AVATAR_BYTES, MAX_DIAMOND_SPORTS, MAX_DISPLAYED_BADGES
 from app.db import get_db
 from app.models import ACTIVITIES
+from app.routers.fellowship import feed_row
+from app.routers.workouts import photos_for, routes_for
 
 router = APIRouter(tags=["profile"])
 
@@ -345,3 +348,119 @@ def read_avatar(
             "X-Content-Type-Options": "nosniff",
         },
     )
+
+
+# --------------------------------------------------------------------------
+# Somebody else's profile
+# --------------------------------------------------------------------------
+
+# How much of a friend's history the screen carries. Ten rather than the feed's
+# twenty because this is a glance at how somebody is doing rather than their
+# history, and there is no cursor here to ask for more.
+FRIEND_WORKOUTS = 10
+
+
+def _friend_workouts(db: Session, user_id: int, viewer_id: int) -> list[dict]:
+    """Their last few workouts, in the feed's own row shape.
+
+    Built by the feed's serializer rather than by a second one written here.
+    That function is where the rule lives that a row somebody else can read
+    carries no pace and no heart rate, and two copies of a privacy rule are two
+    things to remember to edit. The lookups around it are batched the way the
+    feed batches them: a page of rows is a handful of queries, never one each.
+    """
+    rows = list(
+        db.execute(
+            select(models.Workout)
+            .where(models.Workout.user_id == user_id)
+            # By id within a timestamp, the feed's own tie-break, so two
+            # workouts sharing a start time keep a stable order between reads.
+            .order_by(models.Workout.start_ts.desc(), models.Workout.id.desc())
+            .limit(FRIEND_WORKOUTS)
+        ).scalars()
+    )
+    if not rows:
+        return []
+    earned = medals.medals_for(db, rows)
+    routed = routes_for(db, rows)
+    pictures = photos_for(db, rows)
+    card = fellowship.people(db, [user_id])[user_id]
+    encouragement = fellowship.counts(db, [row.id for row in rows], viewer_id)
+    return [
+        feed_row(
+            row,
+            card,
+            # Never your own, even on your own profile: an own row carries the
+            # experience it earned, and no experience is sent from here at all.
+            False,
+            earned.get(row.id, []),
+            row.id in routed,
+            pictures.get(row.id, []),
+            encouragement[row.id],
+        )
+        for row in rows
+    ]
+
+
+def serialize_friend_profile(db: Session, user: models.User, viewer_id: int) -> dict:
+    """What one account may see of another: who they are and how they are doing.
+
+    Written out separately rather than as serialize_profile with a flag on it,
+    and that is the point of the whole endpoint. The other one carries a
+    birthdate, an age, a gender, the chest ladder and every gift waiting on it,
+    and a boolean deciding which of those to drop is one careless edit away
+    from sending them all. The shape of this function IS the allowlist: a field
+    reaches a friend because somebody typed it here.
+    """
+    row = db.get(models.UserProgress, user.id)
+    # Read as it stands rather than swept first. Sweeping credits workouts,
+    # drops chests and awards medals, and none of that is something one
+    # account's curiosity should do to another's game. A friend's level is
+    # already read this way everywhere else a friend appears.
+    level, _, _ = progress.level_bounds(row.xp if row else 0.0)
+    totals = progress.lifetime_totals(db, user.id)
+    return {
+        "user_id": user.id,
+        "username": user.username,
+        "display_name": fellowship.display_name(user.first_name, user.last_name),
+        "has_avatar": user.avatar_path is not None,
+        "avatar_version": avatars.version(user.id) if user.avatar_path else None,
+        "created_at": user.created_at.isoformat(),
+        "border_tier": progress.border_tier(level),
+        "flourish": fellowship.flourish_stage(row.renown if row else 0),
+        "displayed_badges": list(user.displayed_badges or []),
+        "level": level,
+        # Raw distance and never the converted number the ladder is climbed on:
+        # a swim of half a mile is half a mile of somebody's body moving, and
+        # this line is the one that says how far. One decimal, which is what
+        # the screen prints.
+        "miles": round(sum(total["distance_mi"] for total in totals.values()), 1),
+        "medals": medals.medal_summary(db, user.id),
+        # The summary only. The plot itself is GET /api/grove/{user_id}, which
+        # the same screen already calls, and serving it twice would mean two
+        # places to remember when what a friend sees of a garden changes.
+        "grove": grove.summary(db, user.id),
+        "workouts": _friend_workouts(db, user.id, viewer_id),
+    }
+
+
+@router.get("/profile/{user_id}")
+def read_friend_profile(
+    user_id: int,
+    db: Session = Depends(get_db),
+    viewer: models.User = Depends(security.current_user),
+) -> dict:
+    """A friend's profile: who they are, how they are doing, and what they did.
+
+    Friends only, and the refusal is a 404 rather than a 403 because a 403
+    would confirm the account exists. An id nobody owns takes the same branch
+    to the same sentence, so this cannot be asked whether a stranger is real
+    any more than the invite form can. Your own id is allowed and answers with
+    the friend-shaped view, which is the rule the friend's grove goes by.
+    """
+    person = db.get(models.User, user_id)
+    if person is None or (
+        user_id != viewer.id and not fellowship.are_friends(db, viewer.id, user_id)
+    ):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such friend.")
+    return serialize_friend_profile(db, person, viewer.id)

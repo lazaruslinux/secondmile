@@ -436,12 +436,23 @@ interface Props {
   // An edited card is handed back to whoever holds the feed, so the row it is
   // drawn from carries the change rather than only this card knowing about it.
   onChanged: (item: FeedItem) => void
+  // Opens the profile of whoever this card belongs to, from their picture and
+  // from their name. Only a friend's card ever uses it: your own rows are not a
+  // way to your own screen the long way round, and the cards on a profile do
+  // not lead to another one.
+  onOpenPerson?: (userId: number) => void
 }
 
 // One event in the feed. This account's own workouts read as they always have,
 // numbers and all. A friend's carries what they did and nothing measured about
 // how hard they were breathing: distance, time, the medal, the line they ran.
-export default function FeedCard({ item, units, avatarVersion, onChanged }: Props) {
+export default function FeedCard({
+  item,
+  units,
+  avatarVersion,
+  onChanged,
+  onOpenPerson,
+}: Props) {
   const [editing, setEditing] = useState(false)
   const { user } = item
   const activityName = ACTIVITY_NAMES[item.activity]
@@ -551,18 +562,48 @@ export default function FeedCard({ item, units, avatarVersion, onChanged }: Prop
     )
   }
 
+  const face = (
+    <AvatarFrame
+      name={who}
+      src={user.has_avatar ? avatarUrl(user.user_id, null) : null}
+      borderTier={user.border_tier}
+      flourish={user.flourish}
+      frameClass="feed-frame"
+    />
+  )
+
   return (
     <article className="card feed">
       <header className="feed-head">
-        <AvatarFrame
-          name={who}
-          src={user.has_avatar ? avatarUrl(user.user_id, null) : null}
-          borderTier={user.border_tier}
-          flourish={user.flourish}
-          frameClass="feed-frame"
-        />
+        {/* Their picture and their name both open their profile. Both are
+            stripped back to nothing, so the card reads exactly as it did before
+            either of them became a control. */}
+        {onOpenPerson ? (
+          <button
+            type="button"
+            className="feed-identity"
+            aria-label={`${who}'s profile`}
+            onClick={() => onOpenPerson(user.user_id)}
+          >
+            {face}
+          </button>
+        ) : (
+          face
+        )}
         <div className="feed-who">
-          <p className="feed-name">{who}</p>
+          <p className="feed-name">
+            {onOpenPerson ? (
+              <button
+                type="button"
+                className="feed-name-open"
+                onClick={() => onOpenPerson(user.user_id)}
+              >
+                {who}
+              </button>
+            ) : (
+              who
+            )}
+          </p>
           <p className="feed-when">{when}</p>
         </div>
         <ChosenMedals ids={chosen} />

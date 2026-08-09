@@ -137,9 +137,18 @@ interface Props {
   // which so far means chests opened from the recap.
   refreshToken: number
   onOpenSettings: () => void
+  // Handed straight down to the friends list, whose rows go to a profile. The
+  // app owns which screen is up, so nothing below reaches for it itself.
+  onOpenPerson: (userId: number) => void
 }
 
-export default function Profile({ userId, units, refreshToken, onOpenSettings }: Props) {
+export default function Profile({
+  userId,
+  units,
+  refreshToken,
+  onOpenSettings,
+  onOpenPerson,
+}: Props) {
   // Coming back to the tab draws what was here before and asks the server again
   // underneath, so switching tabs is not a blank screen every time.
   const [profile, setProfile] = useState<ProfileData | null>(
@@ -513,7 +522,7 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
             )}
           </section>
 
-          <Fellowship userId={userId} />
+          <Fellowship userId={userId} onOpenPerson={onOpenPerson} />
         </div>
 
         <div className="you-col you-right">

@@ -15,6 +15,7 @@ import { setInstanceTimezone } from './format.ts'
 import { recapHasNews } from './recap.ts'
 import Landing from './views/Landing.tsx'
 import Login from './views/Login.tsx'
+import FriendProfile from './views/FriendProfile.tsx'
 import Grove from './views/Grove.tsx'
 import Home from './views/Home.tsx'
 import Icon from './views/Icon.tsx'
@@ -25,8 +26,9 @@ import Settings from './views/Settings.tsx'
 
 // A handful of screens still do not earn a router: the whole navigation model is
 // which of them is on screen, and the URL has nothing to say about it yet.
-// Settings is not a tab; it is reached from the You screen.
-type View = 'home' | 'log' | 'grove' | 'you' | 'settings'
+// Settings is not a tab; it is reached from the You screen. Neither is a
+// friend's profile, which is reached from the feed and from the friends list.
+type View = 'home' | 'log' | 'grove' | 'you' | 'settings' | 'friend'
 
 const TABS: { id: View; label: string; icon: string }[] = [
   { id: 'home', label: 'Home', icon: 'tab-home' },
@@ -42,6 +44,9 @@ export default function App() {
   // string is the form, opened on the tab whichever button asked for.
   const [gate, setGate] = useState<'signin' | 'register' | null>(null)
   const [view, setView] = useState<View>('home')
+  // Whose profile is open and which screen it was opened from, so Back goes
+  // back to the feed or to the friends list rather than always to one of them.
+  const [friend, setFriend] = useState<{ id: number; from: View } | null>(null)
   const [verifyNote, setVerifyNote] = useState('')
   const [recap, setRecap] = useState<RecapState | null>(null)
   // Bumped whenever something outside a view changes what it shows, which so
@@ -126,6 +131,26 @@ export default function App() {
     setMe((current) => (current ? { ...current, units } : current))
   }
 
+  function openFriend(id: number) {
+    setFriend({ id, from: view })
+    setView('friend')
+  }
+
+  // Coming off a friend's screen when the friendship has just ended. The feed
+  // and the friends list both held that person, so both are asked again on the
+  // way back rather than drawing somebody who is no longer there.
+  function friendRemoved(from: View) {
+    setRefreshToken((count) => count + 1)
+    setFriend(null)
+    setView(from)
+  }
+
+  // Which of the four sections the navigation points at. Two screens hang off a
+  // tab rather than being one: Settings sits under You, and a friend's profile
+  // sits under whichever screen opened it, so neither leaves the bar blank.
+  const section: View =
+    view === 'settings' ? 'you' : view === 'friend' ? (friend?.from ?? 'home') : view
+
   if (checkingSession) return <p className="notice">Loading.</p>
 
   if (!me) {
@@ -159,7 +184,7 @@ export default function App() {
             ever on screen: this one from 900px up, the bar below it. */}
         <nav className="topnav" aria-label="Sections">
           {TABS.map((tab) => {
-            const current = view === tab.id || (tab.id === 'you' && view === 'settings')
+            const current = section === tab.id
             return (
               <button
                 key={tab.id}
@@ -194,6 +219,7 @@ export default function App() {
             refreshToken={refreshToken}
             onOpenLog={() => setView('log')}
             onOpenProfile={() => setView('you')}
+            onOpenPerson={openFriend}
           />
         )}
         {view === 'log' && <Log userId={me.id} units={me.units} />}
@@ -204,6 +230,18 @@ export default function App() {
             units={me.units}
             refreshToken={refreshToken}
             onOpenSettings={() => setView('settings')}
+            onOpenPerson={openFriend}
+          />
+        )}
+        {/* Keyed by the person, so opening a second profile is a fresh screen
+            rather than one still holding the first one's answers. */}
+        {view === 'friend' && friend !== null && (
+          <FriendProfile
+            key={friend.id}
+            userId={friend.id}
+            units={me.units}
+            onBack={() => setView(friend.from)}
+            onRemoved={() => friendRemoved(friend.from)}
           />
         )}
         {view === 'settings' && (
@@ -222,9 +260,7 @@ export default function App() {
 
       <nav className="tabbar" aria-label="Sections">
         {TABS.map((tab) => {
-          // Settings hangs off the You screen, so the bar keeps pointing there
-          // rather than showing nothing as current.
-          const current = view === tab.id || (tab.id === 'you' && view === 'settings')
+          const current = section === tab.id
           return (
             <button
               key={tab.id}
