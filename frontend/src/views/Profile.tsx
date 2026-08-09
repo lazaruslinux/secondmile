@@ -330,7 +330,7 @@ export default function Profile({ userId, units, refreshToken, onOpenSettings }:
               flourish={profile.flourish}
               labelled
             >
-              {/* All four positions, filled or not: an empty one here is the
+              {/* All three positions, filled or not: an empty one here is the
                   invitation to fill it, and this is the only screen that offers
                   the choice. */}
               <MedalNest ids={profile.displayed_badges} slots={MAX_MEDAL_SLOTS} />

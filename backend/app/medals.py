@@ -1,6 +1,6 @@
 """The medals: the catalogue, the rules that earn them, and their awarding.
 
-Twelve medals in four families, and every one of them repeatable. That is the
+Eleven medals in three families, and every one of them repeatable. That is the
 whole system: there is no second kind of thing earned once and ticked off, so
 nothing here has to say whether a medal can come again. A marathon next month
 is another Marathon, a big week in October is another 25-mile week.
@@ -8,8 +8,8 @@ is another Marathon, a big week in October is another 25-mile week.
 Two tables hold the earns, split by what earns them rather than by family.
 badge_earns is one row per workout per medal, for the families a single session
 earns (race and time). weekly_badge_earns is one row per week per family, for
-the families a week earns (weekly and second mile), which is what lets a week
-upgrade its medal in place as the miles add up.
+the family a week earns, which is what lets a week upgrade its medal in place
+as the miles add up.
 
 Every threshold is raw miles, never converted Miles: a 5K is a distance on the
 ground and a 25-mile week is twenty-five miles walked, run, ridden, or swum. No
@@ -42,8 +42,8 @@ class Medal:
     # database and in the badge slots, and a name is only ever printed.
     name: str
     # Raw miles the medal is earned at: one workout's distance for the race
-    # family, one week's total for the weekly and second mile families, and
-    # nothing at all for the time family, which is earned by a clock.
+    # family, one week's total for the weekly family, and nothing at all for
+    # the time family, which is earned by a clock.
     distance_mi: float | None = None
 
 
@@ -64,19 +64,17 @@ CATALOG: tuple[Medal, ...] = (
     Medal("weekly_40", "weekly", "40-mile week", 40.0),
     Medal("early_riser", "time", "Early Riser"),
     Medal("night_owl", "time", "Night Owl"),
-    Medal("second_mile", "second_mile", "Second Mile", 20.0),
 )
 
 BY_ID: dict[str, Medal] = {row.id: row for row in CATALOG}
 
 RACE_MEDALS: tuple[Medal, ...] = tuple(row for row in CATALOG if row.family == "race")
 WEEKLY_MEDALS: tuple[Medal, ...] = tuple(row for row in CATALOG if row.family == "weekly")
-SECOND_MILE: Medal = BY_ID["second_mile"]
 
 # Which table a family's earns live in. The split is the one thing about a
 # family that is not data: a week cannot be keyed by a workout.
 WORKOUT_FAMILIES = ("race", "time")
-WEEK_FAMILIES = ("weekly", "second_mile")
+WEEK_FAMILIES = ("weekly",)
 
 # A time medal wants a 5K on the ground, the same distance the smallest race
 # medal is measured at. Anything shorter is a stroll at an odd hour.
@@ -228,8 +226,6 @@ def _crossings(
         ):
             found["weekly"] = (WEEKLY_MEDALS[reached], workout)
             reached += 1
-        if "second_mile" not in found and total + _EPSILON >= SECOND_MILE.distance_mi:
-            found["second_mile"] = (SECOND_MILE, workout)
     return found
 
 

@@ -74,7 +74,8 @@ export function nextChestLine(profile: Profile): string {
 }
 
 // This week across every activity. The profile carries per-activity rows and no
-// sum of them, so the adding up happens here.
+// sum of them, so the adding up happens here. distance is raw miles: what the
+// body covered, not the game's weighted Miles.
 export function weekTotals(profile: Profile) {
   let distance = 0
   let kcal = 0
@@ -85,4 +86,23 @@ export function weekTotals(profile: Profile) {
     workouts += row.workouts
   }
   return { distance, kcal, workouts }
+}
+
+// The weekly medals and the raw miles each one is earned at, which is the
+// server's ladder written down a second time so a target can be shown before
+// it is reached. Raw miles, never converted Miles: a week is twenty-five miles
+// walked, run, ridden or swum, and no conversion rate has any business changing
+// what it is.
+const WEEKLY_TARGETS: { id: string; miles: number }[] = [
+  { id: 'weekly_10', miles: 10 },
+  { id: 'weekly_15', miles: 15 },
+  { id: 'weekly_25', miles: 25 },
+  { id: 'weekly_40', miles: 40 },
+]
+
+// The next weekly medal a week is working toward, given its raw miles so far.
+// Null once all four are behind it, which is a week with nothing left to aim
+// at rather than a week with no answer.
+export function nextWeeklyTarget(rawMiles: number): { id: string; miles: number } | null {
+  return WEEKLY_TARGETS.find((row) => rawMiles < row.miles) ?? null
 }

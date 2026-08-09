@@ -1,11 +1,6 @@
 import type { Medal } from '../api.ts'
 import { medalArt } from '../art.ts'
-import {
-  MEDAL_FAMILY_NAMES,
-  MEDAL_ORDER,
-  medalName,
-  medalsByFamily,
-} from '../labels.ts'
+import { MEDAL_ORDER, medalName } from '../labels.ts'
 import { EARNS_PER_STAR, MAX_STARS, medalCountsOf, starsFor } from '../profile.ts'
 
 // The word the interface uses for these, in one place. Everything underneath it
@@ -103,7 +98,9 @@ interface Props {
   medals: Medal[] | undefined
 }
 
-// The whole catalogue, in families, earned and unearned together. A medal is a
+// The whole catalogue in one list, earned and unearned together, in catalogue
+// order. No headings over it: Early Riser and Night Owl are neither a distance
+// nor a week, so any word put above them would be the wrong one. A medal is a
 // thing to aim at as much as a thing won, so nothing here is hidden until it
 // arrives: one not yet earned is the same drawing gone quiet with a nought
 // under it.
@@ -124,30 +121,24 @@ export default function Medals({ medals }: Props) {
         the same medal adds a star around it, up to {MAX_STARS}.
       </p>
 
-      {medalsByFamily().map((group) => (
-        <div key={group.family} className="medal-group">
-          <h3 className="label">{MEDAL_FAMILY_NAMES[group.family]}</h3>
-          {/* The count sits under its own medal, and one never earned keeps a
-              nought rather than a gap, so the columns stay level across the
-              families. */}
-          <ul className="medal-strip">
-            {group.ids.map((id) => {
-              const count = counts.get(id) ?? 0
-              return (
-                <li key={id} className="medal-tile">
-                  <MedalMark id={id} earned={count > 0} stars={starsFor(count)} />
-                  <span
-                    className={count > 0 ? 'medal-tile-count' : 'medal-tile-count medal-tile-none'}
-                  >
-                    {count}
-                  </span>
-                  <span className="medal-tile-name">{medalName(id)}</span>
-                </li>
-              )
-            })}
-          </ul>
-        </div>
-      ))}
+      {/* The count sits under its own medal, and one never earned keeps a
+          nought rather than a gap, so the columns stay level down the grid. */}
+      <ul className="medal-strip">
+        {MEDAL_ORDER.map((id) => {
+          const count = counts.get(id) ?? 0
+          return (
+            <li key={id} className="medal-tile">
+              <MedalMark id={id} earned={count > 0} stars={starsFor(count)} />
+              <span
+                className={count > 0 ? 'medal-tile-count' : 'medal-tile-count medal-tile-none'}
+              >
+                {count}
+              </span>
+              <span className="medal-tile-name">{medalName(id)}</span>
+            </li>
+          )
+        })}
+      </ul>
     </section>
   )
 }

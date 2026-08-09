@@ -56,14 +56,15 @@ def at_0012(tmp_path, monkeypatch):
         engine.dispose()
 
 
-def _account(connection, user_id: int, username: str) -> None:
+def _account(connection, user_id: int, username: str, slots: str = "[]") -> None:
     connection.execute(
         sa.text(
             "INSERT INTO users (id, username, password_hash, email_verified, is_admin,"
             " units, displayed_badges, created_at)"
-            f" VALUES ({user_id}, '{username}', 'x', 1, 0, 'imperial', '[]',"
+            " VALUES (:user_id, :username, 'x', 1, 0, 'imperial', :slots,"
             " '2026-01-01 00:00:00')"
-        )
+        ),
+        {"user_id": user_id, "username": username, "slots": slots},
     )
 
 
@@ -212,6 +213,74 @@ def test_the_recorded_level_arrives_empty_on_the_plants_already_growing(at_0012)
         assert connection.execute(
             sa.text("SELECT growth_mi, level_at_ack FROM plantings")
         ).all() == [(40.0, None)]
+
+
+def _run(connection, workout_id: int, user_id: int, start: str) -> None:
+    connection.execute(
+        sa.text(
+            "INSERT INTO workouts (id, user_id, activity, start_ts, duration_s,"
+            " distance_mi, active_kcal, source, flags, created_at)"
+            " VALUES (:id, :user_id, 'run', :start, 5400, 9.0, 900.0, 'sync', '{}',"
+            " :start)"
+        ),
+        {"id": workout_id, "user_id": user_id, "start": start},
+    )
+
+
+def _week_earn(connection, user_id: int, family: str, badge_id: str, workout_id: int) -> None:
+    connection.execute(
+        sa.text(
+            "INSERT INTO weekly_badge_earns (user_id, week_start, family, badge_id,"
+            " workout_id, earned_at)"
+            " VALUES (:user_id, '2026-06-01', :family, :badge, :workout,"
+            " '2026-06-03 09:00:00')"
+        ),
+        {"user_id": user_id, "family": family, "badge": badge_id, "workout": workout_id},
+    )
+
+
+def test_retiring_the_second_mile_takes_its_earns_and_its_slots(at_0012):
+    """0015: the weekly rows it earned go, the id comes out of every badge slot,
+    and what was chosen around it stays exactly as it was chosen."""
+    engine, upgrade = at_0012
+    with engine.connect() as connection:
+        _account(
+            connection,
+            1,
+            "runner",
+            '["early_riser", "weekly_25", "race_10k", "second_mile"]',
+        )
+        _account(connection, 2, "mate", '["second_mile"]')
+        _account(connection, 3, "other", '["race_5k", "night_owl"]')
+        _run(connection, 1, 1, "2026-06-03 09:00:00")
+        _run(connection, 2, 2, "2026-06-03 09:00:00")
+        _week_earn(connection, 1, "second_mile", "second_mile", 1)
+        _week_earn(connection, 1, "weekly", "weekly_25", 1)
+        _week_earn(connection, 2, "second_mile", "second_mile", 2)
+        connection.commit()
+
+    upgrade()
+
+    with engine.connect() as connection:
+        # The family was a family of one, so nothing of it is left; the weekly
+        # row beside it is untouched.
+        assert connection.execute(
+            sa.text(
+                "SELECT user_id, family, badge_id FROM weekly_badge_earns ORDER BY user_id"
+            )
+        ).all() == [(1, "weekly", "weekly_25")]
+
+        slots = {
+            row.id: json.loads(row.displayed_badges)
+            for row in connection.execute(
+                sa.text("SELECT id, displayed_badges FROM users")
+            ).all()
+        }
+        # The three that are left, in the order they were worn.
+        assert slots[1] == ["early_riser", "weekly_25", "race_10k"]
+        assert slots[2] == []
+        # Nobody else's slots were rewritten at all.
+        assert slots[3] == ["race_5k", "night_owl"]
 
 
 def test_the_plot_cleanup_leaves_a_tidy_plot_alone(at_0012):

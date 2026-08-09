@@ -104,7 +104,6 @@ const MEDAL_FILES: Record<string, string> = {
   weekly_40: 'weekly-40',
   early_riser: 'time-early-riser',
   night_owl: 'time-night-owl',
-  second_mile: 'second-mile',
 }
 
 // A medal id this build has never heard of falls back to its id read as a file

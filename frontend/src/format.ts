@@ -74,6 +74,16 @@ export function formatDate(iso: string): string {
   })
 }
 
+// A date short enough for a rail row: Aug 6. No year, because the only place
+// this is read is a list of what was earned lately.
+export function formatShortDate(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, {
+    timeZone: zone,
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
 export function formatStart(iso: string): string {
   return new Date(iso).toLocaleString(undefined, {
     timeZone: zone,

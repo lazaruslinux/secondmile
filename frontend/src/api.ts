@@ -93,7 +93,7 @@ export interface Person {
   // How far the border's growth has come, 0 to 3. Earned by encouraging other
   // people, and the only outward sign of it: the number behind it is never sent.
   flourish: number
-  // The medals they chose to show, as ids, at most four. Their own doing rather
+  // The medals they chose to show, as ids, at most three. Their own doing rather
   // than anything a workout earned. Optional: a server that predates the field
   // simply sends a card with no medals on it, and the feed draws none.
   displayed_badges?: string[]
@@ -182,10 +182,11 @@ export interface ActivityStats {
   workouts: number
 }
 
-// The four kinds of medal. Every medal in the catalogue belongs to exactly one.
-export type MedalFamily = 'race' | 'weekly' | 'time' | 'second_mile'
+// The three kinds of medal. Every medal in the catalogue belongs to exactly
+// one. Nothing on screen groups by them any more; the server still says which.
+export type MedalFamily = 'race' | 'weekly' | 'time'
 
-// One medal and how many times it has been earned. The server sends all twelve
+// One medal and how many times it has been earned. The server sends all eleven
 // whether they have been earned or not, so a count of zero is a medal still to
 // come rather than a missing row. Medals repeat: the count is the whole of what
 // an account holds, and the stars around the artwork are worked out from it
@@ -246,7 +247,7 @@ export interface Profile {
   // stage is carried on every person in the feed, so a server that does not put
   // it here as well simply leaves the profile's own frame plain.
   flourish?: number
-  // The medals shown in the slots under the picture, as ids, at most four. Any
+  // The medals shown in the slots under the picture, as ids, at most three. Any
   // owned medal may be in them.
   displayed_badges: string[]
   // The whole catalogue with its counts, in catalogue order. Optional so the

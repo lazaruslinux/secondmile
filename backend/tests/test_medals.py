@@ -1,4 +1,4 @@
-"""The medals: the catalogue, the four families, and what earns each of them."""
+"""The medals: the catalogue, the three families, and what earns each of them."""
 
 import argparse
 import datetime as dt
@@ -77,11 +77,11 @@ def medals_after(db_session, user_id, start_ts, **kwargs) -> list[str]:
 # --------------------------------------------------------------------------
 
 
-def test_the_catalogue_is_twelve_medals_in_four_families():
-    assert len(medals.CATALOG) == 12
-    assert len(medals.BY_ID) == 12
+def test_the_catalogue_is_eleven_medals_in_three_families():
+    assert len(medals.CATALOG) == 11
+    assert len(medals.BY_ID) == 11
     assert [row.family for row in medals.CATALOG] == (
-        ["race"] * 5 + ["weekly"] * 4 + ["time"] * 2 + ["second_mile"]
+        ["race"] * 5 + ["weekly"] * 4 + ["time"] * 2
     )
     for row in medals.CATALOG:
         assert row.name.strip()
@@ -95,6 +95,15 @@ def test_the_catalogue_is_twelve_medals_in_four_families():
 def test_the_achievement_ids_are_gone():
     for gone in ("week_10", "week_40", "collection_complete"):
         assert gone not in medals.BY_ID
+
+
+def test_the_second_mile_is_gone_from_the_catalogue():
+    """It was a weekly rung at twenty miles wearing a special name, so it went
+    and took its family with it. The name still belongs to the app itself."""
+    assert "second_mile" not in medals.BY_ID
+    assert "second_mile" not in {row.family for row in medals.CATALOG}
+    assert "second_mile" not in medals.WEEK_FAMILIES
+    assert not hasattr(medals, "SECOND_MILE")
 
 
 # --------------------------------------------------------------------------
@@ -195,7 +204,7 @@ def test_one_run_can_earn_a_race_medal_and_a_time_medal(signed_in, db_session, m
 
 
 # --------------------------------------------------------------------------
-# The weekly family and the Second Mile
+# The weekly family
 # --------------------------------------------------------------------------
 
 
@@ -223,7 +232,7 @@ def test_a_week_totals_every_activity_at_its_raw_distance(signed_in, db_session,
     add_workout(db_session, member.id, at(3, 9), activity="run", miles=5.0)
     progress.process_user(db_session, member.id)
     held = {row[1]: row[2] for row in week_rows(db_session, member.id)}
-    assert held == {"weekly": "weekly_25", "second_mile": "second_mile"}
+    assert held == {"weekly": "weekly_25"}
 
 
 def test_a_flagged_workout_still_counts_toward_the_week(signed_in, db_session, member):
@@ -241,25 +250,28 @@ def test_a_flagged_workout_still_counts_toward_the_week(signed_in, db_session, m
     assert [row[2] for row in week_rows(db_session, member.id)] == ["weekly_10"]
 
 
-def test_the_second_mile_arrives_once_a_week_at_twenty_miles(signed_in, db_session, member):
+def test_twenty_miles_in_a_week_earns_the_weekly_medal_and_nothing_beside_it(
+    signed_in, db_session, member
+):
+    """Twenty was the Second Mile's line, and the week that crosses it comes
+    away with the one weekly row it was always going to have."""
     add_workout(db_session, member.id, at(0, 9), miles=9.9)
     add_workout(db_session, member.id, at(1, 9), miles=9.9)
     progress.process_user(db_session, member.id)
     assert [row[1] for row in week_rows(db_session, member.id)] == ["weekly"]
 
-    crossing = add_workout(db_session, member.id, at(2, 9), miles=0.2)
+    add_workout(db_session, member.id, at(2, 9), miles=0.2)
     progress.process_user(db_session, member.id)
-    rows = {row[1]: row for row in week_rows(db_session, member.id)}
-    assert rows["second_mile"][2] == "second_mile"
-    assert rows["second_mile"][3] == crossing.id
-    assert rows["second_mile"][4] == crossing.start_ts
+    assert [(row[1], row[2]) for row in week_rows(db_session, member.id)] == [
+        ("weekly", "weekly_15")
+    ]
 
-    # Another twenty miles in the same week is not another Second Mile.
+    # And past twenty-five it is still that row, upgraded in place.
     add_workout(db_session, member.id, at(3, 9), miles=25.0)
     progress.process_user(db_session, member.id)
-    rows = {row[1]: row for row in week_rows(db_session, member.id)}
-    assert rows["second_mile"][3] == crossing.id
-    assert rows["weekly"][2] == "weekly_40"
+    assert [(row[1], row[2]) for row in week_rows(db_session, member.id)] == [
+        ("weekly", "weekly_40")
+    ]
 
 
 def test_a_week_is_a_server_timezone_monday_week(signed_in, db_session, member):
@@ -295,7 +307,7 @@ def test_the_same_week_lands_the_same_rows_whatever_order_it_arrives_in(
     # because they are different accounts' rows.
     assert [row[:3] for row in forwards] == [row[:3] for row in backwards]
     assert [row[4] for row in forwards] == [row[4] for row in backwards]
-    assert [row[2] for row in forwards] == ["second_mile", "weekly_25"]
+    assert [row[2] for row in forwards] == ["weekly_25"]
 
 
 def test_a_rebuild_earns_exactly_the_same_medals(signed_in, db_session, member):
@@ -338,7 +350,7 @@ def test_backfill_awards_every_family_and_runs_twice_the_same(
     _backfill(db_session, monkeypatch)
     awarded = (workout_medals(db_session, member.id), week_rows(db_session, member.id))
     assert awarded[0] == ["race_half", "early_riser", "race_10k", "night_owl"]
-    assert [row[2] for row in awarded[1]] == ["second_mile", "weekly_15"]
+    assert [row[2] for row in awarded[1]] == ["weekly_15"]
 
     _backfill(db_session, monkeypatch)
     assert (workout_medals(db_session, member.id), week_rows(db_session, member.id)) == awarded

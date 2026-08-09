@@ -322,7 +322,7 @@ def people(db: Session, user_ids) -> dict[int, dict]:
             "has_avatar": avatar_path is not None,
             "border_tier": progress.border_tier(level),
             "flourish": flourish_stage(renown),
-            # The four they chose to wear, in slot order, never the ones a
+            # The ones they chose to wear, in slot order, never the ones a
             # workout earned. Copied into a list so an account wearing none
             # arrives as [] and the client never has to read a null.
             "displayed_badges": list(badges or []),

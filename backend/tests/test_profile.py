@@ -84,13 +84,29 @@ def test_badge_slots_take_only_badges_the_account_owns(signed_in, db_session, me
     assert db_session.get(models.User, member.id).displayed_badges == owned[:1]
 
 
-def test_badge_slots_are_limited_and_cannot_repeat(signed_in):
+def test_there_are_three_badge_slots_and_a_fourth_is_refused(signed_in):
+    """Three because three was chosen, not because a fourth would not fit: the
+    limit is worth asserting at the number rather than at "too many"."""
+    log_workout(signed_in, "run", 3.2, pace_min=9, offset_min=0)
+    log_workout(signed_in, "run", 7.0, pace_min=9, offset_min=120)
+    log_workout(signed_in, "run", 13.2, pace_min=9, offset_min=300)
+    owned = owned_badges(signed_in)
+    assert len(owned) >= 4
+
+    too_many = signed_in.patch("/api/profile", json={"displayed_badges": owned[:4]})
+    assert too_many.status_code == 400
+    assert "only 3 badge slots" in too_many.json()["detail"]
+
+    accepted = signed_in.patch("/api/profile", json={"displayed_badges": owned[:3]})
+    assert accepted.status_code == 200
+    assert accepted.json()["displayed_badges"] == owned[:3]
+
+
+def test_a_badge_cannot_fill_two_slots(signed_in):
     log_workout(signed_in, "run", 11.0, pace_min=9)
     owned = owned_badges(signed_in)
     assert len(owned) >= 2
 
-    too_many = signed_in.patch("/api/profile", json={"displayed_badges": owned[:1] * 5})
-    assert too_many.status_code == 400
     repeated = signed_in.patch("/api/profile", json={"displayed_badges": [owned[0], owned[0]]})
     assert repeated.status_code == 400
     assert signed_in.get("/api/profile").json()["displayed_badges"] == []

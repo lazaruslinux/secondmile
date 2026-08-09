@@ -219,13 +219,15 @@ function PhotoStrip({ workoutId, photos }: { workoutId: number; photos: number[]
   )
 }
 
-// The medals somebody chose to show, beside their name. These are who they are
-// rather than what this workout earned, which is why they sit at the top of the
-// card and the earned ones stay along the foot. They are drawn at the foot's
-// size and not nestled on the picture: four nested medals come to about three
-// times the width of a 2.5rem feed avatar and would lie across the name, and
-// shrinking them takes the word off the plate, which is the only thing telling
-// 5K from MARATHON.
+// The medals somebody chose to show, beside their name. Friends' cards only:
+// your own three are already nestled on your picture on the You screen, so the
+// feed says them about everybody but you. These are who they are rather than
+// what this workout earned, which is why they sit at the top of the card and
+// the earned ones stay along the foot. They are drawn at the foot's size and
+// not nestled on the picture: nested medals come to about three times the width
+// of a 2.5rem feed avatar and would lie across the name, and shrinking them
+// takes the word off the plate, which is the only thing telling 5K from
+// MARATHON.
 function ChosenMedals({ ids }: { ids: string[] }) {
   if (ids.length === 0) return null
   return (
@@ -434,7 +436,8 @@ export default function FeedCard({ item, units, avatarVersion, onChanged }: Prop
   // The name they go by if they gave one, and their username otherwise.
   const who = personName(user)
   // Read as optional on purpose: the field arrives on the person card, and a
-  // card without it draws no medals rather than throwing.
+  // card without it draws no medals rather than throwing. Own cards never draw
+  // it at all: your picture on You already wears the same three.
   const chosen = user.displayed_badges ?? []
 
   if (item.own) {
@@ -470,11 +473,6 @@ export default function FeedCard({ item, units, avatarVersion, onChanged }: Prop
           >
             <Icon name="pencil" />
           </button>
-
-          {/* Last in the header so it takes a line of its own across the whole
-              card: chosen medals are wide, and the same four have to break the
-              same way here as they do on a friend's card. */}
-          <ChosenMedals ids={chosen} />
         </header>
 
         {editing ? (

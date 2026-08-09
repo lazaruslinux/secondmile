@@ -522,6 +522,7 @@ button:disabled {
    room for. The phone keeps its own copy of the streak instead. */
 .home-left,
 .home-medals,
+.home-challenges,
 .home-grove {
   display: none;
 }
@@ -635,21 +636,10 @@ button:disabled {
   margin: 0.4rem 0 0;
 }
 
-/* Home: the medals and the grove in the right rail
+/* Home: the recent medals, the challenge, and the grove in the right rail
 
-   Twelve rows in a narrow column, so this is tighter than the strip on You:
-   smaller artwork, no rule between the rows, and the family name doing the
-   separating that the rules used to do. */
-.home-medals .medal-group + .medal-group {
-  margin-top: 0.5rem;
-}
-
-.medal-family {
-  margin: 0;
-  padding-top: 0.35rem;
-  border-top: 1px solid var(--line);
-}
-
+   A few rows in a narrow column, so this is tighter than the strip on You:
+   smaller artwork and no rule between the rows. */
 .medal-list {
   list-style: none;
   margin: 0.15rem 0 0;
@@ -682,17 +672,50 @@ button:disabled {
   font-weight: 700;
 }
 
-.medal-count {
-  font-size: 0.95rem;
+/* The day it last came, which is what makes the list read as recent rather
+   than as a ranking. */
+.medal-when {
+  font-size: 0.75rem;
   font-weight: 700;
-  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  white-space: nowrap;
 }
 
-/* A medal never earned keeps its row and goes quiet rather than leaving a gap
-   in the ladder. */
-.medal-row-none .medal-name,
-.medal-row-none .medal-count {
+/* The next weekly medal, drawn like a rail row with the miles under its name
+   and the bar across the card beneath it. */
+.challenge {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0.4rem 0 0.5rem;
+}
+
+.challenge .badge {
+  flex: 0 0 auto;
+  width: 2.4rem;
+  height: 2.4rem;
+}
+
+.challenge-text {
+  min-width: 0;
+}
+
+.challenge-name {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.challenge-progress {
+  margin: 0.1rem 0 0;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
   color: var(--muted);
+}
+
+.challenge-done {
+  margin: 0.4rem 0 0;
+  font-size: 0.85rem;
 }
 
 .grove-counts {
@@ -835,11 +858,11 @@ button:disabled {
   color: var(--muted);
 }
 
-/* The medals somebody chose to show, on their own line under the name and
+/* The medals a friend chose to show, on their own line under the name and
    across the card. The same pill the foot uses, so the feed has one kind of
-   medal chip rather than two, and it wraps instead of shrinking: four of them
-   are wider than a phone, and the word on the plate is the only thing telling
-   one race medal from another. */
+   medal chip rather than two, and it wraps instead of shrinking: three of them
+   can still be wider than a phone, and the word on the plate is the only thing
+   telling one race medal from another. */
 .feed-chosen {
   flex: 0 0 100%;
   display: flex;
@@ -1311,7 +1334,7 @@ button:disabled {
 .avatar-block {
   position: relative;
   flex: 0 0 auto;
-  padding: 0 0 1.4rem;
+  padding: 0 0 1.6rem;
 }
 
 .avatar-frame {
@@ -1399,10 +1422,13 @@ button:disabled {
   transform: translateY(50%);
 }
 
+/* Three medals, not four, so each one is drawn bigger than it used to be: three
+   at 2.75rem overlapping come to about 105px, which is the width four at
+   2.25rem came to and still sits well inside the 8rem frame they hang from. */
 .medal-nest-item {
   position: relative;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 2.75rem;
+  height: 2.75rem;
   flex: 0 0 auto;
   /* The pad in the frame colour is what keeps two overlapping medals apart. */
   padding: 2px;
@@ -1412,38 +1438,29 @@ button:disabled {
 
 /* Roughly a third of a circle sits under the one before it. */
 .medal-nest-item + .medal-nest-item {
-  margin-left: -0.7rem;
+  margin-left: -0.85rem;
 }
 
 /* The ends of the arc ride a little higher than its middle. */
 .medal-nest-3 .medal-nest-item:nth-child(1),
-.medal-nest-3 .medal-nest-item:nth-child(3),
-.medal-nest-4 .medal-nest-item:nth-child(1),
-.medal-nest-4 .medal-nest-item:nth-child(4) {
-  bottom: 5px;
-}
-
-.medal-nest-4 .medal-nest-item:nth-child(2),
-.medal-nest-4 .medal-nest-item:nth-child(3) {
-  bottom: 1px;
+.medal-nest-3 .medal-nest-item:nth-child(3) {
+  bottom: 6px;
 }
 
 /* The middle of the arc sits in front, so the ends tuck behind it rather than
    the last one written covering the rest. */
-.medal-nest-3 .medal-nest-item:nth-child(2),
-.medal-nest-4 .medal-nest-item:nth-child(2),
-.medal-nest-4 .medal-nest-item:nth-child(3) {
+.medal-nest-3 .medal-nest-item:nth-child(2) {
   z-index: 1;
 }
 
 /* The summary card's picture is smaller, so its medals are too. */
 .summary-frame .medal-nest-item {
-  width: 2rem;
-  height: 2rem;
+  width: 2.25rem;
+  height: 2.25rem;
 }
 
 .summary-frame .medal-nest-item + .medal-nest-item {
-  margin-left: -0.62rem;
+  margin-left: -0.7rem;
 }
 
 /* An empty slot is an invitation, so it stays visible against the picture
@@ -1821,17 +1838,14 @@ button:disabled {
 }
 
 /* Medals
-   The catalogue on You: four families, each a row of medals at one size, with
-   the count under the artwork and the name under that. Five columns whatever
-   the family holds, so a medal is the same size in all four rows. A medal never
-   earned keeps its column and its nought rather than leaving a hole. */
-.medal-group + .medal-group {
-  margin-top: 0.9rem;
-}
-
+   The catalogue on You: one grid of eleven, no headings, with the count under
+   the artwork and the name under that. Four columns rather than five, because
+   eleven over five leaves a last row of one; over four it leaves three, which
+   reads as a row. A medal never earned keeps its column and its nought rather
+   than leaving a hole. */
 .medal-strip {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.5rem;
   list-style: none;
   margin: 0.4rem 0 0;
@@ -2798,7 +2812,7 @@ button:disabled {
      width of the frame it hangs from. Only the big frame on You: the small ones
      in the feed and the friends list set their own size and keep it. */
   .avatar-block {
-    padding: 0 0 1.25rem;
+    padding: 0 0 1.4rem;
   }
 
   .avatar-block .avatar-frame {
@@ -2807,12 +2821,12 @@ button:disabled {
   }
 
   .medal-nest-item {
-    width: 2rem;
-    height: 2rem;
+    width: 2.4rem;
+    height: 2.4rem;
   }
 
   .medal-nest-item + .medal-nest-item {
-    margin-left: -0.6rem;
+    margin-left: -0.74rem;
   }
 
   .stats th,
@@ -2821,7 +2835,7 @@ button:disabled {
     font-size: 0.85rem;
   }
 
-  /* Five columns on a 360px screen: the row gives up its gaps and its letter
+  /* Four columns on a 360px screen: the row gives up its gaps and its letter
      spacing before it gives up fitting on one line. */
   .medal-strip {
     gap: 0.35rem;
@@ -2912,6 +2926,7 @@ button:disabled {
   }
 
   .home-medals,
+  .home-challenges,
   .home-grove {
     display: block;
   }

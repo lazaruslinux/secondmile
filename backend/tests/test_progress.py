@@ -387,14 +387,15 @@ def test_a_weekly_medal_is_counted_by_the_week(signed_in, db_session, member):
     rows = {row["id"]: row for row in profile(signed_in)["medals"]}
     assert rows["weekly_15"]["count"] == 2
     assert rows["weekly_10"]["count"] == 0
-    assert rows["second_mile"]["count"] == 0
+    # Retired: the API serves no such medal, not even an empty one.
+    assert "second_mile" not in rows
 
 
 def test_any_earned_medal_can_be_worn_in_a_slot(signed_in, db_session, member):
     refused = signed_in.patch("/api/profile", json={"displayed_badges": ["race_ultra"]})
     assert refused.status_code == 400
     # Unearned medals from the new families are refused the same way.
-    for unearned in ("weekly_40", "early_riser", "second_mile"):
+    for unearned in ("weekly_40", "early_riser", "night_owl"):
         assert (
             signed_in.patch("/api/profile", json={"displayed_badges": [unearned]}).status_code
             == 400

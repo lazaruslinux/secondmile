@@ -695,11 +695,11 @@ def test_a_feed_row_carries_the_medals_that_person_chose(
 
 
 def test_your_own_row_carries_yours(signed_in, db_session, member):
-    wear(db_session, member, "second_mile")
+    wear(db_session, member, "weekly_10")
     post_workout(signed_in, miles=2.0)
     row = signed_in.get("/api/feed").json()[0]
     assert row["own"] is True
-    assert row["user"]["displayed_badges"] == ["second_mile"]
+    assert row["user"]["displayed_badges"] == ["weekly_10"]
 
 
 def test_wearing_none_reads_as_an_empty_list(signed_in, db_session, member, mate):

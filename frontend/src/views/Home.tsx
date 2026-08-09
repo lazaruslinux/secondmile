@@ -5,27 +5,25 @@ import {
   getProfile,
   listFeed,
   type FeedItem,
+  type Medal,
   type Profile as ProfileData,
   type Units,
 } from '../api.ts'
 import {
   convertedValue,
   distanceValue,
+  formatShortDate,
   formatStart,
   unitName,
   weekStartKey,
   zonedDay,
 } from '../format.ts'
-import {
-  ACTIVITY_NAMES,
-  MEDAL_FAMILY_NAMES,
-  medalName,
-  medalsByFamily,
-} from '../labels.ts'
+import { ACTIVITY_NAMES, medalName } from '../labels.ts'
 import {
   displayNameOf,
   lifetimeWorkouts,
   medalCountsOf,
+  nextWeeklyTarget,
   SEEDS_TO_FIND,
   starsFor,
   weekTotals,
@@ -37,6 +35,33 @@ import MedalNest from './MedalNest.tsx'
 import { MedalMark } from './Medals.tsx'
 
 const PAGE = 20
+
+// How many medals the rail looks back over. Four rather than three: the whole
+// catalogue used to stand here, and three rows leave the card shorter than the
+// two under it.
+const RECENT_MEDALS = 4
+
+interface Recent {
+  id: string
+  count: number
+  // When it last came. The list holds only medals that have one, so this is a
+  // date rather than a maybe.
+  at: string
+}
+
+// The medals earned most lately, newest first. Types rather than earnings: a
+// medal won three times this week is one row, dated the last time it came. The
+// profile already carries the dates, so the rail asks the server for nothing.
+function recentMedals(medals: Medal[] | undefined): Recent[] {
+  const earned: Recent[] = []
+  for (const row of medals ?? []) {
+    const at = row.last_earned_at
+    if (!at || !(row.count > 0)) continue
+    earned.push({ id: row.id, count: row.count, at })
+  }
+  earned.sort((first, second) => Date.parse(second.at) - Date.parse(first.at))
+  return earned.slice(0, RECENT_MEDALS)
+}
 
 // Weeks start on Monday, which is what the server counts in as well.
 const DAY_LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
@@ -204,6 +229,10 @@ export default function Home({
   // account's last workout rather than whatever is at the top of the feed.
   const mine = feed.find((item) => item.own)
   const counts = medalCountsOf(profile.medals)
+  const recent = recentMedals(profile.medals)
+  // Raw miles, the unit the weekly medals are earned in, whatever this account
+  // displays distances as.
+  const target = nextWeeklyTarget(week.distance)
   const shownName = displayNameOf(profile)
   // Own growth stage, from the profile when the server puts it there and from
   // this account's own feed row when it does not.
@@ -321,31 +350,56 @@ export default function Home({
           </p>
         </section>
 
-        {/* The whole catalogue, twelve rows in four families. It is a tall card
-            for a rail, so the rows are tighter here than the strip on You and
-            the family names carry the grouping instead of gaps. */}
+        {/* What came in lately rather than the whole catalogue: the catalogue
+            is a screen of its own on You, and a rail is better spent on what
+            has just happened. The rows are tighter here than the strip there. */}
         <section className="card home-medals">
-          <h2 className="label">Medals</h2>
-          {medalsByFamily().map((group) => (
-            <div key={group.family} className="medal-group">
-              <h3 className="label medal-family">{MEDAL_FAMILY_NAMES[group.family]}</h3>
-              <ul className="medal-list">
-                {group.ids.map((id) => {
-                  const count = counts.get(id) ?? 0
-                  return (
-                    <li
-                      key={id}
-                      className={count > 0 ? 'medal-row' : 'medal-row medal-row-none'}
-                    >
-                      <MedalMark id={id} earned={count > 0} stars={starsFor(count)} />
-                      <span className="medal-name">{medalName(id)}</span>
-                      <span className="medal-count">{count}</span>
-                    </li>
-                  )
-                })}
-              </ul>
-            </div>
-          ))}
+          <h2 className="label">Recent medals</h2>
+          {recent.length === 0 ? (
+            <p className="hint">
+              Nothing earned yet. A 5K, a ten-mile week, or a run before six all start one.
+            </p>
+          ) : (
+            <ul className="medal-list">
+              {recent.map((row) => (
+                <li key={row.id} className="medal-row">
+                  <MedalMark id={row.id} earned stars={starsFor(row.count)} />
+                  <span className="medal-name">{medalName(row.id)}</span>
+                  <span className="medal-when">{formatShortDate(row.at)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {/* The next weekly medal and how far into it this week is. Raw miles,
+            which is what the medal is measured in: showing converted Miles here
+            would name a number the server never counts a week in. */}
+        <section className="card home-challenges">
+          <h2 className="label">Challenges</h2>
+          {target ? (
+            <>
+              <div className="challenge">
+                <MedalMark id={target.id} earned={(counts.get(target.id) ?? 0) > 0} />
+                <div className="challenge-text">
+                  <p className="challenge-name">{medalName(target.id)}</p>
+                  <p className="challenge-progress">
+                    {week.distance.toFixed(1)} of {target.miles} mi
+                  </p>
+                </div>
+              </div>
+              <progress className="xp-meter" value={week.distance} max={target.miles}>
+                {week.distance.toFixed(1)} of {target.miles} mi
+              </progress>
+            </>
+          ) : (
+            /* Past forty miles there is no rung left this week, so the section
+               says what was done rather than inventing a target above the
+               ladder. */
+            <p className="challenge-done">
+              Every weekly medal earned this week, at {week.distance.toFixed(1)} mi.
+            </p>
+          )}
         </section>
 
         <section className="card home-grove">

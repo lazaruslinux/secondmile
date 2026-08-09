@@ -212,7 +212,9 @@ BORDER_LEVELS = (0, 6, 10, 15, 25, 35)
 
 # How many badges a player may wear around their avatar. Fixed slots, and the
 # picture is never covered, so this is a layout constant as much as a rule.
-MAX_DISPLAYED_BADGES = 4
+# Three by intent rather than by fit: the trinity is the reason, and the ring
+# around an avatar would hold a fourth quite happily.
+MAX_DISPLAYED_BADGES = 3
 
 # How many sports the profile shows as diamonds. Fixed slots again, and the
 # same number whether the player picked them or the server did.
