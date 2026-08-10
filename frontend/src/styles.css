@@ -1714,6 +1714,18 @@ button:disabled {
   text-align: center;
 }
 
+/* What somebody wrote about themselves, under their name on both profile
+   screens. Quiet, and held to a readable measure so a long one does not run the
+   width of a desktop banner. Line breaks are not kept: this is a line or two
+   beside a name rather than a post. */
+.profile-bio {
+  max-width: 34rem;
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
 .level-line {
   display: flex;
   flex-wrap: wrap;
@@ -1857,6 +1869,48 @@ button:disabled {
   font-size: 0.7rem;
   font-weight: 700;
   color: var(--muted);
+}
+
+/* The media strip on a friend's profile: the last few pictures off their
+   workouts, in one row that scrolls sideways rather than wrapping. A row that
+   wrapped would be a gallery, and this is a glance at what they have been
+   doing. Nothing here is pressable yet. */
+
+.media-strip {
+  display: flex;
+  gap: var(--gap);
+  overflow-x: auto;
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0 0 0.3rem;
+}
+
+.media-item {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+/* Square, like the pictures on a card, and a shade smaller: six of these sit in
+   a row rather than three. */
+.media-photo {
+  width: 6.5rem;
+  height: 6.5rem;
+}
+
+/* The tag under a picture: which sport it came off, how far, and how long. */
+.media-tag {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.media-figure {
+  font-family: var(--font-nums);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Friends

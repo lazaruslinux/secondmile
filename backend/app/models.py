@@ -101,6 +101,10 @@ class User(Base):
     # Free text on purpose. This is a private instance and a fixed list of
     # options would be a decision the app has no business making for anybody.
     gender: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # A line or two somebody writes about themselves, or null for none. Short
+    # enough to sit under a name on both profile screens rather than to be an
+    # article, and the only free text on an account a friend ever reads.
+    bio: Mapped[str | None] = mapped_column(String(200), nullable=True)
     is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     units: Mapped[str] = mapped_column(String(16), nullable=False, default="imperial")
     # The file name of the re-encoded profile picture, or null for none. A name

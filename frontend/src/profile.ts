@@ -3,7 +3,7 @@
 // are written once here rather than twice in the views.
 
 import type { Medal, Profile } from './api.ts'
-import { CHEST_TIER_ORDER, chestName } from './labels.ts'
+import { CHEST_TIER_ORDER, chestName, MEDAL_ORDER } from './labels.ts'
 
 // How many seeds there are to find. The species outside the catalogue is not
 // counted, on the server or here, so this never reads as one more than twelve.
@@ -52,6 +52,14 @@ export function ageOf(profile: Profile): number | null {
 // predates the field reads as none of everything.
 export function medalCountsOf(medals: Medal[] | undefined): Map<string, number> {
   return new Map((medals ?? []).map((row) => [row.id, row.count ?? 0]))
+}
+
+// Which medals an account actually holds, in catalogue order. The count on the
+// profile tiles is the length of this, on the You screen and on a friend's
+// profile both, so the two can never count different things.
+export function ownedMedalIds(medals: Medal[] | undefined): string[] {
+  const counts = medalCountsOf(medals)
+  return MEDAL_ORDER.filter((id) => (counts.get(id) ?? 0) > 0)
 }
 
 // How many workouts are behind an account, across every activity. The profile
@@ -161,7 +169,7 @@ export function weekTotals(profile: Profile) {
   let workouts = 0
   for (const row of Object.values(profile.week)) {
     distance += row.distance_mi
-    kcal += row.active_kcal
+    kcal += row.active_kcal ?? 0
     workouts += row.workouts
   }
   return { distance, kcal, workouts }

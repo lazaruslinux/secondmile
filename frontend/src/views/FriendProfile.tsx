@@ -8,23 +8,38 @@ import {
   listSatchel,
   pourWater,
   removeFriend,
+  workoutPhotoUrl,
+  type Activity,
+  type ActivityStats,
   type FeedItem,
   type FriendPlanting,
   type FriendProfile as FriendProfileData,
+  type RecentPhoto,
   type SatchelItem,
   type Units,
 } from '../api.ts'
-import { formatDate } from '../format.ts'
-import { ANOINT_HINT, ANOINTED, OIL_KEPT, plantingName, POURED } from '../labels.ts'
-import { SEEDS_TO_FIND } from '../profile.ts'
+import { convertedValue, distanceValue, formatClock, formatDate, unitName } from '../format.ts'
+import {
+  ACTIVITY_ICONS,
+  ANOINT_HINT,
+  ANOINTED,
+  OIL_KEPT,
+  plantingName,
+  POURED,
+} from '../labels.ts'
+import { ownedMedalIds } from '../profile.ts'
 import { pileItems, type Stack } from '../satchel.ts'
 import AvatarFrame from './AvatarFrame.tsx'
 import FeedCard from './FeedCard.tsx'
+import Icon from './Icon.tsx'
 import ItemPicker from './ItemPicker.tsx'
 import MedalNest from './MedalNest.tsx'
 import Medals from './Medals.tsx'
 import PlantArt from './PlantArt.tsx'
+import ProfileCounts from './ProfileCounts.tsx'
 import RarityFrame from './RarityFrame.tsx'
+import SportChips from './SportChips.tsx'
+import Stats from './Stats.tsx'
 
 // Said on anything of theirs that has reached the last level, which is the one
 // thing on their plot that cannot be watered.
@@ -67,6 +82,25 @@ function feedRows(workouts: FeedItem[] | undefined): FeedItem[] {
     }))
 }
 
+// The pictures on the strip, read the same defensive way. A row without the two
+// ids its address is built from is dropped rather than pointed at nothing.
+function mediaRows(photos: RecentPhoto[] | undefined): RecentPhoto[] {
+  if (!Array.isArray(photos)) return []
+  return photos.filter(
+    (row) =>
+      row != null && typeof row.photo_id === 'number' && typeof row.workout_id === 'number',
+  )
+}
+
+// A set of totals the tables and the chips are willing to read. A server that
+// predates them sends nothing, which draws as a card saying so rather than as a
+// call into a field that is not there.
+function statsOf(
+  stats: Partial<Record<Activity, ActivityStats>> | undefined,
+): Partial<Record<Activity, ActivityStats>> {
+  return stats != null && typeof stats === 'object' ? stats : {}
+}
+
 // A number the screen is willing to print, which is a finite one and nothing
 // else. Anything else draws as nothing rather than as NaN.
 function figure(value: number | undefined): number | null {
@@ -103,8 +137,14 @@ interface Props {
 }
 
 // One friend, reached by a deliberate tap on their picture, their name, or
-// their row in the friends list. It shows who they are and how they are doing
-// and nothing about their game state, and it carries the three things one
+// their row in the friends list. It reads as the You screen does: the same
+// banner, the same level and meter, the same four counts, the same sport chips
+// and the same two tables, plus the pictures off their recent workouts.
+//
+// What is not here is deliberate. No chests and no ladder, no pending gifts, no
+// medal picker, no sport picker and no pencil: those are the game and the
+// editing, and both are theirs. No birthdate, no age and no gender either;
+// those stay self-only. What is here beside all that is the three things one
 // person may do to another: water something of theirs, anoint them, or stop
 // being friends.
 export default function FriendProfile({ userId, units, onBack, onRemoved }: Props) {
@@ -257,6 +297,10 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
   const who = given !== '' ? given : username
   const level = figure(profile.level)
   const miles = figure(profile.miles)
+  const xp = figure(profile.xp)
+  const intoLevel = figure(profile.xp_into_level)
+  const levelSpan = figure(profile.xp_for_next_level)
+  const bio = words(profile.bio)
   // Medal ids are read as file names, so anything that is not an id is left out
   // rather than carried into the lookup.
   const chosen = (Array.isArray(profile.displayed_badges) ? profile.displayed_badges : []).filter(
@@ -266,6 +310,9 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
   const seeds = figure(profile.grove?.seeds_found) ?? 0
   const plantLevels = figure(profile.grove?.plant_levels) ?? 0
   const rows = feedRows(profile.workouts)
+  const media = mediaRows(profile.recent_photos)
+  const week = statsOf(profile.week)
+  const lifetime = statsOf(profile.lifetime)
   // A stamp that will not parse is left out rather than printed as an invalid
   // date, so the sentence is dropped whole rather than half built.
   const since =
@@ -336,7 +383,15 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
           <div className="you-ident-text">
             <h2 className="profile-name">{who}</h2>
             {given !== '' && username !== '' && <p className="profile-username">{username}</p>}
-            {level !== null && <p className="you-level">Level {level}</p>}
+            {level !== null && (
+              <p className="you-level">
+                Level {level}
+                {xp !== null && `, ${convertedValue(xp)} XP`}
+              </p>
+            )}
+            {/* What they wrote about themselves, in the same place under the
+                name the You screen puts it. */}
+            {bio !== '' && <p className="profile-bio">{bio}</p>}
           </div>
         </div>
       </div>
@@ -344,15 +399,41 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
       <section className="card">
         {since !== '' && <p className="hint">Member since {since}</p>}
 
-        <ul className="profile-counts">
-          <li>
-            {/* Raw miles: the distance they covered. The weighted number the
-                game runs on is XP, it is theirs, and it is not on this screen
-                at all. */}
-            <span className="count-value">{miles === null ? '--' : miles.toFixed(1)}</span>
-            <span className="count-label">Miles</span>
-          </li>
-        </ul>
+        {/* The ladder, drawn the way the You screen draws it: the level as the
+            headline and the meter under it. Only the parts the server sent are
+            drawn, so a payload without the two figures leaves the meter off
+            rather than filling it with nothing. */}
+        {level !== null && (
+          <p className="level-line">
+            <span className="level-tag">Level</span>
+            <span className="level-number">{level}</span>
+            {intoLevel !== null && levelSpan !== null && (
+              <span className="muted">
+                {convertedValue(intoLevel)} of {convertedValue(levelSpan)} XP toward level{' '}
+                {level + 1}
+              </span>
+            )}
+          </p>
+        )}
+        {/* A progress element rather than a div with a width on it: the content
+            security policy allows no inline styles, and this one reads
+            correctly to a screen reader as well. */}
+        {intoLevel !== null && levelSpan !== null && levelSpan > 0 && (
+          <progress className="xp-meter" value={intoLevel} max={levelSpan}>
+            {convertedValue(intoLevel)} of {convertedValue(levelSpan)} XP
+          </progress>
+        )}
+
+        {/* The same four counts the You screen carries. Raw miles: the distance
+            they covered, never the weighted number the ladder is climbed on. */}
+        <ProfileCounts
+          miles={miles ?? 0}
+          seeds={seeds}
+          plantLevels={plantLevels}
+          medalsOwned={ownedMedalIds(medals).length}
+        />
+
+        <SportChips stats={lifetime} units={units} />
 
         {/* What may be done to the person themselves, which is anointing them
             and ending the friendship. Watering is not here any more: it is done
@@ -430,6 +511,51 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
         </div>
       </section>
 
+      {/* The strip: their last few pictures, newest first, one row across the
+          card that scrolls sideways on a phone. A picture is not a link yet;
+          the tag under it says which activity it came off and how far and how
+          long that one was. */}
+      {media.length > 0 && (
+        <section className="card">
+          <h2 className="label">Recent media</h2>
+          <ul className="media-strip">
+            {media.map((row) => (
+              <li key={row.photo_id} className="media-item">
+                <span className="photo-thumb media-photo">
+                  <img
+                    src={workoutPhotoUrl(row.workout_id, row.photo_id)}
+                    alt=""
+                    loading="lazy"
+                  />
+                </span>
+                <span className="media-tag">
+                  <span className="sport-icon sport-icon-small">
+                    <Icon name={ACTIVITY_ICONS[row.activity] ?? ''} />
+                  </span>
+                  <span className="media-figure">
+                    {distanceValue(row.distance_mi, units)} {unitName(units)}
+                  </span>
+                  <span className="media-figure">{formatClock(row.duration_s)}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* The two cards the You screen ends on, in the same order and in the
+          same table. A figure they have hidden is simply not in the payload,
+          so the column it would fill is not drawn. */}
+      <section className="card">
+        <h2>This week</h2>
+        <Stats stats={week} units={units} empty="Nothing recorded this week yet." />
+      </section>
+
+      <section className="card">
+        <h2>Lifetime</h2>
+        <Stats stats={lifetime} units={units} empty="Nothing recorded yet." />
+      </section>
+
       <Medals medals={medals} />
 
       {/* Their plot, drawn properly rather than counted: what is standing in it,
@@ -443,19 +569,10 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
           fence can see, while the miles behind it are their own record of how
           they spent their weeks. */}
       <section className="card">
+        {/* The two counts that used to head this card are in the four tiles
+            above now, where the You screen keeps them. Twice on one screen is
+            once too many. */}
         <h2 className="label">Grove</h2>
-        <ul className="profile-counts">
-          <li>
-            <span className="count-value">
-              {seeds} / {SEEDS_TO_FIND}
-            </span>
-            <span className="count-label">Seeds found</span>
-          </li>
-          <li>
-            <span className="count-value">{plantLevels}</span>
-            <span className="count-label">Plant levels</span>
-          </li>
-        </ul>
 
         {plot.length === 0 ? (
           <p className="hint">Nothing planted yet.</p>

@@ -16,6 +16,10 @@ import AvatarCrop from './AvatarCrop.tsx'
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024
 const TOO_LARGE = 'That picture is too large. The limit is 5 MB.'
 
+// What the server takes for a bio, held to here as well so the count under the
+// box and the length it will accept are the same number.
+const MAX_BIO = 200
+
 // The upload endpoint refuses things for reasons a person can act on, and two
 // of them can be answered by the proxy in front of the app rather than by the
 // server, so the sentence is written here rather than read off the response.
@@ -45,8 +49,8 @@ interface Props {
 }
 
 // Everything about this account a person types in themselves, in one panel: the
-// picture, the name it goes by, a birthdate, and a word for gender. All of it is
-// optional and all of it can be emptied again.
+// picture, the name it goes by, a line about themselves, a birthdate, and a
+// word for gender. All of it is optional and all of it can be emptied again.
 export default function EditProfile({ profile, onAvatarChanged, onSaved, onClose }: Props) {
   const dialog = useRef<HTMLDialogElement>(null)
 
@@ -54,6 +58,7 @@ export default function EditProfile({ profile, onAvatarChanged, onSaved, onClose
   const [lastName, setLastName] = useState(profile.last_name ?? '')
   const [birthdate, setBirthdate] = useState(profile.birthdate ?? '')
   const [gender, setGender] = useState(profile.gender ?? '')
+  const [bio, setBio] = useState(profile.bio ?? '')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
 
@@ -129,6 +134,7 @@ export default function EditProfile({ profile, onAvatarChanged, onSaved, onClose
           last_name: orNull(lastName),
           birthdate: orNull(birthdate),
           gender: orNull(gender),
+          bio: orNull(bio),
         }),
       )
       onClose()
@@ -230,6 +236,22 @@ export default function EditProfile({ profile, onAvatarChanged, onSaved, onClose
             <p className="hint">
               Shown as your name on your profile and on your workouts. Leave both empty to go
               by your username.
+            </p>
+
+            <label>
+              About you
+              {/* The count is live and the box will not take a character past
+                  the limit, so the server's refusal is a thing nobody meets. */}
+              <textarea
+                value={bio}
+                maxLength={MAX_BIO}
+                rows={3}
+                onChange={(event) => setBio(event.target.value)}
+              />
+            </label>
+            <p className="hint">
+              A line or two, shown under your name on your profile and to your friends.{' '}
+              {bio.length} of {MAX_BIO} characters.
             </p>
 
             <label>

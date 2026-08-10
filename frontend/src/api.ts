@@ -194,7 +194,9 @@ export interface IngestTokenStatus {
 export interface ActivityStats {
   distance_mi: number
   converted_mi: number
-  active_kcal: number
+  // Absent on a friend's totals when they have hidden their calories, which is
+  // the server leaving the figure out rather than sending a zero.
+  active_kcal?: number
   workouts: number
 }
 
@@ -233,6 +235,8 @@ export interface ProfileDetails {
   // ISO date, yyyy-mm-dd, which is what the native date input reads and writes.
   birthdate: string | null
   gender: string | null
+  // A line or two about themselves, at most 200 characters. Null clears it.
+  bio: string | null
 }
 
 export interface Profile {
@@ -247,6 +251,9 @@ export interface Profile {
   gender?: string | null
   // Worked out from the birthdate rather than stored, so the two cannot drift.
   age?: number | null
+  // What they wrote about themselves, and the one field here a friend reads
+  // too. Optional, like the rest of it.
+  bio?: string | null
   created_at: string
   has_avatar: boolean
   // Changes with every upload, and null when there is no picture. Appended to
@@ -329,15 +336,41 @@ export interface FriendProfile {
   flourish?: number
   displayed_badges?: string[]
   level?: number
+  // The ladder as the You screen draws it: the total, how far into the current
+  // level they are, and how long that level is. The meter is filled from the
+  // last two, and there is no meter without them.
+  xp?: number
+  xp_into_level?: number
+  xp_for_next_level?: number
+  // What they wrote about themselves, shown under their name.
+  bio?: string | null
   // Raw lifetime distance, the same number the You screen leads with: what
   // their body covered. Never the weighted number the game counts as XP.
   miles?: number
   medals?: Medal[]
   // The summary only. The plot itself comes from the grove endpoint.
   grove?: { seeds_found?: number; plant_levels?: number }
+  // The same two sets of totals the You screen carries, in the same shape, so
+  // the sport chips and the two cards are drawn by the same components. A
+  // calorie figure is missing from these where they have hidden it.
+  week?: Partial<Record<Activity, ActivityStats>>
+  lifetime?: Partial<Record<Activity, ActivityStats>>
+  // The last few pictures they attached to a workout, newest first.
+  recent_photos?: RecentPhoto[]
   // Their latest activities in the feed's own row shape, newest first, so what
   // a card may show cannot drift between here and the feed.
   workouts?: FeedItem[]
+}
+
+// One picture on the strip across a profile, with what the tag under it says.
+// The picture itself is fetched from the workout photo endpoint, which is gated
+// on the same friendship the profile is.
+export interface RecentPhoto {
+  photo_id: number
+  workout_id: number
+  activity: Activity
+  distance_mi: number
+  duration_s: number
 }
 
 export interface AvatarState {

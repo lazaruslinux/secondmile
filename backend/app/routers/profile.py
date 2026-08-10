@@ -31,6 +31,9 @@ TOO_LARGE = (
 )
 
 MAX_NAME_LENGTH = 40
+# What a bio may run to. Enough for a line or two under a name on either
+# profile screen, which is where it is read; the column is the same length.
+MAX_BIO_LENGTH = 200
 # The two the edit form offers. The API takes these and nothing else, so what is
 # stored can always be shown by the dropdown that wrote it.
 GENDERS = ("Male", "Female")
@@ -57,6 +60,7 @@ class ProfileBody(BaseModel):
     # framework's field report.
     birthdate: str | None = None
     gender: str | None = None
+    bio: str | None = None
 
 
 def computed_age(birthdate: dt.date | None, today: dt.date | None = None) -> int | None:
@@ -139,6 +143,9 @@ def serialize_profile(db: Session, user: models.User, row: models.UserProgress) 
         # Derived from the birthdate on every read, never stored beside it.
         "age": computed_age(user.birthdate),
         "gender": user.gender,
+        # What they wrote about themselves, or null. Not private: this rides
+        # the friend payload too, and the edit form says so.
+        "bio": user.bio,
         "created_at": user.created_at.isoformat(),
         "has_avatar": user.avatar_path is not None,
         # Cache buster for GET /api/profile/avatar/<user_id>; null without one.
@@ -265,6 +272,8 @@ def set_profile(
         user.birthdate = _clean_birthdate(body.birthdate)
     if "gender" in body.model_fields_set:
         user.gender = _clean_gender(body.gender)
+    if "bio" in body.model_fields_set:
+        user.bio = _clean_text(body.bio, MAX_BIO_LENGTH, "A bio")
     db.commit()
     return serialize_profile(db, user, progress.ensure_progress(db, user.id))
 
@@ -391,6 +400,75 @@ def read_avatar(
 # history, and there is no cursor here to ask for more.
 FRIEND_WORKOUTS = 10
 
+# How many pictures the strip across the profile holds. Six because that is
+# what one workout may carry, which makes it one number rather than two.
+RECENT_PHOTOS = 6
+
+
+def _hidden_for(user: models.User, viewer_id: int) -> tuple[str, ...]:
+    """What this account keeps back from whoever is reading it.
+
+    Nothing is kept back when the two are the same person. This endpoint
+    answers about yourself as well, and a hidden field is something an account
+    said about its friends rather than about itself. Written once because two
+    places on this screen honour the list and two copies of a privacy rule are
+    two things to remember to edit.
+    """
+    return () if viewer_id == user.id else tuple(user.hidden_from_friends or [])
+
+
+def _shown_totals(totals: dict[str, dict], hidden: tuple[str, ...]) -> dict[str, dict]:
+    """Per-activity totals with the calories taken out where they are hidden.
+
+    A hidden field is dropped from the row rather than sent as a zero: a zero
+    would say they burned nothing, which is a different thing from being asked
+    not to look. Distance and time stay whatever the list says, the same way
+    they stay on a workout card.
+    """
+    if "active_kcal" not in hidden:
+        return totals
+    return {
+        activity: {key: value for key, value in row.items() if key != "active_kcal"}
+        for activity, row in totals.items()
+    }
+
+
+def _recent_photos(db: Session, user_id: int) -> list[dict]:
+    """The last few pictures this account attached to a workout, newest first.
+
+    The strip is media rather than history, so the order is the order they were
+    added in rather than the order the workouts happened in: a picture put on
+    last week's run today is the newest thing there is to look at. Each one
+    carries the workout it belongs to and the two figures the tag under it
+    prints; the picture itself is fetched from the workout photo endpoint,
+    which is friend-gated exactly as this screen is.
+    """
+    rows = db.execute(
+        select(
+            models.WorkoutPhoto.id,
+            models.Workout.id,
+            models.Workout.activity,
+            models.Workout.distance_mi,
+            models.Workout.duration_s,
+        )
+        .join(models.Workout, models.Workout.id == models.WorkoutPhoto.workout_id)
+        .where(models.Workout.user_id == user_id)
+        # By id within a stamp, so two pictures uploaded in the same second
+        # keep a stable order between reads.
+        .order_by(models.WorkoutPhoto.created_at.desc(), models.WorkoutPhoto.id.desc())
+        .limit(RECENT_PHOTOS)
+    ).all()
+    return [
+        {
+            "photo_id": photo_id,
+            "workout_id": workout_id,
+            "activity": activity,
+            "distance_mi": round(distance_mi, 3),
+            "duration_s": duration_s,
+        }
+        for photo_id, workout_id, activity, distance_mi, duration_s in rows
+    ]
+
 
 def _friend_workouts(db: Session, user: models.User, viewer_id: int) -> list[dict]:
     """Their last few workouts, in the feed's own row shape.
@@ -402,10 +480,9 @@ def _friend_workouts(db: Session, user: models.User, viewer_id: int) -> list[dic
     rows is a handful of queries, never one each.
 
     Nothing is kept back when these are somebody's own workouts on their own
-    profile. This endpoint answers about yourself as well, and a hidden field is
-    something an account said about its friends rather than about itself.
+    profile; see _hidden_for.
     """
-    hidden = () if viewer_id == user.id else tuple(user.hidden_from_friends or [])
+    hidden = _hidden_for(user, viewer_id)
     rows = list(
         db.execute(
             select(models.Workout)
@@ -458,12 +535,17 @@ def serialize_friend_profile(db: Session, user: models.User, viewer_id: int) -> 
     # drops chests and awards medals, and none of that is something one
     # account's curiosity should do to another's game. A friend's level is
     # already read this way everywhere else a friend appears.
-    level, _, _ = progress.level_bounds(row.xp if row else 0.0)
+    xp = row.xp if row else 0.0
+    level, into_level, level_span = progress.level_bounds(xp)
     totals = progress.lifetime_totals(db, user.id)
+    hidden = _hidden_for(user, viewer_id)
     return {
         "user_id": user.id,
         "username": user.username,
         "display_name": fellowship.display_name(user.first_name, user.last_name),
+        # What they wrote about themselves. The one piece of free text on an
+        # account a friend reads, and it is written to be read.
+        "bio": user.bio,
         "has_avatar": user.avatar_path is not None,
         "avatar_version": avatars.version(user.id) if user.avatar_path else None,
         "created_at": user.created_at.isoformat(),
@@ -471,6 +553,13 @@ def serialize_friend_profile(db: Session, user: models.User, viewer_id: int) -> 
         "flourish": fellowship.flourish_stage(row.renown if row else 0),
         "displayed_badges": list(user.displayed_badges or []),
         "level": level,
+        # The ladder, as the You screen draws it: how far up they are and how
+        # far into the rung they stand. This screen mirrors that screen, so the
+        # meter under the level is filled from the same three numbers under the
+        # same names. Rounded here because the client prints them.
+        "xp": round(xp, 2),
+        "xp_into_level": round(into_level, 2),
+        "xp_for_next_level": round(level_span, 2),
         # Raw distance and never the converted number the ladder is climbed on:
         # a swim of half a mile is half a mile of somebody's body moving, and
         # this line is the one that says how far. One decimal, which is what
@@ -481,6 +570,19 @@ def serialize_friend_profile(db: Session, user: models.User, viewer_id: int) -> 
         # the same screen already calls, and serving it twice would mean two
         # places to remember when what a friend sees of a garden changes.
         "grove": grove.summary(db, user.id),
+        # The same two cards the You screen carries, in the same shape, so the
+        # sport chips and the tables are drawn from one payload rather than
+        # worked out twice. The calories come out of both where they are
+        # hidden: a week total is a calorie figure like any other.
+        "week": _shown_totals(
+            progress.week_totals(
+                db, user.id, activity_rules.week_start(security.now_utc())
+            ),
+            hidden,
+        ),
+        "lifetime": _shown_totals(totals, hidden),
+        # The strip across the profile: their last few pictures, newest first.
+        "recent_photos": _recent_photos(db, user.id),
         "workouts": _friend_workouts(db, user, viewer_id),
     }
 

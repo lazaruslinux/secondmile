@@ -17,6 +17,10 @@ from app.config import MAX_AVATAR_BYTES, SERVER_TZ
 # tested here.
 from test_grove import befriend, sign_in
 
+# The same again for the picture on a workout: attaching one is the workout
+# suite's business, and the strip on this screen only reads what it made.
+from test_workouts import attach, photo_bytes
+
 pytest.importorskip("PIL")
 
 
@@ -690,6 +694,38 @@ def test_gender_takes_only_the_two_offered_choices(signed_in, db_session, member
     assert member.gender == "Female"
 
 
+def test_a_bio_is_saved_trimmed_and_served(signed_in, db_session, member):
+    body = signed_in.patch("/api/profile", json={"bio": "  Walks a lot.  "}).json()
+    assert body["bio"] == "Walks a lot."
+    db_session.refresh(member)
+    assert member.bio == "Walks a lot."
+    assert signed_in.get("/api/profile").json()["bio"] == "Walks a lot."
+
+
+def test_a_fresh_profile_has_no_bio(signed_in):
+    assert signed_in.get("/api/profile").json()["bio"] is None
+
+
+def test_a_bio_has_a_limit_and_the_longest_one_fits(signed_in, db_session, member):
+    too_long = signed_in.patch("/api/profile", json={"bio": "b" * 201})
+    assert too_long.status_code == 400
+    assert too_long.json()["detail"][-1] == "."
+    db_session.refresh(member)
+    assert member.bio is None
+    assert signed_in.patch("/api/profile", json={"bio": "b" * 200}).status_code == 200
+    db_session.refresh(member)
+    assert len(member.bio) == 200
+
+
+def test_a_blank_bio_clears_it(signed_in, db_session, member):
+    signed_in.patch("/api/profile", json={"bio": "Walks a lot."})
+    for emptied in ("   ", None):
+        assert signed_in.patch("/api/profile", json={"bio": emptied}).json()["bio"] is None
+    db_session.refresh(member)
+    # Blank is stored as nothing, so no reader has to treat "" as null too.
+    assert member.bio is None
+
+
 def test_patching_a_name_leaves_the_badge_slots_and_diamonds_alone(signed_in, db_session, member):
     log_workout(db_session, member.id, "run", 11.0, pace_min=9)
     owned = owned_badges(signed_in)
@@ -720,9 +756,16 @@ FRIEND_PROFILE_KEYS = {
     "flourish",
     "displayed_badges",
     "level",
+    "xp",
+    "xp_into_level",
+    "xp_for_next_level",
+    "bio",
     "miles",
     "medals",
     "grove",
+    "week",
+    "lifetime",
+    "recent_photos",
     "workouts",
 }
 
@@ -734,6 +777,11 @@ FRIEND_PROFILE_KEYS = {
 # The heart rate and the calories came off this list in the round that gave
 # people switches for them: they are on a friend's row by default now, and what
 # happens when somebody turns a switch off is asserted below rather than here.
+#
+# The three XP figures came off it in the round that made this screen a mirror
+# of the You screen: the level and the meter under it are shown now, and a
+# meter cannot be drawn without the numbers that fill it. The chest ladder and
+# the gifts waiting on it stay off, which is the game state this list is about.
 FORBIDDEN_KEYS = {
     "email",
     "birthdate",
@@ -742,9 +790,6 @@ FORBIDDEN_KEYS = {
     "first_name",
     "last_name",
     "pace",
-    "xp",
-    "xp_into_level",
-    "xp_for_next_level",
     "next_chest",
     "pending_gifts",
     "chest_progress_mi",
@@ -783,6 +828,14 @@ def friend(client, db_session, member):
     other, other_client = sign_in(db_session, "mate")
     befriend(db_session, member, other)
     return other, other_client
+
+
+def add_photo(client, workout_id: int) -> int:
+    """One picture on one of that client's own workouts, as small as the
+    encoder will take: these cases are about the strip, not the file."""
+    created = attach(client, workout_id, data=photo_bytes(200, 200))
+    assert created.status_code == 201, created.text
+    return created.json()["id"]
 
 
 def test_a_friend_profile_reports_the_whole_shape_and_no_more(signed_in, db_session, friend):
@@ -914,6 +967,130 @@ def test_lifetime_miles_are_raw_distance_rather_than_experience(signed_in, db_se
     assert body["miles"] == 2.0
     assert mine["xp"] == 8.0
     assert body["miles"] < mine["xp"]
+
+
+def test_a_friend_profile_mirrors_the_you_screen(signed_in, db_session, friend):
+    """The parity the round is about: everything the You screen counts, in the
+    shape the You screen counts it, so the two draw from one payload."""
+    other, other_client = friend
+    other_client.patch("/api/profile", json={"bio": "Out most mornings."})
+    log_workout(db_session, other.id, "run", 4.0, pace_min=9)
+    log_workout(db_session, other.id, "swim", 1.0, pace_min=60, offset_min=90)
+    mine = other_client.get("/api/profile").json()
+
+    body = signed_in.get(f"/api/profile/{other.id}").json()
+    assert body["bio"] == "Out most mornings."
+    # The level and the meter under it, the same three numbers by the same
+    # names, so one component fills both screens.
+    assert body["level"] == mine["level"]
+    assert body["xp"] == mine["xp"]
+    assert body["xp_into_level"] == mine["xp_into_level"]
+    assert body["xp_for_next_level"] == mine["xp_for_next_level"]
+    # The four tiles: miles here, the two grove counts, and the medals the
+    # catalogue is already sent for.
+    assert body["miles"] == 5.0
+    assert body["grove"] == mine["grove"]
+    assert len(body["medals"]) == len(mine["medals"])
+    # The sport chips and the two cards read these, and a sport nobody has done
+    # is a missing key on both screens rather than a zero row.
+    assert body["week"] == mine["week"]
+    assert body["lifetime"] == mine["lifetime"]
+    assert body["lifetime"]["run"]["distance_mi"] == 4.0
+    assert body["lifetime"]["swim"]["distance_mi"] == 1.0
+    assert "cycle" not in body["lifetime"]
+
+
+def test_hidden_calories_are_absent_from_every_total_a_friend_reads(
+    signed_in, db_session, friend
+):
+    """The week and the lifetime are calorie figures like any other, so the
+    switch has to reach them too. Read as text, so a number carried under
+    another name fails here rather than passing a check of the keys."""
+    other, other_client = friend
+    _measured_workout(db_session, other.id)
+    assert (
+        other_client.patch(
+            "/api/settings", json={"hidden_from_friends": ["active_kcal"]}
+        ).status_code
+        == 200
+    )
+
+    response = signed_in.get(f"/api/profile/{other.id}")
+    body = response.json()
+    assert "active_kcal" not in body["week"]["run"]
+    assert "active_kcal" not in body["lifetime"]["run"]
+    assert "444.0" not in response.text
+    # Distance and time are the card itself and stay whatever the list says.
+    assert body["lifetime"]["run"]["distance_mi"] == 5.0
+    assert body["week"]["run"]["workouts"] == 1
+    assert body["miles"] == 5.0
+
+
+def test_your_own_totals_keep_their_calories(signed_in, db_session, member):
+    """The friend-shaped view of yourself, which hides nothing: a switch is
+    something an account said about its friends rather than about itself."""
+    _measured_workout(db_session, member.id)
+    signed_in.patch("/api/settings", json={"hidden_from_friends": ["active_kcal"]})
+
+    body = signed_in.get(f"/api/profile/{member.id}").json()
+    assert body["lifetime"]["run"]["active_kcal"] == 444.0
+    assert body["week"]["run"]["active_kcal"] == 444.0
+
+
+def test_the_media_strip_is_the_last_six_pictures_newest_first(
+    signed_in, db_session, friend
+):
+    other, other_client = friend
+    ridden = log_workout(db_session, other.id, "cycle", 8.0, pace_min=4)
+    swum = log_workout(db_session, other.id, "swim", 1.0, pace_min=60, offset_min=90)
+    older = [add_photo(other_client, ridden.id) for _ in range(4)]
+    newer = [add_photo(other_client, swum.id) for _ in range(3)]
+
+    strip = signed_in.get(f"/api/profile/{other.id}").json()["recent_photos"]
+    # Six of the seven, and the one left behind is the oldest.
+    assert [row["photo_id"] for row in strip] == list(reversed(older + newer))[:6]
+    assert older[0] not in [row["photo_id"] for row in strip]
+    # The tag under a picture is the workout it was attached to.
+    assert strip[0] == {
+        "photo_id": newer[-1],
+        "workout_id": swum.id,
+        "activity": "swim",
+        "distance_mi": 1.0,
+        "duration_s": swum.duration_s,
+    }
+    assert strip[-1]["activity"] == "cycle"
+
+
+def test_a_profile_with_no_pictures_has_an_empty_strip(signed_in, db_session, friend):
+    other, _ = friend
+    log_workout(db_session, other.id, "run", 2.0, pace_min=9)
+    assert signed_in.get(f"/api/profile/{other.id}").json()["recent_photos"] == []
+
+
+def test_your_own_strip_is_on_the_friend_shaped_view(signed_in, db_session, member):
+    workout = log_workout(db_session, member.id, "run", 2.0, pace_min=9)
+    photo_id = add_photo(signed_in, workout.id)
+    strip = signed_in.get(f"/api/profile/{member.id}").json()["recent_photos"]
+    assert [row["photo_id"] for row in strip] == [photo_id]
+
+
+def test_a_stranger_reaches_neither_the_strip_nor_the_pictures_on_it(
+    signed_in, db_session, friend
+):
+    """The ids on the strip are addresses, and the endpoint behind them is
+    gated on the same friendship the profile is. Pinned here as well as beside
+    the feed, because this is the second screen handing those ids out."""
+    other, other_client = friend
+    workout = log_workout(db_session, other.id, "run", 2.0, pace_min=9)
+    photo_id = add_photo(other_client, workout.id)
+    assert signed_in.get(f"/api/workouts/{workout.id}/photos/{photo_id}").status_code == 200
+
+    _, stranger_client = sign_in(db_session, "nobody")
+    # No profile at all, so no strip and no ids to try.
+    assert stranger_client.get(f"/api/profile/{other.id}").status_code == 404
+    refused = stranger_client.get(f"/api/workouts/{workout.id}/photos/{photo_id}")
+    assert refused.status_code == 404
+    assert refused.json() == {"detail": "No such photo."}
 
 
 def test_a_friend_profile_shows_ten_workouts_newest_first(signed_in, db_session, friend):

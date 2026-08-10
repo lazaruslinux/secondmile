@@ -7,39 +7,22 @@ import {
   listGrove,
   openChest,
   setDisplayedBadges,
-  type ActivityStats,
-  type Activity,
   type Chest,
   type Planting,
   type Profile as ProfileData,
   type SatchelItem,
   type Units,
 } from '../api.ts'
-import {
-  convertedValue,
-  distanceValue,
-  formatDate,
-  formatDistance,
-  unitName,
-} from '../format.ts'
+import { convertedValue, formatDate } from '../format.ts'
 import { plantStage } from '../grove.ts'
-import {
-  ACTIVITY_ICONS,
-  ACTIVITY_NAMES,
-  ACTIVITY_ORDER,
-  chestName,
-  chestTierClass,
-  MEDAL_ORDER,
-  medalName,
-  plantingName,
-} from '../labels.ts'
+import { chestName, chestTierClass, medalName, plantingName } from '../labels.ts'
 import {
   ageOf,
   chestBar,
   displayNameOf,
   lifetimeMiles,
   medalCountsOf,
-  SEEDS_TO_FIND,
+  ownedMedalIds,
 } from '../profile.ts'
 import AvatarFrame from './AvatarFrame.tsx'
 import ChestBar from './ChestBar.tsx'
@@ -50,80 +33,9 @@ import Icon from './Icon.tsx'
 import MedalNest, { MAX_MEDAL_SLOTS } from './MedalNest.tsx'
 import Medals, { MedalMark } from './Medals.tsx'
 import PlantArt from './PlantArt.tsx'
-
-function totalsOf(stats: Partial<Record<Activity, ActivityStats>>) {
-  let converted = 0
-  let kcal = 0
-  let workouts = 0
-  for (const row of Object.values(stats)) {
-    converted += row.converted_mi
-    kcal += row.active_kcal
-    workouts += row.workouts
-  }
-  return { converted, kcal, workouts }
-}
-
-interface StatsProps {
-  stats: Partial<Record<Activity, ActivityStats>>
-  units: Units
-  empty: string
-}
-
-// Distance is what the body covered, in whichever unit the account reads in.
-// XP is the game's own number, that distance weighted per activity, and it
-// reads the same on every account whatever unit is set.
-function Stats({ stats, units, empty }: StatsProps) {
-  const rows = ACTIVITY_ORDER.filter((name) => stats[name])
-  if (rows.length === 0) return <p className="hint">{empty}</p>
-  const totals = totalsOf(stats)
-
-  return (
-    <table className="stats">
-      <thead>
-        <tr>
-          <th scope="col">Activity</th>
-          <th scope="col">Distance</th>
-          {/* The weighted number the game runs on, so a swim and a bike ride
-              are worth what they cost rather than what they measure. It is
-              called XP everywhere it is shown, because miles on screen mean
-              the distance itself. */}
-          <th scope="col">XP</th>
-          <th scope="col">Workouts</th>
-          <th scope="col">Calories</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((name) => {
-          const row = stats[name]
-          if (!row) return null
-          return (
-            <tr key={name}>
-              <th scope="row">
-                <span className="sport-icon sport-icon-small">
-                  <Icon name={ACTIVITY_ICONS[name]} />
-                </span>
-                {ACTIVITY_NAMES[name]}
-              </th>
-              <td>{formatDistance(row.distance_mi, units)}</td>
-              <td>{row.converted_mi.toFixed(1)}</td>
-              <td>{row.workouts}</td>
-              <td>{Math.round(row.active_kcal)}</td>
-            </tr>
-          )
-        })}
-      </tbody>
-      <tfoot>
-        <tr>
-          <th scope="row">Total</th>
-          <td />
-          <td>{totals.converted.toFixed(1)}</td>
-          <td>{totals.workouts}</td>
-          <td>{Math.round(totals.kcal)}</td>
-        </tr>
-      </tfoot>
-    </table>
-  )
-}
+import ProfileCounts from './ProfileCounts.tsx'
+import SportChips from './SportChips.tsx'
+import Stats from './Stats.tsx'
 
 interface Cached {
   profile: ProfileData
@@ -277,7 +189,8 @@ export default function Profile({
   const ladder = chestBar(profile)
   const shownName = displayNameOf(profile)
   const age = ageOf(profile)
-  const ownedMedals = MEDAL_ORDER.filter((id) => (counts.get(id) ?? 0) > 0)
+  const ownedMedals = ownedMedalIds(profile.medals)
+  const bio = profile.bio?.trim() ?? ''
 
   return (
     <>
@@ -365,6 +278,9 @@ export default function Profile({
             <p className="you-level">
               Level {profile.level}, {convertedValue(profile.xp)} XP
             </p>
+            {/* What they wrote about themselves, under the name it belongs to.
+                The same paragraph in the same place on a friend's profile. */}
+            {bio !== '' && <p className="profile-bio">{bio}</p>}
           </div>
         </div>
       </div>
@@ -410,54 +326,14 @@ export default function Profile({
               {convertedValue(profile.xp_for_next_level)} XP
             </progress>
 
-            <ul className="profile-counts">
-              <li>
-                {/* Raw miles, summed across the four activities: the distance
-                    this account actually covered. The weighted total is XP and
-                    is named as such wherever it is shown. */}
-                <span className="count-value">{lifetimeMiles(profile).toFixed(1)}</span>
-                <span className="count-label">Miles</span>
-              </li>
-              <li>
-                <span className="count-value">
-                  {profile.grove?.seeds_found ?? 0} / {SEEDS_TO_FIND}
-                </span>
-                <span className="count-label">Seeds found</span>
-              </li>
-              <li>
-                <span className="count-value">{profile.grove?.plant_levels ?? 0}</span>
-                <span className="count-label">Plant levels</span>
-              </li>
-              <li>
-                <span className="count-value">
-                  {ownedMedals.length} / {MEDAL_ORDER.length}
-                </span>
-                <span className="count-label">Medals</span>
-              </li>
-            </ul>
+            <ProfileCounts
+              miles={lifetimeMiles(profile)}
+              seeds={profile.grove?.seeds_found ?? 0}
+              plantLevels={profile.grove?.plant_levels ?? 0}
+              medalsOwned={ownedMedals.length}
+            />
 
-            {/* Lifetime distance in all four sports, always in the same order
-                and always all four, a sport never done reading as zero.
-                Nothing is ranked against anyone else here. */}
-            <div className="sport-totals">
-              <ul className="sport-chips">
-                {ACTIVITY_ORDER.map((name) => (
-                  <li key={name} className="sport-chip">
-                    {/* The sport's own mark rather than the diamond every chip
-                        used to wear, so the four chips are told apart at a
-                        glance. The word underneath is what names it. */}
-                    <span className="sport-icon">
-                      <Icon name={ACTIVITY_ICONS[name]} />
-                    </span>
-                    <span className="chip-value">
-                      {distanceValue(profile.lifetime[name]?.distance_mi ?? 0, units)}
-                      <span className="chip-unit">{unitName(units)}</span>
-                    </span>
-                    <span className="label">{ACTIVITY_NAMES[name]}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <SportChips stats={profile.lifetime} units={units} />
 
             <div className="profile-edit">
               <div className="choice">
