@@ -444,8 +444,9 @@ interface Props {
 }
 
 // One event in the feed. This account's own workouts read as they always have,
-// numbers and all. A friend's carries what they did and nothing measured about
-// how hard they were breathing: distance, time, the medal, the line they ran.
+// numbers and all. A friend's carries what they did in full, minus whatever
+// they have asked to keep back in their own settings, which arrives here as a
+// field the server did not send.
 export default function FeedCard({
   item,
   units,
@@ -635,9 +636,12 @@ export default function FeedCard({
 
       {item.has_route && <RouteLine workoutId={item.workout_id} />}
 
-      {/* Two figures, not three. What somebody else did is a distance and a
-          length of time; how fast they were going is theirs. */}
-      <div className="stat-row stat-row-pair">
+      {/* The same three an own card leads with, and then whatever else the
+          server sent. A figure the person hiding it kept back does not arrive
+          at all, so it simply is not drawn: there is no empty slot and nothing
+          saying something is missing, because a card announcing what it will
+          not show is a worse answer than a card that reads whole. */}
+      <div className="stat-row">
         <div className="stat">
           <span className="label">Distance</span>
           <span className="stat-value">
@@ -646,13 +650,34 @@ export default function FeedCard({
           </span>
         </div>
         <div className="stat">
+          <span className="label">Pace</span>
+          <span className="stat-value">
+            {formatPace(item.activity, item.distance_mi, item.duration_s, units)}
+          </span>
+        </div>
+        <div className="stat">
           <span className="label">Time</span>
           <span className="stat-value">{formatClock(item.duration_s)}</span>
         </div>
+        {typeof item.active_kcal === 'number' && (
+          <div className="stat">
+            <span className="label">Calories</span>
+            <span className="stat-value">{Math.round(item.active_kcal)}</span>
+          </div>
+        )}
+        {typeof item.avg_hr === 'number' && (
+          <div className="stat">
+            <span className="label">Heart rate</span>
+            <span className="stat-value">
+              {Math.round(item.avg_hr)}
+              <span className="stat-unit">bpm</span>
+            </span>
+          </div>
+        )}
       </div>
 
-      {/* What they wrote and what they took pictures of. Unlike the pace, this
-          is theirs to share, and sharing it is what putting it here was. */}
+      {/* What they wrote and what they took pictures of, theirs to share, and
+          sharing it is what putting it here was. */}
       {post !== '' && <p className="feed-post">{post}</p>}
       <PhotoStrip workoutId={item.workout_id} photos={photos} />
 

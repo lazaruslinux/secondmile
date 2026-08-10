@@ -392,19 +392,24 @@ def read_avatar(
 FRIEND_WORKOUTS = 10
 
 
-def _friend_workouts(db: Session, user_id: int, viewer_id: int) -> list[dict]:
+def _friend_workouts(db: Session, user: models.User, viewer_id: int) -> list[dict]:
     """Their last few workouts, in the feed's own row shape.
 
     Built by the feed's serializer rather than by a second one written here.
-    That function is where the rule lives that a row somebody else can read
-    carries no pace and no heart rate, and two copies of a privacy rule are two
-    things to remember to edit. The lookups around it are batched the way the
-    feed batches them: a page of rows is a handful of queries, never one each.
+    That function is where the rule lives about what somebody else's row may
+    carry, and two copies of a privacy rule are two things to remember to edit.
+    The lookups around it are batched the way the feed batches them: a page of
+    rows is a handful of queries, never one each.
+
+    Nothing is kept back when these are somebody's own workouts on their own
+    profile. This endpoint answers about yourself as well, and a hidden field is
+    something an account said about its friends rather than about itself.
     """
+    hidden = () if viewer_id == user.id else tuple(user.hidden_from_friends or [])
     rows = list(
         db.execute(
             select(models.Workout)
-            .where(models.Workout.user_id == user_id)
+            .where(models.Workout.user_id == user.id)
             # By id within a timestamp, the feed's own tie-break, so two
             # workouts sharing a start time keep a stable order between reads.
             .order_by(models.Workout.start_ts.desc(), models.Workout.id.desc())
@@ -416,7 +421,7 @@ def _friend_workouts(db: Session, user_id: int, viewer_id: int) -> list[dict]:
     earned = medals.medals_for(db, rows)
     routed = routes_for(db, rows)
     pictures = photos_for(db, rows)
-    card = fellowship.people(db, [user_id])[user_id]
+    card = fellowship.people(db, [user.id])[user.id]
     encouragement = fellowship.counts(db, [row.id for row in rows], viewer_id)
     return [
         feed_row(
@@ -429,6 +434,7 @@ def _friend_workouts(db: Session, user_id: int, viewer_id: int) -> list[dict]:
             row.id in routed,
             pictures.get(row.id, []),
             encouragement[row.id],
+            hidden,
         )
         for row in rows
     ]
@@ -443,6 +449,9 @@ def serialize_friend_profile(db: Session, user: models.User, viewer_id: int) -> 
     and a boolean deciding which of those to drop is one careless edit away
     from sending them all. The shape of this function IS the allowlist: a field
     reaches a friend because somebody typed it here.
+
+    What their workouts carry is the feed's rule, honouring whatever this
+    account has asked to keep back; see feed_row.
     """
     row = db.get(models.UserProgress, user.id)
     # Read as it stands rather than swept first. Sweeping credits workouts,
@@ -472,7 +481,7 @@ def serialize_friend_profile(db: Session, user: models.User, viewer_id: int) -> 
         # the same screen already calls, and serving it twice would mean two
         # places to remember when what a friend sees of a garden changes.
         "grove": grove.summary(db, user.id),
-        "workouts": _friend_workouts(db, user.id, viewer_id),
+        "workouts": _friend_workouts(db, user, viewer_id),
     }
 
 

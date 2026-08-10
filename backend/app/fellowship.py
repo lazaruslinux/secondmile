@@ -27,6 +27,14 @@ from app.config import (
 )
 from app.security import now_utc
 
+# The three things an account may keep back from its friends, and the whole of
+# what hidden_from_friends may hold. Distance, time, and the words on a workout
+# are not on the list: they are the card itself, and a feed of cards saying
+# nothing is not a feed. Pace is not on it either, and deliberately: pace is
+# distance over time, both of which stay, so a toggle for it would promise a
+# privacy it could not keep.
+HIDEABLE = ("avg_hr", "active_kcal", "route")
+
 RENOWN_PER_KIND = {"cheer": RENOWN_CHEER, "note": RENOWN_NOTE}
 # What giving away something a chest gave you is worth. The same diminishing
 # window applies, kind by kind, for the same reason: two accounts trading
@@ -354,6 +362,27 @@ def display_name(first_name: str | None, last_name: str | None) -> str | None:
     """
     joined = " ".join(part.strip() for part in (first_name, last_name) if part and part.strip())
     return joined or None
+
+
+def hidden_fields(db: Session, user_ids) -> dict[int, tuple[str, ...]]:
+    """What each of these accounts keeps back, by account id.
+
+    One query for a whole page, the way the cards beside it are read: the feed
+    asks this of every owner on the page at once rather than per row. Never
+    served to anybody. It is the owner's answer to what a friend may see, and
+    the list itself is between the owner and the server.
+    """
+    ids = list(user_ids)
+    if not ids:
+        return {}
+    return {
+        user_id: tuple(str(field) for field in (hidden or []))
+        for user_id, hidden in db.execute(
+            select(models.User.id, models.User.hidden_from_friends).where(
+                models.User.id.in_(ids)
+            )
+        ).all()
+    }
 
 
 def people(db: Session, user_ids) -> dict[int, dict]:

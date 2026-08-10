@@ -1,4 +1,5 @@
-"""Account settings: the ingest token, the unit preference, and the address."""
+"""Account settings: the ingest token, the unit preference, the address, and
+what this account keeps back from its friends."""
 
 from fastapi import (
     APIRouter,
@@ -13,7 +14,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import mail, models, security, throttle
+from app import fellowship, mail, models, security, throttle
 from app.db import get_db
 from app.routers.auth import validate_email
 
@@ -22,8 +23,15 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 UNITS = ("imperial", "metric")
 
 
-class UnitsBody(BaseModel):
-    units: str
+class SettingsBody(BaseModel):
+    """A patch: only the fields that are sent are changed.
+
+    Both are optional so the two halves of the screen can save on their own,
+    read from the model's field set rather than from the value.
+    """
+
+    units: str | None = None
+    hidden_from_friends: list[str] | None = None
 
 
 class EmailBody(BaseModel):
@@ -122,18 +130,43 @@ def change_email(
     return response
 
 
+def _clean_hidden(sent: list[str]) -> list[str]:
+    """The fields an account is keeping back, checked against the three there are.
+
+    An unknown name is refused rather than dropped: a client asking to hide
+    something this server has never heard of has been told it can, and storing
+    the request quietly would leave that field on show with a setting that says
+    otherwise. Stored in the catalogue's own order, so the same choice reads the
+    same way however it arrived, and deduplicated by the same pass.
+    """
+    chosen = {str(value) for value in sent}
+    for field in sorted(chosen):
+        if field not in fellowship.HIDEABLE:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                f"A hidden field must be one of: {', '.join(fellowship.HIDEABLE)}.",
+            )
+    return [field for field in fellowship.HIDEABLE if field in chosen]
+
+
 @router.patch("")
 def update_settings(
-    body: UnitsBody,
+    body: SettingsBody,
     db: Session = Depends(get_db),
     user: models.User = Depends(security.current_user),
 ) -> dict:
-    if body.units not in UNITS:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, f"Units must be one of: {', '.join(UNITS)}."
-        )
-    # Display only. Everything is stored in miles regardless, so switching this
-    # never rewrites history or changes what a total means.
-    user.units = body.units
+    """Change what this account shows and how it shows it."""
+    if throttle.profile_edit_limiter.hit(throttle.user_key(user)):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many edits. Wait a minute.")
+    if "units" in body.model_fields_set:
+        if body.units not in UNITS:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST, f"Units must be one of: {', '.join(UNITS)}."
+            )
+        # Display only. Everything is stored in miles regardless, so switching
+        # this never rewrites history or changes what a total means.
+        user.units = body.units
+    if "hidden_from_friends" in body.model_fields_set:
+        user.hidden_from_friends = _clean_hidden(body.hidden_from_friends or [])
     db.commit()
-    return {"units": user.units}
+    return {"units": user.units, "hidden_from_friends": list(user.hidden_from_friends or [])}

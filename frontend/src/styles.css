@@ -1264,12 +1264,6 @@ button:disabled {
   stroke-width: 2px;
 }
 
-/* Two figures rather than three: a friend's card shows what they covered and
-   how long they were out, and nothing that measures how hard it was. */
-.stat-row-pair {
-  grid-template-columns: repeat(2, 1fr);
-}
-
 /* Encouragement
    Under a friend's workout, and nowhere else. The place to write is the wide
    part of the row, because words are the point of it; the cheer is the small

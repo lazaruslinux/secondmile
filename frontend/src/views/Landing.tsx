@@ -139,13 +139,10 @@ export default function Landing({ onEnter }: Props) {
       <section className="landing-section">
         <p className="label landing-eyebrow">Private by design</p>
         <h2>A group of friends, not a stadium.</h2>
-        {/* What each person shows to whom is not said here on purpose: the
-            controls for it are not built yet, and the page does not describe a
-            feature the app lacks. */}
         <p>
           secondmile is invite-only. Friends are mutual and invited by name. No follower
           counts, no leaderboards. Nobody here is a stranger, and nothing here is a
-          competition.
+          competition. You choose what your friends can see.
         </p>
       </section>
 

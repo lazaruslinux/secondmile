@@ -51,9 +51,12 @@ Current version: **0.1.1**. Releases are tagged in git.
   not earn, with your name on it in their letter.
 - **Keeps a small circle.** Friends are mutual and added by username: there is
   no discovery, no suggestions, and no count of anybody's friends. The home
-  feed carries your workouts and theirs, and a friend's card shows the
-  distance, the time, the medal, and the route line, never a pace or a heart
-  rate. You can cheer a workout without words or write a note about it, and
+  feed carries your workouts and theirs, and a friend's card shows the whole
+  workout: the distance, the time, the pace, the calories, the heart rate, the
+  medal, and the route line. Settings has switches for the heart rate, the
+  calories, and the route, and anything switched off is left out of what the
+  server sends rather than hidden by the app. You can cheer a workout without
+  words or write a note about it, and
   nothing in the app ever suggests what to say.
 - **Multi-user from day one.** Accounts are invite-only out of the box: the
   server admin creates invites from the command line. Flip `REGISTRATION_OPEN`

@@ -156,19 +156,30 @@ def workout_route(
 
     Fetched on its own rather than with the history because a card only needs it
     once it is on screen. A route is a map of where somebody has been, so the
-    reach is exactly the feed's: yours, and the people you have both agreed to.
-    The same 404 answers a workout with no line, a workout that does not exist,
-    and a stranger's. Nothing here says which of the three it was.
+    reach is exactly the feed's: yours, and the people you have both agreed to,
+    minus whoever has said their friends may not see one. The same 404 answers a
+    workout with no line, a workout that does not exist, a stranger's, and a
+    friend's that is being kept back. Nothing here says which of the four it was.
+
+    The owner's list is read in the same query as the line, so this cannot be
+    answered from the line alone by a later edit that forgets to ask.
     """
     row = db.execute(
-        select(models.WorkoutRoute.points, models.Workout.user_id)
+        select(
+            models.WorkoutRoute.points,
+            models.Workout.user_id,
+            models.User.hidden_from_friends,
+        )
         .join(models.Workout, models.Workout.id == models.WorkoutRoute.workout_id)
+        .join(models.User, models.User.id == models.Workout.user_id)
         .where(models.WorkoutRoute.workout_id == workout_id)
     ).first()
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No route for that workout.")
-    points, owner_id = row
-    if owner_id != user.id and not fellowship.are_friends(db, user.id, owner_id):
+    points, owner_id, kept_back = row
+    if owner_id != user.id and (
+        "route" in (kept_back or []) or not fellowship.are_friends(db, user.id, owner_id)
+    ):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No route for that workout.")
     return {"points": points}
 

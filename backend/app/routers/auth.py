@@ -351,6 +351,9 @@ def me(user: models.User = Depends(security.current_user)) -> dict:
         # is waiting. Null whenever nothing is.
         "pending_email": user.pending_email,
         "units": user.units,
+        # What this account keeps back from its friends, so Settings can draw
+        # its own switches without fetching the whole profile for three of them.
+        "hidden_from_friends": list(user.hidden_from_friends or []),
         "is_admin": user.is_admin,
     }
 

@@ -6,7 +6,9 @@ import {
   getIngestTokenStatus,
   logout,
   rotateIngestToken,
+  setHiddenFromFriends,
   setUnits,
+  type HiddenField,
   type IngestTokenStatus,
   type Units,
 } from '../api.ts'
@@ -17,6 +19,15 @@ import { instanceTimezone } from '../format.ts'
 const EMAIL_SENT =
   'Check that inbox. If the address can be used here, a link to confirm it is on its way.'
 
+// The three switches, in the order the server keeps them. Pace is not among
+// them on purpose: it is distance over time, both of which stay on every card,
+// so a switch for it would promise something it could not keep.
+const HIDEABLE: { field: HiddenField; label: string }[] = [
+  { field: 'avg_hr', label: 'Heart rate' },
+  { field: 'active_kcal', label: 'Calories' },
+  { field: 'route', label: 'Route map' },
+]
+
 interface Props {
   username: string
   email: string | null
@@ -24,6 +35,10 @@ interface Props {
   pendingEmail: string | null
   units: Units
   onUnitsChanged: (units: Units) => void
+  // What this account currently keeps back from its friends, and the way to
+  // change it. Empty is everybody's starting point: friends see the lot.
+  hidden: HiddenField[]
+  onHiddenChanged: (hidden: HiddenField[]) => void
   onSignedOut: () => void
   onBack: () => void
 }
@@ -35,6 +50,8 @@ export default function Settings({
   pendingEmail,
   units,
   onUnitsChanged,
+  hidden,
+  onHiddenChanged,
   onSignedOut,
   onBack,
 }: Props) {
@@ -55,6 +72,9 @@ export default function Settings({
 
   const [unitsError, setUnitsError] = useState('')
   const [savingUnits, setSavingUnits] = useState(false)
+
+  const [hiddenError, setHiddenError] = useState('')
+  const [savingHidden, setSavingHidden] = useState(false)
 
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -116,6 +136,23 @@ export default function Settings({
       setUnitsError(errorText(err))
     } finally {
       setSavingUnits(false)
+    }
+  }
+
+  // Drawn from what the server stored rather than from the tap, so a switch
+  // never shows something as hidden that is still being sent.
+  async function toggleHidden(field: HiddenField) {
+    const next = hidden.includes(field)
+      ? hidden.filter((one) => one !== field)
+      : [...hidden, field]
+    setSavingHidden(true)
+    setHiddenError('')
+    try {
+      onHiddenChanged(await setHiddenFromFriends(next))
+    } catch (err) {
+      setHiddenError(errorText(err))
+    } finally {
+      setSavingHidden(false)
     }
   }
 
@@ -291,6 +328,42 @@ export default function Settings({
           </form>
         </div>
 
+      </section>
+
+      {/* Its own group, above the sync and the units: what friends can see is
+          worth finding before the settings that only change your own screen. */}
+      <section className="settings-group">
+        <h2 className="label settings-title">Privacy</h2>
+
+        <div className="card">
+          <h3>Hide from friends</h3>
+          <p className="hint">
+            Friends see your activities in full. Turn one of these on to keep it off the
+            cards they see. Distance and time always show, and so does anything you write.
+          </p>
+
+          <ul className="picker-list">
+            {HIDEABLE.map(({ field, label }) => (
+              <li key={field}>
+                <label className="picker-option">
+                  <input
+                    type="checkbox"
+                    checked={hidden.includes(field)}
+                    disabled={savingHidden}
+                    onChange={() => void toggleHidden(field)}
+                  />
+                  <span>{label}</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+
+          {hiddenError && (
+            <p className="error" role="alert">
+              {hiddenError}
+            </p>
+          )}
+        </div>
       </section>
 
       <section className="settings-group">

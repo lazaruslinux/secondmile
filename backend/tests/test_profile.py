@@ -728,8 +728,12 @@ FRIEND_PROFILE_KEYS = {
 
 # Nothing on this list may appear at any depth of the response. The first group
 # is somebody's own business, which the You screen already says of the age and
-# the gender; the second is the two numbers a friend's row has never carried;
-# the rest is game state, which is a different thing from how somebody is doing.
+# the gender; the rest is game state, which is a different thing from how
+# somebody is doing.
+#
+# The heart rate and the calories came off this list in the round that gave
+# people switches for them: they are on a friend's row by default now, and what
+# happens when somebody turns a switch off is asserted below rather than here.
 FORBIDDEN_KEYS = {
     "email",
     "birthdate",
@@ -737,11 +741,7 @@ FORBIDDEN_KEYS = {
     "gender",
     "first_name",
     "last_name",
-    "avg_hr",
-    "heart_rate",
     "pace",
-    "active_kcal",
-    "calories",
     "xp",
     "xp_into_level",
     "xp_for_next_level",
@@ -829,20 +829,17 @@ def test_a_friend_profile_carries_none_of_the_private_fields(signed_in, db_sessi
     assert "Male" not in signed_in.get(f"/api/profile/{other.id}").text
 
 
-def test_a_workout_row_carries_no_pace_and_no_heart_rate(signed_in, db_session, friend):
-    """The feed's rule, reached through the feed's own serializer: a row says
-    what somebody did, not how their body was doing while they did it."""
-    other, _ = friend
-    # Written in with a heart rate on it, because a row that never carried one
-    # would pass this whatever the serializer sends.
+def _measured_workout(db_session, user_id: int) -> None:
+    """One workout with a heart rate and calories on it, because a row that
+    never carried them would pass the two cases below whatever is served."""
     db_session.add(
         models.Workout(
-            user_id=other.id,
+            user_id=user_id,
             activity="run",
             start_ts=neutral_start(),
             duration_s=2700,
             distance_mi=5.0,
-            active_kcal=400.0,
+            active_kcal=444.0,
             avg_hr=148.0,
             source="sync",
             flags={},
@@ -850,13 +847,60 @@ def test_a_workout_row_carries_no_pace_and_no_heart_rate(signed_in, db_session, 
         )
     )
     db_session.commit()
+
+
+def test_a_workout_row_carries_the_heart_rate_and_the_calories(
+    signed_in, db_session, friend
+):
+    """The feed's rule, reached through the feed's own serializer, and the
+    default it now stands at: a friend sees what somebody did, in full."""
+    other, _ = friend
+    _measured_workout(db_session, other.id)
+
     row = signed_in.get(f"/api/profile/{other.id}").json()["workouts"][0]
     assert every_key(row) & FORBIDDEN_KEYS == set()
     assert row["distance_mi"] == 5.0
     assert row["duration_s"] == 2700
+    assert row["avg_hr"] == 148.0
+    assert row["active_kcal"] == 444.0
     # Not your own row, even though it is on a profile you asked for by id:
     # own rows carry the experience they earned and this view sends none.
     assert row["own"] is False
+
+
+def test_a_hidden_field_is_absent_from_a_friend_profile(signed_in, db_session, friend):
+    """The same list the feed honours, honoured by the other serializer that
+    sends these rows. Read as text, so a value carried under another name fails
+    here rather than passing a check of the keys."""
+    other, other_client = friend
+    _measured_workout(db_session, other.id)
+    assert (
+        other_client.patch(
+            "/api/settings", json={"hidden_from_friends": ["avg_hr", "active_kcal"]}
+        ).status_code
+        == 200
+    )
+
+    response = signed_in.get(f"/api/profile/{other.id}")
+    row = response.json()["workouts"][0]
+    assert "avg_hr" not in row
+    assert "active_kcal" not in row
+    assert "148.0" not in response.text
+    assert "444.0" not in response.text
+    # The list itself is between them and the server, and is not on the screen
+    # of whoever it is being kept from.
+    assert "hidden_from_friends" not in response.text
+
+
+def test_your_own_profile_hides_nothing_from_you(signed_in, db_session, member):
+    """This endpoint answers about yourself too, and a hidden field is something
+    said about friends rather than about your own screen."""
+    _measured_workout(db_session, member.id)
+    signed_in.patch("/api/settings", json={"hidden_from_friends": ["avg_hr", "active_kcal"]})
+
+    row = signed_in.get(f"/api/profile/{member.id}").json()["workouts"][0]
+    assert row["avg_hr"] == 148.0
+    assert row["active_kcal"] == 444.0
 
 
 def test_lifetime_miles_are_raw_distance_rather_than_experience(signed_in, db_session, friend):

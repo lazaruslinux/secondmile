@@ -7,6 +7,7 @@ import {
   getStatus,
   setUnauthorizedHandler,
   verifyEmail,
+  type HiddenField,
   type Me,
   type RecapState,
   type Units,
@@ -131,6 +132,10 @@ export default function App() {
     setMe((current) => (current ? { ...current, units } : current))
   }
 
+  function changeHidden(hidden: HiddenField[]) {
+    setMe((current) => (current ? { ...current, hidden_from_friends: hidden } : current))
+  }
+
   function openFriend(id: number) {
     setFriend({ id, from: view })
     setView('friend')
@@ -253,6 +258,8 @@ export default function App() {
             pendingEmail={me.pending_email ?? null}
             units={me.units}
             onUnitsChanged={changeUnits}
+            hidden={me.hidden_from_friends ?? []}
+            onHiddenChanged={changeHidden}
             onSignedOut={() => setMe(null)}
             onBack={() => setView('you')}
           />

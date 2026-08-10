@@ -4,6 +4,10 @@
 const BASE = '/api'
 
 export type Units = 'imperial' | 'metric'
+// The three things an account may keep back from its friends. Everything else
+// a friend sees is not optional, and pace is deliberately not on the list: it
+// is distance over time, and both of those stay on every card.
+export type HiddenField = 'avg_hr' | 'active_kcal' | 'route'
 export type Activity = 'walk' | 'run' | 'cycle' | 'swim'
 // Where a workout came from. Nothing writes 'manual' any more, and history
 // full of it stays readable: a card that cannot name where a row came from
@@ -20,6 +24,9 @@ export interface Me {
   // inbox. Optional: a server that predates the change simply never sends it.
   pending_email?: string | null
   units: Units
+  // What this account keeps back from its friends. Empty until somebody turns
+  // a switch on, and absent from a server that predates the field.
+  hidden_from_friends?: HiddenField[]
   is_admin: boolean
 }
 
@@ -111,8 +118,9 @@ export interface Encouragement {
 }
 
 // One event in the feed: this account's workouts and its friends' together.
-// Friends' rows deliberately carry no pace-precision fields and no heart rate;
-// distance and time are the whole headline.
+// A friend's row carries what they did in full unless they have said otherwise
+// in their own settings, and a field they keep back is not here at all rather
+// than here and blank.
 export interface FeedItem {
   workout_id: number
   user: Person
@@ -120,16 +128,22 @@ export interface FeedItem {
   start_ts: string
   distance_mi: number
   duration_s: number
+  // Absent when the person whose workout it is hides them. Null on a row that
+  // simply never carried a heart rate, which is a different thing.
+  avg_hr?: number | null
+  active_kcal?: number | null
   // The medals this workout earned, read the same way as a workout's own.
   medals?: string[]
+  // False as well when the owner keeps their routes to themselves, so no map
+  // is drawn and nothing is asked for.
   has_route: boolean
   source: Source
   own: boolean
   // Own rows only. What the workout was worth, in converted miles.
   xp?: number
   // What the person wrote on it and the pictures they put with it. Friends' rows
-  // carry them too: a post is something deliberately shared, unlike the pace
-  // figures above. All three are optional, the same way they are on a workout.
+  // carry them too: a post is something deliberately shared. All three are
+  // optional, the same way they are on a workout.
   title?: string | null
   post?: string | null
   photos?: number[]
@@ -298,10 +312,9 @@ export interface Profile {
 
 // Somebody else, as a deliberate tap on one person is allowed to see them.
 // Friends only, and nothing private travels in it: no email, no birthdate, no
-// age, no gender, no pace, no heart rate, no chests, no inventory. Everything
-// but the name and the picture is optional, because this screen is opened
-// casually and a field that is not there has to draw as nothing rather than
-// take the app down.
+// age, no gender, no chests, no inventory. Everything but the name and the
+// picture is optional, because this screen is opened casually and a field that
+// is not there has to draw as nothing rather than take the app down.
 export interface FriendProfile {
   user_id: number
   username: string
@@ -777,6 +790,14 @@ export async function setUnits(units: Units): Promise<Units> {
   const res = await sendJson('/settings', 'PATCH', { units })
   const body = (await res.json()) as { units: Units }
   return body.units
+}
+
+// The list the server stored, rather than the one just sent to it: it puts the
+// fields in its own order and refuses any name it does not know.
+export async function setHiddenFromFriends(hidden: HiddenField[]): Promise<HiddenField[]> {
+  const res = await sendJson('/settings', 'PATCH', { hidden_from_friends: hidden })
+  const body = (await res.json()) as { hidden_from_friends?: HiddenField[] }
+  return body.hidden_from_friends ?? []
 }
 
 // Reading the profile is what makes the server credit any workout that arrived

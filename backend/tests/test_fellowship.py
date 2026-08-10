@@ -20,8 +20,9 @@ from conftest import LETTER_KEYS, let_a_moment_pass, make_user, neutral_start
 # sees of a picture is tested here, and how one is stored is tested there.
 from test_workouts import attach
 
-# What a feed row is allowed to carry for somebody else's workout. Asserted as
-# a whole set: a new field leaking heart rate or pace has to fail this.
+# What a feed row carries for somebody else's workout when they have hidden
+# nothing, which is every account until it says otherwise. Asserted as a whole
+# set: a new field joining the row has to be typed here to pass.
 FRIEND_ROW_KEYS = {
     "workout_id",
     "user",
@@ -29,6 +30,10 @@ FRIEND_ROW_KEYS = {
     "start_ts",
     "distance_mi",
     "duration_s",
+    # The two the owner may keep back. Sent by default: a friend sees what you
+    # did, and the switches for these are in Settings.
+    "avg_hr",
+    "active_kcal",
     "medals",
     "has_route",
     # The words and the pictures are on a friend's row in full: a post is
@@ -55,13 +60,20 @@ def sign_in(db_session, username: str) -> tuple[models.User, TestClient]:
 
 
 def post_workout(
-    db_session, user_id: int, *, activity="run", miles=3.5, offset_min=0, avg_hr=142.0
+    db_session,
+    user_id: int,
+    *,
+    activity="run",
+    miles=3.5,
+    offset_min=0,
+    avg_hr=142.0,
+    active_kcal=300.0,
 ) -> models.Workout:
     """One workout written straight in and credited, the way a sync would.
 
-    It carries energy and a heart rate on purpose: most of the cases below are
-    about what a friend is not told, and a row that never held those numbers
-    would pass them whatever the serializer sends.
+    It carries energy and a heart rate on purpose: several of the cases below
+    are about which of those a friend is told, and a row that never held the
+    numbers would pass them whatever the serializer sends.
     """
     row = models.Workout(
         user_id=user_id,
@@ -69,7 +81,7 @@ def post_workout(
         start_ts=neutral_start() + dt.timedelta(minutes=offset_min),
         duration_s=int(miles * 10 * 60),
         distance_mi=miles,
-        active_kcal=300.0,
+        active_kcal=active_kcal,
         avg_hr=avg_hr,
         source="sync",
         flags={},
@@ -344,9 +356,7 @@ def test_a_pending_invite_shows_nothing_either(signed_in, db_session, member, ma
     assert other_client.get("/api/feed").json() == []
 
 
-def test_a_friend_sees_the_headline_and_nothing_behind_it(
-    signed_in, db_session, member, mate
-):
+def test_a_friend_sees_the_whole_workout_by_default(signed_in, db_session, member, mate):
     other, other_client = mate
     befriend(db_session, member, other)
     workout = post_workout(db_session, member.id, miles=3.5)
@@ -359,13 +369,17 @@ def test_a_friend_sees_the_headline_and_nothing_behind_it(
     assert row["workout_id"] == workout.id
     assert row["distance_mi"] == 3.5
     assert row["duration_s"] == 2100
+    # Nothing hidden, so the numbers a body was making are on the row: this is
+    # the default every account starts at.
+    assert row["avg_hr"] == 142.0
+    assert row["active_kcal"] == 300.0
     assert row["medals"] == ["race_5k"]
     assert row["user"]["username"] == member.username
     assert row["encouragement"] == {"cheers": 0, "notes": 0, "cheered_by_me": False}
-    # The things a friend is never told, spelled out so a future field cannot
-    # quietly join the row.
-    for hidden in ("avg_hr", "active_kcal", "flags", "pace", "xp"):
-        assert hidden not in row
+    # What is on nobody's row but their own, spelled out so a future field
+    # cannot quietly join the row.
+    for withheld in ("flags", "pace", "xp"):
+        assert withheld not in row
 
 
 def test_your_own_rows_keep_their_experience(signed_in, db_session, member):
@@ -443,6 +457,111 @@ def test_a_pending_invite_does_not_open_a_route(signed_in, db_session, member, m
     workout = post_workout(db_session, member.id)
     _add_route(db_session, workout.id)
     assert other_client.get(f"/api/workouts/{workout.id}/route").status_code == 404
+
+
+# --------------------------------------------------------------------------
+# What the owner keeps back
+# --------------------------------------------------------------------------
+
+# Numbers that appear nowhere else in a response, so a case can look for them
+# in the raw text rather than only in the keys it thought to check.
+TELLTALE_HR = 163.0
+TELLTALE_KCAL = 777.0
+
+
+def hide(client_holding_session, *fields: str) -> None:
+    """Whoever holds that session asks for those fields to be kept back, through
+    the endpoint the screen uses rather than by writing the column."""
+    response = client_holding_session.patch(
+        "/api/settings", json={"hidden_from_friends": list(fields)}
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["hidden_from_friends"] == list(fields)
+
+
+def test_a_hidden_field_is_nowhere_in_what_a_friend_receives(
+    signed_in, db_session, member, mate
+):
+    """The whole point of the round, asserted against the text of the response.
+
+    Read as a string rather than as keys: a field dropped from the row but
+    still carried under some other name, or inside the person card, would pass
+    a key check and fail this one.
+    """
+    other, other_client = mate
+    befriend(db_session, member, other)
+    post_workout(db_session, member.id, avg_hr=TELLTALE_HR, active_kcal=TELLTALE_KCAL)
+    hide(signed_in, "avg_hr", "active_kcal")
+
+    response = other_client.get("/api/feed")
+    row = response.json()[0]
+    assert set(row) == FRIEND_ROW_KEYS - {"avg_hr", "active_kcal"}
+    assert "avg_hr" not in response.text
+    assert "active_kcal" not in response.text
+    assert str(TELLTALE_HR) not in response.text
+    assert str(TELLTALE_KCAL) not in response.text
+    # Nothing else went with them: the card still says what they did.
+    assert row["distance_mi"] == 3.5
+    assert row["duration_s"] == 2100
+
+
+def test_hiding_one_leaves_the_others_alone(signed_in, db_session, member, mate):
+    other, other_client = mate
+    befriend(db_session, member, other)
+    post_workout(db_session, member.id, avg_hr=TELLTALE_HR, active_kcal=TELLTALE_KCAL)
+    hide(signed_in, "avg_hr")
+
+    row = other_client.get("/api/feed").json()[0]
+    assert "avg_hr" not in row
+    assert row["active_kcal"] == TELLTALE_KCAL
+
+
+def test_hiding_takes_nothing_off_your_own_rows(signed_in, db_session, member):
+    """Hiding something from your friends is not hiding it from yourself."""
+    post_workout(db_session, member.id, avg_hr=TELLTALE_HR, active_kcal=TELLTALE_KCAL)
+    hide(signed_in, "avg_hr", "active_kcal", "route")
+
+    row = signed_in.get("/api/feed").json()[0]
+    assert row["own"] is True
+    assert row["avg_hr"] == TELLTALE_HR
+    assert row["active_kcal"] == TELLTALE_KCAL
+
+
+def test_a_hidden_route_is_neither_drawn_nor_served(signed_in, db_session, member, mate):
+    """Two halves of one rule: the card is told there is no line to draw, and
+    the endpoint behind it refuses the line as well. Either alone would leave
+    the map one request away."""
+    other, other_client = mate
+    befriend(db_session, member, other)
+    workout = post_workout(db_session, member.id)
+    _add_route(db_session, workout.id)
+    hide(signed_in, "route")
+
+    assert other_client.get("/api/feed").json()[0]["has_route"] is False
+    assert other_client.get(f"/api/workouts/{workout.id}/route").status_code == 404
+    # Still yours to look at, on your own card and from the endpoint.
+    assert signed_in.get("/api/feed").json()[0]["has_route"] is True
+    assert signed_in.get(f"/api/workouts/{workout.id}/route").status_code == 200
+
+
+def test_hiding_the_route_leaves_the_line_readable_to_nobody_else(
+    signed_in, db_session, member, mate
+):
+    """The coordinates themselves, looked for in the text of both responses: a
+    route that stopped being announced but was still shipped inside the row
+    would be the same leak with a quieter name on it."""
+    other, other_client = mate
+    befriend(db_session, member, other)
+    workout = post_workout(db_session, member.id)
+    _add_route(db_session, workout.id)
+    hide(signed_in, "route")
+
+    for response in (
+        other_client.get("/api/feed"),
+        other_client.get(f"/api/profile/{member.id}"),
+    ):
+        assert "10.001" not in response.text
+        assert "points" not in response.text
 
 
 # --------------------------------------------------------------------------

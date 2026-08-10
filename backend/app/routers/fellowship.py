@@ -267,6 +267,7 @@ def feed_row(
     has_route: bool,
     photo_ids: list[int],
     encouragement: dict,
+    hidden: tuple[str, ...] = (),
 ) -> dict:
     """One feed event.
 
@@ -274,15 +275,23 @@ def feed_row(
     rows, and this function is the only place the rule below is written down.
     A second copy of it is a copy somebody can edit on its own.
 
-    Distance and duration and nothing finer. A friend's row deliberately
-    carries no heart rate, no calories, no flags, and no pace field: the feed
-    says what somebody did, not how their body was doing while they did it.
-    Experience is on your own rows only, for the same reason.
+    A friend sees what you did, in full: the distance, the time, the heart
+    rate, the calories, and the line you ran. What they do not see is what you
+    said they may not. `hidden` is the owner's own list, from
+    fellowship.HIDEABLE, and a field on it is left out of the row altogether
+    rather than sent as a null: a null would say the workout carried no heart
+    rate, which is a different thing from being asked not to look. The route is
+    hidden by has_route reading false, so no map is drawn and nothing asks for
+    the line the endpoint would refuse anyway.
 
-    The title, the post, and the photos are the exception, and they are on a
-    friend's row in full. Nothing here is inferred from a body: it is what the
-    person chose to say, and writing it is the act of sharing it.
+    Own rows carry everything whatever the list says. Hiding a number from
+    yourself is not a privacy setting, and the experience a workout earned is
+    still on your own rows and nowhere else.
+
+    Pace is not here and never was: it is the distance over the time, both of
+    which every row carries, and the client does that division itself.
     """
+    kept_back = () if own else hidden
     row = {
         "workout_id": workout.id,
         "user": person,
@@ -291,13 +300,20 @@ def feed_row(
         "distance_mi": round(workout.distance_mi, 3),
         "duration_s": workout.duration_s,
         "medals": medal_ids,
-        "has_route": has_route,
+        # False rather than absent when the route is hidden: a card reads this
+        # to decide whether to draw a map, and the honest answer to "is there
+        # one you can see" is no.
+        "has_route": has_route and "route" not in kept_back,
         "title": workout.title,
         "post": workout.post,
         "photos": photo_ids,
         "source": workout.source,
         "own": own,
     }
+    if "avg_hr" not in kept_back:
+        row["avg_hr"] = round(workout.avg_hr, 1) if workout.avg_hr is not None else None
+    if "active_kcal" not in kept_back:
+        row["active_kcal"] = round(workout.active_kcal, 1)
     if own:
         row["xp"] = round(converted_miles(workout.activity, workout.distance_mi), 2)
     row["encouragement"] = encouragement
@@ -339,6 +355,9 @@ def read_feed(
     pictures = photos_for(db, rows)
     people = fellowship.people(db, {row.user_id for row in rows})
     counts = fellowship.counts(db, [row.id for row in rows], user.id)
+    # Asked of the owners on this page, not of the reader: what a row shows is
+    # decided by whoever did the workout.
+    kept_back = fellowship.hidden_fields(db, {row.user_id for row in rows})
     return [
         feed_row(
             row,
@@ -348,6 +367,7 @@ def read_feed(
             row.id in routed,
             pictures.get(row.id, []),
             counts[row.id],
+            kept_back.get(row.user_id, ()),
         )
         for row in rows
         if row.user_id in people

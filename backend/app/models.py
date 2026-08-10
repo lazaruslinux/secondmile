@@ -118,6 +118,11 @@ class User(Base):
     # empty list mean different things: null is "choose for me", an empty list
     # is a player who deliberately wears none.
     diamond_sports: Mapped[list | None] = mapped_column(JSONType, nullable=True)
+    # What this account keeps back from its friends, as field names. Empty for
+    # everybody until they say otherwise: a friend sees what you did, and this
+    # is the list of the few things they need not. The names it may hold are in
+    # app.fellowship.HIDEABLE, which is where the rule that reads them lives.
+    hidden_from_friends: Mapped[list] = mapped_column(JSONType, nullable=False, default=list)
     created_at: Mapped[dt.datetime] = mapped_column(
         UtcDateTime, nullable=False, server_default=func.now()
     )
