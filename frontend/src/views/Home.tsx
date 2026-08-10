@@ -141,7 +141,7 @@ function RecentMedals({ recent }: { recent: Recent[] }) {
       <h2 className="label">Recent medals</h2>
       {recent.length === 0 ? (
         <p className="hint">
-          Nothing earned yet. A 5K, a ten-mile week, or a run before six all start one.
+          No medals yet. A 5K, a ten-mile week, or an early run each earn one.
         </p>
       ) : (
         <ul className="medal-list">
@@ -186,7 +186,7 @@ function Challenge({ distance, counts }: { distance: number; counts: Map<string,
         /* Past forty miles there is no rung left this week, so the section says
            what was done rather than inventing a target above the ladder. */
         <p className="challenge-done">
-          Every weekly medal earned this week, at {distance.toFixed(1)} mi.
+          All weekly medals earned. {distance.toFixed(1)} mi this week.
         </p>
       )}
     </>
@@ -494,8 +494,7 @@ export default function Home({
         <section className="card home-streak">
           <Streak streak={streak} days={days} />
           <p className="hint">
-            Miles counted this week. Your phone syncs on its own, so nothing here needs
-            opening the app.
+            Miles counted this week. Your phone syncs on its own.
           </p>
           {/* There is no rail on a phone, so what the rail holds is folded in
               here under a rule rather than lost. */}

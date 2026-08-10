@@ -90,9 +90,9 @@ export default function Landing({ onEnter }: Props) {
               an email address into a form that was always going to refuse. */}
           {openRegistration === false && (
             <p className="hint landing-invite">
-              Invite-Only. If you have an invite code,{' '}
+              Invite only. Have a code?{' '}
               <button type="button" className="link" onClick={() => onEnter(true)}>
-                enter it here
+                Enter it here
               </button>
               .
             </p>
@@ -105,8 +105,7 @@ export default function Landing({ onEnter }: Props) {
             learn that before they make an account rather than after. */}
         <p className="landing-requires">
           <span className="label">Requires</span>
-          Health Auto Export for iOS, from the App Store. Every activity comes from
-          Apple Health; there is no other way in.
+          Health Auto Export for iOS. Activities only come from Apple Health.
         </p>
       </section>
 

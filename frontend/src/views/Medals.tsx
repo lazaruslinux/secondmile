@@ -117,8 +117,7 @@ export default function Medals({ medals }: Props) {
         </span>
       </div>
       <p className="hint">
-        They repeat: every time you earn one again it counts again. Every {EARNS_PER_STAR} of
-        the same medal adds a star around it, up to {MAX_STARS}.
+        Medals repeat. Every {EARNS_PER_STAR} of the same one adds a star, up to {MAX_STARS}.
       </p>
 
       {/* The count sits under its own medal, and one never earned keeps a

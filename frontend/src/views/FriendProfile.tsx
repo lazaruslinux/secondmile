@@ -15,7 +15,7 @@ import {
   type Units,
 } from '../api.ts'
 import { formatDate } from '../format.ts'
-import { plantingName } from '../labels.ts'
+import { ANOINT_HINT, ANOINTED, OIL_KEPT, plantingName, POURED } from '../labels.ts'
 import { SEEDS_TO_FIND } from '../profile.ts'
 import { pileItems, type Stack } from '../satchel.ts'
 import AvatarFrame from './AvatarFrame.tsx'
@@ -26,21 +26,14 @@ import Medals from './Medals.tsx'
 import PlantArt from './PlantArt.tsx'
 import RarityFrame from './RarityFrame.tsx'
 
-// The three sentences the inventory says after the same three acts, said the
-// same way here so one verb does not read as two different things depending on
-// which screen it was run from.
-const POURED = 'Poured. Ten miles of growth.'
-const ANOINTED = 'Done. One chest they earn will open one step rarer.'
-const OIL_KEPT = 'The oil is still in your inventory.'
-
 // Said on anything of theirs that has reached the last level, which is the one
 // thing on their plot that cannot be watered.
 const FULLY_GROWN = 'Fully grown.'
 
 // What ending a friendship costs, said before it is done rather than after.
 const REMOVE_WARNING =
-  "You will stop seeing each other's activities, and neither of you can water " +
-  'the other or send oil. Either of you can invite the other again.'
+  "You will stop seeing each other's activities and cannot water or anoint each " +
+  'other. Either of you can invite again.'
 
 // Which of the three drawings one of their plants is at. Their plot carries the
 // stage itself rather than the miles the own plot is read from, so this stands
@@ -471,7 +464,7 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
             <p className="hint">
               {hasWater
                 ? 'Tap one of their plants to water it.'
-                : 'Water comes out of chests. You are holding none.'}
+                : 'You have no water. It comes out of chests.'}
             </p>
             <ul className="plot">
               {plot.map((row) => {
@@ -569,7 +562,7 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
       {step.at === 'water' && (
         <ItemPicker
           title="Water"
-          hint={`What you hold that could help their ${plantingName(step.plant)}.`}
+          hint={`Water for their ${plantingName(step.plant)}.`}
           stacks={waters}
           onto={`their ${plantingName(step.plant)}`}
           empty="No water in your inventory. It comes out of chests."
@@ -588,7 +581,7 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
       {step.at === 'oil' && (
         <ItemPicker
           title="Anoint"
-          hint="One chest they earn will open one step rarer."
+          hint={ANOINT_HINT}
           stacks={oils}
           onto={who}
           empty="No oil in your inventory. It comes out of chests."

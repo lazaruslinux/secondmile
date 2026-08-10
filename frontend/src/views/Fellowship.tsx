@@ -264,8 +264,8 @@ export default function Fellowship({ userId, onOpenPerson }: Props) {
           Send invite
         </button>
         <p className="hint">
-          Invites are quiet: the other person simply sees it in their app. Friends see each
-          other's distance, time, and route. Nobody else does.
+          An invite shows up in their app. Friends see each other's activities. Nobody else
+          does.
         </p>
         {inviteNote && (
           <p className="note note-success" role="status">

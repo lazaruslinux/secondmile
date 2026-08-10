@@ -234,7 +234,7 @@ def update_workout(
 ) -> dict:
     """Title your own workout and write on it."""
     if throttle.workout_edit_limiter.hit(throttle.client_address(request)):
-        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many edits. Wait a minute.")
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many edits just now. Wait a minute.")
     workout = _owned(db, workout_id, user.id)
     # Read from the field set rather than the value: a sent null is somebody
     # deleting their post, an omitted field is somebody saving only the title.
@@ -266,7 +266,7 @@ async def upload_photo(
     """
     if throttle.photo_limiter.hit(throttle.client_address(request)):
         raise HTTPException(
-            status.HTTP_429_TOO_MANY_REQUESTS, "Too many uploads. Wait a minute."
+            status.HTTP_429_TOO_MANY_REQUESTS, "Too many uploads just now. Wait a minute."
         )
     workout = _owned(db, workout_id, user.id)
     held = db.execute(
@@ -330,7 +330,7 @@ def delete_photo(
 ) -> Response:
     """Take one of your own pictures back off a workout."""
     if throttle.delete_media_limiter.hit(throttle.user_key(user)):
-        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many changes. Wait a minute.")
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many changes just now. Wait a minute.")
     _owned(db, workout_id, user.id)
     photo = db.get(models.WorkoutPhoto, photo_id)
     if photo is None or photo.workout_id != workout_id:
@@ -411,7 +411,7 @@ def encourage(
     sends it. Nothing here suggests either one.
     """
     if throttle.encourage_limiter.hit(throttle.client_address(request)):
-        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many. Wait a minute.")
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many cheers just now. Wait a minute.")
     if body.kind not in ("cheer", "note"):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Kind must be cheer or note.")
 

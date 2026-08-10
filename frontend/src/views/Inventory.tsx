@@ -24,15 +24,21 @@ import { itemArt } from '../art.ts'
 import { convertedValue } from '../format.ts'
 import { levelProgress } from '../grove.ts'
 import {
+  ANOINT_HINT,
+  ANOINTED,
   CHEST_TIER_ORDER,
   chestName,
   chestTierRarity,
   chestTierWord,
+  ITEM_LINES,
   itemName,
   itemRarity,
   itemTabLabel,
+  OIL_KEPT,
   personName,
+  PLANTED,
   plantingName,
+  POURED,
   rarityWord,
 } from '../labels.ts'
 import { pileItems, type Stack, type StackKind } from '../satchel.ts'
@@ -49,22 +55,14 @@ const KIND_ORDER: Record<ItemKind, number> = { seed: 0, water: 1, oil: 2, wish: 
 // One verb each, said as the thing you are about to do. Nothing in here is kept
 // to be looked at, so there is no verb for looking.
 const VERBS: Record<StackKind, { id: string; label: string }[]> = {
-  seed: [{ id: 'plant', label: 'Plant Seed' }],
+  seed: [{ id: 'plant', label: 'Plant seed' }],
   water: [
-    { id: 'water-own', label: 'Water Plant' },
-    { id: 'water-friend', label: "Water Friend's Plant" },
+    { id: 'water-own', label: 'Water plant' },
+    { id: 'water-friend', label: "Water a friend's plant" },
   ],
   oil: [{ id: 'anoint', label: 'Anoint' }],
-  wish: [{ id: 'choose', label: 'Choose Seed' }],
-  chest: [{ id: 'open', label: 'Open Chest' }],
-}
-
-// What each square is for, said once, in the modal the square opens.
-const KIND_LINES: Record<ItemKind, string> = {
-  seed: 'Plant it and it grows with your miles.',
-  water: 'Ten miles of growth, into one plant.',
-  oil: 'Given to a friend. One chest they earn opens one step rarer.',
-  wish: 'Spent on any seed you have not yet found. One use.',
+  wish: [{ id: 'choose', label: 'Choose seed' }],
+  chest: [{ id: 'open', label: 'Open chest' }],
 }
 
 // Four across at every width, growing downward as things are found. A full case
@@ -81,17 +79,7 @@ const LEAST_ROWS = 2
 // empty species, which is what the server reads as "there was nothing to
 // choose", and what it answers with water for.
 const NO_SPECIES = ''
-const COMPLETE = 'Your grove is complete. The seed became water.'
-
-// Said after oil is given. Nothing is sent: it waits on a chest their own miles
-// earn and lifts it a step when it drops, and the letter is where it finally
-// says who it came from.
-const ANOINTED = 'Done. One chest they earn will open one step rarer.'
-
-// Added to whatever the server says when it refuses. Every refusal here leaves
-// the oil where it was, and a legendary item that looks spent for nothing is
-// the one thing worth saying outright.
-const OIL_KEPT = 'The oil is still in your inventory.'
+const COMPLETE = 'You have every seed, so it became water.'
 
 // A friend's plot comes back with a stage rather than miles, so the quiet half
 // of the row says how far along it is in words.
@@ -113,9 +101,9 @@ function growthLine(row: Planting): string {
 // What one square is, said in the modal it opens. A chest is described by its
 // floor, which is what its colour stands for: the worst it can come up as.
 function describe(stack: Stack): string {
-  if (stack.kind !== 'chest') return KIND_LINES[stack.kind]
+  if (stack.kind !== 'chest') return ITEM_LINES[stack.kind]
   const floor = rarityWord(chestTierRarity(stack.tier)).toLowerCase()
-  return `Never poorer than ${floor}. Opened one at a time.`
+  return `At least ${floor}. Open one at a time.`
 }
 
 // Everything held, gathered into squares. Seeds are piled by species and every
@@ -474,7 +462,7 @@ export default function Inventory({ onChanged }: Props) {
     if (!item) return
     void act(async () => {
       await plantSeed(item.id)
-      setNote('Planted. It is in your grove.')
+      setNote(PLANTED)
       shut()
     })
   }
@@ -484,7 +472,7 @@ export default function Inventory({ onChanged }: Props) {
     if (!item) return
     void act(async () => {
       await pourWater(item.id, plantingId)
-      setNote('Poured. Ten miles of growth.')
+      setNote(POURED)
       shut()
     })
   }
@@ -619,7 +607,7 @@ export default function Inventory({ onChanged }: Props) {
 
   return (
     <>
-      <p className="hint">Everything found and not yet used. Tap a square to use it.</p>
+      <p className="hint">Tap a square to use it.</p>
 
       {loading && <p className="notice">Loading.</p>}
       {loadError && (
@@ -674,8 +662,8 @@ export default function Inventory({ onChanged }: Props) {
 
       {step.at === 'plants' && (
         <Chooser
-          title="Water Plant"
-          hint="Ten miles of growth, into one of yours."
+          title="Water plant"
+          hint="Pick a plant. It gets 10 miles of growth."
           choices={ownChoices}
           empty="Nothing of yours is growing yet."
           busy={busy}
@@ -692,12 +680,8 @@ export default function Inventory({ onChanged }: Props) {
 
       {step.at === 'people' && (
         <Chooser
-          title={step.then === 'water' ? "Water Friend's Plant" : 'Anoint'}
-          hint={
-            step.then === 'water'
-              ? 'Whose plot it goes onto.'
-              : 'One chest they earn will open one step rarer.'
-          }
+          title={step.then === 'water' ? "Water a friend's plant" : 'Anoint'}
+          hint={step.then === 'water' ? 'Pick a friend.' : ANOINT_HINT}
           choices={friendChoices}
           empty="No friends yet. Invite someone from the You screen."
           busy={busy}
@@ -717,7 +701,7 @@ export default function Inventory({ onChanged }: Props) {
       {step.at === 'friend' && (
         <Chooser
           title={personName(step.person)}
-          hint="Which of their plants it goes onto."
+          hint="Pick one of their plants."
           choices={friendPlot}
           empty="Nothing of theirs is growing yet."
           busy={busy}
@@ -757,10 +741,10 @@ export default function Inventory({ onChanged }: Props) {
           title={wishName === '' ? 'Unmarked seed' : wishName}
           hint={
             catalog === null
-              ? 'The catalogue of seeds could not be read.'
+              ? 'The seed list could not be loaded.'
               : lacking.length > 0
-                ? 'Choose what it will become: any seed you have not yet found. One use.'
-                : 'Your grove is complete. There is no seed left to ask for.'
+                ? ITEM_LINES.wish
+                : 'You have every seed. Nothing left to choose.'
           }
           choices={seedChoices}
           empty={catalogError || 'Nothing to choose.'}

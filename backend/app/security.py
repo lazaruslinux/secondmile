@@ -173,7 +173,7 @@ def current_user(request: Request, db: Session = Depends(get_db)) -> models.User
     once instead of whenever the session happens to expire.
     """
     token_hash = session_token_hash(request)
-    unauthorized = HTTPException(status.HTTP_401_UNAUTHORIZED, "Not signed in")
+    unauthorized = HTTPException(status.HTTP_401_UNAUTHORIZED, "Not signed in.")
     if not token_hash:
         raise unauthorized
     row = db.get(models.UserSession, token_hash)

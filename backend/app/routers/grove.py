@@ -25,7 +25,7 @@ from app.db import get_db
 router = APIRouter(tags=["grove"])
 
 NO_SUCH_ITEM = "No such item."
-TOO_MANY_SPENDS = "Too many. Wait a minute."
+TOO_MANY_SPENDS = "Too many spends just now. Wait a minute."
 
 
 class PourBody(BaseModel):
@@ -60,7 +60,7 @@ def _item(
         raise HTTPException(status.HTTP_404_NOT_FOUND, NO_SUCH_ITEM)
     if row.kind != kind:
         raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, f"That is not {'an' if kind == 'oil' else 'a'} {kind}."
+            status.HTTP_400_BAD_REQUEST, "That item cannot be used here."
         )
     return row
 
@@ -185,7 +185,7 @@ def pour_water(
         # Water helps until there are no levels left. Refusing rather than
         # wasting it is the whole point of saying so.
         raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, "That one is fully grown. There is nothing left to grow."
+            status.HTTP_400_BAD_REQUEST, "That one is fully grown."
         )
     now = security.now_utc()
     # Claimed before the water lands, so a planting cannot take two levels of
@@ -222,7 +222,7 @@ def anoint_friend(
     if body.user_id == user.id:
         # The one refusal worth making out loud: it leaks nothing, and oil is
         # for somebody else by definition.
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Oil is for somebody else.")
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "You cannot anoint yourself.")
     if not fellowship.are_friends(db, user.id, body.user_id):
         # The same answer for a stranger and for an account that does not
         # exist. Which ids are real is not a question this endpoint answers.

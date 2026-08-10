@@ -1,16 +1,16 @@
 import { useState } from 'react'
 import { errorText, plantSeed, type SatchelItem } from '../api.ts'
 import { itemArt } from '../art.ts'
-import { itemName, itemRarity, itemTabLabel } from '../labels.ts'
+import {
+  ITEM_LINES,
+  itemName,
+  itemRarity,
+  itemTabLabel,
+  PLANTED,
+  REVEAL_LINES,
+} from '../labels.ts'
 import PlantArt from './PlantArt.tsx'
 import RarityFrame from './RarityFrame.tsx'
-
-// What each thing is for, said plainly, and said only when it is asked for.
-const KIND_LINES: Record<string, string> = {
-  water: 'Pour it onto one plant from your inventory.',
-  oil: 'Anoint a friend with it from your inventory.',
-  wish: 'Choose what it will become: any seed you have not yet found.',
-}
 
 // Everything out of a chest goes the same place, and that is the whole of what
 // a reveal says about a tool until the picture is tapped.
@@ -48,9 +48,8 @@ export default function ChestItem({ item, onPlanted }: Props) {
   }
 
   const seed = item.kind === 'seed' && item.species !== null
-  const seedLine = 'Plant it and it grows with your miles.'
   const art = seed ? null : itemArt(item.kind)
-  const line = KIND_LINES[item.kind] ?? ''
+  const line = REVEAL_LINES[item.kind] ?? ''
 
   // The picture of a tool is what is pressed to find out what it is for. The
   // square around it and its border belong to the frame, so the button is only
@@ -94,7 +93,7 @@ export default function ChestItem({ item, onPlanted }: Props) {
 
       <div className="item-body">
         <p className="item-name">{itemName(item)}</p>
-        <p className="hint item-line">{seed ? seedLine : STOWED}</p>
+        <p className="hint item-line">{seed ? ITEM_LINES.seed : STOWED}</p>
         {/* Said when the picture is pressed, and said outright where there is
             no picture to press: a missing file costs the drawing, not the one
             line that says what the thing is for. */}
@@ -110,7 +109,7 @@ export default function ChestItem({ item, onPlanted }: Props) {
             Plant
           </button>
         )}
-        {planted && <p className="note note-success">Planted. It is in your grove.</p>}
+        {planted && <p className="note note-success">{PLANTED}</p>}
 
         {error && (
           <p className="error" role="alert">

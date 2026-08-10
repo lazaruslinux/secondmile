@@ -45,14 +45,10 @@ function formatWeekStart(key: string): string {
 function flagNotes(flags: WorkoutFlags): string[] {
   const notes: string[] = []
   if (flags.impossible_pace) {
-    notes.push(
-      'The pace on this one is faster than the server treats as possible, so the numbers may be wrong. It still counts.',
-    )
+    notes.push('This pace looks too fast, so the numbers may be off. It still counts.')
   }
   if (flags.daily_cap) {
-    notes.push(
-      'This day went past the daily distance limit set for this activity. It still counts.',
-    )
+    notes.push('This day went over the daily distance limit. It still counts.')
   }
   return notes
 }

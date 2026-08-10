@@ -56,7 +56,7 @@ async def ingest(request: Request, db: Session = Depends(get_db)) -> dict:
     # The limiter runs before the token check so that guessing tokens costs the
     # same allowance as anything else from that address.
     if throttle.ingest_limiter.hit(throttle.client_address(request)):
-        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many syncs. Slow down.")
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many syncs just now. Wait a minute.")
 
     user = ingest_user(request, db)
 

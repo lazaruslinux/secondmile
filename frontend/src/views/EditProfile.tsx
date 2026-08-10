@@ -240,7 +240,7 @@ export default function EditProfile({ profile, onAvatarChanged, onSaved, onClose
                 onChange={(event) => setBirthdate(event.target.value)}
               />
             </label>
-            {age !== null && <p className="hint edit-age">Age {age}, from your birthdate.</p>}
+            {age !== null && <p className="hint edit-age">Age {age}.</p>}
 
             <label>
               Gender
@@ -258,7 +258,7 @@ export default function EditProfile({ profile, onAvatarChanged, onSaved, onClose
               </select>
             </label>
             <p className="hint">
-              Your birthdate and gender are shown to you only. Nobody else sees them.
+              Only you see your birthdate and gender.
             </p>
 
             {saveError && (

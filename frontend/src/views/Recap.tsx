@@ -56,7 +56,7 @@ export default function Recap({ recap, units, onDismiss }: Props) {
   // A first-ever visit has nothing to measure from, and a stamp that will not
   // parse is the same silence, so the clause is dropped rather than guessed at.
   const welcome =
-    elapsed === '' ? 'Welcome back!' : `Welcome back! It's been ${elapsed} since your last visit.`
+    elapsed === '' ? 'Welcome back.' : `Welcome back. It's been ${elapsed}.`
 
   const synced = recap.last_sync_at
   const mileRows = recapMiles(recap.miles)

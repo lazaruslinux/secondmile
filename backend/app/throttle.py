@@ -187,7 +187,7 @@ recap_read_limiter = RateLimiter(60, "recap-read")
 # What a screen asked for too fast is told. Shared rather than written out in
 # each router, because these are all the same event to whoever reads it: the app
 # is looking at something faster than anybody looks at anything.
-TOO_MANY_READS = "Too many requests. Wait a minute."
+TOO_MANY_READS = "Too many requests just now. Wait a minute."
 
 
 def user_key(user: models.User) -> str:

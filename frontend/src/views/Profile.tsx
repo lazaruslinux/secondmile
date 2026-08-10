@@ -474,14 +474,14 @@ export default function Profile({
                 </button>
               </div>
               {ownedMedals.length === 0 && (
-                <p className="hint">Medals fill the slots once you have earned some.</p>
+                <p className="hint">Earn a medal to fill these slots.</p>
               )}
             </div>
 
             {picking && (
               <div className="picker">
                 <p className="hint">
-                  Up to {MAX_MEDAL_SLOTS}, in the slots under your picture. {chosen.length}{' '}
+                  Pick up to {MAX_MEDAL_SLOTS} for the slots under your picture. {chosen.length}{' '}
                   chosen.
                 </p>
                 {/* Only medals already earned, in catalogue order. The server

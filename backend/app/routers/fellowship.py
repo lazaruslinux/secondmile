@@ -32,7 +32,7 @@ MAX_OUTBOUND_INVITES = 100
 TOO_MANY_INVITES = "Too many pending invites."
 # Answering invites: accepting, declining, cancelling, unfriending. One sentence
 # for the four, because they come out of one allowance.
-TOO_MANY_ACTIONS = "Too many changes. Wait a minute."
+TOO_MANY_ACTIONS = "Too many changes just now. Wait a minute."
 
 
 class InviteBody(BaseModel):
@@ -61,7 +61,7 @@ def invite_friend(
     repeat from being a way to walk the username space.
     """
     if throttle.invite_limiter.hit(throttle.client_address(request)):
-        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many invites. Wait a minute.")
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many invites just now. Wait a minute.")
     wanted = body.username.strip().lower()
     if wanted == user.username:
         # The one refusal worth making out loud. It leaks nothing: the caller

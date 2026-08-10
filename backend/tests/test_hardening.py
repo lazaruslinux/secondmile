@@ -90,7 +90,7 @@ def test_unknown_user_login_takes_the_dummy_verify_path(client, member, monkeypa
     # Same status and same wording, so the response body says nothing about
     # whether the account exists.
     assert unknown.json() == known.json()
-    assert unknown.json() == {"detail": "Invalid username or password"}
+    assert unknown.json() == {"detail": "Invalid username or password."}
 
 
 def test_unknown_user_and_wrong_password_are_indistinguishable(client, member):

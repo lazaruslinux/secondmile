@@ -81,7 +81,7 @@ def open_chest(
     thing that is one thing.
     """
     if throttle.chest_open_limiter.hit(throttle.user_key(user)):
-        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many chests. Wait a minute.")
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many chests just now. Wait a minute.")
     chest = db.get(models.Chest, chest_id)
     if chest is None or chest.user_id != user.id:
         # One answer for a chest that never existed and one that belongs to
@@ -466,7 +466,7 @@ def ack_recap(
     instead of trying to work out where the growth came from.
     """
     if throttle.recap_ack_limiter.hit(throttle.user_key(user)):
-        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many. Wait a minute.")
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many requests just now. Wait a minute.")
     row = progress.ensure_progress(db, user.id)
     row.last_ack_at = security.now_utc()
     for planting in db.execute(

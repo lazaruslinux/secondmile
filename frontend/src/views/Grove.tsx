@@ -9,8 +9,8 @@ import RarityFrame from './RarityFrame.tsx'
 
 // What the grove is, in three sentences, said once at the top and nowhere else.
 const HEADER =
-  "Your plants grow with your distance covered. Water them (or a friend's) for a 10 mile " +
-  'boost. Plants begin bearing fruit once mature (level 1) and are fully grown at level 33.'
+  "Plants grow with your miles. Water one of yours, or a friend's, for a 10 mile boost. " +
+  'Level 33 is fully grown.'
 
 // What the oil in the inventory is for, said under the inventory itself. The
 // word is oil here rather than olive oil: this is the act, not the item. It
@@ -74,7 +74,7 @@ export default function Grove({ userId }: Props) {
       )}
 
       <section className="card">
-        <h2 className="label">The plot</h2>
+        <h2 className="label">Your plants</h2>
         {!loading && plantings.length === 0 && (
           <p className="hint">Nothing planted yet. Seeds come out of chests.</p>
         )}
@@ -120,7 +120,7 @@ export default function Grove({ userId }: Props) {
                   <p className="plant-growth">Lv {row.level}</p>
                   {row.gilded && <p className="plant-ready">{FULLY_GROWN}</p>}
                   {row.mature && !row.gilded && (
-                    <p className="plant-ready">Grown. It waits here to bear fruit.</p>
+                    <p className="plant-ready">Grown.</p>
                   )}
                 </li>
               )

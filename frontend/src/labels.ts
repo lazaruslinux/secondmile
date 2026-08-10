@@ -61,7 +61,7 @@ export const MEDAL_NAMES: Record<string, string> = {
   race_10k: '10K',
   race_half: 'Half',
   race_marathon: 'Marathon',
-  race_ultra: 'Ultra',
+  race_ultra: '50K',
   weekly_10: '10-mile week',
   weekly_15: '15-mile week',
   weekly_25: '25-mile week',
@@ -76,19 +76,19 @@ export const MEDAL_NAMES: Record<string, string> = {
 // medals and the two time medals are running only; a week counts every activity,
 // which is why only those four say so. The clock times are the instance's
 // timezone, which is every account's local time only while one instance serves
-// one place.
+// one place. No line takes a trailing period: they read as one catalogue.
 export const MEDAL_DETAILS: Record<string, string> = {
-  race_5k: 'Complete a 5K (3.1mi) run.',
-  race_10k: 'Complete a 10K (6.2mi) run.',
+  race_5k: 'Complete a 5K (3.1mi) run',
+  race_10k: 'Complete a 10K (6.2mi) run',
   race_half: 'Complete a half-marathon (13.1mi)',
   race_marathon: 'Complete a marathon (26.2mi)',
-  race_ultra: 'Complete an Ultra marathon (31.1mi)',
-  weekly_10: 'Cover 10 or more miles in one week, in any activity.',
-  weekly_15: 'Cover 15 or more miles in one week, in any activity.',
-  weekly_25: 'Cover 25 or more miles in one week, in any activity.',
-  weekly_40: 'Cover 40 or more miles in one week, in any activity.',
-  early_riser: 'Start a 5K run (3.1mi) or more between 4am-5:59am local time.',
-  night_owl: 'Start a 5K run (3.1mi) or more between 8pm-3:59am local time.',
+  race_ultra: 'Complete a 50K (31.1mi)',
+  weekly_10: 'Cover 10 or more miles in one week, in any activity',
+  weekly_15: 'Cover 15 or more miles in one week, in any activity',
+  weekly_25: 'Cover 25 or more miles in one week, in any activity',
+  weekly_40: 'Cover 40 or more miles in one week, in any activity',
+  early_riser: 'Start a run of 5K or more between 4am and 5:59am',
+  night_owl: 'Start a run of 5K or more between 8pm and 3:59am',
 }
 
 // A medal id the server sent that this build has no name for still has to read
@@ -199,7 +199,7 @@ export function itemTabLabel(item: SatchelItem): string | undefined {
 const KIND_NAMES: Record<ItemKind, string> = {
   seed: 'Seed',
   water: 'Water',
-  oil: 'Olive Oil',
+  oil: 'Olive oil',
   wish: 'Unmarked seed',
 }
 
@@ -209,6 +209,32 @@ export function itemName(item: SatchelItem): string {
   if (item.kind === 'seed' && item.species) return seedName(item)
   return KIND_NAMES[item.kind] ?? item.kind
 }
+
+// What each item is for, said once here and read wherever a square is opened.
+export const ITEM_LINES: Record<ItemKind, string> = {
+  seed: 'Plant it and it grows with your miles.',
+  water: 'Pour it on a plant for 10 miles of growth.',
+  oil: 'Given to a friend. One chest they earn opens one step rarer.',
+  wish: 'Choose any seed you have not found yet. One use.',
+}
+
+// The same three tools where a chest has just given one up. Nothing is spent
+// from a reveal, so these say where the act happens instead.
+export const REVEAL_LINES: Record<string, string> = {
+  water: 'Pour it onto one plant from your inventory.',
+  oil: 'Anoint a friend with it from your inventory.',
+  wish: 'Choose what it will become: any seed you have not yet found.',
+}
+
+// What oil buys, said wherever a person is picked for it.
+export const ANOINT_HINT = 'One chest they earn will open one step rarer.'
+
+// What the three acts say once they are done, and what a refused anointing adds
+// so a legendary item never looks spent for nothing.
+export const PLANTED = 'Planted. It is in your grove.'
+export const POURED = 'Poured. Ten miles of growth.'
+export const ANOINTED = 'Done. One chest they earn will open one step rarer.'
+export const OIL_KEPT = 'The oil is still in your inventory.'
 
 // The step of the ladder a chest dropped on. The names are the server's; a
 // chest from before the ladder simply has none.

@@ -118,8 +118,8 @@ export function growthLine(row: RecapGrowth): string {
   // Worked back from the levels gained when the starting level is missing, so
   // an older server still says which two numbers the climb ran between.
   const before = row.level_before ?? Math.max(0, level - (row.levels_gained ?? 0))
-  if (before === 0 && level >= 1) return `${name} has matured. (Lv ${level})`
-  if (level > before) return `${name}: Level Up! ${before} -> ${level}`
+  if (before === 0 && level >= 1) return `${name} is grown. Level ${level}.`
+  if (level > before) return `${name} reached level ${level}.`
   return ''
 }
 
@@ -130,16 +130,14 @@ export function recapGrowthLines(recap: RecapState): string[] {
   return (recap.plant_growth ?? []).map(growthLine).filter((line) => line !== '')
 }
 
-// The one line about the border's growth, or nothing when it did not move. A
-// stage on its own is read as a rise, since a server only mentions the stage
-// when it changed.
+// The one line about the frame's growth, said only when the server says it rose.
+// The stage is carried on every letter, so it is the rise and not the stage that
+// decides whether anything is said at all.
 export function flourishLine(recap: RecapState): string {
+  if (!recap.flourish_rose) return ''
   const stage = recap.flourish_stage
-  if (!recap.flourish_rose && stage === undefined) return ''
-  if (typeof stage === 'number' && stage > 0) {
-    return `Your border has grown. Stage ${stage}.`
-  }
-  return recap.flourish_rose ? 'Your border has grown.' : ''
+  if (typeof stage === 'number' && stage > 0) return `Your frame grew. Stage ${stage}.`
+  return 'Your frame grew.'
 }
 
 // Whether the letter says anything at all. Nothing to read is not worth

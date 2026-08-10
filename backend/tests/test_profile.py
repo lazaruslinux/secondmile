@@ -118,7 +118,7 @@ def test_there_are_three_badge_slots_and_a_fourth_is_refused(signed_in, db_sessi
 
     too_many = signed_in.patch("/api/profile", json={"displayed_badges": owned[:4]})
     assert too_many.status_code == 400
-    assert "only 3 badge slots" in too_many.json()["detail"]
+    assert "only 3 medal slots" in too_many.json()["detail"]
 
     accepted = signed_in.patch("/api/profile", json={"displayed_badges": owned[:3]})
     assert accepted.status_code == 200

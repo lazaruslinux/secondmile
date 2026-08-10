@@ -66,7 +66,7 @@ def rotate_token(
     """
     if throttle.token_rotate_limiter.hit(throttle.user_key(user)):
         raise HTTPException(
-            status.HTTP_429_TOO_MANY_REQUESTS, "Too many rotations. Wait a minute."
+            status.HTTP_429_TOO_MANY_REQUESTS, "Too many rotations just now. Wait a minute."
         )
     token = security.generate_token()
     row = db.get(models.IngestToken, user.id)
@@ -157,7 +157,7 @@ def update_settings(
 ) -> dict:
     """Change what this account shows and how it shows it."""
     if throttle.profile_edit_limiter.hit(throttle.user_key(user)):
-        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many edits. Wait a minute.")
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many edits just now. Wait a minute.")
     if "units" in body.model_fields_set:
         if body.units not in UNITS:
             raise HTTPException(

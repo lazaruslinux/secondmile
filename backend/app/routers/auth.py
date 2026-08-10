@@ -25,13 +25,13 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 # One wording for every way a sign in can fail. Saying "no such user" would let
 # anyone map out who has an account here, which is the first step of a targeted
 # guessing run.
-BAD_CREDENTIALS = "Invalid username or password"
+BAD_CREDENTIALS = "Invalid username or password."
 TOO_MANY = "Too many attempts. Wait a minute and try again."
 # The only answer registration gives, whether an account was made or the name or
 # address was already taken. The wording has to be true in both cases, so it
 # describes what the person should do next rather than what the server did.
 CHECK_EMAIL = "Check your email to verify your account."
-UNVERIFIED = "Email not verified."
+UNVERIFIED = "Verify your email before signing in."
 
 
 class RegisterBody(BaseModel):

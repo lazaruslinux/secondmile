@@ -323,7 +323,7 @@ def test_a_friends_finished_plant_refuses_water_too(signed_in, db_session, membe
     item = give_item(db_session, member.id, "water")
     refused = signed_in.post(f"/api/satchel/{item.id}/pour", json={"planting_id": done.id})
     assert refused.status_code == 400
-    assert "nothing left to grow" in refused.json()["detail"]
+    assert refused.json()["detail"] == "That one is fully grown."
     assert db_session.get(models.SatchelItem, item.id).used_at is None
 
 
@@ -332,7 +332,7 @@ def test_water_is_refused_on_something_gilded(signed_in, db_session, member):
     item = give_item(db_session, member.id, "water")
     refused = signed_in.post(f"/api/satchel/{item.id}/pour", json={"planting_id": done.id})
     assert refused.status_code == 400
-    assert "nothing left to grow" in refused.json()["detail"]
+    assert refused.json()["detail"] == "That one is fully grown."
     # And the water is still in the satchel rather than wasted.
     assert len(signed_in.get("/api/satchel").json()) == 1
 
@@ -456,7 +456,7 @@ def test_only_a_wish_is_chosen_from(signed_in, db_session, member):
     water = give_item(db_session, member.id, "water")
     body = signed_in.post(f"/api/satchel/{water.id}/choose", json={"species": "olive"})
     assert body.status_code == 400
-    assert body.json()["detail"] == "That is not a wish."
+    assert body.json()["detail"] == "That item cannot be used here."
 
 
 def test_a_wish_becomes_water_once_the_whole_plot_is_held(signed_in, db_session, member):

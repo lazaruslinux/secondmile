@@ -203,15 +203,15 @@ def _set_badges(db: Session, user: models.User, sent: list[str]) -> None:
     if len(chosen) > MAX_DISPLAYED_BADGES:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            f"There are only {MAX_DISPLAYED_BADGES} badge slots.",
+            f"There are only {MAX_DISPLAYED_BADGES} medal slots.",
         )
     if len(set(chosen)) != len(chosen):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "A badge cannot fill two slots.")
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "A medal cannot fill two slots.")
     owned = medals.earned_medal_ids(db, user.id)
     for badge in chosen:
         if badge not in owned:
             raise HTTPException(
-                status.HTTP_400_BAD_REQUEST, "You have not earned that badge."
+                status.HTTP_400_BAD_REQUEST, "You have not earned that medal."
             )
     user.displayed_badges = chosen
 
@@ -252,7 +252,7 @@ def set_profile(
     and the second is somebody saving a different part of the form.
     """
     if throttle.profile_edit_limiter.hit(throttle.user_key(user)):
-        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many edits. Wait a minute.")
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many edits just now. Wait a minute.")
     if body.displayed_badges is not None:
         _set_badges(db, user, body.displayed_badges)
     if "diamond_sports" in body.model_fields_set:
@@ -283,7 +283,7 @@ async def upload_avatar(
     """
     if throttle.avatar_limiter.hit(throttle.client_address(request)):
         raise HTTPException(
-            status.HTTP_429_TOO_MANY_REQUESTS, "Too many uploads. Wait a minute."
+            status.HTTP_429_TOO_MANY_REQUESTS, "Too many uploads just now. Wait a minute."
         )
 
     # Content-Length is a claim, checked first to refuse the obvious case
@@ -325,7 +325,7 @@ def delete_avatar(
     user: models.User = Depends(security.current_user),
 ) -> Response:
     if throttle.delete_media_limiter.hit(throttle.user_key(user)):
-        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many changes. Wait a minute.")
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many changes just now. Wait a minute.")
     avatars.remove(user.id)
     user.avatar_path = None
     db.commit()

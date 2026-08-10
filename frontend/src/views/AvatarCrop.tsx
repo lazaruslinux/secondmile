@@ -353,8 +353,7 @@ export default function AvatarCrop({ file, busy, error, onUse, onCancel }: Props
         <header className="overlay-head">
           <h2 id="crop-title">Frame your picture</h2>
           <p className="hint">
-            Drag to move it, pinch or scroll to zoom. The square is exactly what
-            everybody sees.
+            Drag to move, pinch or scroll to zoom. The square is what everyone sees.
           </p>
         </header>
 

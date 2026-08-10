@@ -39,7 +39,7 @@ def test_register_verify_then_sign_in(client, invite, outbox):
         "/api/auth/login", json={"username": "newcomer", "password": NEWCOMER["password"]}
     )
     assert refused.status_code == 403
-    assert refused.json() == {"detail": "Email not verified."}
+    assert refused.json() == {"detail": "Verify your email before signing in."}
 
     assert _verify(client, token).status_code == 204
     signed_in = client.post(
@@ -115,7 +115,7 @@ def test_a_wrong_password_on_an_unverified_account_is_still_a_generic_401(client
         "/api/auth/login", json={"username": "waiting", "password": "not-the-password-1"}
     )
     assert wrong.status_code == 401
-    assert wrong.json() == {"detail": "Invalid username or password"}
+    assert wrong.json() == {"detail": "Invalid username or password."}
 
     # Only the correct password reaches the verification check, so the pair of
     # answers cannot be used to test passwords against an unverified account.

@@ -123,7 +123,7 @@ function EncourageRow({ workoutId, encouragement }: EncourageProps) {
         <input
           type="text"
           className="encourage-input"
-          placeholder="Write a note..."
+          placeholder="Write a note"
           maxLength={NOTE_LIMIT}
           value={draft}
           disabled={busy}
@@ -381,8 +381,8 @@ export function EditPanel<T extends EditableWorkout>({
     <form className="feed-edit-panel" onSubmit={save}>
       {explain && (
         <p className="hint">
-          Your title, your words, and up to {PHOTO_LIMIT} photos. The distance, the time, and
-          when it happened are not editable.
+          You can edit the title, your words, and up to {PHOTO_LIMIT} photos. Distance and
+          time are not editable.
         </p>
       )}
 
@@ -404,7 +404,7 @@ export function EditPanel<T extends EditableWorkout>({
           maxLength={POST_LIMIT}
           rows={4}
           disabled={busy}
-          placeholder="Write about this activity..."
+          placeholder="Write about this activity"
           onChange={(event) => setPost(event.target.value)}
         />
       </label>

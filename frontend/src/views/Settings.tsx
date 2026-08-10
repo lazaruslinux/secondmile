@@ -17,7 +17,7 @@ import { instanceTimezone } from '../format.ts'
 // Said whatever happened. Whether that address belongs to anybody already is
 // not this screen's news to give, so the sentence is the same either way.
 const EMAIL_SENT =
-  'Check that inbox. If the address can be used here, a link to confirm it is on its way.'
+  'Check that inbox. If the address can be used, a confirmation link is on its way.'
 
 // The three switches, in the order the server keeps them. Pace is not among
 // them on purpose: it is distance over time, both of which stay on every card,
@@ -394,8 +394,7 @@ export default function Settings({
           {freshToken && (
             <div className="token">
               <p className="warning">
-                This is the only time this token is shown. Copy it into your export app now.
-                It will not be shown again.
+                Copy this into your export app now. It will not be shown again.
               </p>
               <code>{freshToken}</code>
               <button
@@ -492,9 +491,8 @@ export default function Settings({
             )}
           </div>
           <p className="hint">
-            Turn Include Route Data on if you want the line drawn on your workout cards. No
-            map is ever fetched from anywhere, and the start and end of every route are
-            thrown away before it is stored.
+            Turn on Include Route Data to draw the route on your cards. No maps are fetched,
+            and the start and end of each route are trimmed before storing.
           </p>
         </div>
       </section>
