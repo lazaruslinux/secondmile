@@ -3,7 +3,14 @@
 import datetime as dt
 import random
 
-from conftest import LETTER_KEYS, give_item, give_planting, log_workout, neutral_start
+from conftest import (
+    LETTER_KEYS,
+    give_item,
+    give_planting,
+    let_a_moment_pass,
+    log_workout,
+    neutral_start,
+)
 
 from app import models, progress, security, species
 from app.config import CHEST_LADDER, CHEST_TIER_FLOOR
@@ -667,6 +674,7 @@ def test_a_chest_left_unopened_does_not_follow_you_into_the_next_letter(signed_i
     # stopped talking about them.
     assert signed_in.get("/api/recap").json()["chests"] == []
     assert len(signed_in.get("/api/chests").json()) == 2
+    let_a_moment_pass(db_session)
 
     # Fresh miles, and only what they dropped is named. Eleven miles left 1.7
     # banked against the 13.1 the Half step costs, so twelve more clears it and
@@ -893,6 +901,7 @@ def test_a_medal_from_a_backdated_run_still_reaches_the_recap(signed_in, db_sess
     """The run happened last month; the sync happened this morning. What makes
     it news is when it arrived, which is the same rule the miles follow."""
     signed_in.post("/api/recap/ack")
+    let_a_moment_pass(db_session)
     db_session.add(
         models.Workout(
             user_id=member.id,

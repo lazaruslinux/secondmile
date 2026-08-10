@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 from app import config, fellowship, models, progress, security
 from app.main import app as fastapi_app
 from app.routers.fellowship import MAX_OUTBOUND_INVITES, TOO_MANY_INVITES
-from conftest import LETTER_KEYS, make_user, neutral_start
+from conftest import LETTER_KEYS, let_a_moment_pass, make_user, neutral_start
 
 # The photo upload helper, borrowed rather than written twice: what a friend
 # sees of a picture is tested here, and how one is stored is tested there.
@@ -687,6 +687,7 @@ def test_the_letter_says_when_the_flourish_grew(friends, db_session):
     first = mine.get("/api/recap").json()
     assert (first["flourish_stage"], first["flourish_rose"]) == (0, False)
     mine.post("/api/recap/ack")
+    let_a_moment_pass(db_session)
 
     # Just short of the first stage, so one note carries them over it.
     row = db_session.get(models.UserProgress, member.id)

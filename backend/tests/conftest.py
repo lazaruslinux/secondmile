@@ -7,6 +7,7 @@ running Postgres.
 
 import datetime as dt
 import os
+import sys
 
 # Set before anything imports the app: settings read the environment once, at
 # import, and the startup guard refuses an empty DATABASE_URL. The engine this
@@ -32,6 +33,12 @@ from app.main import app as fastapi_app  # noqa: E402
 ADMIN = {"username": "admin", "password": "admin-password-1"}
 MEMBER = {"username": "runner", "password": "runner-password-1"}
 
+# The moment every test runs at. A Wednesday, so nothing sits on a week
+# boundary, and 21:00 UTC because the whole suite's clock arithmetic hangs off
+# it: see neutral_start below for why that hour and not another. Change this
+# and test_clock.py says so.
+FROZEN_NOW = dt.datetime(2026, 4, 15, 21, 0, tzinfo=dt.timezone.utc)
+
 # The recap's keys, in the order it sends them. Shared because three files read
 # the letter and a shape written down three times drifts in two of them.
 LETTER_KEYS = [
@@ -49,6 +56,23 @@ LETTER_KEYS = [
     "flourish_stage",
     "flourish_rose",
 ]
+
+
+@pytest.fixture(autouse=True)
+def frozen_clock(monkeypatch):
+    """Pin now_utc, everywhere it is reachable, for the whole suite.
+
+    Patching app.security alone would miss the modules that imported now_utc as
+    a bound name, so this walks the imported app modules instead and patches
+    whichever of them own the attribute. A module bound later picks it up for
+    free, which a hand-written list of patch targets would not.
+
+    The rate limiters are not covered and must not be: they read time.time on
+    purpose, and their tests measure real windows.
+    """
+    for name, module in list(sys.modules.items()):
+        if (name == "app" or name.startswith("app.")) and hasattr(module, "now_utc"):
+            monkeypatch.setattr(module, "now_utc", lambda: FROZEN_NOW)
 
 
 @pytest.fixture(autouse=True)
@@ -219,23 +243,49 @@ def neutral_start() -> dt.datetime:
     Recent enough to be this week, and at an hour no time-of-day medal is
     earned in, so a case about a distance is never also a case about a clock.
 
-    KNOWN AND DELIBERATELY NOT FIXED HERE: "recent enough to be this week" is
-    false for the hours between midnight and nine on a Monday, in the instance
-    timezone. Half a day before then is Sunday, which is the last day of the
-    week before, so the three cases that assert what THIS week holds find an
-    empty week and fail. It comes right on its own later the same morning.
+    The formula reads the clock, but the clock is pinned: frozen_clock holds
+    now_utc at FROZEN_NOW, 2026-04-15 21:00 UTC, so this lands on Wednesday
+    2026-04-15 09:00 UTC every run. 21:00 is what makes the hour work out. The
+    largest offset_min any case passes to log_workout is 600, which puts the
+    latest start at 19:00, still in the past of now and still short of the
+    Night Owl window at [20:00, 04:00); 09:00 itself is clear of Early Riser at
+    [04:00, 06:00). Wednesday keeps the start and the frozen now in the same
+    Monday-started week, which is what the weekly cases count.
 
-    Clamping the date onto Monday does not fix it and makes it worse. The hour
-    then has to move back too, to stay in the past, and everything before four
-    in the morning is inside the Night Owl window, so runs start earning a time
-    medal and ten cases fail instead of one. Tried 2026-08-09, reverted.
-
-    The real fix is to stop reading the wall clock in tests at all and pin the
-    time, which is a change worth making on purpose rather than in passing:
-    around a hundred cases build their rows through this function.
+    Clamping the date onto Monday does not fix a Monday and makes it worse. The
+    hour then has to move back too, to stay in the past, and everything before
+    four in the morning is inside the Night Owl window, so runs start earning a
+    time medal and ten cases fail instead of one. Tried 2026-08-09, reverted.
     """
     local = (security.now_utc() - dt.timedelta(hours=12)).astimezone(config.SERVER_TZ)
     return dt.datetime.combine(local.date(), dt.time(9, 0), tzinfo=config.SERVER_TZ)
+
+
+def let_a_moment_pass(db_session, seconds: int = 1) -> None:
+    """Age everything already stored, because the pinned clock cannot move.
+
+    The recap covers what arrived strictly after the last acknowledgement. Real
+    time always advances between the request that clears the letter and
+    whatever the account does next, so those two moments are never the same
+    one. The frozen clock never advances, so a case that means "and then this
+    happened" has to say so, and pushing what already exists into the past
+    reads the same way round from the app's side.
+
+    Every timestamp column of every table rather than the few the recap looks
+    at, so a column added later does not quietly stay behind and make one case
+    fail with no visible cause.
+    """
+    delta = dt.timedelta(seconds=seconds)
+    for mapper in Base.registry.mappers:
+        columns = [c.key for c in mapper.columns if isinstance(c.type, models.UtcDateTime)]
+        if not columns:
+            continue
+        for row in db_session.query(mapper.class_).all():
+            for name in columns:
+                stamp = getattr(row, name)
+                if stamp is not None:
+                    setattr(row, name, stamp - delta)
+    db_session.commit()
 
 
 def log_workout(

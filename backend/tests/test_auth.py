@@ -89,7 +89,7 @@ def test_invite_works_once(client, invite, outbox):
 
 def test_expired_invite_is_refused(client, db_session, admin):
     stale = make_invite(db_session, admin.id, days=14)
-    stale.expires_at = dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=1)
+    stale.expires_at = security.now_utc() - dt.timedelta(minutes=1)
     db_session.commit()
     response = client.post(
         "/api/auth/register",
@@ -203,7 +203,7 @@ def test_expired_session_is_refused_and_reaped(client, db_session, member):
 
     client.post("/api/auth/login", json=MEMBER)
     row = db_session.query(models.UserSession).one()
-    row.expires_at = dt.datetime.now(dt.timezone.utc) - dt.timedelta(seconds=1)
+    row.expires_at = security.now_utc() - dt.timedelta(seconds=1)
     db_session.commit()
 
     assert client.get("/api/auth/me").status_code == 401

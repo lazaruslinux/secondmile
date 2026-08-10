@@ -17,7 +17,7 @@ from starlette.formparsers import MultiPartException
 
 from app import activity as activity_rules
 from app import avatars, fellowship, grove, images, medals, models, progress, security, throttle
-from app.config import MAX_AVATAR_BYTES, MAX_DIAMOND_SPORTS, MAX_DISPLAYED_BADGES
+from app.config import MAX_AVATAR_BYTES, MAX_DIAMOND_SPORTS, MAX_DISPLAYED_BADGES, SERVER_TZ
 from app.db import get_db
 from app.models import ACTIVITIES
 from app.routers.fellowship import feed_row
@@ -67,7 +67,9 @@ def computed_age(birthdate: dt.date | None, today: dt.date | None = None) -> int
     """
     if birthdate is None:
         return None
-    day = today or dt.date.today()
+    # The instance's day, not the container's: an age should turn over when the
+    # people reading it say it does.
+    day = today or security.now_utc().astimezone(SERVER_TZ).date()
     had_birthday = (day.month, day.day) >= (birthdate.month, birthdate.day)
     return day.year - birthdate.year - (0 if had_birthday else 1)
 
@@ -114,7 +116,7 @@ def _clean_birthdate(sent: str | None) -> dt.date | None:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST, "That is not a date. Use YYYY-MM-DD."
         ) from None
-    if value >= dt.date.today():
+    if value >= security.now_utc().astimezone(SERVER_TZ).date():
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "A birthdate has to be in the past.")
     if value <= EARLIEST_BIRTHDATE:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "That birthdate is too long ago.")

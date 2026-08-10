@@ -10,7 +10,7 @@ from PIL import Image
 
 from app import activity as activity_rules
 from app import medals, models, progress, security
-from app.config import MAX_AVATAR_BYTES
+from app.config import MAX_AVATAR_BYTES, SERVER_TZ
 
 # The second-account helpers, borrowed rather than written twice: how a
 # friendship is made is tested over there, and what a friend may read is
@@ -18,6 +18,16 @@ from app.config import MAX_AVATAR_BYTES
 from test_grove import befriend, sign_in
 
 pytest.importorskip("PIL")
+
+
+def frozen_today() -> dt.date:
+    """The date the app calls today, under the suite's pinned clock.
+
+    The birthdate cases have to agree with the app on which day it is, and the
+    app reads the instance timezone rather than the container's. Derived rather
+    than written out so moving FROZEN_NOW moves these cases with it.
+    """
+    return security.now_utc().astimezone(SERVER_TZ).date()
 
 
 def image_bytes(width=900, height=600, fmt="PNG", colour=(30, 90, 60)) -> bytes:
@@ -611,9 +621,9 @@ def test_every_new_field_can_be_cleared_again(signed_in, db_session, member):
 
 
 def test_a_birthdate_is_saved_and_reported_with_the_age_it_gives(signed_in, db_session, member):
-    # The first of January, so this reads the same whatever day the suite runs:
-    # that birthday has always already happened this year.
-    born = dt.date(dt.date.today().year - 34, 1, 1)
+    # The first of January, so the birthday has already happened whatever day
+    # the pinned clock sits on and the age is 34 either way.
+    born = dt.date(frozen_today().year - 34, 1, 1)
     body = signed_in.patch("/api/profile", json={"birthdate": born.isoformat()}).json()
     assert body["birthdate"] == born.isoformat()
     assert body["age"] == 34
@@ -634,7 +644,7 @@ def test_the_age_counts_full_years_only():
 
 
 def test_a_birthdate_has_to_be_a_real_date_in_the_past(signed_in, db_session, member):
-    today = dt.date.today()
+    today = frozen_today()
     for sent in (
         "not-a-date",
         "1990-13-01",
@@ -652,7 +662,7 @@ def test_a_birthdate_has_to_be_a_real_date_in_the_past(signed_in, db_session, me
 
 
 def test_a_birthdate_the_day_before_today_is_allowed(signed_in):
-    yesterday = dt.date.today() - dt.timedelta(days=1)
+    yesterday = frozen_today() - dt.timedelta(days=1)
     body = signed_in.patch("/api/profile", json={"birthdate": yesterday.isoformat()}).json()
     assert body["birthdate"] == yesterday.isoformat()
     assert body["age"] == 0

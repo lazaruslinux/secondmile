@@ -138,7 +138,7 @@ def test_history_needs_a_session(client):
 
 
 def _monday_of_this_week() -> dt.date:
-    today = dt.datetime.now(dt.timezone.utc).date()
+    today = security.now_utc().date()
     return today - dt.timedelta(days=today.weekday())
 
 

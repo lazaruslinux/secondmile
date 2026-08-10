@@ -135,7 +135,7 @@ def test_a_verification_link_works_once(client, invite, outbox):
 def test_an_expired_verification_link_is_refused_and_reaped(client, db_session, invite, outbox):
     assert _register(client, invite).status_code == 201
     row = db_session.query(models.EmailToken).one()
-    row.expires_at = dt.datetime.now(dt.timezone.utc) - dt.timedelta(seconds=1)
+    row.expires_at = security.now_utc() - dt.timedelta(seconds=1)
     db_session.commit()
 
     assert _verify(client, outbox[0][1]).status_code == 400
