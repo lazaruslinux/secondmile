@@ -4,8 +4,10 @@ import {
   errorText,
   getProfile,
   listFeed,
+  listGrove,
   type FeedItem,
   type Medal,
+  type Planting,
   type Profile as ProfileData,
   type Units,
 } from '../api.ts'
@@ -16,7 +18,8 @@ import {
   formatStart,
   unitName,
 } from '../format.ts'
-import { ACTIVITY_ICONS, ACTIVITY_NAMES, medalName } from '../labels.ts'
+import { plantStage } from '../grove.ts'
+import { ACTIVITY_ICONS, ACTIVITY_NAMES, medalName, plantingName } from '../labels.ts'
 import {
   displayNameOf,
   lifetimeMiles,
@@ -31,6 +34,7 @@ import FeedCard from './FeedCard.tsx'
 import Icon from './Icon.tsx'
 import MedalNest from './MedalNest.tsx'
 import { MedalMark } from './Medals.tsx'
+import PlantArt from './PlantArt.tsx'
 
 const PAGE = 20
 
@@ -189,10 +193,62 @@ function Challenge({ distance, counts }: { distance: number; counts: Map<string,
   )
 }
 
+// The plot in miniature: the band's row of plants, a plain count off the mature
+// flag, and the way through to where they are tended. Shown only in the wide
+// rail; the phone reaches the grove from its tab bar, so this is never folded in
+// below like the two cards above it.
+function GrovePreview({
+  plantings,
+  onOpenGrove,
+}: {
+  plantings: Planting[]
+  onOpenGrove: () => void
+}) {
+  const grown = plantings.filter((row) => row.mature).length
+  const growing = plantings.length - grown
+  return (
+    <>
+      <h2 className="label">Grove</h2>
+      {plantings.length === 0 ? (
+        <p className="hint">Nothing planted yet. Seeds come out of chests.</p>
+      ) : (
+        <>
+          {/* The same tiles the You band draws, at the same stage: one plant per
+              species, so the row stays short enough to wrap inside the card. */}
+          <ul className="grove-preview">
+            {plantings.map((row) => (
+              <li
+                key={row.id}
+                className={row.mature ? 'band-plant band-plant-grown' : 'band-plant'}
+              >
+                <PlantArt
+                  species={row.species}
+                  name={plantingName(row)}
+                  stage={plantStage(row)}
+                  gilded={row.gilded}
+                />
+              </li>
+            ))}
+          </ul>
+          <p className="hint">
+            {growing} growing, {grown} grown
+          </p>
+        </>
+      )}
+      <button type="button" className="row-link" onClick={onOpenGrove}>
+        Open the grove
+      </button>
+    </>
+  )
+}
+
 interface Cached {
   profile: ProfileData
   feed: FeedItem[]
   done: boolean
+  // Null until the plot has loaded once, so a card that has never loaded (or
+  // whose fetch failed) can be told apart from an empty plot and left undrawn.
+  grove: Planting[] | null
 }
 
 // What this tab last showed, kept by account so a second person signing in on
@@ -208,6 +264,7 @@ interface Props {
   // The app owns which screen is up, so the rows that go somewhere are handed
   // the switch rather than reaching for it.
   onOpenLog: () => void
+  onOpenGrove: () => void
   onOpenProfile: () => void
   // A friend's card goes to their screen. Own cards ignore it, which is what
   // keeps your own rows from being a way back to the screen you came from.
@@ -219,6 +276,7 @@ export default function Home({
   units,
   refreshToken,
   onOpenLog,
+  onOpenGrove,
   onOpenProfile,
   onOpenPerson,
 }: Props) {
@@ -229,6 +287,7 @@ export default function Home({
   )
   const [feed, setFeed] = useState<FeedItem[]>(() => cache.get(userId)?.feed ?? [])
   const [done, setDone] = useState(() => cache.get(userId)?.done ?? false)
+  const [grove, setGrove] = useState<Planting[] | null>(() => cache.get(userId)?.grove ?? null)
   const [loading, setLoading] = useState(() => !cache.has(userId))
   const [loadError, setLoadError] = useState('')
   const [moreBusy, setMoreBusy] = useState(false)
@@ -247,6 +306,13 @@ export default function Home({
     } finally {
       setLoading(false)
     }
+    // The rail's grove card is a nicety, not the page: a plot that will not load
+    // leaves the card undrawn rather than taking the feed down with it.
+    try {
+      setGrove(await listGrove())
+    } catch {
+      // Left as it was. A first-load failure keeps it null, so the card never draws.
+    }
   }, [])
 
   useEffect(() => {
@@ -254,8 +320,8 @@ export default function Home({
   }, [load, refreshToken])
 
   useEffect(() => {
-    if (profile) cache.set(userId, { profile, feed, done })
-  }, [userId, profile, feed, done])
+    if (profile) cache.set(userId, { profile, feed, done, grove })
+  }, [userId, profile, feed, done, grove])
 
   // An edited card is put back where it sat. The cache is written from this
   // state, so what was changed is still there when the tab is come back to.
@@ -456,6 +522,14 @@ export default function Home({
             <section className="card">
               <Challenge distance={week.distance} counts={counts} />
             </section>
+            {/* Last in the rail, after the two above. Only once the plot has
+                loaded: a fetch that never returned leaves grove null and the
+                card unwritten. */}
+            {grove && (
+              <section className="card">
+                <GrovePreview plantings={grove} onOpenGrove={onOpenGrove} />
+              </section>
+            )}
           </>
         )}
       </aside>

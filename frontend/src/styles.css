@@ -3272,6 +3272,19 @@ button:disabled {
   height: 3.25rem;
 }
 
+/* The plot in miniature in the wide home rail. It borrows the band's plant
+   tiles whole and only changes how the row sits: left aligned and wrapping down
+   the card rather than running off one edge of the You band. */
+.grove-preview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.4rem 0.35rem;
+  margin: 0.6rem 0;
+  padding: 0;
+  list-style: none;
+}
+
 /* A friend's profile. It borrows the You screen's band, picture, name and
    counts whole, so the only thing written here is the verbs underneath them and
    the column their activities stand in. */
