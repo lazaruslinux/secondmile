@@ -296,6 +296,12 @@ MAX_PHOTO_BODY_BYTES = 11 * 1024 * 1024
 # for four activities does not come close to this.
 MAX_INGEST_WORKOUTS = 2000
 
+# How long a stored sync payload is kept. The log is a replay net for a parsing
+# bug, and a bug older than a season has either been found or has been lived
+# with, so holding every export forever only grows a table nothing else reads.
+# Each account's old rows go on that account's own next sync.
+INGEST_LOG_RETENTION_DAYS = 90
+
 
 def daily_cap_mi(activity: str) -> float:
     """The configured daily distance ceiling for one activity, in miles."""

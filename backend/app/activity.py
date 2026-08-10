@@ -28,6 +28,11 @@ from app.config import (
     daily_cap_mi,
 )
 
+# The key a Health Auto Export entry carries its GPS trace under. Named rather
+# than typed out twice, because the strip that keeps traces out of the ingest
+# log has to remove exactly what parse_payload below reads.
+ROUTE_KEY = "route"
+
 # Matched against the export's workout name, lower-cased, as a substring. Apple
 # names the same activity several ways ("Outdoor Walk", "Indoor Walk",
 # "Walking"), and third-party apps invent their own, so matching on a fragment
@@ -226,6 +231,43 @@ def workout_entries(payload) -> list | None:
     return workouts if isinstance(workouts, list) else None
 
 
+def without_routes(payload):
+    """The export as it should be stored: everything except the GPS traces.
+
+    The one key parse_payload reads a trace from, removed from every entry. A
+    raw trace is the only part of an export that says where its owner lives, and
+    by the time this runs the line worth keeping is already drawn into
+    workout_routes with both ends trimmed off, so the stored copy keeps
+    everything that could ever be replayed and nothing that could not.
+
+    A copy rather than an edit in place: the caller is still holding parsed
+    workouts that point at the original arrays, and an ORM column set to the
+    object it already holds is not seen as changed. The payload itself comes
+    back untouched when there is nothing to strip, which is what makes a second
+    pass over an already-stripped row free.
+    """
+    entries = workout_entries(payload)
+    if entries is None:
+        return payload
+    if not any(isinstance(entry, dict) and ROUTE_KEY in entry for entry in entries):
+        return payload
+    cleaned = [
+        {key: value for key, value in entry.items() if key != ROUTE_KEY}
+        if isinstance(entry, dict)
+        else entry
+        for entry in entries
+    ]
+    stripped = dict(payload)
+    data = stripped.get("data")
+    # Put the list back where workout_entries found it, in the same order it
+    # looks, or the next reader sees the untouched copy.
+    if isinstance(data, dict) and isinstance(data.get("workouts"), list):
+        stripped["data"] = {**data, "workouts": cleaned}
+    else:
+        stripped["workouts"] = cleaned
+    return stripped
+
+
 def parse_payload(payload) -> tuple[list[ParsedWorkout], list[dict]]:
     """Read a Health Auto Export workouts export into workouts and refusals.
 
@@ -298,7 +340,7 @@ def parse_payload(payload) -> tuple[list[ParsedWorkout], list[dict]]:
                 # rather than taking the workout with it: nothing is scored from
                 # it, and the session still happened.
                 avg_hr=avg_hr if avg_hr and MIN_WORKOUT_HR <= avg_hr <= MAX_WORKOUT_HR else None,
-                route=entry.get("route"),
+                route=entry.get(ROUTE_KEY),
             )
         )
     return parsed, ignored

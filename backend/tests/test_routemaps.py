@@ -308,9 +308,13 @@ def test_backfill_draws_the_routes_the_log_already_holds(
     )
     assert post(signed_in, ingest_token, payload).json()["imported"] == 2
 
-    # The state an install upgrading into this feature is in: the payloads are
-    # kept, the lines were never drawn.
+    # The state an install upgrading into this feature is in: the lines were
+    # never drawn, and the stored payload still carries its traces the way
+    # every row written before the strip does. The endpoint strips them now, so
+    # the pre-strip row has to be put back by hand for the backfill to have
+    # anything to read.
     db_session.query(models.WorkoutRoute).delete()
+    db_session.query(models.IngestLog).one().payload = payload
     db_session.commit()
 
     _backfill(db_session, monkeypatch)
@@ -328,6 +332,9 @@ def test_backfill_leaves_everything_else_alone(signed_in, ingest_token, db_sessi
     )
     post(signed_in, ingest_token, payload)
     db_session.query(models.WorkoutRoute).delete()
+    # The pre-strip row again, so the backfill has a trace to draw and this
+    # case is really watching a run that did something.
+    db_session.query(models.IngestLog).one().payload = payload
     db_session.commit()
 
     before = db_session.query(models.UserProgress).one()

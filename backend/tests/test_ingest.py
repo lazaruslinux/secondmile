@@ -1,9 +1,14 @@
 """The sync endpoint: parsing, units, idempotency, flags, and its auth."""
 
+import argparse
 import datetime as dt
 
-from app import config, models
-from app.activity import classify, parse_start, to_kcal, to_miles
+from app import config, models, security
+from app.activity import classify, parse_start, to_kcal, to_miles, without_routes
+from conftest import make_user
+# The same synthetic trace the route cases are built from, rather than a second
+# generator here that could drift from it.
+from test_routemaps import line
 
 
 def export(*workouts) -> dict:
@@ -403,3 +408,181 @@ def test_workout_stored_in_utc(signed_in, ingest_token, db_session):
     post(signed_in, ingest_token, payload)
     row = db_session.query(models.Workout).one()
     assert row.start_ts == dt.datetime(2026, 7, 20, 13, 12, tzinfo=dt.timezone.utc)
+
+
+# --------------------------------------------------------------------------
+# What the log keeps, and for how long
+# --------------------------------------------------------------------------
+
+
+def stored_log(db_session, user_id: int, *, days_ago: int, route=None) -> models.IngestLog:
+    """One stored sync, dated by hand and optionally carrying a trace.
+
+    The suite's clock is frozen, so a row that has to be old says how old it is
+    rather than waiting to become it. The route argument is how a payload from
+    before the strip existed is written, which is the only kind the cleanup
+    command has anything to do.
+    """
+    entry = workout("Outdoor Run", "2026-07-20T06:12:00+00:00", 1800, 3.0, 300, 150)
+    if route is not None:
+        entry["route"] = route
+    row = models.IngestLog(
+        user_id=user_id,
+        received_at=security.now_utc() - dt.timedelta(days=days_ago),
+        payload=export(entry),
+        result={"imported": 1, "skipped": 0, "flagged": 0, "ignored": 0},
+    )
+    db_session.add(row)
+    db_session.commit()
+    return row
+
+
+def entries_of(log: models.IngestLog) -> list[dict]:
+    return log.payload["data"]["workouts"]
+
+
+def test_the_stored_payload_keeps_no_gps_trace(signed_in, ingest_token, db_session):
+    """The route is read, drawn, counted, and then not kept in the log.
+
+    The trace is the one part of an export that says where its owner lives, and
+    the stored line has both its ends trimmed off; keeping the raw one in a
+    table nothing reads would give that away for nothing.
+    """
+    entry = workout("Outdoor Run", "2026-07-20T06:12:00+00:00", 1800, 3.0, 300, 150)
+    entry["route"] = line(60)
+    assert post(signed_in, ingest_token, export(entry)).json()["imported"] == 1
+
+    logged = db_session.query(models.IngestLog).one()
+    stored_entry = entries_of(logged)[0]
+    assert "route" not in stored_entry
+    # Everything else the entry arrived with is still there to replay.
+    assert stored_entry == {
+        "name": "Outdoor Run",
+        "start": "2026-07-20T06:12:00+00:00",
+        "duration": 1800,
+        "distance": {"qty": 3.0, "units": "mi"},
+        "activeEnergyBurned": {"qty": 300, "units": "kcal"},
+        "avgHeartRate": {"qty": 150, "units": "count/min"},
+    }
+    # The line itself survives where it belongs, and the log counted it.
+    assert len(db_session.query(models.WorkoutRoute).one().points) >= 10
+    assert logged.result["routes_stored"] == 1
+
+
+def test_the_strip_finds_the_list_wherever_the_export_put_it():
+    """Both shapes workout_entries accepts, since the list has to go back where
+    it was found or the next reader sees the untouched copy."""
+    entry = {"name": "Outdoor Run", "route": line(4), "duration": 60}
+    nested = without_routes({"data": {"workouts": [entry]}, "metrics": []})
+    assert nested == {"data": {"workouts": [{"name": "Outdoor Run", "duration": 60}]}, "metrics": []}
+
+    flat = without_routes({"workouts": [entry]})
+    assert flat == {"workouts": [{"name": "Outdoor Run", "duration": 60}]}
+
+    # A payload with nothing to take out comes back as itself, which is what
+    # makes a second pass over an already-stripped row free.
+    already = {"data": {"workouts": [{"name": "Outdoor Run"}]}}
+    assert without_routes(already) is already
+    assert without_routes({"nothing": "here"}) == {"nothing": "here"}
+
+
+def test_a_payload_that_carried_no_trace_is_stored_untouched(signed_in, ingest_token, db_session):
+    payload = export(workout("Outdoor Walk", "2026-07-20T06:12:00+00:00", 2400, 2.1, 190))
+    assert post(signed_in, ingest_token, payload).json()["imported"] == 1
+    assert db_session.query(models.IngestLog).one().payload == payload
+
+
+def test_a_sync_drops_this_account_s_expired_log_rows(signed_in, ingest_token, db_session, member):
+    """Bounded by the syncs themselves, so nothing has to be scheduled."""
+    stored_log(db_session, member.id, days_ago=config.INGEST_LOG_RETENTION_DAYS + 1)
+    recent = stored_log(db_session, member.id, days_ago=config.INGEST_LOG_RETENTION_DAYS - 1)
+
+    payload = export(workout("Outdoor Walk", "2026-07-21T06:12:00+00:00", 2400, 2.1, 190))
+    assert post(signed_in, ingest_token, payload).status_code == 200
+
+    # Read by arrival rather than by id: sqlite hands a deleted row's rowid to
+    # the next insert, so an id proves nothing about which row this is.
+    stamps = {row.received_at for row in db_session.query(models.IngestLog)}
+    # The one just past the line is gone, the one just inside it stayed, and
+    # the sync that did the pruning is in the log itself.
+    assert stamps == {recent.received_at, security.now_utc()}
+
+
+def test_the_prune_leaves_other_accounts_alone(signed_in, ingest_token, db_session, member):
+    """Per user, so an account that never syncs again does not have its history
+    cleaned out by somebody else's phone, and never waits on one either."""
+    stranger = make_user(db_session, "stranger", "stranger-password-1")
+    theirs = stored_log(db_session, stranger.id, days_ago=config.INGEST_LOG_RETENTION_DAYS + 30)
+    stored_log(db_session, member.id, days_ago=config.INGEST_LOG_RETENTION_DAYS + 30)
+
+    payload = export(workout("Outdoor Walk", "2026-07-21T06:12:00+00:00", 2400, 2.1, 190))
+    assert post(signed_in, ingest_token, payload).status_code == 200
+
+    def stamps(user_id):
+        rows = db_session.query(models.IngestLog).filter(models.IngestLog.user_id == user_id)
+        return {row.received_at for row in rows}
+
+    # The stranger's row is as old as the one that just went and is untouched.
+    assert stamps(stranger.id) == {theirs.received_at}
+    assert stamps(member.id) == {security.now_utc()}
+
+
+def test_the_letter_still_says_when_the_phone_last_synced_after_a_prune(
+    signed_in, ingest_token, db_session, member
+):
+    """The log's only reader is that line, so the prune has to leave it right."""
+    stored_log(db_session, member.id, days_ago=config.INGEST_LOG_RETENTION_DAYS + 5)
+
+    payload = export(workout("Outdoor Walk", "2026-07-21T06:12:00+00:00", 2400, 2.1, 190))
+    assert post(signed_in, ingest_token, payload).status_code == 200
+
+    newest = db_session.query(models.IngestLog).one()
+    assert signed_in.get("/api/recap").json()["last_sync_at"] == newest.received_at.isoformat()
+
+
+def strip_ingest_log(db_session, monkeypatch) -> None:
+    import manage
+
+    monkeypatch.setattr(manage, "_session", lambda: db_session)
+    manage.cmd_strip_ingest_log(argparse.Namespace())
+
+
+def test_the_cleanup_command_strips_traces_and_prunes(db_session, member, monkeypatch, capsys):
+    """The one-time pass over rows written before the endpoint did either."""
+    stranger = make_user(db_session, "stranger", "stranger-password-1")
+    stored_log(
+        db_session, member.id, days_ago=config.INGEST_LOG_RETENTION_DAYS + 1, route=line(60)
+    )
+    mine = stored_log(db_session, member.id, days_ago=3, route=line(60))
+    # Every account, unlike the at-ingest prune: this is run once by hand.
+    theirs = stored_log(db_session, stranger.id, days_ago=2, route=line(60))
+
+    strip_ingest_log(db_session, monkeypatch)
+
+    out = capsys.readouterr().out
+    assert "rows stripped of routes: 2" in out
+    assert f"rows deleted as older than {config.INGEST_LOG_RETENTION_DAYS} days: 1" in out
+    assert "rows kept: 2" in out
+
+    # Nothing is inserted here, so ids still name the rows they were given.
+    kept = {row.id: row for row in db_session.query(models.IngestLog)}
+    assert set(kept) == {mine.id, theirs.id}
+    for row in kept.values():
+        assert "route" not in entries_of(row)[0]
+        # The rest of the entry is untouched, so it can still be replayed.
+        assert entries_of(row)[0]["distance"] == {"qty": 3.0, "units": "mi"}
+
+
+def test_the_cleanup_command_run_twice_reports_zeros(db_session, member, monkeypatch, capsys):
+    stored_log(db_session, member.id, days_ago=config.INGEST_LOG_RETENTION_DAYS + 1, route=line(60))
+    stored_log(db_session, member.id, days_ago=3, route=line(60))
+
+    strip_ingest_log(db_session, monkeypatch)
+    first = capsys.readouterr().out
+    assert "rows stripped of routes: 1" in first
+
+    strip_ingest_log(db_session, monkeypatch)
+    second = capsys.readouterr().out
+    assert "rows stripped of routes: 0" in second
+    assert f"rows deleted as older than {config.INGEST_LOG_RETENTION_DAYS} days: 0" in second
+    assert "rows kept: 1" in second

@@ -259,9 +259,15 @@ class IngestLog(Base):
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     received_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
-    # The payload exactly as it arrived. If a parsing bug ever drops a field,
-    # the history can be replayed after the fix instead of being lost, which is
-    # the whole reason this table exists.
+    # The payload as it arrived, less its GPS traces. If a parsing bug ever
+    # drops a field, the history can be replayed after the fix instead of being
+    # lost, which is the whole reason this table exists.
+    #
+    # Routes are the one exception, and cannot be replayed from here: they are
+    # consumed into workout_routes at arrival and stripped before this row is
+    # written, because a raw trace names where its owner lives and a log nothing
+    # reads is no place to keep that. Rows past INGEST_LOG_RETENTION_DAYS are
+    # deleted on the account's next sync.
     payload: Mapped[dict] = mapped_column(JSONType, nullable=False)
     result: Mapped[dict] = mapped_column(JSONType, nullable=False)
 

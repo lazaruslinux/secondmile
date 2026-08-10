@@ -7,6 +7,7 @@
     python manage.py recompute-progress <username>
     python manage.py backfill-badges <username>
     python manage.py backfill-routes <username>
+    python manage.py strip-ingest-log
     python manage.py seed-demo
 
 The first account has to be made here: registration needs either an invite or
@@ -19,11 +20,11 @@ import getpass
 import secrets
 import sys
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from app import activity as activity_rules
 from app import grove, medals, models, progress, routemaps, security
-from app.config import check_deploy_config
+from app.config import INGEST_LOG_RETENTION_DAYS, check_deploy_config
 from app.db import SessionLocal
 from app.routers.auth import create_invite
 
@@ -224,11 +225,13 @@ def cmd_backfill_badges(args: argparse.Namespace) -> None:
 def cmd_backfill_routes(args: argparse.Namespace) -> None:
     """Draw the route lines one account's stored syncs already carry.
 
-    Every payload the phone ever posted is kept, traces included, so the maps
-    for a history that predates this feature are sitting in the ingest log
-    waiting to be read. This replays them: a stored payload is parsed the way
-    the sync endpoint parses it, each entry is matched to its workout by the
-    dedupe key, and a line is written for the workouts that have none.
+    A payload posted before the sync endpoint began stripping traces still
+    carries them, so the maps for a history that predates this feature are
+    sitting in the ingest log waiting to be read. This replays them, and has to
+    run before strip-ingest-log, which takes those traces away for good: a
+    stored payload is parsed the way the sync endpoint parses it, each entry is
+    matched to its workout by the dedupe key, and a line is written for the
+    workouts that have none.
 
     Only routes are written. Workouts, progress, medals, and the plot are all
     untouched, and a workout that already has a line keeps it, so running this
@@ -293,6 +296,52 @@ def cmd_backfill_routes(args: argparse.Namespace) -> None:
         print(f"  routes newly written: {written}")
         print(f"  workouts still without one: {len(missing)}")
         print(f"  routes held now: {total}")
+    finally:
+        db.close()
+
+
+def cmd_strip_ingest_log(args: argparse.Namespace) -> None:
+    """Take the GPS traces out of every stored sync, and drop the expired ones.
+
+    The one-time pass over a database written before the sync endpoint did both
+    of these itself. Two things happen, to every account rather than one: rows
+    older than INGEST_LOG_RETENTION_DAYS go, and every payload that is left
+    keeps everything except its route arrays, which are already drawn into
+    workout_routes and are the only part of an export that says where somebody
+    lives.
+
+    Run backfill-routes first if any history is still missing its lines. After
+    this the payloads no longer carry them, and nothing else does.
+
+    Safe to run twice: a payload with no traces left is not rewritten, and the
+    rows past the cutoff are already gone, so a second run reports zeros.
+    Nothing outside ingest_log is touched, so no workout, route, or chest is at
+    risk here. Postgres does not hand the space back on its own, so follow this
+    with VACUUM FULL ingest_log if the point was to reclaim disk.
+    """
+    db = _session()
+    try:
+        cutoff = security.now_utc() - dt.timedelta(days=INGEST_LOG_RETENTION_DAYS)
+        # Deleted first, so the strip below never rewrites a row that is about
+        # to go anyway.
+        deleted = db.execute(
+            delete(models.IngestLog).where(models.IngestLog.received_at < cutoff)
+        ).rowcount
+        stripped = 0
+        kept = 0
+        for row in db.execute(select(models.IngestLog).order_by(models.IngestLog.id)).scalars():
+            kept += 1
+            cleaned = activity_rules.without_routes(row.payload)
+            # without_routes hands back the payload itself when there was
+            # nothing to take out, so identity is the test for "already done".
+            if cleaned is not row.payload:
+                row.payload = cleaned
+                stripped += 1
+        db.commit()
+        print("Cleaned the ingest log.")
+        print(f"  rows stripped of routes: {stripped}")
+        print(f"  rows deleted as older than {INGEST_LOG_RETENTION_DAYS} days: {deleted}")
+        print(f"  rows kept: {kept}")
     finally:
         db.close()
 
@@ -550,6 +599,11 @@ def main() -> None:
     )
     routes.add_argument("username")
     routes.set_defaults(func=cmd_backfill_routes)
+
+    strip = sub.add_parser(
+        "strip-ingest-log", help="remove stored GPS traces and drop syncs past retention"
+    )
+    strip.set_defaults(func=cmd_strip_ingest_log)
 
     demo = sub.add_parser("seed-demo", help="fill an empty database with a fictional account")
     demo.set_defaults(func=cmd_seed_demo)

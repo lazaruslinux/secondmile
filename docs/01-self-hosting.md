@@ -128,8 +128,20 @@ docker compose exec backend python manage.py backfill-routes theirname
 
 The first awards the medals an already-credited history has earned, in every
 family, and is the tool to reach for after an upgrade that adds one. The second
-draws the route lines out of the payloads the ingest log kept, for workouts that
-have no line yet. Both are safe to run twice.
+draws route lines for workouts that have no line yet, from any payloads the
+ingest log still holds. Both are safe to run twice.
+
+The ingest log keeps each sync's payload for 90 days and strips the GPS route
+arrays before storing, so routes exist only in their own trimmed table. On an
+instance that predates this behavior, run backfill-routes first if any history
+lacks lines, then once:
+
+```
+docker compose exec backend python manage.py strip-ingest-log
+```
+
+It strips the route arrays from every stored payload, deletes rows past the
+retention window, and prints what it did. Safe to run twice.
 
 ## Profile pictures
 

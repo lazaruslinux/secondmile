@@ -1,14 +1,15 @@
 """The sync endpoint the phone posts workout exports to."""
 
+import datetime as dt
 import json
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app import activity, models, progress, routemaps, security, throttle
-from app.config import MAX_INGEST_WORKOUTS
+from app.config import INGEST_LOG_RETENTION_DAYS, MAX_INGEST_WORKOUTS
 from app.db import get_db
 
 router = APIRouter(tags=["ingest"])
@@ -121,6 +122,12 @@ async def ingest(request: Request, db: Session = Depends(get_db)) -> dict:
             routes += 1
 
     result = {"imported": imported, "skipped": skipped, "flagged": flagged, "ignored": len(ignored)}
+
+    # Stripped here and not earlier: every route above has already been read out
+    # of the payload and drawn, trimmed, into workout_routes, so what goes into
+    # the log is the export minus the one thing in it that says where this
+    # person lives.
+    payload = activity.without_routes(payload)
     db.add(
         models.IngestLog(
             user_id=user.id,
@@ -132,6 +139,18 @@ async def ingest(request: Request, db: Session = Depends(get_db)) -> dict:
             # the response because the response shape is a frozen contract and
             # nothing on the phone would do anything with the number.
             result={**result, "ignored_detail": ignored, "routes_stored": routes},
+        )
+    )
+
+    # This account's expired logs, dropped on this account's own sync, in the
+    # same transaction as the row that just arrived. Scoped per user so a
+    # dormant account's cleanup never waits on somebody else's phone, and no
+    # scheduled job has to exist for the table to stay bounded.
+    db.execute(
+        delete(models.IngestLog).where(
+            models.IngestLog.user_id == user.id,
+            models.IngestLog.received_at
+            < security.now_utc() - dt.timedelta(days=INGEST_LOG_RETENTION_DAYS),
         )
     )
     db.commit()
