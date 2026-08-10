@@ -59,6 +59,10 @@ class UtcDateTime(TypeDecorator):
 # constraint. Postgres would otherwise create a real enum type, and altering one
 # of those later is a migration chore out of all proportion to the benefit.
 ActivityEnum = Enum(*ACTIVITIES, name="activity", native_enum=False)
+# "manual" is still here although nothing writes it any more. There is a history
+# of rows carrying it, and where a workout came from is a fact about what
+# happened: dropping the value would make those rows unreadable to say that a
+# form no longer exists.
 SourceEnum = Enum("sync", "manual", name="workout_source", native_enum=False)
 FriendshipEnum = Enum("pending", "accepted", name="friendship_status", native_enum=False)
 EncouragementEnum = Enum("cheer", "note", name="encouragement_kind", native_enum=False)
@@ -300,9 +304,9 @@ class ProcessedWorkout(Base):
     __tablename__ = "processed_workouts"
 
     # The idempotency spine of the pipeline. A workout is credited once and
-    # only once, whatever order the ingest, the manual form, and the catch-up
-    # sweep arrive in, because the marker row here is claimed before any credit
-    # happens and the primary key settles every race.
+    # only once, whatever order the ingest and the catch-up sweep arrive in,
+    # because the marker row here is claimed before any credit happens and the
+    # primary key settles every race.
     workout_id: Mapped[int] = mapped_column(
         ForeignKey("workouts.id", ondelete="CASCADE"), primary_key=True
     )

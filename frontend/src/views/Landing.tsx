@@ -91,6 +91,16 @@ export default function Landing({ onEnter }: Props) {
             </p>
           )}
         </div>
+
+        {/* Said at the top, beside the way in, rather than discovered after
+            signing up. Every activity arrives from Apple Health, so a phone
+            without that app has no way to put anything in and somebody should
+            learn that before they make an account rather than after. */}
+        <p className="landing-requires">
+          <span className="label">Requires</span>
+          Health Auto Export for iOS, from the App Store. Every activity comes from
+          Apple Health; there is no other way in.
+        </p>
       </section>
 
       <section className="landing-section">

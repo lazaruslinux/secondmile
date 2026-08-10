@@ -241,7 +241,7 @@ def test_every_limiter_is_registered_for_the_reset(client, member):
     """A limiter that is not in the group is the test that passes alone and
     fails in the suite, so the group is checked rather than assumed."""
     names = {limiter.name for limiter in throttle._ALL_LIMITERS}
-    assert {"workout", "verify"} <= names
+    assert {"workout-edit", "verify"} <= names
     for limiter in throttle._ALL_LIMITERS:
         limiter.hit("198.51.100.9")
         assert limiter.tracked() == 1

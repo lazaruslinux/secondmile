@@ -1,11 +1,8 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
-  ApiError,
-  createWorkout,
   errorText,
   listWeeks,
   listWorkouts,
-  type Activity,
   type Units,
   type Week,
   type Workout,
@@ -15,12 +12,8 @@ import {
   formatDistance,
   formatDuration,
   formatStart,
-  instantFromZonedInput,
-  KM_PER_MILE,
-  unitName,
   weekStartKey,
   zonedDay,
-  zonedInputValue,
 } from '../format.ts'
 import { ACTIVITY_ICONS, ACTIVITY_NAMES, ACTIVITY_ORDER } from '../labels.ts'
 import Icon from './Icon.tsx'
@@ -64,14 +57,6 @@ function flagNotes(flags: WorkoutFlags): string[] {
   return notes
 }
 
-// What the datetime field starts on. Read when the form is opened rather than
-// once at mount, since an app left running overnight would otherwise offer
-// yesterday. On the instance's clock, which is the clock the history beneath
-// the form is written in.
-function nowInput(): string {
-  return zonedInputValue(new Date())
-}
-
 interface Cached {
   workouts: Workout[]
   weeks: Week[]
@@ -95,17 +80,6 @@ export default function Log({ userId, units }: Props) {
   const [loading, setLoading] = useState(() => !cache.has(userId))
   const [loadError, setLoadError] = useState('')
 
-  const [adding, setAdding] = useState(false)
-  const [activity, setActivity] = useState<Activity>('walk')
-  const [start, setStart] = useState(nowInput)
-  const [minutes, setMinutes] = useState('')
-  const [distance, setDistance] = useState('')
-  const [calories, setCalories] = useState('')
-  const [heartRate, setHeartRate] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [formError, setFormError] = useState('')
-  const [formNote, setFormNote] = useState('')
-
   const load = useCallback(async () => {
     try {
       const [history, totals] = await Promise.all([
@@ -127,50 +101,6 @@ export default function Log({ userId, units }: Props) {
     void load()
   }, [load])
 
-  function openForm() {
-    setStart(nowInput())
-    setFormError('')
-    setFormNote('')
-    setAdding(true)
-  }
-
-  async function submit(event: FormEvent) {
-    event.preventDefault()
-    setSaving(true)
-    setFormError('')
-    setFormNote('')
-    const entered = Number(distance)
-    try {
-      await createWorkout({
-        activity,
-        // What was typed means the instance's clock, the same one the field
-        // was filled from and the same one the history reads in.
-        start_ts: instantFromZonedInput(start).toISOString(),
-        duration_s: Math.round(Number(minutes) * 60),
-        distance_mi: units === 'metric' ? entered / KM_PER_MILE : entered,
-        ...(calories === '' ? {} : { active_kcal: Number(calories) }),
-        ...(heartRate === '' ? {} : { avg_hr: Number(heartRate) }),
-      })
-      setMinutes('')
-      setDistance('')
-      setCalories('')
-      setHeartRate('')
-      setFormNote('Workout added.')
-      setAdding(false)
-      await load()
-    } catch (err) {
-      // The server identifies a workout by who, when, and how long, so a 409
-      // means this one is already recorded rather than that anything failed.
-      setFormError(
-        err instanceof ApiError && err.status === 409
-          ? 'That workout is already logged. Nothing was added.'
-          : errorText(err),
-      )
-    } finally {
-      setSaving(false)
-    }
-  }
-
   const totalsByWeek = new Map(weeks.map((week) => [week.week_start.slice(0, 10), week]))
 
   // The history arrives newest first, so walking it in order produces the week
@@ -189,138 +119,6 @@ export default function Log({ userId, units }: Props) {
         <h1 className="view-title">Log</h1>
       </div>
 
-      {/* History is what this screen is for, so the form waits behind a button
-          rather than sitting on top of it. The note only ever shows while the
-          form is away, since a successful add is what closes it. */}
-      {adding ? (
-        <section className="card">
-          <h2>Add a workout</h2>
-          <p className="hint">For anything your phone did not sync.</p>
-          <form onSubmit={submit}>
-            <div className="field-row">
-              <label>
-                Activity
-                {/* The mark for whatever is picked, beside the field rather than
-                    inside it: a browser draws an option list itself and takes
-                    no pictures in one, so this is where the four marks can be
-                    shown at all. The word in the field is still what names the
-                    sport. */}
-                <span className="sport-field">
-                  <span className="sport-icon">
-                    <Icon name={ACTIVITY_ICONS[activity]} />
-                  </span>
-                  <select
-                    value={activity}
-                    onChange={(event) => setActivity(event.target.value as Activity)}
-                  >
-                    {ACTIVITY_ORDER.map((name) => (
-                      <option key={name} value={name}>
-                        {ACTIVITY_NAMES[name]}
-                      </option>
-                    ))}
-                  </select>
-                </span>
-              </label>
-
-              <label>
-                Date and time
-                <input
-                  type="datetime-local"
-                  value={start}
-                  onChange={(event) => setStart(event.target.value)}
-                  required
-                />
-              </label>
-            </div>
-
-            <div className="field-row">
-              <label>
-                Duration (minutes)
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  min="1"
-                  step="0.5"
-                  value={minutes}
-                  onChange={(event) => setMinutes(event.target.value)}
-                  required
-                />
-              </label>
-
-              <label>
-                Distance ({unitName(units)})
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  min="0.01"
-                  step="0.01"
-                  value={distance}
-                  onChange={(event) => setDistance(event.target.value)}
-                  required
-                />
-              </label>
-            </div>
-
-            <div className="field-row">
-              <label>
-                Active calories (optional)
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  min="0"
-                  step="1"
-                  value={calories}
-                  onChange={(event) => setCalories(event.target.value)}
-                />
-              </label>
-
-              <label>
-                Average heart rate (optional)
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  min="0"
-                  step="1"
-                  value={heartRate}
-                  onChange={(event) => setHeartRate(event.target.value)}
-                />
-              </label>
-            </div>
-
-            {formError && (
-              <p className="error" role="alert">
-                {formError}
-              </p>
-            )}
-
-            <div className="choice">
-              <button type="submit" className="primary" disabled={saving}>
-                Add workout
-              </button>
-              <button
-                type="button"
-                className="secondary"
-                disabled={saving}
-                onClick={() => setAdding(false)}
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-        </section>
-      ) : (
-        <>
-          {formNote && (
-            <p className="note note-success" role="status">
-              {formNote}
-            </p>
-          )}
-          <button type="button" className="secondary" onClick={openForm}>
-            Add a workout
-          </button>
-        </>
-      )}
-
       <section>
         <h2>History</h2>
         {loading && <p className="notice">Loading.</p>}
@@ -330,9 +128,7 @@ export default function Log({ userId, units }: Props) {
           </p>
         )}
         {!loading && !loadError && groups.length === 0 && (
-          <p className="notice">
-            Nothing recorded yet. Sync your phone or add a workout above.
-          </p>
+          <p className="notice">Nothing recorded yet. Your next sync fills this in.</p>
         )}
 
         {groups.map((group) => {

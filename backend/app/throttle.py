@@ -97,13 +97,9 @@ email_change_limiter = RateLimiter(3, "email-change")
 # server several megabytes to decode and re-encode, which is by far the most
 # expensive thing a signed-in account can ask it to do.
 avatar_limiter = RateLimiter(5, "avatar")
-# Typing in a workout. Roomy, because catching up a week of forgotten sessions
-# is a real thing to do, and low enough that nobody is filling a history with a
-# script through the form.
-workout_limiter = RateLimiter(30, "workout")
-# Titling a workout and writing on it. As roomy as entering one, because
-# somebody catching up on a week of posts is doing the thing the feature is for,
-# and it is a plain UPDATE of two columns on a row they already own.
+# Titling a workout and writing on it. Roomy, because somebody catching up on a
+# week of posts is doing the thing the feature is for, and it is a plain UPDATE
+# of two columns on a row they already own.
 workout_edit_limiter = RateLimiter(30, "workout-edit")
 # Attaching a photo. Tighter, for the avatar's reason: every accepted call hands
 # the server up to ten megabytes to decode and re-encode, which is the most
@@ -130,7 +126,6 @@ _ALL_LIMITERS = (
     resend_limiter,
     email_change_limiter,
     avatar_limiter,
-    workout_limiter,
     workout_edit_limiter,
     photo_limiter,
     verify_limiter,

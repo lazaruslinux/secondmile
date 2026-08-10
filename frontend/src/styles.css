@@ -462,19 +462,6 @@ button:focus-visible {
   outline-offset: 2px;
 }
 
-/* A field with the sport's mark alongside it. The mark cannot go inside a
-   native option list, so it sits in front of the field and the field takes what
-   is left, which is why the select is told it may shrink. */
-.sport-field {
-  display: flex;
-  align-items: center;
-}
-
-.sport-field select {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
 /* Two fields per row where there is room; one per row on a phone. */
 .field-row {
   display: grid;
@@ -3576,6 +3563,22 @@ button:disabled {
   font-size: inherit;
   padding: 0;
   min-height: 0;
+}
+
+/* What somebody needs before an account is worth making, said beside the way
+   in rather than discovered afterwards. Ruled off above so it reads as a
+   condition on the buttons rather than as more of the pitch. */
+.landing-requires {
+  margin: 1.6rem 0 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.landing-requires .label {
+  display: block;
+  margin-bottom: 0.2rem;
 }
 
 .landing-section {

@@ -32,16 +32,16 @@ def test_conversion_rates_are_effort_equivalent():
     assert converted_miles("swim", 0.75) == 3.0
 
 
-def test_experience_is_converted_miles_and_nothing_else(signed_in):
+def test_experience_is_converted_miles_and_nothing_else(signed_in, db_session, member):
     """XP is the distance itself, so the same Miles are worth the same whether
     they took half an hour or two, and time on its own is worth nothing."""
-    log_workout(signed_in, "run", 3.0, pace_min=12, offset_min=0)
+    log_workout(db_session, member.id, "run", 3.0, pace_min=12, offset_min=0)
     assert profile(signed_in)["xp"] == 3.0
     # Nine cycled miles are three Miles, so the same credit again.
-    log_workout(signed_in, "cycle", 9.0, pace_min=5, offset_min=200)
+    log_workout(db_session, member.id, "cycle", 9.0, pace_min=5, offset_min=200)
     assert profile(signed_in)["xp"] == 6.0
     # Ten minutes in the pool with no distance recorded earns nothing.
-    log_workout(signed_in, "swim", 0.0, offset_min=400)
+    log_workout(db_session, member.id, "swim", 0.0, offset_min=400)
     assert profile(signed_in)["xp"] == 6.0
 
 
@@ -103,7 +103,7 @@ def test_border_tiers_arrive_at_the_documented_levels():
 
 
 def test_a_workout_credits_experience_once(signed_in, db_session, member):
-    log_workout(signed_in, "run", 4.0, pace_min=15)
+    log_workout(db_session, member.id, "run", 4.0, pace_min=15)
     body = profile(signed_in)
     assert body["xp"] == 4.0
     # Past a 5K but not a 10K, which is level one.
@@ -186,8 +186,8 @@ def test_workouts_from_before_the_account_still_count(signed_in, db_session, mem
 
 
 def test_reprocessing_the_same_history_gives_the_same_chests(signed_in, db_session, member):
-    log_workout(signed_in, "walk", 6.0, offset_min=0)
-    log_workout(signed_in, "run", 7.0, offset_min=200)
+    log_workout(db_session, member.id, "walk", 6.0, offset_min=0)
+    log_workout(db_session, member.id, "run", 7.0, offset_min=200)
     first = [row.tier for row in chests(db_session, member.id)]
     assert first, "the test needs at least one chest to be worth anything"
     xp = db_session.get(models.UserProgress, member.id).xp
@@ -319,25 +319,17 @@ def test_only_running_earns_a_race_medal(signed_in, db_session, member):
 
 def test_a_run_flagged_impossible_earns_nothing(signed_in, db_session, member):
     """Ten miles in twenty minutes is not a race, whatever the watch says."""
-    created = signed_in.post(
-        "/api/workouts",
-        json={
-            "activity": "run",
-            "start_ts": (security.now_utc() - dt.timedelta(hours=4)).isoformat(),
-            "duration_s": 20 * 60,
-            "distance_mi": 10.0,
-        },
-    )
-    assert created.status_code == 201
-    assert created.json()["flags"]["impossible_pace"] is True
-    assert created.json()["medals"] == []
+    created = log_workout(db_session, member.id, "run", 10.0, pace_min=2)
+    assert created.flags["impossible_pace"] is True
+    assert signed_in.get("/api/workouts").json()[0]["medals"] == []
     assert medal_rows(db_session, member.id) == []
 
 
-def test_a_manually_entered_run_earns_its_badge(signed_in, db_session, member):
-    created = log_workout(signed_in, "run", 6.5, pace_min=10)
-    assert created["medals"] == ["race_10k"]
+def test_a_run_earns_its_badge_and_the_history_row_names_it(signed_in, db_session, member):
+    created = log_workout(db_session, member.id, "run", 6.5, pace_min=10)
     assert [row.badge_id for row in medal_rows(db_session, member.id)] == ["race_10k"]
+    row = signed_in.get("/api/workouts").json()[0]
+    assert (row["id"], row["medals"]) == (created.id, ["race_10k"])
 
 
 def test_a_replayed_history_earns_the_same_medals_once(signed_in, db_session, member):
@@ -401,7 +393,7 @@ def test_any_earned_medal_can_be_worn_in_a_slot(signed_in, db_session, member):
             == 400
         )
 
-    log_workout(signed_in, "run", 13.2, pace_min=9)
+    log_workout(db_session, member.id, "run", 13.2, pace_min=9)
     accepted = signed_in.patch("/api/profile", json={"displayed_badges": ["race_half"]})
     assert accepted.status_code == 200
     assert accepted.json()["displayed_badges"] == ["race_half"]
@@ -415,10 +407,10 @@ def test_an_earned_weekly_medal_can_be_worn_in_a_slot(signed_in, db_session, mem
     assert worn.json()["displayed_badges"] == ["weekly_10"]
 
 
-def test_one_account_cannot_see_another(signed_in, db_session, admin, client):
+def test_one_account_cannot_see_another(signed_in, db_session, member, admin, client):
     from conftest import ADMIN
 
-    log_workout(signed_in, "run", 5.0)
+    log_workout(db_session, member.id, "run", 5.0)
     assert profile(signed_in)["xp"] > 0
     signed_in.post("/api/auth/logout")
     signed_in.post("/api/auth/login", json=ADMIN)

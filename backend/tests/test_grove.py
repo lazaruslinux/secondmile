@@ -421,8 +421,8 @@ def test_the_last_seed_in_the_plot_is_still_a_wish(signed_in, db_session, member
 def test_every_planting_grows_from_every_workout(signed_in, db_session, member):
     first = give_planting(db_session, member.id, "strawberry")
     second = give_planting(db_session, member.id, "olive")
-    log_workout(signed_in, "run", 4.0, offset_min=0)
-    log_workout(signed_in, "cycle", 9.0, pace_min=4, offset_min=200)
+    log_workout(db_session, member.id, "run", 4.0, offset_min=0)
+    log_workout(db_session, member.id, "cycle", 9.0, pace_min=4, offset_min=200)
 
     rows = {row["id"]: row for row in signed_in.get("/api/grove").json()}
     # Four run miles and nine cycled ones are seven Miles, into both of them.
@@ -435,7 +435,7 @@ def test_every_planting_grows_from_every_workout(signed_in, db_session, member):
 def test_swimming_brings_extra_water(signed_in, db_session, member):
     planting = give_planting(db_session, member.id, "grapevine")
     # Two swum miles are eight converted Miles, and a swim adds half again.
-    log_workout(signed_in, "swim", 2.0, pace_min=30)
+    log_workout(db_session, member.id, "swim", 2.0, pace_min=30)
     row = signed_in.get("/api/grove").json()[0]
     assert row["growth_mi"] == 12.0
     assert db_session.get(models.UserProgress, member.id).xp == 8.0
@@ -445,7 +445,7 @@ def test_swimming_brings_extra_water(signed_in, db_session, member):
 def test_a_planting_comes_of_age_at_its_own_threshold(signed_in, db_session, member):
     quick = give_planting(db_session, member.id, "blueberry")
     slow = give_planting(db_session, member.id, "olive")
-    log_workout(signed_in, "run", 20.0, pace_min=9)
+    log_workout(db_session, member.id, "run", 20.0, pace_min=9)
 
     rows = {row["id"]: row for row in signed_in.get("/api/grove").json()}
     # Fifteen Miles is level one, which is grown, and the five over count
@@ -594,7 +594,7 @@ def test_only_the_mustard_seed_explains_anything_about_itself():
 
 
 def test_nothing_planted_after_a_workout_grows_from_it(signed_in, db_session, member):
-    log_workout(signed_in, "run", 5.0)
+    log_workout(db_session, member.id, "run", 5.0)
     later = give_planting(db_session, member.id, "blueberry", days_ago=0)
     assert signed_in.get("/api/grove").json()[0]["growth_mi"] == 0.0
     assert later.growth_mi == 0.0
@@ -602,7 +602,7 @@ def test_nothing_planted_after_a_workout_grows_from_it(signed_in, db_session, me
 
 def test_a_rebuild_replays_growth_and_touches_nothing_chosen(signed_in, db_session, member):
     planting = give_planting(db_session, member.id, "blackberry")
-    log_workout(signed_in, "run", 12.0, pace_min=9)
+    log_workout(db_session, member.id, "run", 12.0, pace_min=9)
     water = give_item(db_session, member.id, "water")
     signed_in.post(f"/api/satchel/{water.id}/pour", json={"planting_id": planting.id})
     before = signed_in.get("/api/grove").json()[0]
@@ -772,7 +772,7 @@ def test_the_gift_lifts_a_chest_the_miles_earned_and_drops_none_of_its_own(
     oil = give_item(db_session, member.id, "oil", rarity="rare")
     signed_in.post(f"/api/satchel/{oil.id}/anoint", json={"user_id": other.id})
 
-    log_workout(other_client, "run", 4.0)
+    log_workout(db_session, other.id, "run", 4.0)
 
     row = db_session.get(models.UserProgress, other.id)
     # Four miles is the 5K chest and nine tenths of a mile toward the 10K. The
@@ -810,7 +810,7 @@ def test_an_ultra_is_skipped_and_the_gift_waits_for_a_chest_with_room(
     assert body["next_chest"]["gifted_by"] is None
     assert body["pending_gifts"] == [{"from": member.username}]
 
-    log_workout(other_client, "run", 31.1, offset_min=0)
+    log_workout(db_session, other.id, "run", 31.1, offset_min=0)
     landed = other_client.get("/api/chests").json()
     assert [chest["tier_id"] for chest in landed] == ["ultra"]
     assert db_session.get(models.Chest, landed[0]["id"]).from_anointing_id is None
@@ -820,7 +820,7 @@ def test_an_ultra_is_skipped_and_the_gift_waits_for_a_chest_with_room(
     assert body["next_chest"]["tier_id"] == "5k"
     assert body["next_chest"]["gifted_by"] == member.username
 
-    log_workout(other_client, "run", 3.1, offset_min=200)
+    log_workout(db_session, other.id, "run", 3.1, offset_min=200)
     landed = other_client.get("/api/chests").json()
     assert [chest["tier_id"] for chest in landed] == ["ultra", "5k"]
     assert db_session.get(models.Chest, landed[1]["id"]).from_anointing_id == 1
@@ -847,7 +847,7 @@ def test_two_gifts_lift_two_chests_and_never_the_same_one(
     assert body["next_chest"]["gifted_by"] == member.username
 
     # Ten miles is the 5K and the 10K, and one gift lands on each.
-    log_workout(other_client, "run", 10.0)
+    log_workout(db_session, other.id, "run", 10.0)
     landed = other_client.get("/api/chests").json()
     assert [chest["tier_id"] for chest in landed] == ["5k", "10k"]
     assert [
@@ -925,7 +925,7 @@ def test_a_walker_holds_only_so_many_gifts_at_once(signed_in, db_session, member
     )
 
     # A chest lands, one gift is spent on it, and there is room to give again.
-    log_workout(other_client, "run", 4.0)
+    log_workout(db_session, other.id, "run", 4.0)
     assert (
         signed_in.post(f"/api/satchel/{late.id}/anoint", json={"user_id": other.id}).status_code
         == 204
@@ -939,7 +939,7 @@ def test_the_letter_is_where_the_gift_is_finally_attributed(
     befriend(db_session, member, other)
     oil = give_item(db_session, member.id, "oil", rarity="rare")
     signed_in.post(f"/api/satchel/{oil.id}/anoint", json={"user_id": other.id})
-    log_workout(other_client, "run", 4.0)
+    log_workout(db_session, other.id, "run", 4.0)
 
     letter = other_client.get("/api/recap").json()
     # One chest landed, and it carries the name: the miles earned it and a
@@ -962,7 +962,7 @@ def test_anointing_pays_the_giver_and_diminishes_like_everything_else(
 
     # The gift is spent on a chest, and a second one on the same friend inside
     # the window arrives all the same and pays nothing.
-    log_workout(other_client, "run", 4.0, offset_min=0)
+    log_workout(db_session, other.id, "run", 4.0, offset_min=0)
     second = give_item(db_session, member.id, "oil", rarity="rare")
     assert (
         signed_in.post(f"/api/satchel/{second.id}/anoint", json={"user_id": other.id}).status_code
@@ -987,7 +987,7 @@ def test_only_one_anointing_can_wait_on_the_same_friend(signed_in, db_session, m
     assert [row["id"] for row in signed_in.get("/api/satchel").json()] == [second.id]
 
     # Once the first has been spent on a chest, the same pair can give again.
-    log_workout(other_client, "run", 4.0)
+    log_workout(db_session, other.id, "run", 4.0)
     assert (
         signed_in.post(f"/api/satchel/{second.id}/anoint", json={"user_id": other.id}).status_code
         == 204
@@ -1015,7 +1015,7 @@ def test_a_rebuild_walks_the_ladder_again_and_a_spent_gift_stays_spent(
     befriend(db_session, member, other)
     oil = give_item(db_session, member.id, "oil", rarity="rare")
     signed_in.post(f"/api/satchel/{oil.id}/anoint", json={"user_id": other.id})
-    log_workout(other_client, "run", 4.0)
+    log_workout(db_session, other.id, "run", 4.0)
     assert len(other_client.get("/api/chests").json()) == 1
 
     progress.recompute(db_session, other.id)

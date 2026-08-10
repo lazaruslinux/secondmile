@@ -5,6 +5,9 @@ const BASE = '/api'
 
 export type Units = 'imperial' | 'metric'
 export type Activity = 'walk' | 'run' | 'cycle' | 'swim'
+// Where a workout came from. Nothing writes 'manual' any more, and history
+// full of it stays readable: a card that cannot name where a row came from
+// would be rewriting the past rather than describing it.
 export type Source = 'sync' | 'manual'
 
 export interface Me {
@@ -155,15 +158,6 @@ export interface Week {
   // this map defensively rather than assuming four entries.
   activities: Partial<Record<Activity, ActivityTotals>>
   total_active_kcal: number
-}
-
-export interface NewWorkout {
-  activity: Activity
-  start_ts: string
-  duration_s: number
-  distance_mi: number
-  active_kcal?: number
-  avg_hr?: number
 }
 
 export interface IngestTokenStatus {
@@ -697,11 +691,6 @@ export function getWorkoutRoute(workoutId: number): Promise<WorkoutRoute> {
 
 export function listWeeks(count: number): Promise<Week[]> {
   return getJson<Week[]>(`/workouts/weeks?count=${count}`)
-}
-
-export async function createWorkout(workout: NewWorkout): Promise<Workout> {
-  const res = await sendJson('/workouts', 'POST', workout)
-  return (await res.json()) as Workout
 }
 
 // The parts of a workout the person who did it types in themselves. A field

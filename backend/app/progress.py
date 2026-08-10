@@ -509,8 +509,8 @@ def streak_weeks(db: Session, user_id: int, moment: dt.datetime | None = None) -
     for stamp in stamps:
         week = week_start(stamp)
         if week > this_week:
-            # Dated ahead of now, which a manual entry is free to be. It cannot
-            # extend a streak that has not happened yet.
+            # Dated ahead of now, which a phone with a wandering clock is free
+            # to send. It cannot extend a streak that has not happened yet.
             continue
         if count == 0:
             if week < this_week - one_week:

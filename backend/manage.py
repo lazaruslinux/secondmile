@@ -422,8 +422,9 @@ def cmd_seed_demo(args: argparse.Namespace) -> None:
                     "sync",
                 )
 
-        # One entry that came in by hand rather than from a watch, so the
-        # Almanac's manual marker has something to show.
+        # One row from the era when a workout could be typed in, so the
+        # Almanac's marker for those has something to show. Nothing writes one
+        # any more; the histories that hold them still read correctly.
         manual_day = today - dt.timedelta(days=2)
         _add_workout(
             db,

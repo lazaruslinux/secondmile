@@ -24,7 +24,8 @@ from sqlalchemy import create_engine, event  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
-from app import config, grove, mail, models, security, species, throttle  # noqa: E402
+from app import activity as activity_rules  # noqa: E402
+from app import config, grove, mail, models, progress, security, species, throttle  # noqa: E402
 from app.db import Base, get_db  # noqa: E402
 from app.main import app as fastapi_app  # noqa: E402
 
@@ -217,29 +218,62 @@ def neutral_start() -> dt.datetime:
 
     Recent enough to be this week, and at an hour no time-of-day medal is
     earned in, so a case about a distance is never also a case about a clock.
+
+    KNOWN AND DELIBERATELY NOT FIXED HERE: "recent enough to be this week" is
+    false for the hours between midnight and nine on a Monday, in the instance
+    timezone. Half a day before then is Sunday, which is the last day of the
+    week before, so the three cases that assert what THIS week holds find an
+    empty week and fail. It comes right on its own later the same morning.
+
+    Clamping the date onto Monday does not fix it and makes it worse. The hour
+    then has to move back too, to stay in the past, and everything before four
+    in the morning is inside the Night Owl window, so runs start earning a time
+    medal and ten cases fail instead of one. Tried 2026-08-09, reverted.
+
+    The real fix is to stop reading the wall clock in tests at all and pin the
+    time, which is a change worth making on purpose rather than in passing:
+    around a hundred cases build their rows through this function.
     """
     local = (security.now_utc() - dt.timedelta(hours=12)).astimezone(config.SERVER_TZ)
     return dt.datetime.combine(local.date(), dt.time(9, 0), tzinfo=config.SERVER_TZ)
 
 
-def log_workout(client, activity="run", miles=1.0, *, pace_min=12.0, offset_min=0) -> dict:
-    """Post one manual workout and return it.
+def log_workout(
+    db_session, user_id: int, activity="run", miles=1.0, *, pace_min=12.0, offset_min=0
+) -> models.Workout:
+    """One workout written straight in and credited, the way a sync would.
 
     Start times are spread by the offset so two workouts in one test never
-    collide on the dedupe key.
+    collide on the dedupe key. The flags and the crediting are the ingest
+    path's own, in the order it does them: a shortcut that skipped either would
+    let cases pass against a row the app itself never produces.
     """
     start = neutral_start() + dt.timedelta(minutes=offset_min)
-    response = client.post(
-        "/api/workouts",
-        json={
-            "activity": activity,
-            "start_ts": start.isoformat(),
-            "duration_s": max(600, int(miles * pace_min * 60)),
-            "distance_mi": miles,
-        },
+    duration_s = max(600, int(miles * pace_min * 60))
+    flags = {}
+    if activity_rules.impossible_pace(activity, duration_s, miles):
+        flags["impossible_pace"] = True
+    row = models.Workout(
+        user_id=user_id,
+        activity=activity,
+        start_ts=start,
+        duration_s=duration_s,
+        distance_mi=miles,
+        active_kcal=0.0,
+        avg_hr=None,
+        source="sync",
+        flags=flags,
+        created_at=security.now_utc(),
     )
-    assert response.status_code == 201, response.text
-    return response.json()
+    db_session.add(row)
+    db_session.commit()
+    # Judged after the insert, so the workout that crosses the line is the one
+    # marked, exactly as the sync path judges it.
+    if activity_rules.over_daily_cap(db_session, user_id, activity, start):
+        row.flags = {**flags, "daily_cap": True}
+        db_session.commit()
+    progress.process_user(db_session, user_id)
+    return row
 
 
 def give_planting(db_session, user_id: int, species_id="strawberry", *, growth=0.0, days_ago=1):

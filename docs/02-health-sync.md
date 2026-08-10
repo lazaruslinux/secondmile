@@ -80,12 +80,15 @@ drawn from it:
 It only fills in workouts that have no line yet, and it changes nothing else,
 so running it twice is the same as running it once.
 
-## Manual entry
+## The only way in
 
-The Almanac has a manual entry form for workouts that never reached Apple
-Health. Manually entered workouts are stored with a marker saying so. They
-count the same as synced ones today; the marker exists so that a future
-public, multi-player version can treat unverifiable entries differently.
+Syncing is the only way a workout arrives. There is no form to type one into,
+so anything that never reached Apple Health does not reach the Almanac either.
+
+An older version did have that form, and the workouts it wrote are still in the
+history, still counted, and still marked as entered by hand. Where a workout
+came from is a fact about it: taking the form away does not rewrite what was
+already recorded.
 
 ## Android
 

@@ -1,11 +1,15 @@
-"""Manual entry, the workout history, and the weekly totals behind the Almanac."""
+"""The workout history and the weekly totals behind the Almanac.
+
+Nothing here creates a workout. They arrive on the sync path and only there, so
+one account has one way in and every row can say where it came from.
+"""
 
 import datetime as dt
 import os
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -17,15 +21,10 @@ from starlette.datastructures import UploadFile
 from starlette.formparsers import MultiPartException
 
 from app import activity as activity_rules
-from app import fellowship, images, medals, models, photos, progress, security, throttle
+from app import fellowship, images, medals, models, photos, security, throttle
 from app.config import (
     MAX_PHOTO_BYTES,
     MAX_PHOTOS_PER_WORKOUT,
-    MAX_WORKOUT_DISTANCE_MI,
-    MAX_WORKOUT_DURATION_S,
-    MAX_WORKOUT_HR,
-    MAX_WORKOUT_KCAL,
-    MIN_WORKOUT_HR,
     NOTE_MAX_CHARS,
     WORKOUT_POST_MAX_CHARS,
     WORKOUT_TITLE_MAX_CHARS,
@@ -103,101 +102,6 @@ def photos_for(db: Session, workouts: list[models.Workout]) -> dict[int, list[in
     ):
         found.setdefault(workout_id, []).append(photo_id)
     return found
-
-
-class ManualWorkout(BaseModel):
-    activity: str
-    start_ts: dt.datetime
-    duration_s: int
-    # allow_inf_nan is the load-bearing part. A float field takes a NaN happily,
-    # JSON is allowed to write one as a bare literal, and a NaN passes every
-    # bound below because it compares false against all of them. Stored on a
-    # workout it breaks every later read of that account's progress, so it is
-    # refused at the door instead.
-    distance_mi: float = Field(allow_inf_nan=False)
-    active_kcal: float = Field(0.0, allow_inf_nan=False)
-    avg_hr: float | None = Field(None, allow_inf_nan=False)
-
-
-@router.post("", status_code=status.HTTP_201_CREATED)
-def create_workout(
-    body: ManualWorkout,
-    request: Request,
-    db: Session = Depends(get_db),
-    user: models.User = Depends(security.current_user),
-) -> dict:
-    if throttle.workout_limiter.hit(throttle.client_address(request)):
-        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many entries. Wait a minute.")
-    if body.activity not in ACTIVITIES:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, f"Activity must be one of: {', '.join(ACTIVITIES)}."
-        )
-    if body.duration_s <= 0:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Duration must be more than zero.")
-    if body.duration_s > MAX_WORKOUT_DURATION_S:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            f"Duration cannot be longer than {MAX_WORKOUT_DURATION_S // 3600} hours.",
-        )
-    if body.distance_mi < 0 or body.active_kcal < 0:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Distance and energy cannot be negative.")
-    if body.distance_mi > MAX_WORKOUT_DISTANCE_MI:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            f"Distance cannot be more than {MAX_WORKOUT_DISTANCE_MI:.0f} miles.",
-        )
-    if body.active_kcal > MAX_WORKOUT_KCAL:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            f"Energy cannot be more than {MAX_WORKOUT_KCAL:.0f} kcal.",
-        )
-    if body.avg_hr is not None and not MIN_WORKOUT_HR <= body.avg_hr <= MAX_WORKOUT_HR:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            f"Heart rate must be between {MIN_WORKOUT_HR:.0f} and {MAX_WORKOUT_HR:.0f}.",
-        )
-
-    start_ts = activity_rules.ensure_aware(body.start_ts)
-    flags = {}
-    if activity_rules.impossible_pace(body.activity, body.duration_s, body.distance_mi):
-        flags["impossible_pace"] = True
-
-    workout = models.Workout(
-        user_id=user.id,
-        activity=body.activity,
-        start_ts=start_ts,
-        duration_s=body.duration_s,
-        distance_mi=body.distance_mi,
-        active_kcal=body.active_kcal,
-        avg_hr=body.avg_hr,
-        # The marker exists so a future public version can treat entries nobody
-        # can verify differently. Today they count exactly the same.
-        source="manual",
-        flags=flags,
-        created_at=security.now_utc(),
-    )
-    try:
-        with db.begin_nested():
-            db.add(workout)
-            db.flush()
-    except IntegrityError:
-        # The same dedupe key the sync path uses. Someone typing in a workout
-        # their watch already sent should be told, not quietly given a second
-        # copy of it.
-        raise HTTPException(
-            status.HTTP_409_CONFLICT, "A workout with that start time and duration already exists."
-        ) from None
-
-    if activity_rules.over_daily_cap(db, user.id, body.activity, start_ts):
-        workout.flags = {**flags, "daily_cap": True}
-    db.commit()
-
-    # A workout typed in by hand counts exactly as much as one from a watch,
-    # so it goes through the same pipeline on the same terms, medals
-    # included.
-    progress.process_user(db, user.id)
-    # No route: a workout typed into a form never carried a trace.
-    return _serialize(workout, medals.medals_for(db, [workout]).get(workout.id))
 
 
 def parse_cursor(before: str) -> dt.datetime:

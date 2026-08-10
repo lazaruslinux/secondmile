@@ -2,8 +2,8 @@
 
 Which of the four activities an export name means, how to get its numbers into
 miles and kilocalories, how to read the several shapes a start time arrives in,
-and which soft flags it earns. Shared by the sync path and the manual entry
-form so the two can never drift apart on what counts as suspicious.
+and which soft flags it earns. The sync path is the only way a workout arrives,
+and this is where it is decided what counts as suspicious.
 """
 
 import datetime as dt
@@ -183,8 +183,9 @@ def ensure_aware(value: dt.datetime) -> dt.datetime:
     """Attach the server timezone to a naive timestamp.
 
     A timestamp without an offset came from something that thinks in local time,
-    such as the manual entry form's datetime input, so local time is the only
-    reading that does not silently move the workout by several hours.
+    such as an export that wrote the wall clock and nothing else, so local time
+    is the only reading that does not silently move the workout by several
+    hours.
     """
     return value if value.tzinfo is not None else value.replace(tzinfo=SERVER_TZ)
 

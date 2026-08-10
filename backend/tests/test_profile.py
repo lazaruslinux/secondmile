@@ -60,9 +60,9 @@ def test_a_fresh_profile_reports_the_whole_shape(signed_in, member):
     assert body["pending_gifts"] == []
 
 
-def test_the_profile_carries_week_and_lifetime_totals(signed_in):
-    log_workout(signed_in, "run", 4.0, pace_min=15, offset_min=0)
-    log_workout(signed_in, "swim", 0.5, pace_min=60, offset_min=200)
+def test_the_profile_carries_week_and_lifetime_totals(signed_in, db_session, member):
+    log_workout(db_session, member.id, "run", 4.0, pace_min=15, offset_min=0)
+    log_workout(db_session, member.id, "swim", 0.5, pace_min=60, offset_min=200)
     body = signed_in.get("/api/profile").json()
     assert body["lifetime"]["run"]["distance_mi"] == 4.0
     assert body["lifetime"]["run"]["workouts"] == 1
@@ -85,7 +85,7 @@ def test_badge_slots_take_only_badges_the_account_owns(signed_in, db_session, me
     assert refused.status_code == 400
     assert "not earned" in refused.json()["detail"]
 
-    log_workout(signed_in, "run", 11.0, pace_min=9)
+    log_workout(db_session, member.id, "run", 11.0, pace_min=9)
     owned = owned_badges(signed_in)
     assert owned
 
@@ -95,12 +95,12 @@ def test_badge_slots_take_only_badges_the_account_owns(signed_in, db_session, me
     assert db_session.get(models.User, member.id).displayed_badges == owned[:1]
 
 
-def test_there_are_three_badge_slots_and_a_fourth_is_refused(signed_in):
+def test_there_are_three_badge_slots_and_a_fourth_is_refused(signed_in, db_session, member):
     """Three because three was chosen, not because a fourth would not fit: the
     limit is worth asserting at the number rather than at "too many"."""
-    log_workout(signed_in, "run", 3.2, pace_min=9, offset_min=0)
-    log_workout(signed_in, "run", 7.0, pace_min=9, offset_min=120)
-    log_workout(signed_in, "run", 13.2, pace_min=9, offset_min=300)
+    log_workout(db_session, member.id, "run", 3.2, pace_min=9, offset_min=0)
+    log_workout(db_session, member.id, "run", 7.0, pace_min=9, offset_min=120)
+    log_workout(db_session, member.id, "run", 13.2, pace_min=9, offset_min=300)
     owned = owned_badges(signed_in)
     assert len(owned) >= 4
 
@@ -113,8 +113,8 @@ def test_there_are_three_badge_slots_and_a_fourth_is_refused(signed_in):
     assert accepted.json()["displayed_badges"] == owned[:3]
 
 
-def test_a_badge_cannot_fill_two_slots(signed_in):
-    log_workout(signed_in, "run", 11.0, pace_min=9)
+def test_a_badge_cannot_fill_two_slots(signed_in, db_session, member):
+    log_workout(db_session, member.id, "run", 11.0, pace_min=9)
     owned = owned_badges(signed_in)
     assert len(owned) >= 2
 
@@ -297,7 +297,12 @@ def at(day: dt.date, hour: int = 6, minute: int = 0) -> dt.datetime:
 
 
 def add_workout(db_session, user_id: int, start: dt.datetime) -> models.Workout:
-    """One stored workout at an exact instant, past the manual form's clock."""
+    """One stored workout at an exact instant, so a streak case can put a week
+    exactly where it wants it.
+
+    Marked manual, which nothing writes any more: these are the rows a history
+    from before the form was taken away looks like, and they still count.
+    """
     row = models.Workout(
         user_id=user_id,
         activity="run",
@@ -362,8 +367,8 @@ def test_a_workout_dated_ahead_of_now_does_not_start_a_streak(db_session, member
     assert progress.streak_weeks(db_session, member.id, NOW) == 1
 
 
-def test_the_profile_reports_the_streak(signed_in):
-    log_workout(signed_in, "run", 2.0)
+def test_the_profile_reports_the_streak(signed_in, db_session, member):
+    log_workout(db_session, member.id, "run", 2.0)
     assert signed_in.get("/api/profile").json()["streak_weeks"] == 1
 
 
@@ -372,22 +377,24 @@ def test_the_profile_reports_the_streak(signed_in):
 # --------------------------------------------------------------------------
 
 
-def test_diamonds_are_picked_by_lifetime_distance_until_they_are_chosen(signed_in):
-    log_workout(signed_in, "cycle", 9.0, pace_min=5, offset_min=0)
-    log_workout(signed_in, "run", 4.0, pace_min=10, offset_min=100)
-    log_workout(signed_in, "walk", 1.0, pace_min=20, offset_min=200)
-    log_workout(signed_in, "swim", 0.5, pace_min=60, offset_min=300)
+def test_diamonds_are_picked_by_lifetime_distance_until_they_are_chosen(
+    signed_in, db_session, member
+):
+    log_workout(db_session, member.id, "cycle", 9.0, pace_min=5, offset_min=0)
+    log_workout(db_session, member.id, "run", 4.0, pace_min=10, offset_min=100)
+    log_workout(db_session, member.id, "walk", 1.0, pace_min=20, offset_min=200)
+    log_workout(db_session, member.id, "swim", 0.5, pace_min=60, offset_min=300)
     # Three slots, filled by raw miles: the swim is last and misses out.
     assert signed_in.get("/api/profile").json()["diamond_sports"] == ["cycle", "run", "walk"]
 
 
-def test_diamonds_show_only_the_sports_with_miles(signed_in):
-    log_workout(signed_in, "run", 3.0)
+def test_diamonds_show_only_the_sports_with_miles(signed_in, db_session, member):
+    log_workout(db_session, member.id, "run", 3.0)
     assert signed_in.get("/api/profile").json()["diamond_sports"] == ["run"]
 
 
 def test_diamonds_can_be_chosen_and_reset(signed_in, db_session, member):
-    log_workout(signed_in, "run", 3.0)
+    log_workout(db_session, member.id, "run", 3.0)
     chosen = signed_in.patch("/api/profile", json={"diamond_sports": ["swim", "walk"]})
     assert chosen.status_code == 200
     assert chosen.json()["diamond_sports"] == ["swim", "walk"]
@@ -415,7 +422,7 @@ def test_diamonds_refuse_too_many_repeats_and_unknown_sports(signed_in, db_sessi
 
 
 def test_patching_one_part_of_the_profile_leaves_the_other_alone(signed_in, db_session, member):
-    log_workout(signed_in, "run", 11.0, pace_min=9)
+    log_workout(db_session, member.id, "run", 11.0, pace_min=9)
     owned = owned_badges(signed_in)
     assert signed_in.patch("/api/profile", json={"displayed_badges": owned[:1]}).status_code == 200
 
@@ -558,8 +565,8 @@ def test_gender_takes_only_the_two_offered_choices(signed_in, db_session, member
     assert member.gender == "Female"
 
 
-def test_patching_a_name_leaves_the_badge_slots_and_diamonds_alone(signed_in):
-    log_workout(signed_in, "run", 11.0, pace_min=9)
+def test_patching_a_name_leaves_the_badge_slots_and_diamonds_alone(signed_in, db_session, member):
+    log_workout(db_session, member.id, "run", 11.0, pace_min=9)
     owned = owned_badges(signed_in)
     signed_in.patch("/api/profile", json={"displayed_badges": owned[:1]})
     signed_in.patch("/api/profile", json={"diamond_sports": ["swim"]})
@@ -653,10 +660,10 @@ def friend(client, db_session, member):
     return other, other_client
 
 
-def test_a_friend_profile_reports_the_whole_shape_and_no_more(signed_in, friend):
+def test_a_friend_profile_reports_the_whole_shape_and_no_more(signed_in, db_session, friend):
     other, other_client = friend
     other_client.patch("/api/profile", json={"first_name": "Avery", "last_name": "Case"})
-    log_workout(other_client, "run", 4.0, pace_min=9)
+    log_workout(db_session, other.id, "run", 4.0, pace_min=9)
     mine = other_client.get("/api/profile").json()
 
     body = signed_in.get(f"/api/profile/{other.id}").json()
@@ -687,7 +694,7 @@ def test_a_friend_profile_carries_none_of_the_private_fields(signed_in, db_sessi
     other_client.patch(
         "/api/profile", json={"birthdate": "1990-05-04", "gender": "Male"}
     )
-    log_workout(other_client, "run", 5.0, pace_min=9)
+    log_workout(db_session, other.id, "run", 5.0, pace_min=9)
     give_planting(db_session, other.id, "strawberry", growth=2.0)
 
     body = signed_in.get(f"/api/profile/{other.id}").json()
@@ -697,20 +704,27 @@ def test_a_friend_profile_carries_none_of_the_private_fields(signed_in, db_sessi
     assert "Male" not in signed_in.get(f"/api/profile/{other.id}").text
 
 
-def test_a_workout_row_carries_no_pace_and_no_heart_rate(signed_in, friend):
+def test_a_workout_row_carries_no_pace_and_no_heart_rate(signed_in, db_session, friend):
     """The feed's rule, reached through the feed's own serializer: a row says
     what somebody did, not how their body was doing while they did it."""
-    other, other_client = friend
-    other_client.post(
-        "/api/workouts",
-        json={
-            "activity": "run",
-            "start_ts": neutral_start().isoformat(),
-            "duration_s": 2700,
-            "distance_mi": 5.0,
-            "avg_hr": 148.0,
-        },
+    other, _ = friend
+    # Written in with a heart rate on it, because a row that never carried one
+    # would pass this whatever the serializer sends.
+    db_session.add(
+        models.Workout(
+            user_id=other.id,
+            activity="run",
+            start_ts=neutral_start(),
+            duration_s=2700,
+            distance_mi=5.0,
+            active_kcal=400.0,
+            avg_hr=148.0,
+            source="sync",
+            flags={},
+            created_at=security.now_utc(),
+        )
     )
+    db_session.commit()
     row = signed_in.get(f"/api/profile/{other.id}").json()["workouts"][0]
     assert every_key(row) & FORBIDDEN_KEYS == set()
     assert row["distance_mi"] == 5.0
@@ -720,11 +734,11 @@ def test_a_workout_row_carries_no_pace_and_no_heart_rate(signed_in, friend):
     assert row["own"] is False
 
 
-def test_lifetime_miles_are_raw_distance_rather_than_experience(signed_in, friend):
+def test_lifetime_miles_are_raw_distance_rather_than_experience(signed_in, db_session, friend):
     """A swim is worth four times its distance on the ladder, so the two numbers
     have to disagree here or the miles line is quietly printing a score."""
     other, other_client = friend
-    log_workout(other_client, "swim", 2.0, pace_min=60)
+    log_workout(db_session, other.id, "swim", 2.0, pace_min=60)
     mine = other_client.get("/api/profile").json()
 
     body = signed_in.get(f"/api/profile/{other.id}").json()
@@ -787,10 +801,10 @@ def test_removing_a_friend_closes_their_profile_again(signed_in, friend):
     assert signed_in.get(f"/api/profile/{other.id}").status_code == 404
 
 
-def test_your_own_id_answers_with_the_friend_shaped_view(signed_in, member):
+def test_your_own_id_answers_with_the_friend_shaped_view(signed_in, db_session, member):
     """Allowed, the way the friend's grove allows it, and shaped the same as
     anybody else's: the private profile is what GET /api/profile is for."""
-    log_workout(signed_in, "run", 3.0)
+    log_workout(db_session, member.id, "run", 3.0)
     body = signed_in.get(f"/api/profile/{member.id}")
     assert body.status_code == 200
     assert set(body.json()) == FRIEND_PROFILE_KEYS

@@ -280,9 +280,9 @@ def _last_sync(db: Session, user_id: int) -> str | None:
     """When the phone last posted an export, or null for an account that has
     never sent one.
 
-    Null is an ordinary answer rather than a fault: a player who only ever uses
-    the manual form has no sync to report, and neither has anybody on their
-    first day.
+    Null is an ordinary answer rather than a fault: a player whose history was
+    loaded straight into the database has no sync to report, and neither has
+    anybody on their first day.
 
     UTC and ISO, like every other stamp in the letter. The instance timezone
     rides on /api/status and the client renders in it, because a browser pinned

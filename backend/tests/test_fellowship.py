@@ -11,7 +11,7 @@ import datetime as dt
 import pytest
 from fastapi.testclient import TestClient
 
-from app import config, fellowship, models, security
+from app import config, fellowship, models, progress, security
 from app.main import app as fastapi_app
 from conftest import LETTER_KEYS, make_user, neutral_start
 
@@ -53,19 +53,33 @@ def sign_in(db_session, username: str) -> tuple[models.User, TestClient]:
     return user, client
 
 
-def post_workout(client, *, activity="run", miles=3.5, offset_min=0, avg_hr=142.0) -> dict:
-    start = neutral_start() + dt.timedelta(minutes=offset_min)
-    body = {
-        "activity": activity,
-        "start_ts": start.isoformat(),
-        "duration_s": int(miles * 10 * 60),
-        "distance_mi": miles,
-        "active_kcal": 300.0,
-        "avg_hr": avg_hr,
-    }
-    response = client.post("/api/workouts", json=body)
-    assert response.status_code == 201, response.text
-    return response.json()
+def post_workout(
+    db_session, user_id: int, *, activity="run", miles=3.5, offset_min=0, avg_hr=142.0
+) -> models.Workout:
+    """One workout written straight in and credited, the way a sync would.
+
+    It carries energy and a heart rate on purpose: most of the cases below are
+    about what a friend is not told, and a row that never held those numbers
+    would pass them whatever the serializer sends.
+    """
+    row = models.Workout(
+        user_id=user_id,
+        activity=activity,
+        start_ts=neutral_start() + dt.timedelta(minutes=offset_min),
+        duration_s=int(miles * 10 * 60),
+        distance_mi=miles,
+        active_kcal=300.0,
+        avg_hr=avg_hr,
+        source="sync",
+        flags={},
+        created_at=security.now_utc(),
+    )
+    db_session.add(row)
+    db_session.commit()
+    # Medals are read off the table rather than recomputed, so the pipeline has
+    # to have run before a feed row can name one.
+    progress.process_user(db_session, user_id)
+    return row
 
 
 def befriend(db_session, first: models.User, second: models.User, status="accepted") -> None:
@@ -212,15 +226,15 @@ def test_the_feed_needs_a_session(client):
 # --------------------------------------------------------------------------
 
 
-def test_a_stranger_sees_nothing_of_yours(signed_in, mate):
+def test_a_stranger_sees_nothing_of_yours(signed_in, db_session, member, mate):
     _, other_client = mate
-    post_workout(signed_in)
+    post_workout(db_session, member.id)
     assert other_client.get("/api/feed").json() == []
 
 
-def test_a_pending_invite_shows_nothing_either(signed_in, mate):
+def test_a_pending_invite_shows_nothing_either(signed_in, db_session, member, mate):
     _, other_client = mate
-    post_workout(signed_in)
+    post_workout(db_session, member.id)
     signed_in.post("/api/friends/invite", json={"username": "mate"})
     assert other_client.get("/api/feed").json() == []
 
@@ -230,14 +244,14 @@ def test_a_friend_sees_the_headline_and_nothing_behind_it(
 ):
     other, other_client = mate
     befriend(db_session, member, other)
-    workout = post_workout(signed_in, miles=3.5)
+    workout = post_workout(db_session, member.id, miles=3.5)
 
     rows = other_client.get("/api/feed").json()
     assert len(rows) == 1
     row = rows[0]
     assert set(row) == FRIEND_ROW_KEYS
     assert row["own"] is False
-    assert row["workout_id"] == workout["id"]
+    assert row["workout_id"] == workout.id
     assert row["distance_mi"] == 3.5
     assert row["duration_s"] == 2100
     assert row["medals"] == ["race_5k"]
@@ -249,8 +263,8 @@ def test_a_friend_sees_the_headline_and_nothing_behind_it(
         assert hidden not in row
 
 
-def test_your_own_rows_keep_their_experience(signed_in):
-    post_workout(signed_in, activity="walk", miles=2.0)
+def test_your_own_rows_keep_their_experience(signed_in, db_session, member):
+    post_workout(db_session, member.id, activity="walk", miles=2.0)
     row = signed_in.get("/api/feed").json()[0]
     assert row["own"] is True
     assert row["xp"] == 2.0
@@ -260,9 +274,9 @@ def test_your_own_rows_keep_their_experience(signed_in):
 def test_the_feed_mixes_both_accounts_newest_first(signed_in, db_session, member, mate):
     other, other_client = mate
     befriend(db_session, member, other)
-    post_workout(signed_in, offset_min=0)
-    post_workout(other_client, offset_min=30)
-    post_workout(signed_in, offset_min=60)
+    post_workout(db_session, member.id, offset_min=0)
+    post_workout(db_session, other.id, offset_min=30)
+    post_workout(db_session, member.id, offset_min=60)
 
     rows = signed_in.get("/api/feed").json()
     assert [row["own"] for row in rows] == [True, False, True]
@@ -272,8 +286,8 @@ def test_the_feed_mixes_both_accounts_newest_first(signed_in, db_session, member
 def test_the_feed_pages_with_the_before_cursor(signed_in, db_session, member, mate):
     other, other_client = mate
     befriend(db_session, member, other)
-    post_workout(signed_in, offset_min=0)
-    post_workout(other_client, offset_min=30)
+    post_workout(db_session, member.id, offset_min=0)
+    post_workout(db_session, other.id, offset_min=30)
 
     rows = signed_in.get("/api/feed").json()
     older = signed_in.get("/api/feed", params={"before": rows[0]["start_ts"]}).json()
@@ -281,9 +295,9 @@ def test_the_feed_pages_with_the_before_cursor(signed_in, db_session, member, ma
     assert signed_in.get("/api/feed", params={"before": "not-a-timestamp"}).status_code == 400
 
 
-def test_the_feed_stops_at_one_page(signed_in):
+def test_the_feed_stops_at_one_page(signed_in, db_session, member):
     for offset in range(22):
-        post_workout(signed_in, miles=1.0, offset_min=offset * 5)
+        post_workout(db_session, member.id, miles=1.0, offset_min=offset * 5)
     assert len(signed_in.get("/api/feed").json()) == 20
 
 
@@ -302,28 +316,28 @@ def _add_route(db_session, workout_id: int) -> None:
 def test_a_friend_can_read_your_route(signed_in, db_session, member, mate):
     other, other_client = mate
     befriend(db_session, member, other)
-    workout = post_workout(signed_in)
-    _add_route(db_session, workout["id"])
+    workout = post_workout(db_session, member.id)
+    _add_route(db_session, workout.id)
 
     assert signed_in.get("/api/feed").json()[0]["has_route"] is True
-    response = other_client.get(f"/api/workouts/{workout['id']}/route")
+    response = other_client.get(f"/api/workouts/{workout.id}/route")
     assert response.status_code == 200
     assert response.json()["points"] == [[10.0, 20.0], [10.001, 20.0]]
 
 
-def test_a_stranger_still_cannot(signed_in, db_session, mate):
+def test_a_stranger_still_cannot(signed_in, db_session, member, mate):
     _, other_client = mate
-    workout = post_workout(signed_in)
-    _add_route(db_session, workout["id"])
-    assert other_client.get(f"/api/workouts/{workout['id']}/route").status_code == 404
+    workout = post_workout(db_session, member.id)
+    _add_route(db_session, workout.id)
+    assert other_client.get(f"/api/workouts/{workout.id}/route").status_code == 404
 
 
 def test_a_pending_invite_does_not_open_a_route(signed_in, db_session, member, mate):
     other, other_client = mate
     befriend(db_session, member, other, status="pending")
-    workout = post_workout(signed_in)
-    _add_route(db_session, workout["id"])
-    assert other_client.get(f"/api/workouts/{workout['id']}/route").status_code == 404
+    workout = post_workout(db_session, member.id)
+    _add_route(db_session, workout.id)
+    assert other_client.get(f"/api/workouts/{workout.id}/route").status_code == 404
 
 
 # --------------------------------------------------------------------------
@@ -341,9 +355,9 @@ def friends(signed_in, db_session, member, mate):
 
 def test_a_cheer_is_wordless_and_counted(friends, db_session):
     mine, member, theirs, other = friends
-    workout = post_workout(mine)
+    workout = post_workout(db_session, member.id)
 
-    response = theirs.post(f"/api/workouts/{workout['id']}/encourage", json={"kind": "cheer"})
+    response = theirs.post(f"/api/workouts/{workout.id}/encourage", json={"kind": "cheer"})
     assert response.status_code == 201
     assert response.json()["encouragement"] == {
         "cheers": 1,
@@ -359,29 +373,29 @@ def test_a_cheer_is_wordless_and_counted(friends, db_session):
     }
 
 
-def test_only_one_cheer_each(friends):
-    mine, _, theirs, _ = friends
-    workout = post_workout(mine)
-    assert theirs.post(f"/api/workouts/{workout['id']}/encourage", json={"kind": "cheer"}).status_code == 201
-    again = theirs.post(f"/api/workouts/{workout['id']}/encourage", json={"kind": "cheer"})
+def test_only_one_cheer_each(friends, db_session):
+    mine, member, theirs, other = friends
+    workout = post_workout(db_session, member.id)
+    assert theirs.post(f"/api/workouts/{workout.id}/encourage", json={"kind": "cheer"}).status_code == 201
+    again = theirs.post(f"/api/workouts/{workout.id}/encourage", json={"kind": "cheer"})
     assert again.status_code == 409
 
 
-def test_notes_are_not_limited_to_one(friends):
-    mine, _, theirs, _ = friends
-    workout = post_workout(mine)
+def test_notes_are_not_limited_to_one(friends, db_session):
+    mine, member, theirs, other = friends
+    workout = post_workout(db_session, member.id)
     for body in ("Good week.", "See you Saturday."):
         response = theirs.post(
-            f"/api/workouts/{workout['id']}/encourage", json={"kind": "note", "body": body}
+            f"/api/workouts/{workout.id}/encourage", json={"kind": "note", "body": body}
         )
         assert response.status_code == 201
     assert response.json()["encouragement"]["notes"] == 2
 
 
-def test_a_note_needs_words_and_has_a_ceiling(friends):
-    mine, _, theirs, _ = friends
-    workout = post_workout(mine)
-    url = f"/api/workouts/{workout['id']}/encourage"
+def test_a_note_needs_words_and_has_a_ceiling(friends, db_session):
+    mine, member, theirs, other = friends
+    workout = post_workout(db_session, member.id)
+    url = f"/api/workouts/{workout.id}/encourage"
     assert theirs.post(url, json={"kind": "note"}).status_code == 400
     assert theirs.post(url, json={"kind": "note", "body": "   "}).status_code == 400
     assert (
@@ -398,17 +412,17 @@ def test_a_note_needs_words_and_has_a_ceiling(friends):
     )
 
 
-def test_encouragement_is_refused_where_it_does_not_belong(signed_in, mate, db_session):
+def test_encouragement_is_refused_where_it_does_not_belong(signed_in, db_session, member, mate):
     other, other_client = mate
-    own = post_workout(signed_in)
+    own = post_workout(db_session, member.id)
     assert (
-        signed_in.post(f"/api/workouts/{own['id']}/encourage", json={"kind": "cheer"}).status_code
+        signed_in.post(f"/api/workouts/{own.id}/encourage", json={"kind": "cheer"}).status_code
         == 400
     )
     # A stranger's workout answers the same way a workout that never existed
     # does, so an id cannot be walked to find out whose it is.
     assert (
-        other_client.post(f"/api/workouts/{own['id']}/encourage", json={"kind": "cheer"}).status_code
+        other_client.post(f"/api/workouts/{own.id}/encourage", json={"kind": "cheer"}).status_code
         == 404
     )
     assert (
@@ -416,7 +430,7 @@ def test_encouragement_is_refused_where_it_does_not_belong(signed_in, mate, db_s
         == 404
     )
     assert (
-        signed_in.post(f"/api/workouts/{own['id']}/encourage", json={"kind": "clap"}).status_code
+        signed_in.post(f"/api/workouts/{own.id}/encourage", json={"kind": "clap"}).status_code
         == 400
     )
 
@@ -434,18 +448,18 @@ def test_flourish_stages_follow_the_thresholds():
 
 def test_giving_earns_renown_and_receiving_earns_none(friends, db_session):
     mine, member, theirs, other = friends
-    workout = post_workout(mine)
-    theirs.post(f"/api/workouts/{workout['id']}/encourage", json={"kind": "cheer"})
+    workout = post_workout(db_session, member.id)
+    theirs.post(f"/api/workouts/{workout.id}/encourage", json={"kind": "cheer"})
     assert renown_of(db_session, other) == config.RENOWN_CHEER
     assert renown_of(db_session, member) == 0
 
 
 def test_the_second_cheer_of_the_week_still_arrives_but_pays_nothing(friends, db_session):
-    mine, _, theirs, other = friends
-    first = post_workout(mine, offset_min=0)
-    second = post_workout(mine, offset_min=30)
-    theirs.post(f"/api/workouts/{first['id']}/encourage", json={"kind": "cheer"})
-    response = theirs.post(f"/api/workouts/{second['id']}/encourage", json={"kind": "cheer"})
+    mine, member, theirs, other = friends
+    first = post_workout(db_session, member.id, offset_min=0)
+    second = post_workout(db_session, member.id, offset_min=30)
+    theirs.post(f"/api/workouts/{first.id}/encourage", json={"kind": "cheer"})
+    response = theirs.post(f"/api/workouts/{second.id}/encourage", json={"kind": "cheer"})
 
     assert response.status_code == 201
     assert response.json()["encouragement"]["cheers"] == 1
@@ -457,9 +471,9 @@ def test_the_second_cheer_of_the_week_still_arrives_but_pays_nothing(friends, db
 
 
 def test_notes_and_cheers_diminish_on_their_own_tracks(friends, db_session):
-    mine, _, theirs, other = friends
-    workout = post_workout(mine)
-    url = f"/api/workouts/{workout['id']}/encourage"
+    mine, member, theirs, other = friends
+    workout = post_workout(db_session, member.id)
+    url = f"/api/workouts/{workout.id}/encourage"
     theirs.post(url, json={"kind": "cheer"})
     theirs.post(url, json={"kind": "note", "body": "Strong week."})
     assert renown_of(db_session, other) == config.RENOWN_CHEER + config.RENOWN_NOTE
@@ -468,10 +482,10 @@ def test_notes_and_cheers_diminish_on_their_own_tracks(friends, db_session):
 
 
 def test_renown_comes_back_once_the_window_has_passed(friends, db_session):
-    mine, _, theirs, other = friends
-    first = post_workout(mine, offset_min=0)
-    second = post_workout(mine, offset_min=30)
-    theirs.post(f"/api/workouts/{first['id']}/encourage", json={"kind": "cheer"})
+    mine, member, theirs, other = friends
+    first = post_workout(db_session, member.id, offset_min=0)
+    second = post_workout(db_session, member.id, offset_min=30)
+    theirs.post(f"/api/workouts/{first.id}/encourage", json={"kind": "cheer"})
 
     # Age the earning row past the window rather than waiting a week for it.
     row = db_session.query(models.Encouragement).one()
@@ -480,14 +494,14 @@ def test_renown_comes_back_once_the_window_has_passed(friends, db_session):
     )
     db_session.commit()
 
-    theirs.post(f"/api/workouts/{second['id']}/encourage", json={"kind": "cheer"})
+    theirs.post(f"/api/workouts/{second.id}/encourage", json={"kind": "cheer"})
     assert renown_of(db_session, other) == 2 * config.RENOWN_CHEER
 
 
 def test_a_refused_cheer_pays_nothing(friends, db_session):
-    mine, _, theirs, other = friends
-    first = post_workout(mine, offset_min=0)
-    theirs.post(f"/api/workouts/{first['id']}/encourage", json={"kind": "cheer"})
+    mine, member, theirs, other = friends
+    first = post_workout(db_session, member.id, offset_min=0)
+    theirs.post(f"/api/workouts/{first.id}/encourage", json={"kind": "cheer"})
     # Aged out of the window, so a second earning cheer would be allowed; the
     # duplicate is refused by the index before it can be one.
     row = db_session.query(models.Encouragement).one()
@@ -498,7 +512,7 @@ def test_a_refused_cheer_pays_nothing(friends, db_session):
 
     assert (
         theirs.post(
-            f"/api/workouts/{first['id']}/encourage", json={"kind": "cheer"}
+            f"/api/workouts/{first.id}/encourage", json={"kind": "cheer"}
         ).status_code
         == 409
     )
@@ -516,9 +530,9 @@ def test_your_own_profile_carries_your_flourish_stage(friends, db_session):
 
 
 def test_no_response_ever_carries_the_renown_number(friends, db_session):
-    mine, _, theirs, other = friends
-    workout = post_workout(mine)
-    theirs.post(f"/api/workouts/{workout['id']}/encourage", json={"kind": "cheer"})
+    mine, member, theirs, other = friends
+    workout = post_workout(db_session, member.id)
+    theirs.post(f"/api/workouts/{workout.id}/encourage", json={"kind": "cheer"})
     for path in ("/api/profile", "/api/friends", "/api/feed", "/api/recap"):
         assert "renown" not in theirs.get(path).text
 
@@ -529,13 +543,13 @@ def test_no_response_ever_carries_the_renown_number(friends, db_session):
 
 
 def test_the_letter_reads_in_order_and_carries_the_words(friends, db_session):
-    mine, _, theirs, _ = friends
-    first = post_workout(mine, offset_min=0)
-    second = post_workout(mine, offset_min=30)
-    theirs.post(f"/api/workouts/{first['id']}/encourage", json={"kind": "cheer"})
-    theirs.post(f"/api/workouts/{second['id']}/encourage", json={"kind": "cheer"})
+    mine, member, theirs, other = friends
+    first = post_workout(db_session, member.id, offset_min=0)
+    second = post_workout(db_session, member.id, offset_min=30)
+    theirs.post(f"/api/workouts/{first.id}/encourage", json={"kind": "cheer"})
+    theirs.post(f"/api/workouts/{second.id}/encourage", json={"kind": "cheer"})
     theirs.post(
-        f"/api/workouts/{first['id']}/encourage",
+        f"/api/workouts/{first.id}/encourage",
         json={"kind": "note", "body": "That hill is horrible. Well done."},
     )
 
@@ -544,18 +558,18 @@ def test_the_letter_reads_in_order_and_carries_the_words(friends, db_session):
     received = letter["encouragement"]
     assert received["cheer_count"] == 2
     assert sorted(row["workout_id"] for row in received["cheers"]) == sorted(
-        [first["id"], second["id"]]
+        [first.id, second.id]
     )
     assert len(received["notes"]) == 1
     assert received["notes"][0]["body"] == "That hill is horrible. Well done."
     assert received["notes"][0]["username"] == "mate"
-    assert received["notes"][0]["workout_id"] == first["id"]
+    assert received["notes"][0]["workout_id"] == first.id
 
 
 def test_the_letter_forgets_what_has_been_acknowledged(friends, db_session):
-    mine, _, theirs, _ = friends
-    workout = post_workout(mine)
-    theirs.post(f"/api/workouts/{workout['id']}/encourage", json={"kind": "cheer"})
+    mine, member, theirs, other = friends
+    workout = post_workout(db_session, member.id)
+    theirs.post(f"/api/workouts/{workout.id}/encourage", json={"kind": "cheer"})
     assert mine.get("/api/recap").json()["encouragement"]["cheer_count"] == 1
     assert mine.post("/api/recap/ack").status_code == 204
     quiet = mine.get("/api/recap").json()["encouragement"]
@@ -564,7 +578,7 @@ def test_the_letter_forgets_what_has_been_acknowledged(friends, db_session):
 
 def test_the_letter_says_when_the_flourish_grew(friends, db_session):
     mine, member, theirs, other = friends
-    workout = post_workout(theirs)
+    workout = post_workout(db_session, other.id)
     first = mine.get("/api/recap").json()
     assert (first["flourish_stage"], first["flourish_rose"]) == (0, False)
     mine.post("/api/recap/ack")
@@ -574,7 +588,7 @@ def test_the_letter_says_when_the_flourish_grew(friends, db_session):
     row.renown = config.FLOURISH_RENOWN[0] - config.RENOWN_NOTE
     db_session.commit()
     mine.post(
-        f"/api/workouts/{workout['id']}/encourage",
+        f"/api/workouts/{workout.id}/encourage",
         json={"kind": "note", "body": "Good to see you back out."},
     )
 
@@ -605,7 +619,7 @@ def test_a_feed_row_carries_the_display_name_of_whoever_ran(signed_in, db_sessio
     befriend(db_session, member, other)
     other.first_name, other.last_name = "Sam", "Fields"
     db_session.commit()
-    post_workout(theirs, miles=4.0)
+    post_workout(db_session, other.id, miles=4.0)
 
     row = signed_in.get("/api/feed").json()[0]
     assert set(row) == FRIEND_ROW_KEYS
@@ -618,7 +632,7 @@ def test_a_feed_row_carries_the_display_name_of_whoever_ran(signed_in, db_sessio
 def test_a_person_with_no_name_given_has_none(signed_in, db_session, member, mate):
     other, theirs = mate
     befriend(db_session, member, other)
-    post_workout(theirs, miles=2.0)
+    post_workout(db_session, other.id, miles=2.0)
     assert signed_in.get("/api/feed").json()[0]["user"]["display_name"] is None
 
 
@@ -676,7 +690,7 @@ def test_a_feed_row_carries_the_medals_that_person_chose(
     other, theirs = mate
     befriend(db_session, member, other)
     wear(db_session, other, "race_half", "weekly_25")
-    post_workout(theirs, miles=4.0)
+    post_workout(db_session, other.id, miles=4.0)
 
     card = signed_in.get("/api/feed").json()[0]["user"]
     # Slot order, kept as stored: the client draws them left to right.
@@ -685,7 +699,7 @@ def test_a_feed_row_carries_the_medals_that_person_chose(
 
 def test_your_own_row_carries_yours(signed_in, db_session, member):
     wear(db_session, member, "weekly_10")
-    post_workout(signed_in, miles=2.0)
+    post_workout(db_session, member.id, miles=2.0)
     row = signed_in.get("/api/feed").json()[0]
     assert row["own"] is True
     assert row["user"]["displayed_badges"] == ["weekly_10"]
@@ -696,7 +710,7 @@ def test_wearing_none_reads_as_an_empty_list(signed_in, db_session, member, mate
     two halves disagree about what "no medals" looks like."""
     other, theirs = mate
     befriend(db_session, member, other)
-    post_workout(theirs, miles=2.0)
+    post_workout(db_session, other.id, miles=2.0)
 
     card = signed_in.get("/api/feed").json()[0]["user"]
     assert card["displayed_badges"] == []
@@ -722,7 +736,7 @@ def test_the_medals_join_the_card_without_disturbing_it(
     befriend(db_session, member, other)
     other.first_name, other.last_name = "Sam", "Fields"
     wear(db_session, other, "early_riser")
-    post_workout(theirs, miles=3.5)
+    post_workout(db_session, other.id, miles=3.5)
 
     row = signed_in.get("/api/feed").json()[0]
     assert set(row["user"]) == PERSON_CARD_KEYS
@@ -749,29 +763,29 @@ def test_a_friend_sees_the_title_the_post_and_the_photos(signed_in, db_session, 
     full. This is the one part of somebody else's workout that does."""
     other, theirs = mate
     befriend(db_session, member, other)
-    workout = post_workout(theirs, miles=4.0)
+    workout = post_workout(db_session, other.id, miles=4.0)
     theirs.patch(
-        f"/api/workouts/{workout['id']}",
+        f"/api/workouts/{workout.id}",
         json={"title": "Round the reservoir", "post": "Wind the whole way back."},
     )
-    photo_id = attach(theirs, workout["id"]).json()["id"]
+    photo_id = attach(theirs, workout.id).json()["id"]
 
     row = signed_in.get("/api/feed").json()[0]
-    assert row["workout_id"] == workout["id"]
+    assert row["workout_id"] == workout.id
     assert row["own"] is False
     assert row["title"] == "Round the reservoir"
     assert row["post"] == "Wind the whole way back."
     assert row["photos"] == [photo_id]
     # And the picture itself is readable, which is what the ids are for.
-    served = signed_in.get(f"/api/workouts/{workout['id']}/photos/{photo_id}")
+    served = signed_in.get(f"/api/workouts/{workout.id}/photos/{photo_id}")
     assert served.status_code == 200
     assert served.headers["content-type"] == "image/webp"
 
 
-def test_your_own_feed_row_carries_them_too(signed_in, member):
-    workout = post_workout(signed_in, miles=2.0)
-    signed_in.patch(f"/api/workouts/{workout['id']}", json={"title": "Before work"})
-    photo_id = attach(signed_in, workout["id"]).json()["id"]
+def test_your_own_feed_row_carries_them_too(signed_in, db_session, member):
+    workout = post_workout(db_session, member.id, miles=2.0)
+    signed_in.patch(f"/api/workouts/{workout.id}", json={"title": "Before work"})
+    photo_id = attach(signed_in, workout.id).json()["id"]
     row = signed_in.get("/api/feed").json()[0]
     assert row["own"] is True
     assert row["title"] == "Before work"
@@ -783,25 +797,25 @@ def test_a_stranger_cannot_read_a_photo(signed_in, db_session, member, mate):
     """No friendship, so the same 404 a photo that does not exist gets. A
     pending invite is not a friendship either."""
     other, theirs = mate
-    workout = post_workout(theirs, miles=3.0)
-    photo_id = attach(theirs, workout["id"]).json()["id"]
+    workout = post_workout(db_session, other.id, miles=3.0)
+    photo_id = attach(theirs, workout.id).json()["id"]
 
-    stranger = signed_in.get(f"/api/workouts/{workout['id']}/photos/{photo_id}")
+    stranger = signed_in.get(f"/api/workouts/{workout.id}/photos/{photo_id}")
     assert stranger.status_code == 404
     assert stranger.json() == {"detail": "No such photo."}
 
     befriend(db_session, member, other, status="pending")
-    assert signed_in.get(f"/api/workouts/{workout['id']}/photos/{photo_id}").status_code == 404
+    assert signed_in.get(f"/api/workouts/{workout.id}/photos/{photo_id}").status_code == 404
 
 
 def test_a_friend_still_cannot_write_on_your_workout(signed_in, db_session, member, mate):
     other, theirs = mate
     befriend(db_session, member, other)
-    workout = post_workout(signed_in, miles=2.0)
+    workout = post_workout(db_session, member.id, miles=2.0)
     assert theirs.patch(
-        f"/api/workouts/{workout['id']}", json={"title": "mine now"}
+        f"/api/workouts/{workout.id}", json={"title": "mine now"}
     ).status_code == 404
-    assert attach(theirs, workout["id"]).status_code == 404
+    assert attach(theirs, workout.id).status_code == 404
 
 
 def test_the_photo_limiters_are_registered_for_the_reset():

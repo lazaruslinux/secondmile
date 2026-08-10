@@ -551,7 +551,7 @@ export default function Profile({
             <Stats
               stats={profile.lifetime}
               units={units}
-              empty="Nothing recorded yet. Sync your phone or add a workout in Log."
+              empty="Nothing recorded yet. Your next sync fills this in."
             />
           </section>
 

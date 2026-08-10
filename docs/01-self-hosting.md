@@ -91,8 +91,8 @@ first and have the person use the resend button on the sign-in screen.
 
 Experience, levels, chests, and medals are all derived from the
 workout history. Nothing is typed in and nothing is trusted from a browser: every
-workout is credited exactly once, whether it arrived from a phone, from the
-manual entry form, or was written straight into the database.
+workout is credited exactly once, whether it arrived from a phone or was
+written straight into the database.
 
 If you ever need to rebuild one account's progress from its workouts, for
 instance after an upgrade that changed how something is counted, there is a

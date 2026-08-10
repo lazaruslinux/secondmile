@@ -1,9 +1,9 @@
 // Numbers on their way to a screen.
 //
 // Distances are stored in miles whatever the account displays, so the
-// conversion happens at the edge: here on the way out, and in the entry form on
-// the way in. XP is the game's own weighted unit and is never converted: it is
-// the same number in every account, and it is never called miles.
+// conversion happens here, at the edge, on the way out. XP is the game's own
+// weighted unit and is never converted: it is the same number in every
+// account, and it is never called miles.
 
 import type { Activity, Units } from './api.ts'
 
@@ -185,55 +185,6 @@ export function zonedDay(value: Date | string): ZonedDay {
 export function weekStartKey(day: ZonedDay): string {
   const [year, month, date] = day.key.split('-').map(Number)
   return new Date(Date.UTC(year, month - 1, date - day.weekday)).toISOString().slice(0, 10)
-}
-
-// What the instance's clock read at a moment, expressed as the milliseconds a
-// UTC clock would need to show the same figures. The gap between that and the
-// moment itself is the zone's offset, which is the only way to say which
-// instant a wall-clock reading names.
-function zonedReading(at: Date): number {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: zone,
-    // h23 rather than hour12: false, which renders midnight as 24 in some
-    // browsers and would put the reading on the wrong day.
-    hourCycle: 'h23',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  }).formatToParts(at)
-  const found = new Map(parts.map((part) => [part.type, Number(part.value)]))
-  return Date.UTC(
-    found.get('year') ?? 0,
-    (found.get('month') ?? 1) - 1,
-    found.get('day') ?? 1,
-    found.get('hour') ?? 0,
-    found.get('minute') ?? 0,
-    found.get('second') ?? 0,
-  )
-}
-
-// A moment in the shape a datetime-local input reads and writes, yyyy-mm-ddThh:mm,
-// on the instance's clock rather than the browser's.
-export function zonedInputValue(at: Date): string {
-  return new Date(zonedReading(at)).toISOString().slice(0, 16)
-}
-
-// The moment a datetime-local reading names, taken as the instance's clock.
-// Corrected twice: the offset at the first guess is the wrong one for a reading
-// that falls the far side of a clock change.
-export function instantFromZonedInput(reading: string): Date {
-  // Trimmed to yyyy-mm-ddThh:mm: some browsers hand back seconds as well, and
-  // the suffix below already supplies them.
-  const naive = Date.parse(`${reading.slice(0, 16)}:00Z`)
-  if (isNaN(naive)) return new Date(NaN)
-  let at = new Date(naive)
-  for (let pass = 0; pass < 2; pass += 1) {
-    at = new Date(at.getTime() + (naive - zonedReading(at)))
-  }
-  return at
 }
 
 // Rounded to the minute, which is how a history reads.

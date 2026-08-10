@@ -98,7 +98,7 @@ SERVER_TZ = _load_timezone(settings.tz)
 
 
 # Soft-flag thresholds. These are not rejections: anything past them is still
-# imported, just marked, so a miskeyed manual entry or a confused watch never
+# imported, just marked, so a confused watch or a garbled export never
 # silently becomes progress. Generous on purpose, because a false flag on a
 # real effort is worse than a missed flag on a fake one.
 MIN_PACE_MIN_PER_MI = 4.0  # applies to walking and running
@@ -196,9 +196,9 @@ SWIM_GROWTH_BONUS = 0.5
 WATER_POUR_MI = 10.0
 
 
-# Experience is converted Miles, one for one. Nothing but synced or manually
-# entered movement ever produces any of it, and the number on the profile is
-# the distance itself rather than a score derived from it.
+# Experience is converted Miles, one for one. Nothing but synced movement ever
+# produces any of it, and the number on the profile is the distance itself
+# rather than a score derived from it.
 
 # The level curve, in converted Miles. The first four levels are the race
 # ladder every runner already knows, so reaching level one is running a 5K.

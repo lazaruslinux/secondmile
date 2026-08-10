@@ -15,11 +15,12 @@ Current version: **0.1.1**. Releases are tagged in git.
   Health Auto Export on iPhone: walking, running, cycling, and swimming, with
   distance, duration, active calories, and average heart rate. Syncing is
   idempotent, so overlapping export windows never double-count a workout.
-  There is a manual entry form for anything that did not come from a watch.
+  Syncing is the only way a workout arrives, so there is one way in and every
+  row can say where it came from.
 - **Keeps the Almanac.** A history of everything you have done, grouped by
-  week, with totals per activity. Manually entered workouts are marked as
-  such, and workouts with impossible numbers (a four minute mile, a fifty
-  mile walk) are imported but flagged rather than trusted.
+  week, with totals per activity. Workouts with impossible numbers (a four
+  minute mile, a fifty mile walk) are imported but flagged rather than
+  trusted.
 - **Turns those miles into a profile.** Experience is the distance itself, and
   each activity converts at its own rate, so an hour in the pool is not an hour
   on a bike and a swimmer is never shortchanged. The levels are the race

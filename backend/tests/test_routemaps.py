@@ -233,12 +233,12 @@ def test_history_rows_say_whether_they_have_a_route(signed_in, ingest_token):
     assert {row["activity"]: row["has_route"] for row in rows} == {"run": True, "walk": False}
 
 
-def test_a_manual_workout_has_no_route(signed_in):
+def test_a_workout_that_carried_no_trace_has_no_route(signed_in, db_session, member):
     from conftest import log_workout
 
-    row = log_workout(signed_in)
-    assert row["has_route"] is False
-    assert signed_in.get(f"/api/workouts/{row['id']}/route").status_code == 404
+    row = log_workout(db_session, member.id)
+    assert signed_in.get("/api/workouts").json()[0]["has_route"] is False
+    assert signed_in.get(f"/api/workouts/{row.id}/route").status_code == 404
 
 
 def test_the_route_endpoint_returns_the_stored_points(signed_in, ingest_token, db_session):

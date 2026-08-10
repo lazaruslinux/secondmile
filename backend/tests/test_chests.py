@@ -86,30 +86,30 @@ def test_the_ladder_is_the_race_distances_and_it_repeats():
 
 def test_chests_drop_in_ladder_order(signed_in, db_session, member):
     """The cycle costs 79.7 Miles; eighty three of them starts the next one."""
-    log_workout(signed_in, "run", 30.0, pace_min=9, offset_min=0)
-    log_workout(signed_in, "cycle", 160.0, pace_min=3, offset_min=400)
+    log_workout(db_session, member.id, "run", 30.0, pace_min=9, offset_min=0)
+    log_workout(db_session, member.id, "cycle", 160.0, pace_min=3, offset_min=400)
     dropped = [row.tier for row in chests(db_session, member.id)]
     assert dropped[:5] == ["5k", "10k", "half", "marathon", "ultra"]
     assert dropped[5:6] == ["5k"]
 
 
 def test_the_accumulator_carries_between_workouts(signed_in, db_session, member):
-    log_workout(signed_in, "run", 2.0, offset_min=0)
+    log_workout(db_session, member.id, "run", 2.0, offset_min=0)
     row = db_session.get(models.UserProgress, member.id)
     assert chests(db_session, member.id) == []
     assert row.chest_progress_mi == 2.0
     assert row.cycle_pos == 0
 
     # A mile and a bit later the 5K chest lands, and the overshoot carries.
-    log_workout(signed_in, "run", 1.2, offset_min=60)
+    log_workout(db_session, member.id, "run", 1.2, offset_min=60)
     row = db_session.get(models.UserProgress, member.id)
     assert [chest.tier for chest in chests(db_session, member.id)] == ["5k"]
     assert row.cycle_pos == 1
     assert abs(row.chest_progress_mi - 0.1) < 1e-6
 
 
-def test_the_profile_says_which_chest_is_coming(signed_in):
-    log_workout(signed_in, "run", 2.0)
+def test_the_profile_says_which_chest_is_coming(signed_in, db_session, member):
+    log_workout(db_session, member.id, "run", 2.0)
     body = signed_in.get("/api/profile").json()
     # Nobody has spent oil on this account, so nothing is lifting it.
     assert body["next_chest"] == {
@@ -123,13 +123,13 @@ def test_the_profile_says_which_chest_is_coming(signed_in):
 
 def test_every_activity_fuels_the_ladder(signed_in, db_session, member):
     """Nine cycled miles are three Miles, the same as three run ones."""
-    log_workout(signed_in, "cycle", 9.3, pace_min=3)
+    log_workout(db_session, member.id, "cycle", 9.3, pace_min=3)
     assert [chest.tier for chest in chests(db_session, member.id)] == ["5k"]
 
 
 def test_a_rebuild_walks_the_same_ladder(signed_in, db_session, member):
-    log_workout(signed_in, "walk", 6.0, offset_min=0)
-    log_workout(signed_in, "run", 7.0, offset_min=200)
+    log_workout(db_session, member.id, "walk", 6.0, offset_min=0)
+    log_workout(db_session, member.id, "run", 7.0, offset_min=200)
     before = [row.tier for row in chests(db_session, member.id)]
     assert before
     rebuilt = progress.recompute(db_session, member.id)
@@ -575,8 +575,8 @@ def test_the_achievements_endpoint_is_gone(signed_in):
 # --------------------------------------------------------------------------
 
 
-def test_the_recap_carries_chests_medals_and_miles_then_clears(signed_in):
-    log_workout(signed_in, "run", 11.0, pace_min=9)
+def test_the_recap_carries_chests_medals_and_miles_then_clears(signed_in, db_session, member):
+    log_workout(db_session, member.id, "run", 11.0, pace_min=9)
     recap = signed_in.get("/api/recap").json()
     assert list(recap) == LETTER_KEYS
     assert recap["since"] is None
@@ -623,7 +623,7 @@ def test_the_recap_carries_chests_medals_and_miles_then_clears(signed_in):
     assert len(signed_in.get("/api/chests").json()) == 2
 
 
-def test_a_chest_left_unopened_does_not_follow_you_into_the_next_letter(signed_in):
+def test_a_chest_left_unopened_does_not_follow_you_into_the_next_letter(signed_in, db_session, member):
     """Saving your chests must not make the app interrupt you forever.
 
     An unopened chest is a permanent fact about an account, so a letter that
@@ -631,7 +631,7 @@ def test_a_chest_left_unopened_does_not_follow_you_into_the_next_letter(signed_i
     simply has not opened them yet. The letter reports the window; the inventory
     holds the chests.
     """
-    log_workout(signed_in, "run", 11.0, pace_min=9)
+    log_workout(db_session, member.id, "run", 11.0, pace_min=9)
     assert len(signed_in.get("/api/recap").json()["chests"]) == 2
     assert signed_in.post("/api/recap/ack").status_code == 204
 
@@ -643,7 +643,7 @@ def test_a_chest_left_unopened_does_not_follow_you_into_the_next_letter(signed_i
     # Fresh miles, and only what they dropped is named. Eleven miles left 1.7
     # banked against the 13.1 the Half step costs, so twelve more clears it and
     # nothing else, which is what makes this one chest rather than three.
-    log_workout(signed_in, "run", 12.0, pace_min=9)
+    log_workout(db_session, member.id, "run", 12.0, pace_min=9)
     assert [row["tier_id"] for row in signed_in.get("/api/recap").json()["chests"]] == ["half"]
 
 
@@ -655,34 +655,34 @@ def test_a_quiet_letter_still_carries_all_four_activities(signed_in):
     assert (recap["miles_total"], recap["xp"]) == (0.0, 0.0)
 
 
-def test_a_mile_swum_is_one_mile_and_four_xp(signed_in):
+def test_a_mile_swum_is_one_mile_and_four_xp(signed_in, db_session, member):
     """The regression the whole shape exists for. A mile in the pool is one mile
     a body covered; four is what the game makes of it, and the letter had been
     printing the four under the word Miles."""
-    log_workout(signed_in, "swim", 1.0, pace_min=40)
+    log_workout(db_session, member.id, "swim", 1.0, pace_min=40)
     recap = signed_in.get("/api/recap").json()
     assert recap["miles"]["swim"] == 1.0
     assert recap["miles_total"] == 1.0
     assert recap["xp"] == 4.0
 
 
-def test_a_ride_diverges_the_other_way(signed_in):
+def test_a_ride_diverges_the_other_way(signed_in, db_session, member):
     """Cycling converts down, so here the miles are the bigger number and the XP
     is the smaller. Three miles ridden is one XP, and both are true."""
-    log_workout(signed_in, "cycle", 3.0, pace_min=5)
+    log_workout(db_session, member.id, "cycle", 3.0, pace_min=5)
     recap = signed_in.get("/api/recap").json()
     assert recap["miles"]["cycle"] == 3.0
     assert recap["miles_total"] == 3.0
     assert recap["xp"] == 1.0
 
 
-def test_the_total_is_the_sum_of_the_four_rows(signed_in):
+def test_the_total_is_the_sum_of_the_four_rows(signed_in, db_session, member):
     """The total under the rows is the total of the rows. It is added up from
     the four numbers as sent, so the letter always visibly adds up."""
-    log_workout(signed_in, "run", 2.5, offset_min=0)
-    log_workout(signed_in, "walk", 1.25, pace_min=20, offset_min=60)
-    log_workout(signed_in, "cycle", 6.0, pace_min=5, offset_min=120)
-    log_workout(signed_in, "swim", 0.5, pace_min=40, offset_min=180)
+    log_workout(db_session, member.id, "run", 2.5, offset_min=0)
+    log_workout(db_session, member.id, "walk", 1.25, pace_min=20, offset_min=60)
+    log_workout(db_session, member.id, "cycle", 6.0, pace_min=5, offset_min=120)
+    log_workout(db_session, member.id, "swim", 0.5, pace_min=40, offset_min=180)
 
     recap = signed_in.get("/api/recap").json()
     assert recap["miles"] == {"walk": 1.25, "run": 2.5, "cycle": 6.0, "swim": 0.5}
@@ -692,10 +692,10 @@ def test_the_total_is_the_sum_of_the_four_rows(signed_in):
     assert recap["xp"] == 7.75
 
 
-def test_the_list_shortens_as_chests_are_opened_elsewhere(signed_in):
+def test_the_list_shortens_as_chests_are_opened_elsewhere(signed_in, db_session, member):
     """The letter lists what is closed, so opening one in the inventory is what
     makes the announcement smaller. Nothing in the letter did it."""
-    log_workout(signed_in, "run", 11.0, pace_min=9)
+    log_workout(db_session, member.id, "run", 11.0, pace_min=9)
     listed = signed_in.get("/api/recap").json()["chests"]
     assert [row["tier_id"] for row in listed] == ["5k", "10k"]
 
@@ -719,48 +719,48 @@ def test_the_letter_names_the_chests_and_who_lifted_them(signed_in, db_session, 
     ]
 
 
-def test_the_letter_lists_ten_workouts_and_owns_up_to_the_rest(signed_in):
+def test_the_letter_lists_ten_workouts_and_owns_up_to_the_rest(signed_in, db_session, member):
     """Twelve arrived, ten are listed, and the letter says twelve. A season of
     history imported in one go must not draw a dialog the length of itself, and
     the cut is never silent."""
-    posted = [
-        log_workout(signed_in, "walk", 1.0, pace_min=20, offset_min=index * 30)
+    arrived = [
+        log_workout(db_session, member.id, "walk", 1.0, pace_min=20, offset_min=index * 30)
         for index in range(12)
     ]
 
     recap = signed_in.get("/api/recap").json()
     assert recap["workouts_total"] == 12
     # Newest first, by when the row arrived, so the ten listed are the last ten
-    # posted and the two oldest are the ones left in the log.
+    # in and the two oldest are the ones left in the log.
     assert [row["workout_id"] for row in recap["workouts"]] == [
-        row["id"] for row in reversed(posted[2:])
+        row.id for row in reversed(arrived[2:])
     ]
 
 
-def test_a_listed_workout_carries_what_was_written_on_it(signed_in):
+def test_a_listed_workout_carries_what_was_written_on_it(signed_in, db_session, member):
     """The rows are handed to the same panel the feed edits with, so they carry
     the same fields it edits and the key it reads them by."""
-    workout = log_workout(signed_in, "run", 3.0)
+    workout = log_workout(db_session, member.id, "run", 3.0)
     edited = signed_in.patch(
-        f"/api/workouts/{workout['id']}",
+        f"/api/workouts/{workout.id}",
         json={"title": "Morning loop", "post": "Cold enough for gloves."},
     )
     assert edited.status_code == 200, edited.text
 
     row = signed_in.get("/api/recap").json()["workouts"][0]
     assert (row["workout_id"], row["title"], row["post"], row["photos"]) == (
-        workout["id"],
+        workout.id,
         "Morning loop",
         "Cold enough for gloves.",
         [],
     )
 
 
-def test_an_account_that_never_synced_has_no_sync_to_report(signed_in):
-    """Null rather than an error, and a workout typed in by hand is not a sync:
-    the line is about the phone, and this player has not got one talking yet."""
+def test_an_account_that_never_synced_has_no_sync_to_report(signed_in, db_session, member):
+    """Null rather than an error, and a workout in the table is not a sync: the
+    line is about the phone, and this player has not got one talking yet."""
     assert signed_in.get("/api/recap").json()["last_sync_at"] is None
-    log_workout(signed_in, "run", 3.0)
+    log_workout(db_session, member.id, "run", 3.0)
     assert signed_in.get("/api/recap").json()["last_sync_at"] is None
 
 
@@ -785,7 +785,7 @@ def test_a_plant_that_finished_a_level_is_in_the_letter(signed_in, db_session, m
     """A strawberry costs fifteen Miles a level, so sixteen of them is one
     level and the letter can say which plant reached what."""
     give_planting(db_session, member.id, "strawberry")
-    log_workout(signed_in, "run", 16.0, pace_min=9)
+    log_workout(db_session, member.id, "run", 16.0, pace_min=9)
 
     grown = signed_in.get("/api/recap").json()["plant_growth"]
     assert [(row["species"], row["level"], row["levels_gained"]) for row in grown] == [
@@ -802,7 +802,7 @@ def test_a_plant_that_only_grew_a_little_says_nothing(signed_in, db_session, mem
     """Silence, not a sentence about how far off the next level is. Five Miles
     into a fifteen Mile level is not news."""
     give_planting(db_session, member.id, "strawberry")
-    log_workout(signed_in, "run", 5.0)
+    log_workout(db_session, member.id, "run", 5.0)
     assert signed_in.get("/api/recap").json()["plant_growth"] == []
 
 
@@ -830,13 +830,13 @@ def test_a_plant_with_no_recorded_level_says_nothing(signed_in, db_session, memb
     planting = give_planting(db_session, member.id, "strawberry", growth=40.0)
     planting.level_at_ack = None
     db_session.commit()
-    log_workout(signed_in, "run", 16.0, pace_min=9)
+    log_workout(db_session, member.id, "run", 16.0, pace_min=9)
     assert signed_in.get("/api/recap").json()["plant_growth"] == []
 
     assert signed_in.post("/api/recap/ack").status_code == 204
     db_session.refresh(planting)
     assert planting.level_at_ack == 3
-    log_workout(signed_in, "run", 16.0, pace_min=9, offset_min=300)
+    log_workout(db_session, member.id, "run", 16.0, pace_min=9, offset_min=300)
     grown = signed_in.get("/api/recap").json()["plant_growth"]
     assert [(row["level"], row["levels_gained"]) for row in grown] == [(4, 1)]
 
@@ -845,16 +845,16 @@ def test_a_level_already_announced_is_not_announced_again(signed_in, db_session,
     """Acknowledging the letter writes down where every plant stood, so the
     next one really does start from there."""
     give_planting(db_session, member.id, "strawberry")
-    log_workout(signed_in, "run", 16.0, pace_min=9, offset_min=0)
+    log_workout(db_session, member.id, "run", 16.0, pace_min=9, offset_min=0)
     assert len(signed_in.get("/api/recap").json()["plant_growth"]) == 1
 
     assert signed_in.post("/api/recap/ack").status_code == 204
-    log_workout(signed_in, "run", 2.0, offset_min=300)
+    log_workout(db_session, member.id, "run", 2.0, offset_min=300)
     assert signed_in.get("/api/recap").json()["plant_growth"] == []
 
     # And the next level is news again when it actually lands, counted from the
     # level the last letter wrote down rather than from nothing.
-    log_workout(signed_in, "run", 13.0, pace_min=9, offset_min=600)
+    log_workout(db_session, member.id, "run", 13.0, pace_min=9, offset_min=600)
     grown = signed_in.get("/api/recap").json()["plant_growth"]
     assert [(row["level_before"], row["level"], row["levels_gained"]) for row in grown] == [
         (1, 2, 1)

@@ -477,7 +477,7 @@ export default function Home({
         )}
 
         {feed.length === 0 && !loadError && (
-          <p className="notice">Nothing recorded yet. Sync your phone or add a workout in Log.</p>
+          <p className="notice">Nothing recorded yet. Your next sync fills this in.</p>
         )}
 
         {feed.map((item) => (
