@@ -660,6 +660,11 @@ button:disabled {
   order: -1;
 }
 
+/* The column gap is the only room this needs, so the paragraph margin goes. */
+.home-feed-label {
+  margin: 0;
+}
+
 /* Home: the profile summary in the left column */
 
 /* The picture and the name are one control that opens the You screen. Stripped
@@ -3489,10 +3494,11 @@ button:disabled {
 /* ------------------------------------------------------------------------ */
 /* The landing page                                                          */
 /*                                                                           */
-/* The only screen anybody sees before they have an account. Type on black    */
-/* and nothing else: no photograph, no screenshots, no artwork. That is not   */
-/* an economy, it is the point. A page made of the app's own type cannot go   */
-/* stale when a screen is redesigned, and it loads nothing from anywhere.     */
+/* The only screen anybody sees before they have an account. Type on black,   */
+/* and one drawing of the four sports in the app's own line: no photograph    */
+/* and no screenshots. That is not an economy, it is the point. A page made   */
+/* of the app's own type and its own marks cannot go stale when a screen is   */
+/* redesigned, and it loads nothing from anywhere but here.                   */
 /* ------------------------------------------------------------------------ */
 
 .landing {
@@ -3506,6 +3512,23 @@ button:disabled {
   align-items: center;
   justify-content: space-between;
   min-height: 54px;
+}
+
+/* The name is the masthead here rather than a label in the chrome, so it is
+   set larger than the signed-in topbar wears it. Not .wordmark-large, which
+   centres itself for the sign-in gate: this one stays at the left. */
+.landing-bar .wordmark {
+  font-size: 1.5rem;
+}
+
+/* Placeholder art, and the width of the column whatever the column is. The
+   drawing is 4:1, so the height follows and nothing jumps as it loads. */
+.landing-hero-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+  margin: 0 0 1.8rem;
 }
 
 /* The verse carries the page, so the room above and below it is doing as much

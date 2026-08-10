@@ -19,8 +19,9 @@ whole of what a commission would cover.
 | Interface icons | 9 | Tab bar, cheer, gear, pencil, sport diamond, chest ladder marker | Chrome, everywhere |
 | Plants | 39 | Thirteen species at three growth stages each | The plot, and the reveal when a seed is found |
 | Loose pieces | 5 | Chest, gilding overlay, oil, water, unmarked seed | Inventory squares, chest reveals, finished plants |
+| Landing hero | 1 | The four sports in four strips, `landing-hero` | The top of the landing page |
 
-Seventy-three files in total, all under `frontend/src/assets/`.
+Seventy-four files in total, all under `frontend/src/assets/`.
 
 There are two chest drawings on purpose. `grove/chest.svg` is a picture loaded
 by URL with its own colours, used for an inventory square. `icons/chest.svg` is
@@ -124,6 +125,47 @@ same weight of line and the same amount of the square filled: they are drawn
 side by side on You and one under the next in the log. Each goes beside the word
 for its sport and never instead of it, which is also why they are hidden from
 screen readers wherever they are drawn.
+
+## The landing hero
+
+`frontend/src/assets/landing-hero.svg`
+
+The one picture on the landing page, drawn above the verse and before anybody
+has an account. It is the only file that sits at the top of `assets` rather than
+in a folder, because it is the only one of its kind: one drawing, read by the
+page by name.
+
+A wide rectangle, roughly four to one, cut into four equal vertical strips. Left
+to right they are walk, run, cycle, and swim, in the app's own order, each a
+simple figure in the line the interface icons are drawn in. The strips are
+divided by a one pixel rule in `--line` on the `--surface` card colour, and the
+crimson appears once per strip as a short mark under the figure.
+
+Each strip is a group with a stable id, and **these four ids are the swap
+contract**:
+
+| Id | Strip |
+| --- | --- |
+| `hero-walk` | First from the left |
+| `hero-run` | Second |
+| `hero-cycle` | Third |
+| `hero-swim` | Fourth |
+
+Keep the four ids and the shape of the file, and the rest is yours. The
+placeholder is drawn on a `0 0 800 200` viewBox, which makes each strip a 200 by
+200 square, and it carries a `width` and a `height` so the browser knows the
+proportion before the file arrives and the page below it does not jump.
+
+Unlike the interface icons, this one is loaded as a picture rather than placed
+into the page, so it carries its own colours instead of `currentColor`. The
+placeholder uses the palette at the foot of this page: `#0d0d0f` for the card,
+`#26262b` for the rules, `#f4f4f5` for the figures, and `#dc143c` for the marks.
+It is drawn to the full width of a 46rem column, so it is shown as wide as about
+730 pixels and as narrow as a phone, and fine detail is lost at the narrow end.
+
+The two constraints above hold here as they do everywhere: presentation
+attributes only, since the content security policy drops a `style` attribute
+without saying so, and nothing loaded from anywhere else.
 
 ## Avatar borders
 

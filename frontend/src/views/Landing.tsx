@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getStatus } from '../api.ts'
+import heroImage from '../assets/landing-hero.svg'
 import { ACTIVITY_ICONS, ACTIVITY_NAMES, ACTIVITY_ORDER } from '../labels.ts'
 import Icon from './Icon.tsx'
 
@@ -13,9 +14,10 @@ interface Props {
 // feature list: the miles arrive on their own, the feed is small on purpose,
 // the game is real but unexplained, and nothing here asks to be opened.
 //
-// Deliberately no screenshots and no artwork. The app is dark type on black
-// and so is this, which means the page cannot go out of date when a screen
-// changes, and there is nothing to load from anywhere else.
+// Deliberately no screenshots. The app is dark type on black and so is this,
+// which means the page cannot go out of date when a screen changes, and there
+// is nothing to load from anywhere else. The one picture is the four sports
+// drawn in the app's own line, which no redesign can date either.
 export default function Landing({ onEnter }: Props) {
   // Null until the server says which way it is set, so the page does not offer
   // an account and then take the offer back a moment later.
@@ -41,6 +43,11 @@ export default function Landing({ onEnter }: Props) {
       </header>
 
       <section className="landing-hero">
+        {/* Placeholder art, swapped by replacing the one file. Decorative
+            rather than described: the four sports are named in words a few
+            lines below, so an alt text here would only say them twice. */}
+        <img className="landing-hero-img" src={heroImage} alt="" />
+
         {/* The line the name comes from, quoted and cited. The citation is set
             small and faint on purpose: it belongs to the sentence rather than
             competing with it, and somebody who does not recognise the words
@@ -50,8 +57,8 @@ export default function Landing({ onEnter }: Props) {
         </h1>
         <p className="landing-cite">Matthew 5:41 NKJV</p>
         <p className="landing-sub">
-          Walk, run, bike, or swim. Grow a garden with your distance traveled, encourage
-          others, earn rewards along the way.
+          Whether it's your first walk around the block or your next marathon, every mile
+          counts the same here. Walk, run, bike, or swim.
         </p>
 
         {/* The four sports, each with its own mark. The same marks are used
@@ -103,6 +110,20 @@ export default function Landing({ onEnter }: Props) {
         </p>
       </section>
 
+      {/* First, because the requirement above raises the question this answers:
+          what a person actually has to do, said before anything about what they
+          get for it. */}
+      <section className="landing-section">
+        <p className="label landing-eyebrow">How it works</p>
+        <h2>Set it up once, then just move.</h2>
+        <p>
+          Install Health Auto Export on your iPhone and point it at secondmile. After
+          that, every walk, run, ride, and swim you record via Workout on your Apple
+          devices flows in on its own. You never log anything by hand, or even open the
+          app. Your miles are here waiting whenever you want to look.
+        </p>
+      </section>
+
       <section className="landing-section">
         <p className="label landing-eyebrow">Miles earn XP</p>
         <h2>The entire purpose of secondmile is to stay active.</h2>
@@ -110,37 +131,39 @@ export default function Landing({ onEnter }: Props) {
             only one that earns less than its distance, and somebody who finds
             that out by riding trusts the rest of this page less. */}
         <p>
-          Miles on feet, on the bike, or in the water earn XP across the entire platform.
-          Every mile earns XP. Swimming modifier = 4x. Cycling modifier = 0.33x.
+          Every mile earns XP the moment your workout syncs. Swimming counts 4x, cycling
+          0.33x.
         </p>
       </section>
 
       <section className="landing-section">
         <p className="label landing-eyebrow">Private by design</p>
         <h2>A group of friends, not a stadium.</h2>
+        {/* What each person shows to whom is not said here on purpose: the
+            controls for it are not built yet, and the page does not describe a
+            feature the app lacks. */}
         <p>
-          This is a private, invite-only platform. Friends are mutual and invited by name.
-          No follower counts, no strangers, no leaderboards. This is not a competition.
-          Your friends see what you decide on.
+          secondmile is invite-only. Friends are mutual and invited by name. No follower
+          counts, no leaderboards. Nobody here is a stranger, and nothing here is a
+          competition.
         </p>
       </section>
 
       <section className="landing-section">
         <p className="label landing-eyebrow">Rewards</p>
-        <h2>Going the distance unlocks milestones.</h2>
+        <h2>Distance is the only currency.</h2>
         <p>
-          What those are, you find by covering ground (or road, or water). Nothing here
-          can be bought or artificially boosted.
+          Cover ground and you earn medals, chests, and a garden that grows from your
+          miles. Nothing here can be bought or rushed.
         </p>
       </section>
 
       <section className="landing-section">
         <p className="label landing-eyebrow">Built for busy people</p>
-        <h2>Set up and never open it again, if you want.</h2>
+        <h2>Come back when you feel like it.</h2>
         <p>
-          There are no login streaks, no mini games, and nothing built to make you open
-          the app for its own sake. Every synced activity earns what it earns, and it will
-          be waiting for you in a recap letter whenever you come back.
+          No streaks, no notifications, no reason to open the app just to keep something
+          alive. Whatever you earn is waiting in a recap letter whenever you come back.
         </p>
       </section>
 

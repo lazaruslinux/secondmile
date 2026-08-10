@@ -461,6 +461,12 @@ export default function Home({
       </aside>
 
       <div className="home-col home-main">
+        {/* Names the column it heads. One label for both arrangements: the
+            streak card is ordered above this wrapper on a phone, so it lands
+            under the streak there and over the middle column on a wide
+            screen. */}
+        <p className="label home-feed-label">Feed</p>
+
         {loadError && (
           <p className="error" role="alert">
             {loadError}

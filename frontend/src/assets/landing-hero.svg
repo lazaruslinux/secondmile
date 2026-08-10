@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 200" width="800" height="200" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <rect x="0.5" y="0.5" width="799" height="199" fill="#0d0d0f" stroke="#26262b" stroke-width="1"/>
+  <path d="M200 0V200M400 0V200M600 0V200" stroke="#26262b" stroke-width="1"/>
+
+  <g id="hero-walk" stroke="#f4f4f5" stroke-width="5">
+    <path d="M36 162H164" stroke="#26262b" stroke-width="2"/>
+    <circle cx="100" cy="48" r="14"/>
+    <path d="M100 62 96 108"/>
+    <path d="M100 74 80 96"/>
+    <path d="M100 74 118 92"/>
+    <path d="M96 108 76 150 66 152"/>
+    <path d="M96 108 118 148 128 150"/>
+    <path d="M78 176H122" stroke="#dc143c" stroke-width="4"/>
+  </g>
+
+  <g id="hero-run" transform="translate(200 0)" stroke="#f4f4f5" stroke-width="5">
+    <path d="M36 162H164" stroke="#26262b" stroke-width="2"/>
+    <path d="M20 60H48M14 82H44M24 104H46" stroke="#26262b" stroke-width="2"/>
+    <circle cx="116" cy="46" r="14"/>
+    <path d="M112 60 88 104"/>
+    <path d="M108 72 132 82"/>
+    <path d="M108 72 84 60"/>
+    <path d="M88 104 114 128 108 150"/>
+    <path d="M88 104 64 124 74 146"/>
+    <path d="M78 176H122" stroke="#dc143c" stroke-width="4"/>
+  </g>
+
+  <g id="hero-cycle" transform="translate(400 0)" stroke="#f4f4f5" stroke-width="5">
+    <path d="M36 162H164" stroke="#26262b" stroke-width="2"/>
+    <circle cx="60" cy="132" r="30"/>
+    <circle cx="144" cy="132" r="30"/>
+    <path d="M60 132H102"/>
+    <path d="M102 132 86 100 60 132"/>
+    <path d="M86 100H124"/>
+    <path d="M102 132 124 98 144 132"/>
+    <path d="M124 98 136 92"/>
+    <circle cx="100" cy="48" r="13"/>
+    <path d="M86 98 98 62"/>
+    <path d="M98 68 124 96"/>
+    <path d="M86 98 104 122 102 132"/>
+    <path d="M78 176H122" stroke="#dc143c" stroke-width="4"/>
+  </g>
+
+  <g id="hero-swim" transform="translate(600 0)" stroke="#f4f4f5" stroke-width="5">
+    <circle cx="96" cy="104" r="13"/>
+    <path d="M82 114 136 118"/>
+    <path d="M106 110c4-32 28-42 44-26"/>
+    <path d="M84 116 58 106"/>
+    <path d="M136 118 164 106"/>
+    <path d="M136 118 162 132"/>
+    <path d="M12 130c14-14 28-14 42 0s28 14 42 0 28-14 42 0 28 14 42 0" stroke="#26262b" stroke-width="2"/>
+    <path d="M12 152c14-14 28-14 42 0s28 14 42 0 28-14 42 0 28 14 42 0" stroke="#26262b" stroke-width="2"/>
+    <path d="M78 176H122" stroke="#dc143c" stroke-width="4"/>
+  </g>
+</svg>
