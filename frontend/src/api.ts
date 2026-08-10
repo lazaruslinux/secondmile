@@ -722,6 +722,20 @@ export function getWorkoutRoute(workoutId: number): Promise<WorkoutRoute> {
   return getJson<WorkoutRoute>(`/workouts/${workoutId}/route`)
 }
 
+// One note somebody wrote on a workout, as its owner reads it.
+export interface WorkoutNote {
+  from: string
+  body: string
+  created_at: string
+}
+
+// The words written on your own workout, oldest first. Owner only: anybody
+// else, friends included, is answered the same 404 a workout that does not
+// exist gets, because a note is written to the runner rather than to a thread.
+export function getWorkoutNotes(workoutId: number): Promise<WorkoutNote[]> {
+  return getJson<WorkoutNote[]>(`/workouts/${workoutId}/notes`)
+}
+
 export function listWeeks(count: number): Promise<Week[]> {
   return getJson<Week[]>(`/workouts/weeks?count=${count}`)
 }

@@ -659,6 +659,77 @@ def test_encouragement_is_refused_where_it_does_not_belong(signed_in, db_session
     )
 
 
+def test_the_owner_reads_the_notes_on_their_own_workout(friends, db_session):
+    mine, member, theirs, other = friends
+    workout = post_workout(db_session, member.id)
+    # One writer with a name to go by and one without, so the list is asserted
+    # to name people the way every other card does.
+    other.first_name = "Ada"
+    other.last_name = "Rowe"
+    db_session.commit()
+    third, third_client = sign_in(db_session, "neighbour")
+    befriend(db_session, member, third)
+
+    url = f"/api/workouts/{workout.id}/encourage"
+    assert theirs.post(url, json={"kind": "note", "body": "Strong finish."}).status_code == 201
+    # The clock is pinned, so the first note is aged to make it the older one
+    # rather than a row sharing a timestamp with the second.
+    let_a_moment_pass(db_session)
+    assert (
+        third_client.post(url, json={"kind": "note", "body": "See you Saturday."}).status_code
+        == 201
+    )
+    # Wordless, so it counts on the card and belongs nowhere in this list.
+    assert theirs.post(url, json={"kind": "cheer"}).status_code == 201
+
+    response = mine.get(f"/api/workouts/{workout.id}/notes")
+    assert response.status_code == 200
+    rows = response.json()
+    assert [(row["from"], row["body"]) for row in rows] == [
+        ("Ada Rowe", "Strong finish."),
+        ("neighbour", "See you Saturday."),
+    ]
+    assert rows[0]["created_at"] < rows[1]["created_at"]
+
+
+def test_the_words_on_a_workout_are_the_owners_alone(friends, db_session):
+    mine, member, theirs, other = friends
+    workout = post_workout(db_session, member.id)
+    assert (
+        theirs.post(
+            f"/api/workouts/{workout.id}/encourage",
+            json={"kind": "note", "body": "Good week."},
+        ).status_code
+        == 201
+    )
+    # The friend who wrote it sees the count on their card and never the words.
+    assert theirs.get(f"/api/workouts/{workout.id}/notes").status_code == 404
+    stranger, stranger_client = sign_in(db_session, "stranger")
+    assert stranger_client.get(f"/api/workouts/{workout.id}/notes").status_code == 404
+    # The same answer a workout that never existed gets, so an id cannot be
+    # walked to find out whose it is.
+    assert mine.get("/api/workouts/424242/notes").status_code == 404
+
+
+def test_a_workout_nobody_wrote_on_answers_an_empty_list(friends, db_session):
+    mine, member, theirs, other = friends
+    workout = post_workout(db_session, member.id)
+    assert (
+        theirs.post(
+            f"/api/workouts/{workout.id}/encourage", json={"kind": "cheer"}
+        ).status_code
+        == 201
+    )
+    response = mine.get(f"/api/workouts/{workout.id}/notes")
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_reading_notes_needs_a_session(client, db_session, member):
+    workout = post_workout(db_session, member.id)
+    assert client.get(f"/api/workouts/{workout.id}/notes").status_code == 401
+
+
 # --------------------------------------------------------------------------
 # Renown and the flourish
 # --------------------------------------------------------------------------

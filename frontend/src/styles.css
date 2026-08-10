@@ -1265,9 +1265,10 @@ button:disabled {
 }
 
 /* Encouragement
-   Under a friend's workout, and nowhere else. The place to write is the wide
-   part of the row, because words are the point of it; the cheer is the small
-   button beside it for when there is nothing to say. */
+   The last row of a card. Under a friend's workout it is a place to write, wide
+   because words are the point of it, with the small hype button beside it for
+   when there is nothing to say. Under your own it is the counts and the words
+   that came back, and nothing to send. */
 .encourage {
   margin: 0.85rem -0.85rem -0.85rem;
   padding: 0.6rem 0.85rem;

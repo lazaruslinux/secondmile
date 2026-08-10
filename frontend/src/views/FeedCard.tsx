@@ -5,12 +5,14 @@ import {
   deleteWorkoutPhoto,
   encourage,
   errorText,
+  getWorkoutNotes,
   PHOTO_TOO_LARGE,
   updateWorkout,
   uploadWorkoutPhoto,
   workoutPhotoUrl,
   type FeedItem,
   type Units,
+  type WorkoutNote,
 } from '../api.ts'
 import {
   convertedValue,
@@ -47,11 +49,11 @@ interface Given {
   cheered: boolean
 }
 
-// "2 cheers, 1 note", and nothing at all when there is nothing. A workout
+// "+6 Hype, 1 note", and nothing at all when there is nothing. A workout
 // nobody has said anything about looks like a workout, not like an empty box.
 function countLine(given: Given): string {
   const parts: string[] = []
-  if (given.cheers > 0) parts.push(`${given.cheers} ${given.cheers === 1 ? 'cheer' : 'cheers'}`)
+  if (given.cheers > 0) parts.push(`+${given.cheers} Hype`)
   if (given.notes > 0) parts.push(`${given.notes} ${given.notes === 1 ? 'note' : 'notes'}`)
   return parts.join(', ')
 }
@@ -123,12 +125,12 @@ function EncourageRow({ workoutId, encouragement }: EncourageProps) {
         <input
           type="text"
           className="encourage-input"
-          placeholder="Write a note"
+          placeholder="Drop some encouragement"
           maxLength={NOTE_LIMIT}
           value={draft}
           disabled={busy}
           onChange={(event) => setDraft(event.target.value)}
-          aria-label="Write a note"
+          aria-label="Drop some encouragement"
         />
         <button type="submit" className="primary" disabled={busy || draft.trim() === ''}>
           Send
@@ -139,8 +141,8 @@ function EncourageRow({ workoutId, encouragement }: EncourageProps) {
           type="button"
           className={given.cheered ? 'cheer cheer-on' : 'cheer'}
           aria-pressed={given.cheered}
-          aria-label={given.cheered ? 'Cheered' : 'Cheer'}
-          title={given.cheered ? 'Cheered' : 'Cheer'}
+          aria-label={given.cheered ? 'Hyped' : '+1 Hype'}
+          title={given.cheered ? 'Hyped' : '+1 Hype'}
           disabled={busy}
           onClick={() => void cheer()}
         >
@@ -176,6 +178,79 @@ function EncourageRow({ workoutId, encouragement }: EncourageProps) {
             <li key={index}>
               <span className="encourage-note-who">You wrote</span>
               <span className="encourage-note-body">{body}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+// Under your own workout: what came back for it, and the words themselves once
+// you ask for them. No box and no hype button, because both of those go toward
+// the person who did the miles and that is you.
+function ReceivedRow({ workoutId, encouragement }: EncourageProps) {
+  // Null until the first time the notes are opened, and kept afterwards, so
+  // closing and reopening a card does not ask again.
+  const [notes, setNotes] = useState<WorkoutNote[] | null>(null)
+  const [showing, setShowing] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [failed, setFailed] = useState('')
+
+  const counts = countLine({
+    cheers: encouragement.cheers,
+    notes: encouragement.notes,
+    cheered: false,
+  })
+
+  async function toggle() {
+    if (showing) {
+      setShowing(false)
+      return
+    }
+    setShowing(true)
+    if (notes !== null) return
+    setBusy(true)
+    setFailed('')
+    try {
+      setNotes(await getWorkoutNotes(workoutId))
+    } catch (err) {
+      setFailed(errorText(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (counts === '') return null
+
+  return (
+    <div className="encourage">
+      {encouragement.notes > 0 ? (
+        <button
+          type="button"
+          className="encourage-counts encourage-counts-open"
+          aria-expanded={showing}
+          disabled={busy}
+          onClick={() => void toggle()}
+        >
+          {counts}
+        </button>
+      ) : (
+        <p className="encourage-counts">{counts}</p>
+      )}
+
+      {failed && (
+        <p className="error" role="alert">
+          {failed}
+        </p>
+      )}
+
+      {showing && notes !== null && (
+        <ul className="encourage-notes">
+          {notes.map((note, index) => (
+            <li key={index}>
+              <span className="encourage-note-who">{note.from}</span>
+              <span className="encourage-note-body">{note.body}</span>
             </li>
           ))}
         </ul>
@@ -580,13 +655,14 @@ export default function FeedCard({
           </h2>
         )}
 
-        {item.has_route && <RouteLine workoutId={item.workout_id} />}
+        {/* This and the pictures are in the panel while it is open, so the card
+            does not say the same thing twice. */}
+        {!editing && post !== '' && <p className="feed-post">{post}</p>}
 
         <StatRow item={item} units={units} />
 
-        {/* Both of these are in the panel while it is open, so the card does not
-            say the same thing twice. */}
-        {!editing && post !== '' && <p className="feed-post">{post}</p>}
+        {item.has_route && <RouteLine workoutId={item.workout_id} />}
+
         {!editing && <PhotoStrip workoutId={item.workout_id} photos={photos} />}
 
         {(item.xp !== undefined || medals.length > 0) && (
@@ -601,6 +677,8 @@ export default function FeedCard({
             ))}
           </p>
         )}
+
+        <ReceivedRow workoutId={item.workout_id} encouragement={item.encouragement} />
       </article>
     )
   }
@@ -660,13 +738,14 @@ export default function FeedCard({
         {headline}
       </h2>
 
-      {item.has_route && <RouteLine workoutId={item.workout_id} />}
-
-      <StatRow item={item} units={units} />
-
       {/* What they wrote and what they took pictures of, theirs to share, and
           sharing it is what putting it here was. */}
       {post !== '' && <p className="feed-post">{post}</p>}
+
+      <StatRow item={item} units={units} />
+
+      {item.has_route && <RouteLine workoutId={item.workout_id} />}
+
       <PhotoStrip workoutId={item.workout_id} photos={photos} />
 
       {medals.length > 0 && (

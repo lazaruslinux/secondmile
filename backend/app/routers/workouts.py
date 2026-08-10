@@ -455,6 +455,58 @@ def encourage(
     }
 
 
+@router.get("/{workout_id}/notes")
+def workout_notes(
+    workout_id: int,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(security.current_user),
+) -> list[dict]:
+    """The words written on your own workout, oldest first.
+
+    The owner and nobody else. A friend sees that words were written, because
+    the count is on their card too, and never what they said: a note is a word
+    to the runner rather than a comment on a thread, so there is no audience for
+    it beyond the person it was written to. The same 404 answers a friend, a
+    stranger, and a workout that does not exist, so an id says nothing about
+    whose history it belongs to.
+
+    Fetched only when somebody opens the counts, which is why the feed carries
+    totals rather than bodies. It spends the feed's own read allowance: opening
+    the words under a card is part of reading the feed, and giving it a budget
+    of its own would only mean one more limiter guarding the same screen.
+    """
+    if throttle.feed_limiter.hit(throttle.user_key(user)):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, throttle.TOO_MANY_READS)
+    _owned(db, workout_id, user.id)
+    rows = db.execute(
+        select(
+            models.Encouragement.body,
+            models.Encouragement.created_at,
+            models.User.username,
+            models.User.first_name,
+            models.User.last_name,
+        )
+        .join(models.User, models.User.id == models.Encouragement.from_user_id)
+        .where(
+            models.Encouragement.workout_id == workout_id,
+            models.Encouragement.kind == "note",
+        )
+        # By id as well, because two notes can share a timestamp and the order
+        # they were written in is the order they should be read in.
+        .order_by(models.Encouragement.created_at, models.Encouragement.id)
+    ).all()
+    return [
+        {
+            # The name they go by, falling back to the username, the same way
+            # every other card names a person.
+            "from": fellowship.display_name(first_name, last_name) or username,
+            "body": body or "",
+            "created_at": created_at.isoformat(),
+        }
+        for body, created_at, username, first_name, last_name in rows
+    ]
+
+
 @router.get("/weeks")
 def weekly_totals(
     count: int = Query(8, ge=1, le=MAX_WEEKS),

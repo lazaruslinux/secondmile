@@ -55,7 +55,7 @@ Current version: **0.1.1**. Releases are tagged in git.
   workout: the distance, the time, the pace, the calories, the heart rate, the
   medal, and the route line. Settings has switches for the heart rate, the
   calories, and the route, and anything switched off is left out of what the
-  server sends rather than hidden by the app. You can cheer a workout without
+  server sends rather than hidden by the app. You can hype a workout without
   words or write a note about it, and
   nothing in the app ever suggests what to say.
 - **Multi-user from day one.** Accounts are invite-only out of the box: the

@@ -123,9 +123,7 @@ export default function Recap({ recap, units, onDismiss }: Props) {
                 </ul>
               )}
               {cheers > 0 && (
-                <p className="recap-cheers">
-                  {cheers} {cheers === 1 ? 'cheer' : 'cheers'}.
-                </p>
+                <p className="recap-cheers">+{cheers} Hype.</p>
               )}
             </section>
           )}
