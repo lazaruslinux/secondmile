@@ -318,6 +318,8 @@ def delete_photo(
     user: models.User = Depends(security.current_user),
 ) -> Response:
     """Take one of your own pictures back off a workout."""
+    if throttle.delete_media_limiter.hit(throttle.user_key(user)):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many changes. Wait a minute.")
     _owned(db, workout_id, user.id)
     photo = db.get(models.WorkoutPhoto, photo_id)
     if photo is None or photo.workout_id != workout_id:

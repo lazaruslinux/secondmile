@@ -161,6 +161,12 @@ def serialize_profile(db: Session, user: models.User, row: models.UserProgress) 
         # and should not have to work out what null means.
         "diamond_sports": progress.diamond_sports(db, user.id, user.diamond_sports),
         "streak_weeks": progress.streak_weeks(db, user.id),
+        # Which days of this week already carry a workout, Monday first. Worked
+        # out here rather than on the client, so the diamonds under the streak
+        # are bucketed by the same instance-timezone Monday the streak itself is
+        # counted over, and so they stop depending on how far the feed has been
+        # scrolled.
+        "week_days": progress.week_days(db, user.id),
         "week": progress.week_totals(
             db, user.id, activity_rules.week_start(security.now_utc())
         ),
@@ -183,6 +189,8 @@ def read_profile(
     db: Session = Depends(get_db), user: models.User = Depends(security.current_user)
 ) -> dict:
     """The whole profile, after sweeping anything that arrived since last time."""
+    if throttle.profile_read_limiter.hit(throttle.user_key(user)):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, throttle.TOO_MANY_READS)
     return serialize_profile(db, user, progress.process_user(db, user.id))
 
 
@@ -241,6 +249,8 @@ def set_profile(
     field have to be told apart: the first is somebody deleting their birthdate
     and the second is somebody saving a different part of the form.
     """
+    if throttle.profile_edit_limiter.hit(throttle.user_key(user)):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many edits. Wait a minute.")
     if body.displayed_badges is not None:
         _set_badges(db, user, body.displayed_badges)
     if "diamond_sports" in body.model_fields_set:
@@ -312,6 +322,8 @@ def delete_avatar(
     db: Session = Depends(get_db),
     user: models.User = Depends(security.current_user),
 ) -> Response:
+    if throttle.delete_media_limiter.hit(throttle.user_key(user)):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many changes. Wait a minute.")
     avatars.remove(user.id)
     user.avatar_path = None
     db.commit()
@@ -325,10 +337,28 @@ def read_avatar(
     db: Session = Depends(get_db),
     viewer: models.User = Depends(security.current_user),
 ) -> FileResponse:
-    """Serve one account's picture to any signed-in player. Not public: an
-    unauthenticated URL returning a photograph invites hotlinking."""
+    """Serve one account's picture to the people entitled to see it.
+
+    Three of them: yourself, an accepted friend, and somebody you have sent an
+    invite to. The third is why the reach is wider than the feed's, and it is
+    deliberately one-way. Answering an invitation means looking at whoever sent
+    it, so the recipient may see the inviter's face; the inviter may not see the
+    recipient's, because an account can create a pending invite to any name it
+    likes and the reverse rule would turn that into a way to pull a photograph
+    of whoever holds a username.
+
+    Everything else is the same 404 as an account with no picture, so this
+    cannot be asked which ids are real either. Behind a session in all cases:
+    an unauthenticated URL returning a photograph invites hotlinking.
+    """
     owner = db.get(models.User, user_id)
     if owner is None or owner.avatar_path is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No picture.")
+    if (
+        user_id != viewer.id
+        and not fellowship.are_friends(db, viewer.id, user_id)
+        and not fellowship.invited(db, user_id, viewer.id)
+    ):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No picture.")
     stored = avatars.path_for(user_id)
     if not os.path.isfile(stored):

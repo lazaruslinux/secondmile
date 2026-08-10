@@ -2,11 +2,13 @@
 
 import datetime as dt
 import io
+from zoneinfo import ZoneInfo
 
 import pytest
 from conftest import give_planting, log_workout, neutral_start
 from PIL import Image
 
+from app import activity as activity_rules
 from app import medals, models, progress, security
 from app.config import MAX_AVATAR_BYTES
 
@@ -247,6 +249,49 @@ def test_one_account_cannot_overwrite_another_avatar(signed_in, db_session, admi
     assert signed_in.get(f"/api/profile/avatar/{admin.id}").status_code == 404
 
 
+def test_a_stranger_cannot_read_a_picture(signed_in, db_session, member):
+    """Signing in is not enough. A picture is a photograph of somebody, so the
+    reach is the feed's: yourself and the people you have both agreed to."""
+    upload(signed_in, image_bytes())
+    _, stranger = sign_in(db_session, "stranger")
+    refused = stranger.get(f"/api/profile/avatar/{member.id}")
+    assert refused.status_code == 404
+    assert refused.json() == {"detail": "No picture."}
+    # And the owner still sees their own.
+    assert signed_in.get(f"/api/profile/avatar/{member.id}").status_code == 200
+
+
+def test_a_friend_can_read_a_picture(signed_in, db_session, member):
+    upload(signed_in, image_bytes())
+    other, other_client = sign_in(db_session, "mate")
+    befriend(db_session, member, other)
+    assert other_client.get(f"/api/profile/avatar/{member.id}").status_code == 200
+
+
+def test_an_invite_shows_its_sender_face_and_never_the_other_way(
+    signed_in, db_session, member
+):
+    """The one direction wider than friendship, and it only goes one way.
+
+    Answering an invitation means looking at whoever sent it, so the recipient
+    may see the inviter's picture. The reverse is refused: an account can create
+    a pending invite to any name it likes, and serving the recipient's picture
+    back would make the invite form a way to pull a photograph out of a
+    username, which is the whole thing the sent list was fixed to stop.
+    """
+    other, other_client = sign_in(db_session, "mate")
+    upload(signed_in, image_bytes())
+    upload(other_client, image_bytes(colour=(200, 10, 10)))
+    assert signed_in.post("/api/friends/invite", json={"username": "mate"}).status_code == 204
+
+    # The recipient may look at whoever is asking.
+    assert other_client.get(f"/api/profile/avatar/{member.id}").status_code == 200
+    # The sender may not look at whoever they asked.
+    refused = signed_in.get(f"/api/profile/avatar/{other.id}")
+    assert refused.status_code == 404
+    assert refused.json() == {"detail": "No picture."}
+
+
 def test_an_avatar_the_row_claims_but_the_disk_lost_is_a_404(signed_in, member, avatar_dir):
     """A volume that did not come back is not a server error to the caller.
 
@@ -370,6 +415,76 @@ def test_a_workout_dated_ahead_of_now_does_not_start_a_streak(db_session, member
 def test_the_profile_reports_the_streak(signed_in, db_session, member):
     log_workout(db_session, member.id, "run", 2.0)
     assert signed_in.get("/api/profile").json()["streak_weeks"] == 1
+
+
+# --------------------------------------------------------------------------
+# The seven days under the streak
+# --------------------------------------------------------------------------
+
+
+def test_the_week_days_are_monday_first_and_this_week_only(db_session, member):
+    # Tuesday and Saturday of this week, plus one in the week before that must
+    # not show up in it.
+    add_workout(db_session, member.id, at(THIS_MONDAY + dt.timedelta(days=1)))
+    add_workout(db_session, member.id, at(THIS_MONDAY + dt.timedelta(days=5)))
+    add_workout(db_session, member.id, at(monday(1) + dt.timedelta(days=1)))
+    assert progress.week_days(db_session, member.id, NOW) == [
+        False,
+        True,
+        False,
+        False,
+        False,
+        True,
+        False,
+    ]
+
+
+def test_an_empty_week_has_no_days_on_it(db_session, member):
+    add_workout(db_session, member.id, at(monday(1)))
+    assert progress.week_days(db_session, member.id, NOW) == [False] * 7
+
+
+def test_a_workout_dated_ahead_of_this_week_lands_on_no_day(db_session, member):
+    add_workout(db_session, member.id, at(monday(-1) + dt.timedelta(days=2)))
+    assert progress.week_days(db_session, member.id, NOW) == [False] * 7
+
+
+def test_the_week_days_are_bucketed_in_the_instance_timezone(db_session, member, monkeypatch):
+    """The boundary case, and the reason this is worked out on the server.
+
+    Two in the morning on Monday, UTC, is seven in the evening on Sunday in an
+    instance running seven hours behind: the same instant is in two different
+    weeks depending on which clock reads it. The server counts the streak in the
+    instance zone, so the diamonds under it have to be bucketed there too, or the
+    two disagree on one evening a week.
+    """
+    zone = ZoneInfo("America/Phoenix")
+    monkeypatch.setattr(progress, "SERVER_TZ", zone)
+    monkeypatch.setattr(activity_rules, "SERVER_TZ", zone)
+
+    # Monday 02:00 UTC, which is Sunday evening locally and so last week.
+    add_workout(db_session, member.id, at(THIS_MONDAY, 2, 0))
+    # Monday 14:00 UTC, which is Monday morning locally.
+    add_workout(db_session, member.id, at(THIS_MONDAY, 14, 0))
+    assert progress.week_days(db_session, member.id, NOW) == [
+        True,
+        False,
+        False,
+        False,
+        False,
+        False,
+        False,
+    ]
+    # The same instant that fell out of this week is on the last day of the week
+    # before, which is what the streak counts it as.
+    assert progress.streak_weeks(db_session, member.id, NOW) == 2
+
+
+def test_the_profile_reports_the_week_days(signed_in, db_session, member):
+    log_workout(db_session, member.id, "run", 2.0)
+    days = signed_in.get("/api/profile").json()["week_days"]
+    assert len(days) == 7
+    assert days.count(True) == 1
 
 
 # --------------------------------------------------------------------------

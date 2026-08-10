@@ -8,6 +8,7 @@ import pytest
 
 from app import config, main, models, security, throttle
 from conftest import ADMIN, MEMBER
+from test_grove import sign_in
 
 
 def _set_cookie_header(response):
@@ -226,6 +227,58 @@ def test_limiter_forgets_old_attempts(monkeypatch):
     # allowance; the window slides rather than resetting on a fixed schedule.
     clock[0] += 120
     assert limiter.hit("a") is False
+
+
+def test_the_limiter_evicts_the_oldest_key_rather_than_refusing_new_ones(monkeypatch):
+    """At the ceiling, somebody is flooding it with addresses they made up.
+
+    Refusing new keys there was the old answer, and it turns a flood into an
+    outage: every real person arriving after the table filled would be told to
+    wait, on an endpoint they had not touched. The oldest key is dropped
+    instead, which costs the earliest attacker their count and nobody else
+    anything.
+    """
+    clock = [1000.0]
+    monkeypatch.setattr(time, "time", lambda: clock[0])
+    monkeypatch.setattr(throttle, "_MAX_TRACKED", 3)
+    # Above the ceiling, so the sweep never runs and the eviction is what is
+    # being watched rather than the tidy-up in front of it.
+    monkeypatch.setattr(throttle, "_SWEEP_THRESHOLD", 100)
+    limiter = throttle.RateLimiter(2, "test")
+
+    for index, key in enumerate(("a", "b", "c")):
+        clock[0] += 1
+        assert limiter.hit(key) is False
+        assert limiter.tracked() == index + 1
+
+    # The table is full and a fourth key arrives. It is let in, and the one that
+    # has gone longest without a hit is the one that makes room.
+    clock[0] += 1
+    assert limiter.hit("d") is False
+    assert limiter.tracked() == 3
+    assert "a" not in limiter._hits
+    assert {"b", "c", "d"} == set(limiter._hits)
+    # And the newcomer really got an allowance rather than a place in a queue.
+    assert limiter.hit("d") is False
+    assert limiter.hit("d") is True
+
+
+def test_one_account_cannot_spend_another_accounts_allowance(client, db_session, member):
+    """The signed-in limiters count per account, not per address.
+
+    Everything in this suite arrives from one address, which is also what a
+    household behind one router looks like. Counting those together would mean
+    one phone syncing hard could lock the rest of a family out of their own
+    profiles.
+    """
+    client.post("/api/auth/login", json=MEMBER)
+    codes = [client.patch("/api/profile", json={}).status_code for _ in range(11)]
+    assert codes[-1] == 429
+    assert codes.count(200) == 10
+
+    _other, other_client = sign_in(db_session, "mate")
+    # Same address, untouched allowance.
+    assert other_client.patch("/api/profile", json={}).status_code == 200
 
 
 def test_reset_limiters_clears_every_one(client, member):

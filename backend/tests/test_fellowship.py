@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 
 from app import config, fellowship, models, progress, security
 from app.main import app as fastapi_app
+from app.routers.fellowship import MAX_OUTBOUND_INVITES, TOO_MANY_INVITES
 from conftest import LETTER_KEYS, make_user, neutral_start
 
 # The photo upload helper, borrowed rather than written twice: what a friend
@@ -169,12 +170,116 @@ def test_an_invite_never_says_whether_the_name_existed(signed_in, mate):
         signed_in.post("/api/friends/invite", json={"username": "nobody-here"}).status_code
         == 204
     )
-    # And nothing was written for a name that does not exist.
-    assert signed_in.get("/api/friends").json()["pending_out"] == []
+    # The name is on the sent list because it was typed, not because anybody
+    # answers to it. That is the whole of the fix: the list is a record of what
+    # the sender did, and reading it back tells them nothing new.
+    assert signed_in.get("/api/friends").json()["pending_out"] == [{"username": "nobody-here"}]
     # A duplicate and a reverse duplicate are both quiet no-ops.
     signed_in.post("/api/friends/invite", json={"username": "mate"})
     signed_in.post("/api/friends/invite", json={"username": "MATE"})
-    assert len(signed_in.get("/api/friends").json()["pending_out"]) == 1
+    assert signed_in.get("/api/friends").json()["pending_out"] == [
+        {"username": "mate"},
+        {"username": "nobody-here"},
+    ]
+
+
+def test_the_sent_list_reads_the_same_for_a_real_name_and_an_invented_one(
+    signed_in, db_session, mate
+):
+    """The oracle, closed. Invite, read, cancel, repeat is what walking the
+    username space looked like, so the two runs of it have to be identical
+    byte for byte: the only thing that differs is the name that was typed."""
+
+    def run(name: str) -> tuple[int, object, int]:
+        sent = signed_in.post("/api/friends/invite", json={"username": name})
+        listed = signed_in.get("/api/friends").json()["pending_out"]
+        cancelled = signed_in.delete(f"/api/friends/invites/{name}")
+        assert signed_in.get("/api/friends").json()["pending_out"] == []
+        return sent.status_code, listed, cancelled.status_code
+
+    real = run("mate")
+    invented = run("nobody-here")
+    assert real == (204, [{"username": "mate"}], 204)
+    # The same status codes and the same shape, and the name in it is the one
+    # that went in. Nothing here can tell the two accounts apart.
+    assert invented == (204, [{"username": "nobody-here"}], 204)
+    # The friendship row was still written for the one that resolved, so the
+    # invite itself was really sent while the list said nothing about it.
+    assert db_session.query(models.Friendship).count() == 0
+
+
+def test_a_declined_invite_stays_on_the_sent_list(signed_in, db_session, member, mate):
+    """A decline is not news the sender gets. Leaving the name where it was is
+    what keeps absence from being an answer."""
+    other, other_client = mate
+    signed_in.post("/api/friends/invite", json={"username": "mate"})
+    assert other_client.delete(f"/api/friends/{member.id}").status_code == 204
+
+    assert other_client.get("/api/friends").json()["pending_in"] == []
+    assert db_session.query(models.Friendship).count() == 0
+    assert signed_in.get("/api/friends").json()["pending_out"] == [{"username": "mate"}]
+
+
+def test_accepting_takes_the_name_off_the_sent_list(signed_in, member, mate):
+    other, other_client = mate
+    signed_in.post("/api/friends/invite", json={"username": "mate"})
+    # Both of them asked, which is the case where a second row is left behind.
+    other_client.post("/api/friends/invite", json={"username": member.username})
+    assert other_client.post(f"/api/friends/{member.id}/accept").status_code == 204
+
+    assert signed_in.get("/api/friends").json()["pending_out"] == []
+    assert other_client.get("/api/friends").json()["pending_out"] == []
+
+
+def test_cancelling_takes_back_the_invite_the_other_side_is_holding(
+    signed_in, db_session, member, mate
+):
+    other, other_client = mate
+    signed_in.post("/api/friends/invite", json={"username": "mate"})
+    assert [card["username"] for card in other_client.get("/api/friends").json()["pending_in"]] == [
+        member.username
+    ]
+
+    assert signed_in.delete("/api/friends/invites/MATE").status_code == 204
+    assert signed_in.get("/api/friends").json()["pending_out"] == []
+    assert other_client.get("/api/friends").json()["pending_in"] == []
+    assert db_session.query(models.Friendship).count() == 0
+    # Cancelling something that was never sent is the same 204, said to nobody.
+    assert signed_in.delete("/api/friends/invites/nobody-here").status_code == 204
+
+
+def test_cancelling_never_ends_a_friendship(signed_in, db_session, member, mate):
+    """The cancel verb is for invites only. Unfriending is the other one, and a
+    name typed into this one must not quietly do it."""
+    other, other_client = mate
+    befriend(db_session, member, other)
+    assert signed_in.delete("/api/friends/invites/mate").status_code == 204
+    assert [card["username"] for card in signed_in.get("/api/friends").json()["friends"]] == [
+        "mate"
+    ]
+
+
+def test_the_sent_list_stops_at_a_hundred_names(signed_in, db_session, member):
+    # Written straight in rather than sent one at a time: a hundred invites is
+    # ten times what the invite limiter allows in a minute, and the cap being
+    # tested here is the other one.
+    for index in range(MAX_OUTBOUND_INVITES):
+        db_session.add(
+            models.OutboundInvite(
+                user_id=member.id, username=f"name-{index}", created_at=security.now_utc()
+            )
+        )
+    db_session.commit()
+
+    refused = signed_in.post("/api/friends/invite", json={"username": "one-too-many"})
+    assert refused.status_code == 400
+    assert refused.json() == {"detail": TOO_MANY_INVITES}
+    assert len(signed_in.get("/api/friends").json()["pending_out"]) == MAX_OUTBOUND_INVITES
+    # Room again the moment one is cancelled.
+    assert signed_in.delete("/api/friends/invites/name-0").status_code == 204
+    assert (
+        signed_in.post("/api/friends/invite", json={"username": "one-too-many"}).status_code == 204
+    )
 
 
 def test_a_reverse_invite_is_a_no_op_rather_than_a_second_row(

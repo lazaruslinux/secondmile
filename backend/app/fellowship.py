@@ -13,6 +13,7 @@ stage on the avatar border and nowhere else.
 import datetime as dt
 
 from sqlalchemy import delete, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app import models, progress
@@ -80,6 +81,30 @@ def are_friends(db: Session, user_id: int, other_id: int) -> bool:
     )
 
 
+def invited(db: Session, from_user_id: int, to_user_id: int) -> bool:
+    """Whether one account has an invite waiting on another, that way round only.
+
+    The direction is the whole of it. Whoever received an invite may see the
+    face of whoever sent it, because answering a card with no picture on it is
+    answering nobody. The other way round is refused: an account can create a
+    pending invite to any name it likes, so serving the recipient's picture back
+    would make the invite form a way to look up the person behind a username,
+    which is the hole the rest of this file is shaped around.
+    """
+    return (
+        db.execute(
+            select(models.Friendship.id)
+            .where(
+                models.Friendship.requester_id == from_user_id,
+                models.Friendship.addressee_id == to_user_id,
+                models.Friendship.status == "pending",
+            )
+            .limit(1)
+        ).first()
+        is not None
+    )
+
+
 def link(db: Session, user_id: int, other_id: int) -> models.Friendship | None:
     """The row between two accounts, whichever way round it was asked."""
     return db.execute(
@@ -108,6 +133,56 @@ def unlink(db: Session, user_id: int, other_id: int) -> None:
                 (models.Friendship.requester_id == other_id)
                 & (models.Friendship.addressee_id == user_id),
             )
+        )
+    )
+
+
+# --------------------------------------------------------------------------
+# The names somebody typed into the invite form
+# --------------------------------------------------------------------------
+# Kept apart from the friendship rows on purpose. A friendship row exists only
+# when the name resolved, so a list built from those rows says which of the
+# names somebody tried are real accounts. These rows are the names themselves,
+# real or not, and they are what the sent list is served from.
+
+
+def outbound_names(db: Session, user_id: int) -> list[str]:
+    """Every name this account has invited and not cancelled, in name order.
+
+    Sorted here rather than by when they were sent, so the list does not
+    reshuffle itself between visits.
+    """
+    return sorted(
+        db.execute(
+            select(models.OutboundInvite.username).where(
+                models.OutboundInvite.user_id == user_id
+            )
+        ).scalars()
+    )
+
+
+def record_outbound(db: Session, user_id: int, username: str, moment: dt.datetime) -> None:
+    """Remember one name somebody typed. Sending the same invite twice is a
+    no-op, settled by the unique pair rather than by reading first."""
+    try:
+        with db.begin_nested():
+            db.add(
+                models.OutboundInvite(
+                    user_id=user_id, username=username, created_at=moment
+                )
+            )
+            db.flush()
+    except IntegrityError:
+        # Already there, which is what a second invite to the same name is.
+        db.rollback()
+
+
+def forget_outbound(db: Session, user_id: int, username: str) -> None:
+    """Take one name back off the sent list, whether or not it was on it."""
+    db.execute(
+        delete(models.OutboundInvite).where(
+            models.OutboundInvite.user_id == user_id,
+            models.OutboundInvite.username == username,
         )
     )
 
@@ -183,13 +258,18 @@ def spend_on(
     kind: str,
     moment: dt.datetime,
 ) -> None:
-    """Mark one item spent on somebody else and pay whatever renown it earned.
+    """Record who one spent item went to and pay whatever renown it earned.
+
+    The spending itself already happened: the caller took the item out of the
+    satchel with a conditional update, which is the one thing that decides
+    whether this call happens at all. This rides on that single spend rather
+    than writing used_at a second time, so there is exactly one statement in the
+    codebase that can turn an unspent item into a spent one.
 
     Flushes but never commits: the caller owns the transaction, because the
     thing the item actually did has to succeed or fail alongside this.
     """
     earned = gift_earns_renown(db, item.user_id, recipient_id, kind, moment)
-    item.used_at = moment
     item.given_to_user_id = recipient_id
     item.earned_renown = earned
     if earned:

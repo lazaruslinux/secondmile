@@ -5,8 +5,10 @@ import datetime as dt
 import logging
 
 import pytest
+from fastapi.testclient import TestClient
 
 from app import config, models, security
+from app.main import app as fastapi_app
 from conftest import make_invite, make_user
 
 NEWCOMER = {
@@ -271,8 +273,35 @@ def test_adding_an_address_waits_for_the_link_before_anything_moves(
     assert member.email == WANTED
     assert member.email_verified is True
     assert member.pending_email is None
+
+    # Signed in again, because the swap took every session with it. See the
+    # case below: this is the credential change it looks like.
+    assert signed_in.post(
+        "/api/auth/login", json={"username": member.username, "password": MEMBER_PASSWORD}
+    ).status_code == 204
     me = signed_in.get("/api/auth/me").json()
     assert (me["email"], me["pending_email"]) == (WANTED, None)
+
+
+def test_completing_a_change_of_address_revokes_every_session(
+    signed_in, client, db_session, member, change_outbox
+):
+    """Moving an account to another inbox decides who the account answers to,
+    so it is a credential event and every session dies with it, including the
+    one that asked for the change."""
+    # A second browser on the same account, to prove it is not only the caller's
+    # own session that goes.
+    elsewhere = TestClient(fastapi_app)
+    assert elsewhere.post(
+        "/api/auth/login", json={"username": member.username, "password": MEMBER_PASSWORD}
+    ).status_code == 204
+
+    assert _ask_for(signed_in).status_code == 204
+    assert _verify(client, change_outbox[0][1]).status_code == 204
+
+    assert db_session.query(models.UserSession).count() == 0
+    assert signed_in.get("/api/auth/me").status_code == 401
+    assert elsewhere.get("/api/auth/me").status_code == 401
 
 
 def test_a_change_link_is_stored_as_a_hash_with_its_own_purpose(

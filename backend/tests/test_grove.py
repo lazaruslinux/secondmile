@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 from app import models, progress, security, species
 from app.config import MAX_PENDING_ANOINTINGS, WATER_POUR_MI
 from app.main import app as fastapi_app
+from app.routers import grove as grove_router
 from conftest import LETTER_KEYS, give_item, give_planting, log_workout, make_user
 
 
@@ -99,6 +100,87 @@ def test_a_seed_cannot_be_planted_twice(signed_in, db_session, member):
     assert signed_in.post(f"/api/satchel/{item.id}/plant").status_code == 201
     assert signed_in.post(f"/api/satchel/{item.id}/plant").status_code == 404
     assert len(signed_in.get("/api/grove").json()) == 1
+
+
+@pytest.fixture()
+def blind_read(monkeypatch):
+    """The satchel's read check taken out of the way.
+
+    Two requests carrying the same item id can both read it as unspent, which
+    is what a race is, and one thread cannot arrange that on its own. Taking the
+    read out leaves exactly the situation the loser of a race is in when it
+    reaches the write, so what refuses it below is the conditional update and
+    nothing else.
+    """
+
+    def blind(db, _user, item_id, _kind):
+        return db.get(models.SatchelItem, item_id)
+
+    monkeypatch.setattr(grove_router, "_item", blind)
+
+
+def test_a_lost_race_cannot_plant_a_seed_somebody_else_already_spent(
+    signed_in, db_session, member, blind_read
+):
+    item = give_item(db_session, member.id, "seed", "blueberry")
+    assert signed_in.post(f"/api/satchel/{item.id}/plant").status_code == 201
+
+    second = signed_in.post(f"/api/satchel/{item.id}/plant")
+    assert second.status_code == 404
+    assert second.json() == {"detail": "No such item."}
+    # One seed, one plant. The whole point of the claim is that this is not two.
+    assert db_session.query(models.Planting).count() == 1
+
+
+def test_a_lost_race_cannot_pour_water_that_is_already_gone(
+    signed_in, db_session, member, blind_read
+):
+    item = give_item(db_session, member.id, "water")
+    planting = give_planting(db_session, member.id)
+    body = {"planting_id": planting.id}
+    assert signed_in.post(f"/api/satchel/{item.id}/pour", json=body).status_code == 200
+    db_session.refresh(planting)
+    grown = planting.growth_mi
+
+    assert signed_in.post(f"/api/satchel/{item.id}/pour", json=body).status_code == 404
+    db_session.refresh(planting)
+    # One water, one pour's worth of growth.
+    assert planting.growth_mi == grown
+
+
+def test_a_lost_race_cannot_spend_a_wish_twice(signed_in, db_session, member, blind_read):
+    item = give_item(db_session, member.id, "wish", rarity="epic")
+    assert (
+        signed_in.post(f"/api/satchel/{item.id}/choose", json={"species": "olive"}).status_code
+        == 201
+    )
+    # A different species the second time, so the wish's own checks all pass and
+    # what refuses this is the claim rather than a plot that already holds one.
+    second = signed_in.post(f"/api/satchel/{item.id}/choose", json={"species": "mango"})
+    assert second.status_code == 404
+    # The wish and the one seed it became, and no second seed.
+    assert db_session.query(models.SatchelItem).count() == 2
+
+
+def test_a_lost_race_cannot_spend_the_same_oil_on_two_friends(
+    signed_in, db_session, member, mate, blind_read
+):
+    other, _ = mate
+    third, _third_client = sign_in(db_session, "third")
+    befriend(db_session, member, other)
+    befriend(db_session, member, third)
+    item = give_item(db_session, member.id, "oil", rarity="legendary")
+
+    assert (
+        signed_in.post(
+            f"/api/satchel/{item.id}/anoint", json={"user_id": other.id}
+        ).status_code
+        == 204
+    )
+    refused = signed_in.post(f"/api/satchel/{item.id}/anoint", json={"user_id": third.id})
+    assert refused.status_code == 404
+    # One gift out of one oil, and the second friend got nothing.
+    assert db_session.query(models.Anointing).count() == 1
 
 
 def test_somebody_elses_item_answers_like_one_that_never_existed(

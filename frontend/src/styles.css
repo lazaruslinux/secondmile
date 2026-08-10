@@ -692,6 +692,9 @@ button:disabled {
   margin: 0;
   font-size: 1rem;
   text-align: center;
+  /* A name given as one long unbroken word has nowhere to break, and the card
+     is a narrow column. Breaks it rather than letting it run off the side. */
+  overflow-wrap: anywhere;
 }
 
 /* Miles, activities, level: the three numbers the wide home leads with. Spread
@@ -976,6 +979,9 @@ button:disabled {
   margin: 0;
   font-size: 0.95rem;
   font-weight: 700;
+  /* As the summary's name: nothing chosen by a person is guaranteed to have a
+     space in it, and a card is narrower than the longest one somebody can type. */
+  overflow-wrap: anywhere;
 }
 
 /* The two ways into a friend's profile: their picture and their name. Both are
@@ -1031,6 +1037,9 @@ button:disabled {
   margin: 0.75rem 0 0.7rem;
   font-size: 1rem;
   font-weight: 700;
+  /* A title is typed, so it can be a hundred characters with no space in it.
+     The post under it already breaks this way. */
+  overflow-wrap: anywhere;
 }
 
 .stat-row {
@@ -1464,6 +1473,16 @@ button:disabled {
 
 /* The band across the top of the screen: the grove's home, and inert. Whatever
    is planted stands along its floor. */
+/* The band and the picture riding up over its lower edge are one item in the
+   page's column, so the gap between cards falls outside the pair rather than
+   between them. Written down because the wrapper reads as a spare div until it
+   is taken out: the page is a flex column with a gap, and without this the two
+   would be spaced apart before the negative margin below pulled them back. */
+.you-banner {
+  display: flex;
+  flex-direction: column;
+}
+
 .you-band {
   height: 100px;
   background: var(--surface);
@@ -1678,6 +1697,8 @@ button:disabled {
 .profile-name {
   margin-bottom: 0.15rem;
   font-size: 1.2rem;
+  /* The largest of the four, so an unbroken name overruns here first. */
+  overflow-wrap: anywhere;
 }
 
 /* The name signed in with, under the name given. Quiet: it is the identity

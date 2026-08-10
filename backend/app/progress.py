@@ -10,7 +10,7 @@ import datetime as dt
 import random
 from collections.abc import Sequence
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -356,18 +356,32 @@ def roll_loot(
 
 def open_chest(
     db: Session, user_id: int, chest: models.Chest
-) -> models.SatchelItem:
-    """Roll what a chest was carrying and put it in the satchel.
+) -> models.SatchelItem | None:
+    """Roll what a chest was carrying and put it in the satchel, or answer None.
 
-    Seeded on the account and the chest, so the same chest opened twice in a
-    race, or replayed by a rebuild, comes up with the same thing. Flushes but
-    never commits: the caller owns the transaction.
+    The lid comes off with a conditional update rather than by writing to a row
+    that was read a moment ago, and None is what the request that lost that race
+    gets. Nothing is rolled and no item is created before it: the roll is seeded
+    on the account and the chest, so two openings would agree about what was
+    inside, and would then put two of it in the satchel. The claim is what makes
+    the roll happen once.
+
+    Flushes but never commits: the caller owns the transaction.
 
     What the plot already holds is read here, at the moment of opening, which
     is where every other roll has always been decided. A gift attached at the
     drop is kept here too: the promised step up is taken now, with everything
     else the chest decides.
     """
+    now = now_utc()
+    claimed = db.execute(
+        update(models.Chest)
+        .where(models.Chest.id == chest.id, models.Chest.opened_at.is_(None))
+        .values(opened_at=now)
+    )
+    if claimed.rowcount != 1:
+        return None
+
     # "First" means the first chest that ever yielded an item, not the first
     # chest row ever opened: an account migrated from the card era has opened
     # chests but holds no items, and its mustard moment is still ahead of it.
@@ -387,8 +401,6 @@ def open_chest(
         grove.held_species(db, user_id),
         chest.from_anointing_id is not None,
     )
-    now = now_utc()
-    chest.opened_at = now
     item = models.SatchelItem(
         user_id=user_id,
         kind=kind,
@@ -524,6 +536,31 @@ def streak_weeks(db: Session, user_id: int, moment: dt.datetime | None = None) -
             continue  # another workout in a week already counted
         cursor = week
     return count
+
+
+def week_days(db: Session, user_id: int, moment: dt.datetime | None = None) -> list[bool]:
+    """Which days of the current week already carry a workout, Monday first.
+
+    Bucketed by the same server-timezone Monday the streak above is counted
+    over, and read from the same column, so the seven diamonds and the number
+    of weeks beside them can never disagree about which week it is or which day
+    a late-evening run belongs to.
+
+    A workout dated ahead of this week is ignored rather than wrapped into it, a
+    phone with a wandering clock being free to send one.
+    """
+    this_week = week_start(moment or now_utc())
+    cutoff = dt.datetime.combine(this_week, dt.time.min, tzinfo=SERVER_TZ)
+    days = [False] * 7
+    for stamp in db.execute(
+        select(models.Workout.start_ts).where(
+            models.Workout.user_id == user_id, models.Workout.start_ts >= cutoff
+        )
+    ).scalars():
+        if week_start(stamp) != this_week:
+            continue
+        days[stamp.astimezone(SERVER_TZ).weekday()] = True
+    return days
 
 
 def diamond_sports(db: Session, user_id: int, chosen: list | None) -> list[str]:

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from
 import {
   acceptFriend,
   avatarUrl,
+  cancelInvite,
   errorText,
   getFriends,
   inviteFriend,
@@ -85,8 +86,11 @@ export default function Fellowship({ userId, onOpenPerson }: Props) {
   const [inviteNote, setInviteNote] = useState('')
   const [inviteError, setInviteError] = useState('')
 
-  // Which person a button is working on, so only that row goes quiet.
+  // Which person a button is working on, so only that row goes quiet. Sent
+  // invites are held by name rather than by id, because a name is all the
+  // server says about them.
   const [busyId, setBusyId] = useState<number | null>(null)
+  const [busyName, setBusyName] = useState('')
   const [actionError, setActionError] = useState('')
 
   const load = useCallback(async () => {
@@ -135,6 +139,19 @@ export default function Fellowship({ userId, onOpenPerson }: Props) {
       setActionError(errorText(err))
     } finally {
       setBusyId(null)
+    }
+  }
+
+  async function cancel(username: string) {
+    setBusyName(username)
+    setActionError('')
+    try {
+      await cancelInvite(username)
+      await load()
+    } catch (err) {
+      setActionError(errorText(err))
+    } finally {
+      setBusyName('')
     }
   }
 
@@ -205,20 +222,24 @@ export default function Fellowship({ userId, onOpenPerson }: Props) {
       {asked.length > 0 && (
         <>
           <h3 className="label fellowship-head">Invites you sent</h3>
+          {/* Names, and only names. There is no picture and no profile behind
+              one of these rows: the server will not say whether anybody answers
+              to the name, so there is nothing here to open. */}
           <ul className="friend-list">
-            {asked.map((person) => (
-              <PersonRow key={person.user_id} person={person}>
+            {asked.map((invite) => (
+              <li key={invite.username} className="friend-row">
+                <span className="friend-name">{invite.username}</span>
                 <span className="friend-buttons">
                   <button
                     type="button"
                     className="secondary"
-                    disabled={busyId === person.user_id}
-                    onClick={() => void act(person.user_id, () => removeFriend(person.user_id))}
+                    disabled={busyName === invite.username}
+                    onClick={() => void cancel(invite.username)}
                   >
                     Cancel
                   </button>
                 </span>
-              </PersonRow>
+              </li>
             ))}
           </ul>
         </>

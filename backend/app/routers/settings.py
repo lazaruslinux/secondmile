@@ -56,6 +56,10 @@ def rotate_token(
     exists anywhere it can be read. Rotating replaces the row rather than adding
     one, which is what makes rotation actually revoke the old token.
     """
+    if throttle.token_rotate_limiter.hit(throttle.user_key(user)):
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS, "Too many rotations. Wait a minute."
+        )
     token = security.generate_token()
     row = db.get(models.IngestToken, user.id)
     if row is None:

@@ -511,6 +511,25 @@ class Friendship(Base):
     responded_at: Mapped[dt.datetime | None] = mapped_column(UtcDateTime, nullable=True)
 
 
+class OutboundInvite(Base):
+    __tablename__ = "outbound_invites"
+    # One row per name an account has typed into the invite form and has not
+    # cancelled. It exists so the list of invites you sent can be answered from
+    # what you typed rather than from which of those names turned out to be
+    # real: a friendship row is only written when the name resolves, so a list
+    # built from those rows is a way to ask whether an account exists.
+    __table_args__ = (UniqueConstraint("user_id", "username", name="uq_outbound_invite"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # The name as it was typed, cleaned the way the invite form cleans it. No
+    # foreign key and no lookup: half of these name nobody, which is the point.
+    username: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
+
+
 class Encouragement(Base):
     __tablename__ = "encouragements"
     __table_args__ = (

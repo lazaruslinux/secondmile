@@ -532,6 +532,34 @@ def test_opening_the_same_chest_twice_is_a_conflict(signed_in, db_session, membe
     assert len(signed_in.get("/api/satchel").json()) == 1
 
 
+def test_a_lost_race_takes_nothing_out_of_a_chest(signed_in, db_session, member):
+    """Two requests carrying the same chest id, and the other one had the lid
+    off first.
+
+    The check in the router is the ordinary answer to a chest opened yesterday;
+    this is the one that settles a race, so it is worth proving on its own. The
+    roll is seeded on the account and the chest, so both callers would agree
+    about what was inside and would then put two of it in the satchel. Nothing
+    is rolled before the claim, and the loser is handed None.
+    """
+    chest = give_chest(db_session, member.id)
+    assert progress.open_chest(db_session, member.id, chest) is not None
+    db_session.commit()
+
+    assert progress.open_chest(db_session, member.id, chest) is None
+    db_session.commit()
+    assert (
+        db_session.query(models.SatchelItem)
+        .filter(models.SatchelItem.chest_id == chest.id)
+        .count()
+        == 1
+    )
+    # And the endpoint says the same thing the stale path says.
+    refused = signed_in.post(f"/api/chests/{chest.id}/open")
+    assert refused.status_code == 409
+    assert refused.json() == {"detail": "That chest is already open."}
+
+
 def test_somebody_elses_chest_answers_like_one_that_never_existed(
     signed_in, db_session, admin, member
 ):

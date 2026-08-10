@@ -136,12 +136,20 @@ export interface FeedItem {
   encouragement: Encouragement
 }
 
+// One invite this account sent, which is a name somebody typed and nothing
+// more. Deliberately not a Person: whether that name belongs to anybody is not
+// something the server will say, because answering would make the invite form a
+// way to look people up.
+export interface SentInvite {
+  username: string
+}
+
 // Mutual only: a friendship exists when one side asked and the other agreed.
 // Counts appear nowhere, here or anywhere else.
 export interface Friends {
   friends: Person[]
   pending_in: Person[]
-  pending_out: Person[]
+  pending_out: SentInvite[]
 }
 
 export type EncouragementKind = 'cheer' | 'note'
@@ -254,6 +262,11 @@ export interface Profile {
   diamond_sports?: Activity[]
   // Consecutive weeks with at least one workout, counting back from this one.
   streak_weeks?: number
+  // Which days of the current week already carry a workout, Monday first. Seven
+  // booleans, bucketed by the server in the instance's timezone, so they agree
+  // with the streak beside them. Optional so the app still renders against a
+  // server that predates the field, which simply draws no days.
+  week_days?: boolean[]
   // Activities with nothing recorded are absent rather than zeroed, the same
   // way the weekly totals behave.
   week: Partial<Record<Activity, ActivityStats>>
@@ -663,10 +676,17 @@ export async function acceptFriend(userId: number): Promise<void> {
   await send(`/friends/${userId}/accept`, { method: 'POST' })
 }
 
-// Declining an invitation, taking one back, and ending a friendship are the
-// same act to the server, and there is one verb for all three.
+// Declining an invitation and ending a friendship are the same act to the
+// server, and there is one verb for both.
 export async function removeFriend(userId: number): Promise<void> {
   await send(`/friends/${userId}`, { method: 'DELETE' })
+}
+
+// Taking back an invite you sent, by the name you sent it to. By name rather
+// than by id because a name is all the sent list carries: the server never says
+// whose id, if anybody's, is behind it. Answers 204 either way.
+export async function cancelInvite(username: string): Promise<void> {
+  await send(`/friends/invites/${encodeURIComponent(username)}`, { method: 'DELETE' })
 }
 
 // A cheer carries no words and a note carries nothing but the ones typed into

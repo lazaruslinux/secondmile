@@ -246,6 +246,15 @@ def verify_email(
             db.commit()
             raise stale
         user.email = wanted
+        # Moving an account to another inbox is a credential event: from here
+        # on, whoever reads that inbox is who the account answers to. Every
+        # session goes, this one included, because there is no session making
+        # this request to spare: the link is spent from whatever browser opened
+        # the mail, which is not necessarily the one that asked for the change.
+        #
+        # NOT BUILT, and queued rather than forgotten: a note to the address the
+        # account is leaving, so somebody who did not ask for this finds out.
+        security.delete_sessions(db, user.id)
     user.email_verified = True
     db.commit()
     response.status_code = status.HTTP_204_NO_CONTENT

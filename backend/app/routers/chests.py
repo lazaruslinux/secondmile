@@ -6,12 +6,14 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app import fellowship, grove, medals, models, progress, security
+from app import fellowship, grove, medals, models, progress, security, throttle
 from app.activity import converted_miles
 from app.db import get_db
 from app.routers.workouts import photos_for
 
 router = APIRouter(tags=["chests"])
+
+ALREADY_OPEN = "That chest is already open."
 
 # The recap is a story, not a feed. A letter is read in one sitting, and
 # somebody who comes back to more than this many notes has a very good week's
@@ -78,6 +80,8 @@ def open_chest(
     the chest's tier alongside so the moment can be named. One shape for a
     thing that is one thing.
     """
+    if throttle.chest_open_limiter.hit(throttle.user_key(user)):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many chests. Wait a minute.")
     chest = db.get(models.Chest, chest_id)
     if chest is None or chest.user_id != user.id:
         # One answer for a chest that never existed and one that belongs to
@@ -85,10 +89,15 @@ def open_chest(
         # account's chests by walking the ids.
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such chest.")
     if chest.opened_at is not None:
-        raise HTTPException(status.HTTP_409_CONFLICT, "That chest is already open.")
+        raise HTTPException(status.HTTP_409_CONFLICT, ALREADY_OPEN)
 
     tier_id, tier_name = progress.tier_of(chest)
     item = progress.open_chest(db, user.id, chest)
+    if item is None:
+        # Two requests carrying the same chest id, and the other one had the
+        # lid off first. Told exactly what the check above tells a chest opened
+        # yesterday, because by now that is what this one is.
+        raise HTTPException(status.HTTP_409_CONFLICT, ALREADY_OPEN)
     db.commit()
     return {**grove.serialize_item(item), "tier": tier_name, "tier_id": tier_id}
 
@@ -107,6 +116,8 @@ def read_recap(
     and the inventory is where the lid comes off, which is what makes a chest
     something kept rather than something cleared on the way past.
     """
+    if throttle.recap_read_limiter.hit(throttle.user_key(user)):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, throttle.TOO_MANY_READS)
     row = progress.process_user(db, user.id)
     since = row.last_ack_at
     miles, xp = _miles(db, user.id, since)
@@ -454,6 +465,8 @@ def ack_recap(
     now on it has been said. The next letter compares against these numbers
     instead of trying to work out where the growth came from.
     """
+    if throttle.recap_ack_limiter.hit(throttle.user_key(user)):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many. Wait a minute.")
     row = progress.ensure_progress(db, user.id)
     row.last_ack_at = security.now_utc()
     for planting in db.execute(

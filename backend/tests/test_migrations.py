@@ -283,6 +283,63 @@ def test_retiring_the_second_mile_takes_its_earns_and_its_slots(at_0012):
         assert slots[3] == ["race_5k", "night_owl"]
 
 
+def _friendship(connection, row_id, requester, addressee, status) -> None:
+    connection.execute(
+        sa.text(
+            "INSERT INTO friendships (id, requester_id, addressee_id, status, created_at)"
+            " VALUES (:id, :requester, :addressee, :status, '2026-07-01 12:00:00')"
+        ),
+        {"id": row_id, "requester": requester, "addressee": addressee, "status": status},
+    )
+
+
+def test_the_outbound_invites_arrive_carrying_what_is_already_waiting(at_0012):
+    """0016: the sent list moves off the friendship rows and onto the names.
+
+    The backfill is what keeps the deploy quiet. Every invite already waiting is
+    a name its sender typed, so without it every one of them would vanish from
+    the sender's screen while still sitting on the recipient's.
+    """
+    engine, upgrade = at_0012
+    with engine.connect() as connection:
+        _account(connection, 1, "runner")
+        _account(connection, 2, "mate")
+        _account(connection, 3, "other")
+        _friendship(connection, 1, 1, 2, "pending")
+        # Accepted, so it is a friendship now and has nothing left to wait for.
+        _friendship(connection, 2, 1, 3, "accepted")
+        # Somebody else's invite, which belongs on their list and not on this one.
+        _friendship(connection, 3, 2, 3, "pending")
+        connection.commit()
+
+    upgrade()
+
+    with engine.connect() as connection:
+        assert connection.execute(
+            sa.text(
+                "SELECT user_id, username, created_at FROM outbound_invites"
+                " ORDER BY user_id, username"
+            )
+        ).all() == [
+            (1, "mate", "2026-07-01 12:00:00"),
+            (2, "other", "2026-07-01 12:00:00"),
+        ]
+        # Nothing was taken off the friendships: they are still what an invite
+        # is answered from.
+        assert connection.execute(sa.text("SELECT COUNT(*) FROM friendships")).scalar_one() == 3
+
+        # One attempt per name per account, so a second invite is the no-op it
+        # always looked like.
+        with pytest.raises(sa.exc.IntegrityError):
+            connection.execute(
+                sa.text(
+                    "INSERT INTO outbound_invites (user_id, username, created_at)"
+                    " VALUES (1, 'mate', '2026-07-02 12:00:00')"
+                )
+            )
+        connection.rollback()
+
+
 def test_the_plot_cleanup_leaves_a_tidy_plot_alone(at_0012):
     engine, upgrade = at_0012
     with engine.connect() as connection:

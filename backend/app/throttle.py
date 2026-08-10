@@ -1,4 +1,11 @@
-"""Per-address sliding-window rate limiting, and working out which address."""
+"""Sliding-window rate limiting, per address or per account.
+
+Two kinds of key go through one limiter class. Anything anonymous is counted
+per address, because an address is the only thing there is to count; anything
+behind a session is counted per account instead, because that is the thing
+actually spending the allowance, and one household behind one address should
+not share a budget between its phones.
+"""
 
 import ipaddress
 import logging
@@ -7,6 +14,7 @@ from collections import defaultdict, deque
 
 from fastapi import Request
 
+from app import models
 from app.config import settings
 
 log = logging.getLogger("secondmile.throttle")
@@ -15,48 +23,69 @@ _WINDOW_SECONDS = 60
 # Sweep only once the table is larger than any real audience, so a normal
 # install never pays for the sweep at all.
 _SWEEP_THRESHOLD = 2048
-# A hard ceiling in case addresses arrive faster than the sweep clears them.
-# Reaching it means new addresses are refused, which is the correct failure for
-# a flood: the alternative is allocating until the box falls over.
+# A hard ceiling in case keys arrive faster than the sweep clears them.
 _MAX_TRACKED = 20000
+
+# Every limiter ever built, so nothing has to be listed twice. Appended to by
+# the constructor rather than written out below: a hand-kept list is exactly
+# how a new limiter ends up outside reset_limiters and produces the test that
+# passes alone and fails in the suite.
+_ALL_LIMITERS: list["RateLimiter"] = []
 
 
 class RateLimiter:
-    """Attempt counting per address over a sliding window.
+    """Attempt counting per key over a sliding window.
 
     One instance per thing being limited, so a phone syncing workouts cannot eat
     into the allowance that protects password guessing.
 
-    The eviction is not incidental. A bare dictionary of addresses grows a
-    permanent entry for every address it ever sees: the timestamps inside age
-    out, but the entry itself never does. That is a slow leak under ordinary
-    traffic and a deliberate one under attack, so entries whose window has fully
-    passed get swept.
+    The sweep is not incidental. A bare dictionary of keys grows a permanent
+    entry for every key it ever sees: the timestamps inside age out, but the
+    entry itself never does. That is a slow leak under ordinary traffic and a
+    deliberate one under attack, so entries whose window has fully passed get
+    swept.
     """
 
     def __init__(self, max_attempts: int, name: str):
         self.max_attempts = max_attempts
         self.name = name
         self._hits: defaultdict[str, deque[float]] = defaultdict(deque)
+        _ALL_LIMITERS.append(self)
 
     def _sweep(self, now: float) -> None:
         stale = [
-            address
-            for address, hits in self._hits.items()
+            key
+            for key, hits in self._hits.items()
             if not hits or now - hits[-1] > _WINDOW_SECONDS
         ]
-        for address in stale:
-            del self._hits[address]
+        for key in stale:
+            del self._hits[key]
 
-    def hit(self, address: str) -> bool:
+    def _evict_oldest(self) -> None:
+        """Drop whichever key has gone longest without a hit.
+
+        Only ever at the ceiling, and only after the sweep has already cleared
+        everything fully idle. Refusing new keys instead was the old answer and
+        it is the wrong one: an address-keyed limiter reaching the ceiling means
+        somebody is flooding it with spoofed addresses, and the refusal would
+        then lock every real person out of the endpoint the flood is aimed at.
+        Evicting costs the oldest attacker their count and nobody else anything.
+        """
+        oldest = min(
+            self._hits,
+            key=lambda key: self._hits[key][-1] if self._hits[key] else 0.0,
+        )
+        del self._hits[oldest]
+
+    def hit(self, key: str) -> bool:
         """Record an attempt. True means this one should be refused."""
         now = time.time()
         if len(self._hits) >= _SWEEP_THRESHOLD:
             self._sweep(now)
-        if address not in self._hits and len(self._hits) >= _MAX_TRACKED:
-            log.warning("%s limiter is at its address ceiling; refusing new ones", self.name)
-            return True
-        history = self._hits[address]
+        if key not in self._hits and len(self._hits) >= _MAX_TRACKED:
+            log.warning("%s limiter is at its ceiling; evicting the oldest key", self.name)
+            self._evict_oldest()
+        history = self._hits[key]
         while history and now - history[0] > _WINDOW_SECONDS:
             history.popleft()
         if len(history) >= self.max_attempts:
@@ -118,29 +147,65 @@ invite_limiter = RateLimiter(10, "invite")
 # morning's feed and answering all of it is the behaviour this app is for.
 encourage_limiter = RateLimiter(30, "encourage")
 
-_ALL_LIMITERS = (
-    login_limiter,
-    register_limiter,
-    ingest_limiter,
-    password_limiter,
-    resend_limiter,
-    email_change_limiter,
-    avatar_limiter,
-    workout_edit_limiter,
-    photo_limiter,
-    verify_limiter,
-    invite_limiter,
-    encourage_limiter,
-)
+# --------------------------------------------------------------------------
+# Keyed per account
+# --------------------------------------------------------------------------
+# Everything below is spent by a signed-in account, so it is counted per
+# account rather than per address. None of these guards a secret; they are
+# there so one session cannot make the server do an unbounded amount of work,
+# and so a loop left running by mistake stops being free.
+
+# Saving the edit form. Roomy for somebody filling in every field one save at a
+# time, tight enough that nothing is hammering the write path.
+profile_edit_limiter = RateLimiter(10, "profile-edit")
+# Planting, pouring, wishing, and anointing, all out of one budget: they are
+# four verbs on one satchel and an account holding a hundred items is not
+# spending them faster than this.
+satchel_limiter = RateLimiter(20, "satchel")
+# Opening chests. Somebody back from a fortnight away opens a dozen in a
+# sitting, and each one is a roll and a write.
+chest_open_limiter = RateLimiter(20, "chest-open")
+# Putting the letter down. Once per sign-in in real use; the allowance is for
+# a client that retries rather than for a person.
+recap_ack_limiter = RateLimiter(10, "recap-ack")
+# Minting a new ingest token. Rare by nature, and every call invalidates the
+# phone's current one, so a burst of them is a mistake either way.
+token_rotate_limiter = RateLimiter(5, "token-rotate")
+# Answering invites: accepting one, declining one, cancelling one, or ending a
+# friendship. Enough to tidy a whole list in one sitting.
+friend_action_limiter = RateLimiter(20, "friend-action")
+# Taking a picture back down, whether a profile picture or one off a workout.
+# The same budget as the uploads it undoes.
+delete_media_limiter = RateLimiter(10, "media-delete")
+# The three screens the app reads on every visit. Sixty a minute is well past
+# anything a person does and well under what a stuck poll would do.
+profile_read_limiter = RateLimiter(60, "profile-read")
+feed_limiter = RateLimiter(60, "feed")
+recap_read_limiter = RateLimiter(60, "recap-read")
+
+
+# What a screen asked for too fast is told. Shared rather than written out in
+# each router, because these are all the same event to whoever reads it: the app
+# is looking at something faster than anybody looks at anything.
+TOO_MANY_READS = "Too many requests. Wait a minute."
+
+
+def user_key(user: models.User) -> str:
+    """The bucket one account spends from.
+
+    Prefixed so an account key can never collide with an address key, in case
+    the two ever meet in one limiter: no address is spelled "u7".
+    """
+    return f"u{user.id}"
 
 
 def reset_limiters() -> None:
     """Clear every limiter at once.
 
     The tests share one process, so state carried between cases makes them
-    order dependent. They are cleared as a group rather than one by one because
-    adding a fifth limiter and forgetting to reset it produces exactly the test
-    that passes alone and fails in the suite.
+    order dependent. Every limiter registers itself when it is built, so this
+    cannot miss one: a hand-kept list is how a new limiter ends up outside it
+    and produces the test that passes alone and fails in the suite.
     """
     for limiter in _ALL_LIMITERS:
         limiter.clear()

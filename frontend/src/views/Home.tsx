@@ -15,8 +15,6 @@ import {
   formatShortDate,
   formatStart,
   unitName,
-  weekStartKey,
-  zonedDay,
 } from '../format.ts'
 import { ACTIVITY_ICONS, ACTIVITY_NAMES, medalName } from '../labels.ts'
 import {
@@ -97,20 +95,9 @@ const DAY_NAMES = [
   'Sunday',
 ]
 
-// Which days of this week already have something on them. Own rows only: the
-// streak counts this account's miles, never anybody else's. Days and weeks are
-// read in the instance's zone, which is the zone the server counted them in.
-function daysThisWeek(feed: FeedItem[]): boolean[] {
-  const days = [false, false, false, false, false, false, false]
-  const monday = weekStartKey(zonedDay(new Date()))
-  for (const item of feed) {
-    if (!item.own) continue
-    const day = zonedDay(item.start_ts)
-    if (weekStartKey(day) !== monday) continue
-    days[day.weekday] = true
-  }
-  return days
-}
+// No days at all, which is what an account with a quiet week has and also what
+// a server that predates week_days says.
+const NO_DAYS = [false, false, false, false, false, false, false]
 
 // The weeks counted and this week's days. Drawn twice on the page: once in the
 // summary card the wide layout has, and once in a card of its own for the phone,
@@ -309,7 +296,11 @@ export default function Home({
   }
 
   const streak = profile.streak_weeks ?? 0
-  const days = daysThisWeek(feed)
+  // From the profile, which is where the streak beside it comes from too. It
+  // used to be worked out from the first page of the feed, which meant a week
+  // whose earlier days had scrolled off the page lost its diamonds, and a
+  // browser in another timezone put them on the wrong days.
+  const days = profile.week_days ?? NO_DAYS
   const week = weekTotals(profile)
   const activities = lifetimeWorkouts(profile)
   // The summary card is about this account, so the line under it names this
