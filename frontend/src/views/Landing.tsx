@@ -126,7 +126,7 @@ export default function Landing({ onEnter }: Props) {
 
       <section className="landing-section">
         <p className="label landing-eyebrow">Miles earn XP</p>
-        <h2>The entire purpose of secondmile is to stay active.</h2>
+        <h2>Every mile counts.</h2>
         {/* The two modifiers are stated rather than discovered. Cycling is the
             only one that earns less than its distance, and somebody who finds
             that out by riding trusts the rest of this page less. */}
