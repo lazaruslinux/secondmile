@@ -20,7 +20,7 @@ import {
   formatStart,
   unitName,
 } from '../format.ts'
-import { ACTIVITY_NAMES, personName } from '../labels.ts'
+import { ACTIVITY_ICONS, ACTIVITY_NAMES, personName } from '../labels.ts'
 import AvatarFrame from './AvatarFrame.tsx'
 import Icon from './Icon.tsx'
 import { MAX_MEDAL_SLOTS } from './MedalNest.tsx'
@@ -464,6 +464,16 @@ export default function FeedCard({
     given === ''
       ? formatStart(item.start_ts)
       : `${activityName}, ${formatStart(item.start_ts)}`
+  // The sport's mark goes wherever the activity name went, which is the headline
+  // on a card without a title and the small line underneath on a card with one.
+  // It is drawn once either way, beside the word rather than in place of it, and
+  // it takes the smaller size on the small line so it sits with those words
+  // rather than over them.
+  const mark = (
+    <span className={given === '' ? 'sport-icon' : 'sport-icon sport-icon-small'}>
+      <Icon name={ACTIVITY_ICONS[item.activity]} />
+    </span>
+  )
   const post = (item.post ?? '').trim()
   const photos = item.photos ?? []
   const medals = item.medals ?? []
@@ -491,7 +501,10 @@ export default function FeedCard({
           />
           <div className="feed-who">
             <p className="feed-name">{who}</p>
-            <p className="feed-when">{when}</p>
+            <p className="feed-when">
+              {given !== '' && mark}
+              {when}
+            </p>
             <p className="feed-source">{SOURCE_NAMES[item.source]}</p>
           </div>
           {/* The owner's way in, and only the words and the pictures are behind
@@ -516,7 +529,10 @@ export default function FeedCard({
             onClose={() => setEditing(false)}
           />
         ) : (
-          <h2 className="feed-title">{headline}</h2>
+          <h2 className="feed-title">
+            {given === '' && mark}
+            {headline}
+          </h2>
         )}
 
         {item.has_route && <RouteLine workoutId={item.workout_id} />}
@@ -604,12 +620,18 @@ export default function FeedCard({
               who
             )}
           </p>
-          <p className="feed-when">{when}</p>
+          <p className="feed-when">
+            {given !== '' && mark}
+            {when}
+          </p>
         </div>
         <ChosenMedals ids={chosen} />
       </header>
 
-      <h2 className="feed-title">{headline}</h2>
+      <h2 className="feed-title">
+        {given === '' && mark}
+        {headline}
+      </h2>
 
       {item.has_route && <RouteLine workoutId={item.workout_id} />}
 

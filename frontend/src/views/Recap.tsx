@@ -9,7 +9,7 @@ import {
   formatStart,
   formatTimeOfDay,
 } from '../format.ts'
-import { ACTIVITY_NAMES, MEDAL_DETAILS, medalName } from '../labels.ts'
+import { ACTIVITY_ICONS, ACTIVITY_NAMES, MEDAL_DETAILS, medalName } from '../labels.ts'
 import {
   flourishLine,
   noteAuthor,
@@ -229,7 +229,12 @@ export default function Recap({ recap, units, onDismiss }: Props) {
                     <li key={row.workout_id} className="recap-activity">
                       <div className="recap-activity-head">
                         <div className="recap-activity-body">
-                          <p className="recap-activity-name">{name}</p>
+                          <p className="recap-activity-name">
+                            <span className="sport-icon">
+                              <Icon name={ACTIVITY_ICONS[row.activity]} />
+                            </span>
+                            {name}
+                          </p>
                           <p className="recap-activity-stats">
                             <span>{formatDistance(row.distance_mi, units)}</span>
                             <span>{formatDuration(row.duration_s)}</span>

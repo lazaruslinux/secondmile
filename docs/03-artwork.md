@@ -93,15 +93,20 @@ both.
 | `tab-you.svg` | You in the bottom bar |
 | `gear.svg` | The settings button in the You header |
 | `pencil.svg` | The edit button in the You header |
-| `diamond.svg` | The week strip on Home, and the sport diamonds on You |
+| `diamond.svg` | The week strip on Home, one diamond per day |
 | `cheer.svg` | The cheer button under a friend's workout on Home |
 | `chest.svg` | The markers along the chest ladder on You |
+| `sport-walk.svg` | Beside the word Walk, wherever a walk is named |
+| `sport-run.svg` | Beside the word Run, wherever a run is named |
+| `sport-cycle.svg` | Beside the word Cycle, wherever a ride is named |
+| `sport-swim.svg` | Beside the word Swim, wherever a swim is named |
 
 Three rules on top of the two above, because these files are placed straight
 into the page:
 
 - **Draw on a 24 by 24 viewBox.** They are shown at about 24 pixels in the
-  bottom bar and about 17 in the week strip, so fine detail is wasted.
+  bottom bar, about 17 in the week strip and beside a sport, and about 14 in a
+  table, so fine detail is wasted.
 - **Use `currentColor`, never a fixed colour.** `stroke="currentColor"` and
   `fill="currentColor"` are what let one file be grey in one place and crimson
   in another. A hard-coded colour will simply ignore the interface.
@@ -113,6 +118,12 @@ into the page:
 drawn as you drew it, and a day without has its fill removed by the stylesheet,
 leaving the outline. Give the shape both a `fill="currentColor"` and a
 `stroke="currentColor"` so both states have something to show.
+
+The four `sport-*.svg` files are one set and are read as one, so they want the
+same weight of line and the same amount of the square filled: they are drawn
+side by side on You and one under the next in the log. Each goes beside the word
+for its sport and never instead of it, which is also why they are hidden from
+screen readers wherever they are drawn.
 
 ## Avatar borders
 

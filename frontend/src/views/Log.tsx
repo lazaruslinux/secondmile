@@ -22,7 +22,8 @@ import {
   zonedDay,
   zonedInputValue,
 } from '../format.ts'
-import { ACTIVITY_NAMES, ACTIVITY_ORDER } from '../labels.ts'
+import { ACTIVITY_ICONS, ACTIVITY_NAMES, ACTIVITY_ORDER } from '../labels.ts'
+import Icon from './Icon.tsx'
 import { MedalChip } from './Medals.tsx'
 import RouteLine from './RouteLine.tsx'
 
@@ -199,16 +200,26 @@ export default function Log({ userId, units }: Props) {
             <div className="field-row">
               <label>
                 Activity
-                <select
-                  value={activity}
-                  onChange={(event) => setActivity(event.target.value as Activity)}
-                >
-                  {ACTIVITY_ORDER.map((name) => (
-                    <option key={name} value={name}>
-                      {ACTIVITY_NAMES[name]}
-                    </option>
-                  ))}
-                </select>
+                {/* The mark for whatever is picked, beside the field rather than
+                    inside it: a browser draws an option list itself and takes
+                    no pictures in one, so this is where the four marks can be
+                    shown at all. The word in the field is still what names the
+                    sport. */}
+                <span className="sport-field">
+                  <span className="sport-icon">
+                    <Icon name={ACTIVITY_ICONS[activity]} />
+                  </span>
+                  <select
+                    value={activity}
+                    onChange={(event) => setActivity(event.target.value as Activity)}
+                  >
+                    {ACTIVITY_ORDER.map((name) => (
+                      <option key={name} value={name}>
+                        {ACTIVITY_NAMES[name]}
+                      </option>
+                    ))}
+                  </select>
+                </span>
               </label>
 
               <label>
@@ -337,7 +348,15 @@ export default function Log({ userId, units }: Props) {
                     if (!total) return null
                     return (
                       <li key={name}>
-                        <span className="totals-activity">{ACTIVITY_NAMES[name]}</span>
+                        {/* Inside the label rather than beside it, so the mark
+                            comes out of the width the label already reserves
+                            and the figures stay in their column. */}
+                        <span className="totals-activity">
+                          <span className="sport-icon sport-icon-small">
+                            <Icon name={ACTIVITY_ICONS[name]} />
+                          </span>
+                          {ACTIVITY_NAMES[name]}
+                        </span>
                         <span>{formatDistance(total.distance_mi, units)}</span>
                         <span className="muted">
                           {total.workouts} {total.workouts === 1 ? 'workout' : 'workouts'}
@@ -360,6 +379,9 @@ export default function Log({ userId, units }: Props) {
                     <li key={workout.id}>
                       <div className="workout-head">
                         <span className="workout-activity">
+                          <span className="sport-icon">
+                            <Icon name={ACTIVITY_ICONS[workout.activity]} />
+                          </span>
                           {ACTIVITY_NAMES[workout.activity]}
                         </span>
                         <span className="muted">{formatStart(workout.start_ts)}</span>

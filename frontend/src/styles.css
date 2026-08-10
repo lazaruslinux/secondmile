@@ -208,6 +208,39 @@ code {
   height: 100%;
 }
 
+/* The mark for a sport, wherever a sport is named. One class for all of them so
+   a run reads the same on the feed, in the log, in the letter, and on You, and
+   inline-level so it can sit inside a heading or a paragraph without turning
+   that line into a flex row. The size is the week strip's, which is the size
+   that sits with a line of text rather than over it, and the trailing margin is
+   the gap to the word: the mark accompanies the word and never replaces it. */
+.sport-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  margin-inline-end: 0.35rem;
+  vertical-align: -0.2em;
+  color: var(--accent);
+}
+
+.sport-icon .icon {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+/* Smaller, for the rows that cannot spare the width or the height: five columns
+   of figures on a phone, the weekly totals whose labels share one narrow
+   column, and the small grey line under a name on a feed card. Anywhere else
+   the mark is the size above. */
+.sport-icon-small {
+  margin-inline-end: 0.28rem;
+  vertical-align: -0.15em;
+}
+
+.sport-icon-small .icon {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
 /* Layout */
 
 .app {
@@ -427,6 +460,19 @@ textarea:focus-visible,
 button:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* A field with the sport's mark alongside it. The mark cannot go inside a
+   native option list, so it sits in front of the field and the field takes what
+   is left, which is why the select is told it may shrink. */
+.sport-field {
+  display: flex;
+  align-items: center;
+}
+
+.sport-field select {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 /* Two fields per row where there is room; one per row on a phone. */
@@ -1750,9 +1796,11 @@ button:disabled {
   color: var(--muted);
 }
 
-/* The diamonds: lifetime distance in all four sports, always all four. */
+/* The sport chips: lifetime distance in all four sports, always all four. They
+   wore the same diamond as each other until each sport was given a mark of its
+   own; the only diamonds left in the app are the days of the week strip. */
 
-.diamonds {
+.sport-totals {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
@@ -1762,7 +1810,7 @@ button:disabled {
 }
 
 /* Four across, one per sport, in the one order every screen lists them in. */
-.diamond-chips {
+.sport-chips {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.4rem;
@@ -1771,7 +1819,7 @@ button:disabled {
   padding: 0;
 }
 
-.diamond-chip {
+.sport-chip {
   display: flex;
   min-width: 0;
   flex-direction: column;
@@ -1782,9 +1830,10 @@ button:disabled {
   border-radius: var(--radius);
 }
 
-.diamond-chip .diamond {
-  width: 1.1rem;
-  height: 1.1rem;
+/* The one place a mark sits above its word rather than beside it, so the gap it
+   carries for running text would push it off the centre of the chip. */
+.sport-chip .sport-icon {
+  margin-inline-end: 0;
 }
 
 .chip-value {
@@ -3464,7 +3513,18 @@ button:disabled {
   font-weight: 800;
   line-height: 1.04;
   letter-spacing: -0.025em;
-  margin: 0 0 1rem;
+  margin: 0 0 0.5rem;
+}
+
+/* Where the words come from, said quietly. Small and faint on purpose: it
+   belongs to the sentence above rather than competing with it, and somebody
+   who does not recognise the reference still reads the line itself first. */
+.landing-cite {
+  margin: 0 0 1.1rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  opacity: 0.65;
 }
 
 .landing-sub {
@@ -3473,8 +3533,9 @@ button:disabled {
   margin: 0 0 1.5rem;
 }
 
-/* The same diamonds the profile wears, which is the one visual thing this page
-   borrows from the app. Four sports, always all four, in the app's own order. */
+/* The same marks the app wears beside a sport, which is the one visual thing
+   this page borrows from it. Four sports, always all four, in the app's own
+   order. */
 .landing-sports {
   display: flex;
   flex-wrap: wrap;
@@ -3484,10 +3545,12 @@ button:disabled {
   padding: 0;
 }
 
+/* No gap of its own: the mark carries the space to its word everywhere it is
+   drawn, and a gap here as well would set this page's four apart from the
+   app's. */
 .landing-sports li {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
 }
 
 .landing-actions {

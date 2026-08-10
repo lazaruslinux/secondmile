@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getStatus } from '../api.ts'
-import { ACTIVITY_NAMES, ACTIVITY_ORDER } from '../labels.ts'
+import { ACTIVITY_ICONS, ACTIVITY_NAMES, ACTIVITY_ORDER } from '../labels.ts'
 import Icon from './Icon.tsx'
 
 interface Props {
@@ -41,19 +41,27 @@ export default function Landing({ onEnter }: Props) {
       </header>
 
       <section className="landing-hero">
-        {/* The name's meaning, said and not explained, which is how this app
-            treats everything it means. No chapter and no verse: it reads as a
-            line about effort to anybody who does not already know it. */}
+        {/* The line the name comes from, quoted and cited. The citation is set
+            small and faint on purpose: it belongs to the sentence rather than
+            competing with it, and somebody who does not recognise the words
+            still reads a line about going further than you were asked. */}
         <h1 className="landing-verse">
-          If someone forces you to go one mile, go with him two.
+          &ldquo;And whoever compels you to go one mile, go with him two.&rdquo;
         </h1>
-        <p className="landing-sub">Walk, run, bike, swim. The choice is yours.</p>
+        <p className="landing-cite">Matthew 5:41 NKJV</p>
+        <p className="landing-sub">
+          Walk, run, bike, or swim. Grow a garden with your distance traveled, encourage
+          others, earn rewards along the way.
+        </p>
 
+        {/* The four sports, each with its own mark. The same marks are used
+            wherever an activity is named, so this is the first place somebody
+            learns them and every screen after it reads the same way. */}
         <ul className="landing-sports">
           {ACTIVITY_ORDER.map((name) => (
             <li key={name}>
-              <span className="diamond diamond-on">
-                <Icon name="diamond" />
+              <span className="sport-icon">
+                <Icon name={ACTIVITY_ICONS[name]} />
               </span>
               <span className="label">{ACTIVITY_NAMES[name]}</span>
             </li>
@@ -75,9 +83,9 @@ export default function Landing({ onEnter }: Props) {
               an email address into a form that was always going to refuse. */}
           {openRegistration === false && (
             <p className="hint landing-invite">
-              Accounts here are by invite. If you have a code, you can{' '}
+              Invite-Only. If you have an invite code,{' '}
               <button type="button" className="link" onClick={() => onEnter(true)}>
-                use it now
+                enter it here
               </button>
               .
             </p>
@@ -86,40 +94,43 @@ export default function Landing({ onEnter }: Props) {
       </section>
 
       <section className="landing-section">
-        <p className="label landing-eyebrow">Miles</p>
-        <h2>Your miles, counted for you.</h2>
+        <p className="label landing-eyebrow">Miles earn XP</p>
+        <h2>The entire purpose of secondmile is to stay active.</h2>
+        {/* The two modifiers are stated rather than discovered. Cycling is the
+            only one that earns less than its distance, and somebody who finds
+            that out by riding trusts the rest of this page less. */}
         <p>
-          Your watch already knows. secondmile takes the walks, runs, rides and swims out
-          of Apple Health and keeps them: the distance, the time, and the line you traced.
-          There is nothing to remember to press.
+          Miles on feet, on the bike, or in the water earn XP across the entire platform.
+          Every mile earns XP. Swimming modifier = 4x. Cycling modifier = 0.33x.
         </p>
       </section>
 
       <section className="landing-section">
-        <p className="label landing-eyebrow">Friends</p>
-        <h2>A dinner table, not a stadium.</h2>
+        <p className="label landing-eyebrow">Private by design</p>
+        <h2>A group of friends, not a stadium.</h2>
         <p>
-          Friends are mutual and invited by name. No follower counts, no strangers, no
-          leaderboards. Your friends see how far you went and the shape of your route.
-          They never see your pace or your heart rate.
+          This is a private, invite-only platform. Friends are mutual and invited by name.
+          No follower counts, no strangers, no leaderboards. This is not a competition.
+          Your friends see what you decide on.
         </p>
       </section>
 
       <section className="landing-section">
         <p className="label landing-eyebrow">Rewards</p>
-        <h2>The miles are going somewhere.</h2>
+        <h2>Going the distance unlocks milestones.</h2>
         <p>
-          Going the distance earns rewards, and something grows behind the numbers. What
-          it is, you find by covering ground. Nothing in it can be bought or hurried.
+          What those are, you find by covering ground (or road, or water). Nothing here
+          can be bought or artificially boosted.
         </p>
       </section>
 
       <section className="landing-section">
-        <p className="label landing-eyebrow">Rhythm</p>
-        <h2>Made to be lived with.</h2>
+        <p className="label landing-eyebrow">Built for busy people</p>
+        <h2>Set up and never open it again, if you want.</h2>
         <p>
-          No streaks to protect and no notifications asking you to come back. Whatever
-          happened while you were away is waiting in a letter the next time you open it.
+          There are no login streaks, no mini games, and nothing built to make you open
+          the app for its own sake. Every synced activity earns what it earns, and it will
+          be waiting for you in a recap letter whenever you come back.
         </p>
       </section>
 

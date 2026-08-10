@@ -18,7 +18,7 @@ import {
   weekStartKey,
   zonedDay,
 } from '../format.ts'
-import { ACTIVITY_NAMES, medalName } from '../labels.ts'
+import { ACTIVITY_ICONS, ACTIVITY_NAMES, medalName } from '../labels.ts'
 import {
   displayNameOf,
   lifetimeMiles,
@@ -372,6 +372,11 @@ export default function Home({
             <p className="summary-latest">
               <span className="label">Latest activity</span>
               <span className="summary-latest-line">
+                {/* The same mark every other activity in the app wears. This
+                    line was the last one naming a sport without one. */}
+                <span className="sport-icon sport-icon-small">
+                  <Icon name={ACTIVITY_ICONS[mine.activity]} />
+                </span>
                 {ACTIVITY_NAMES[mine.activity]}, {formatStart(mine.start_ts)}
               </span>
             </p>

@@ -24,6 +24,7 @@ import {
 } from '../format.ts'
 import { plantStage } from '../grove.ts'
 import {
+  ACTIVITY_ICONS,
   ACTIVITY_NAMES,
   ACTIVITY_ORDER,
   chestName,
@@ -97,7 +98,12 @@ function Stats({ stats, units, empty }: StatsProps) {
           if (!row) return null
           return (
             <tr key={name}>
-              <th scope="row">{ACTIVITY_NAMES[name]}</th>
+              <th scope="row">
+                <span className="sport-icon sport-icon-small">
+                  <Icon name={ACTIVITY_ICONS[name]} />
+                </span>
+                {ACTIVITY_NAMES[name]}
+              </th>
               <td>{formatDistance(row.distance_mi, units)}</td>
               <td>{row.converted_mi.toFixed(1)}</td>
               <td>{row.workouts}</td>
@@ -433,12 +439,15 @@ export default function Profile({
             {/* Lifetime distance in all four sports, always in the same order
                 and always all four, a sport never done reading as zero.
                 Nothing is ranked against anyone else here. */}
-            <div className="diamonds">
-              <ul className="diamond-chips">
+            <div className="sport-totals">
+              <ul className="sport-chips">
                 {ACTIVITY_ORDER.map((name) => (
-                  <li key={name} className="diamond-chip">
-                    <span className="diamond diamond-on">
-                      <Icon name="diamond" />
+                  <li key={name} className="sport-chip">
+                    {/* The sport's own mark rather than the diamond every chip
+                        used to wear, so the four chips are told apart at a
+                        glance. The word underneath is what names it. */}
+                    <span className="sport-icon">
+                      <Icon name={ACTIVITY_ICONS[name]} />
                     </span>
                     <span className="chip-value">
                       {distanceValue(profile.lifetime[name]?.distance_mi ?? 0, units)}

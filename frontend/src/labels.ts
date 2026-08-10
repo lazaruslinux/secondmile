@@ -21,6 +21,16 @@ export const ACTIVITY_NAMES: Record<Activity, string> = {
   swim: 'Swim',
 }
 
+// The mark each activity wears, beside the word and never instead of it. The
+// names are the files under src/assets/icons, so this map is the one place a
+// renamed file has to be answered.
+export const ACTIVITY_ICONS: Record<Activity, string> = {
+  walk: 'sport-walk',
+  run: 'sport-run',
+  cycle: 'sport-cycle',
+  swim: 'sport-swim',
+}
+
 // The two the edit form offers. The API accepts exactly these, so the list is
 // changed in both places or in neither.
 export const GENDERS = ['Male', 'Female']
