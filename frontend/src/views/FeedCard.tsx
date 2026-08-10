@@ -239,6 +239,50 @@ function ChosenMedals({ ids }: { ids: string[] }) {
   )
 }
 
+// What a workout was, in numbers. Every card says it the same way, own and
+// friend's alike, so it is written down once. A figure the person hiding it kept
+// back does not arrive at all, so it simply is not drawn: there is no empty slot
+// and nothing saying something is missing, because a card announcing what it
+// will not show is a worse answer than a card that reads whole.
+function StatRow({ item, units }: { item: FeedItem; units: Units }) {
+  return (
+    <div className="stat-row">
+      <div className="stat">
+        <span className="label">Distance</span>
+        <span className="stat-value">
+          {distanceValue(item.distance_mi, units)}
+          <span className="stat-unit">{unitName(units)}</span>
+        </span>
+      </div>
+      <div className="stat">
+        <span className="label">Time</span>
+        <span className="stat-value">{formatClock(item.duration_s)}</span>
+      </div>
+      <div className="stat">
+        <span className="label">Pace</span>
+        <span className="stat-value">
+          {formatPace(item.activity, item.distance_mi, item.duration_s, units)}
+        </span>
+      </div>
+      {typeof item.active_kcal === 'number' && (
+        <div className="stat">
+          <span className="label">Calories</span>
+          <span className="stat-value">{Math.round(item.active_kcal)}</span>
+        </div>
+      )}
+      {typeof item.avg_hr === 'number' && (
+        <div className="stat">
+          <span className="label">Heart rate</span>
+          <span className="stat-value">
+            {Math.round(item.avg_hr)}
+            <span className="stat-unit">bpm</span>
+          </span>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // The parts of a workout the panel below actually touches, which is all it ever
 // needed to know about one. A feed row satisfies it and so does a row in the
 // letter, so both open the same panel rather than growing a second one.
@@ -538,25 +582,7 @@ export default function FeedCard({
 
         {item.has_route && <RouteLine workoutId={item.workout_id} />}
 
-        <div className="stat-row">
-          <div className="stat">
-            <span className="label">Distance</span>
-            <span className="stat-value">
-              {distanceValue(item.distance_mi, units)}
-              <span className="stat-unit">{unitName(units)}</span>
-            </span>
-          </div>
-          <div className="stat">
-            <span className="label">Pace</span>
-            <span className="stat-value">
-              {formatPace(item.activity, item.distance_mi, item.duration_s, units)}
-            </span>
-          </div>
-          <div className="stat">
-            <span className="label">Time</span>
-            <span className="stat-value">{formatClock(item.duration_s)}</span>
-          </div>
-        </div>
+        <StatRow item={item} units={units} />
 
         {/* Both of these are in the panel while it is open, so the card does not
             say the same thing twice. */}
@@ -636,45 +662,7 @@ export default function FeedCard({
 
       {item.has_route && <RouteLine workoutId={item.workout_id} />}
 
-      {/* The same three an own card leads with, and then whatever else the
-          server sent. A figure the person hiding it kept back does not arrive
-          at all, so it simply is not drawn: there is no empty slot and nothing
-          saying something is missing, because a card announcing what it will
-          not show is a worse answer than a card that reads whole. */}
-      <div className="stat-row">
-        <div className="stat">
-          <span className="label">Distance</span>
-          <span className="stat-value">
-            {distanceValue(item.distance_mi, units)}
-            <span className="stat-unit">{unitName(units)}</span>
-          </span>
-        </div>
-        <div className="stat">
-          <span className="label">Pace</span>
-          <span className="stat-value">
-            {formatPace(item.activity, item.distance_mi, item.duration_s, units)}
-          </span>
-        </div>
-        <div className="stat">
-          <span className="label">Time</span>
-          <span className="stat-value">{formatClock(item.duration_s)}</span>
-        </div>
-        {typeof item.active_kcal === 'number' && (
-          <div className="stat">
-            <span className="label">Calories</span>
-            <span className="stat-value">{Math.round(item.active_kcal)}</span>
-          </div>
-        )}
-        {typeof item.avg_hr === 'number' && (
-          <div className="stat">
-            <span className="label">Heart rate</span>
-            <span className="stat-value">
-              {Math.round(item.avg_hr)}
-              <span className="stat-unit">bpm</span>
-            </span>
-          </div>
-        )}
-      </div>
+      <StatRow item={item} units={units} />
 
       {/* What they wrote and what they took pictures of, theirs to share, and
           sharing it is what putting it here was. */}
