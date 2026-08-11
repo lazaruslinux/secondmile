@@ -1230,7 +1230,10 @@ button:disabled {
    leaves an empty space on the card. */
 .route-map {
   height: 160px;
-  margin: 0 0 0.85rem;
+  /* The room above is the band's own, so the map stands clear of the numbers
+     rather than reading as a strip hung off the bottom of them. The small
+     sketch on a history row sets its own margins and keeps them. */
+  margin: calc(var(--gap) * 2) 0 0.85rem;
 }
 
 /* Every sketch is the way into the map, so the box is a button stripped back

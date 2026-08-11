@@ -327,7 +327,7 @@ function StatRow({ item, units }: { item: FeedItem; units: Units }) {
       )}
       {typeof item.avg_hr === 'number' && (
         <div className="stat">
-          <span className="label">Heart rate</span>
+          <span className="label">Avg. HR</span>
           <span className="stat-value">
             {Math.round(item.avg_hr)}
             <span className="stat-unit">bpm</span>
