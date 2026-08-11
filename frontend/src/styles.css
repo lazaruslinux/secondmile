@@ -88,6 +88,9 @@
   --bg: #000000;
   --surface: #0d0d0f;
   --line: #26262b;
+  /* The same grey a shade further up, for the one edge that has to be found
+     rather than merely respected: the seam between two stacked activities. */
+  --line-strong: #34343c;
   --text: #f4f4f5;
   --muted: #9a9aa0;
   --accent: #dc143c;
@@ -971,6 +974,21 @@ button:disabled {
 
 /* Home: the feed */
 
+/* Activity cards stack three places over: the home feed, a friend's profile
+   and the Log. Stacked, one long card runs into the next and the pair reads as
+   one, so an activity card is drawn with a brighter edge than the rest of the
+   app's boxes, and a consecutive pair is pushed apart to a little over twice
+   the column's own gap. Only the pair: the space above the first card, and
+   below a week's totals in the Log, stays the column's. Cards that do not
+   stack keep the quieter seam they had. */
+.card.feed {
+  border-color: var(--line-strong);
+}
+
+.card.feed + .card.feed {
+  margin-top: 0.65rem;
+}
+
 /* Top-aligned rather than centred: the picture belongs beside the name. */
 .feed-head {
   display: flex;
@@ -1494,8 +1512,8 @@ button:disabled {
 /* History */
 
 /* One week: its totals card, then that week's activities as the same cards the
-   feed draws. Stacked with the column's own gap, because a feed card carries no
-   margin of its own anywhere else either. */
+   feed draws. Stacked with the column's own gap; the wider seam between two
+   consecutive activities is the feed's own and arrives with the card. */
 .log-week {
   display: flex;
   flex-direction: column;

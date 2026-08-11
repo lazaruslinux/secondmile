@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+} from 'react'
 import {
   ApiError,
   avatarUrl,
@@ -306,9 +313,35 @@ function MediaStrip({
   videos: number[]
 }) {
   const [playing, setPlaying] = useState<number | null>(null)
+  const stripRef = useRef<HTMLUListElement>(null)
+  // Where the strip sat the instant Close was pressed, read back once the
+  // collapse has been laid out.
+  const closedFrom = useRef<{ top: number; height: number } | null>(null)
+
+  // The player stands far taller than the poster it replaces, so closing it
+  // shortens the card and everything under it climbs by the difference. Only
+  // the part of that shrink that sat above the top of the window moves what
+  // the reader is looking at, so the strip is put back that far down and no
+  // further: a strip already fully on screen lost nothing above the fold and
+  // is left exactly where it was. Measured against where the strip actually
+  // landed, so the browser's own anchoring and a scroll clamped by the shorter
+  // page are corrected rather than counted twice. Before paint, so it is one
+  // frame with the collapse.
+  useLayoutEffect(() => {
+    const before = closedFrom.current
+    closedFrom.current = null
+    const strip = stripRef.current
+    if (!before || !strip) return
+    const now = strip.getBoundingClientRect()
+    const shrink = Math.max(0, before.height - now.height)
+    const want = before.top + Math.min(shrink, Math.max(0, -before.top))
+    const drift = now.top - want
+    if (Math.abs(drift) > 0.5) window.scrollBy(0, drift)
+  }, [playing])
+
   if (photos.length === 0 && videos.length === 0) return null
   return (
-    <ul className="feed-photos">
+    <ul className="feed-photos" ref={stripRef}>
       {photos.map((photoId) => (
         <li key={`p${photoId}`} className="photo-thumb">
           <img src={workoutPhotoUrl(workoutId, photoId)} alt="" loading="lazy" />
@@ -335,7 +368,15 @@ function MediaStrip({
             {/* Under the player, in the strip's own small-button shape, rather
                 than floating over the frame where the native controls live.
                 Unmounting the video is what stops the sound. */}
-            <button type="button" className="video-close" onClick={() => setPlaying(null)}>
+            <button
+              type="button"
+              className="video-close"
+              onClick={() => {
+                const rect = stripRef.current?.getBoundingClientRect()
+                closedFrom.current = rect ? { top: rect.top, height: rect.height } : null
+                setPlaying(null)
+              }}
+            >
               Close video
             </button>
           </li>
