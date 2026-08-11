@@ -1,6 +1,6 @@
 // The four activities, in the order every screen lists them, and the words the
-// interface uses for them. Kept in one place so the feed, the log, and the You
-// screen never disagree about what to call a bike ride.
+// interface uses for them. Kept in one place so the feed, the Activity tab, and
+// the You screen never disagree about what to call a bike ride.
 
 import type {
   Activity,
@@ -36,8 +36,8 @@ export const ACTIVITY_ICONS: Record<Activity, string> = {
 // started in, then the activity. Read on the instance's clock, which is the
 // clock the card's own date line is read on, so a run started at 05:44 is a
 // morning run wherever the browser thinks it is. Written once here and used
-// wherever a headline falls back, so the feed, the log, and the letter never
-// name the same workout two ways.
+// wherever a headline falls back, so the feed, the Activity tab, and the letter
+// never name the same workout two ways.
 export function defaultHeadline(activity: Activity, startTs: string): string {
   const hour = zonedHour(startTs)
   const bucket = hour >= 4 && hour < 12 ? 'Morning' : hour >= 12 && hour < 17 ? 'Lunch' : 'Evening'

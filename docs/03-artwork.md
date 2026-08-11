@@ -13,7 +13,7 @@ whole of what a commission would cover.
 
 | Group | Files | What they are | Where they appear |
 | --- | --- | --- | --- |
-| Medals | 11 | One face per medal in the catalogue | You screen, Home rail, feed and Log chips, avatar slots |
+| Medals | 11 | One face per medal in the catalogue | You screen, Home rail, feed and Activity chips, avatar slots |
 | Avatar borders | 6 | One per level tier, `border-t1` to `border-t6` | Around every avatar, every screen |
 | Flourishes | 3 | The growth earned by encouraging people, `f1` to `f3` | Over the border, on every avatar |
 | Interface icons | 10 | Tab bar, cheer, gear, pencil, play, sport diamond, chest ladder marker | Chrome, everywhere |
@@ -90,7 +90,7 @@ both.
 | File | Where it appears |
 | --- | --- |
 | `tab-home.svg` | Home in the bottom bar |
-| `tab-log.svg` | Log in the bottom bar |
+| `tab-log.svg` | Activity in the bottom bar (the file keeps its name) |
 | `tab-grove.svg` | Grove in the bottom bar |
 | `tab-you.svg` | You in the bottom bar |
 | `gear.svg` | The settings button in the You header |
@@ -124,8 +124,8 @@ leaving the outline. Give the shape both a `fill="currentColor"` and a
 
 The four `sport-*.svg` files are one set and are read as one, so they want the
 same weight of line and the same amount of the square filled: they are drawn
-side by side on You and one under the next in the log. Each goes beside the word
-for its sport and never instead of it, which is also why they are hidden from
+side by side on You and one under the next under Activity. Each goes beside the
+word for its sport and never instead of it, which is also why they are hidden from
 screen readers wherever they are drawn.
 
 ## The landing hero
@@ -227,7 +227,7 @@ as 40 pixels across in the feed, so keep the shapes bold enough to read there.
 
 The whole reward system is eleven medals, drawn on the You screen as one list,
 again down the rail on Home as the few earned most recently, and again as a chip
-on every feed card and Log row for the medals that workout earned. Every one of
+on every feed card and Activity row for the medals that workout earned. Every one of
 them is
 repeatable, so a medal is a count rather than a yes or a no: each is drawn once
 with its number under it rather than once per earning, and one not yet earned is
@@ -269,9 +269,9 @@ eleven versions of the same object:
 
 Draw them as a set: the same size and weight, readable at a glance, because five
 of them share the width of a phone screen. Medals are drawn small, roughly 56
-pixels in the strip on You, 30 in the rail on Home, 28 in the chips on feed cards
-and Log rows, and 32 to 36 in the slots under the avatar, where they are drawn
-round. Keep the artwork inside a circle and off fine detail.
+pixels in the strip on You, 30 in the rail on Home, 28 in the chips on feed
+cards and Activity rows, and 32 to 36 in the slots under the avatar, where they
+are drawn round. Keep the artwork inside a circle and off fine detail.
 
 Lettering inside a medal is gone by the chip size: MARATHON stamped across a
 plate is about three pixels tall there. That is why the chip prints the medal's

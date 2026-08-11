@@ -48,15 +48,15 @@ export interface WorkoutFlags {
   daily_cap?: boolean
 }
 
-// One row of your own history: the feed's row with the flags added. The log
-// draws the same card the feed does, so the two are one shape and the log is
-// served the feed's row. The flags are the only thing on top, because they are
-// said to the person whose numbers they are and to nobody else.
+// One row of your own history: the feed's row with the flags added. The
+// Activity tab draws the same card the feed does, so the two are one shape and
+// it is served the feed's row. The flags are the only thing on top, because
+// they are said to the person whose numbers they are and to nobody else.
 export interface Workout extends FeedItem {
   flags: WorkoutFlags
 }
 
-// One row of the Log's Deleted section. Not a card and not a feed row: a
+// One row of the Activity tab's Deleted list. Not a card and not a feed row: a
 // deleted workout's pictures, video and route answer 404 to everybody, so
 // there is nothing here to draw beyond what it was and how long is left to
 // change your mind.
@@ -707,12 +707,30 @@ export async function changePassword(
   })
 }
 
-// The cursor is the start_ts of the last row already shown, and the server
-// answers with what started strictly before it. It has to be encoded: an
-// unescaped "+00:00" offset arrives as a space and only ever breaks page two.
-export function listWorkouts(limit: number, before?: string): Promise<Workout[]> {
-  const cursor = before === undefined ? '' : `&before=${encodeURIComponent(before)}`
-  return getJson<Workout[]>(`/workouts?limit=${limit}${cursor}`)
+// What the history can be ordered by. Pace is time over distance, worked out by
+// the server; a workout that covered no distance has none, and neither does a
+// row that never carried a heart rate, so both go to the end either way.
+export type WorkoutSort = 'date' | 'distance' | 'pace' | 'avg_hr'
+export type SortOrder = 'asc' | 'desc'
+
+export interface WorkoutQuery {
+  sort?: WorkoutSort
+  order?: SortOrder
+  // One sport, or every sport when it is left out.
+  activity?: Activity
+  // The start_ts of the last row already shown; the server answers with what
+  // started strictly before it.
+  before?: string
+}
+
+// Everything is encoded: an unescaped "+00:00" offset in the cursor arrives as
+// a space and only ever breaks page two.
+export function listWorkouts(limit: number, query: WorkoutQuery = {}): Promise<Workout[]> {
+  const params = new URLSearchParams({ limit: String(limit) })
+  for (const [name, value] of Object.entries(query)) {
+    if (value !== undefined) params.set(name, value)
+  }
+  return getJson<Workout[]>(`/workouts?${params}`)
 }
 
 // The home feed: this account's workouts and its accepted friends', newest
@@ -815,7 +833,7 @@ export async function restoreWorkout(workoutId: number): Promise<Workout> {
   return (await res.json()) as Workout
 }
 
-// The Deleted section: your own deleted workouts that can still be got back,
+// The Deleted list: your own deleted workouts that can still be got back,
 // newest first. Empty once the window has run out on all of them.
 export function listDeletedWorkouts(): Promise<DeletedWorkout[]> {
   return getJson<DeletedWorkout[]>('/workouts/deleted')

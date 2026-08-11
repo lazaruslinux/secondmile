@@ -15,8 +15,8 @@ const COMPACT_BOX = [96, 64]
 
 interface Props {
   workoutId: number
-  // Set on a Log row, where the line is a strip beside the numbers rather than
-  // the picture at the top of a card.
+  // Set on an Activity row, where the line is a strip beside the numbers
+  // rather than the picture at the top of a card.
   compact?: boolean
 }
 

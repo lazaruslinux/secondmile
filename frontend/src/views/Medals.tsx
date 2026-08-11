@@ -80,8 +80,8 @@ export function MedalMark({ id, earned, stars = 0, standalone = false }: MarkPro
   )
 }
 
-// One medal on a workout, in the strip along the bottom of a feed card and in a
-// Log row. The drawing carries it and the name sits beside it: the five race
+// One medal on a workout, in the strip along the bottom of a feed card and in
+// an Activity row. The drawing carries it and the name sits beside it: the five race
 // medals are one silver plate apart from the word stamped on it, and at this
 // size that word is a few pixels tall, so MARATHON has to be readable in type
 // the interface draws itself.

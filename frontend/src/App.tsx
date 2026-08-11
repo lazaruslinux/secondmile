@@ -14,13 +14,13 @@ import {
 } from './api.ts'
 import { setInstanceTimezone } from './format.ts'
 import { recapHasNews } from './recap.ts'
+import ActivityView from './views/Activity.tsx'
 import Landing from './views/Landing.tsx'
 import Login from './views/Login.tsx'
 import FriendProfile from './views/FriendProfile.tsx'
 import Grove from './views/Grove.tsx'
 import Home from './views/Home.tsx'
 import Icon from './views/Icon.tsx'
-import Log from './views/Log.tsx'
 import Profile from './views/Profile.tsx'
 import Recap from './views/Recap.tsx'
 import Settings from './views/Settings.tsx'
@@ -29,11 +29,13 @@ import Settings from './views/Settings.tsx'
 // which of them is on screen, and the URL has nothing to say about it yet.
 // Settings is not a tab; it is reached from the You screen. Neither is a
 // friend's profile, which is reached from the feed and from the friends list.
-type View = 'home' | 'log' | 'grove' | 'you' | 'settings' | 'friend'
+type View = 'home' | 'activity' | 'grove' | 'you' | 'settings' | 'friend'
 
 const TABS: { id: View; label: string; icon: string }[] = [
   { id: 'home', label: 'Home', icon: 'tab-home' },
-  { id: 'log', label: 'Log', icon: 'tab-log' },
+  // The mark keeps its file name: the artwork register addresses pictures by
+  // name, and only the word under this one changed.
+  { id: 'activity', label: 'Activity', icon: 'tab-log' },
   { id: 'grove', label: 'Grove', icon: 'tab-grove' },
   { id: 'you', label: 'You', icon: 'tab-you' },
 ]
@@ -222,13 +224,13 @@ export default function App() {
             userId={me.id}
             units={me.units}
             refreshToken={refreshToken}
-            onOpenLog={() => setView('log')}
+            onOpenActivity={() => setView('activity')}
             onOpenGrove={() => setView('grove')}
             onOpenProfile={() => setView('you')}
             onOpenPerson={openFriend}
           />
         )}
-        {view === 'log' && <Log userId={me.id} units={me.units} />}
+        {view === 'activity' && <ActivityView userId={me.id} units={me.units} />}
         {view === 'grove' && <Grove userId={me.id} />}
         {view === 'you' && (
           <Profile

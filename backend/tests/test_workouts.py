@@ -117,6 +117,147 @@ def test_history_rejects_a_bad_cursor(signed_in):
     assert signed_in.get("/api/workouts?before=yesterday").status_code == 400
 
 
+def sorted_miles(signed_in, **params) -> list[float]:
+    """The distances of a sorted page, which is the shortest way to say what
+    order the rows came back in: every case below gives its rows a distance of
+    their own."""
+    rows = signed_in.get("/api/workouts", params=params).json()
+    return [row["distance_mi"] for row in rows]
+
+
+def a_dashboard_history(db_session, member) -> None:
+    """Four workouts that disagree about everything the dashboard can sort by.
+
+    The 2-mile walk is the slowest, the 6-mile run is the longest and the
+    fastest, and the 1-mile walk is the shortest and carries no heart rate, so
+    each key puts them in a different order and no two cases pass by accident.
+    """
+    stored(
+        db_session,
+        member.id,
+        activity="run",
+        start="2026-07-01T06:00:00+00:00",
+        duration=1800,
+        miles=3.0,
+        avg_hr=150.0,
+    )
+    stored(
+        db_session,
+        member.id,
+        activity="walk",
+        start="2026-07-02T06:00:00+00:00",
+        duration=2400,
+        miles=2.0,
+        avg_hr=110.0,
+    )
+    stored(
+        db_session,
+        member.id,
+        activity="run",
+        start="2026-07-03T06:00:00+00:00",
+        duration=2700,
+        miles=6.0,
+        avg_hr=165.0,
+    )
+    # No heart rate on this one, and it is the shortest thing here.
+    stored(
+        db_session,
+        member.id,
+        activity="walk",
+        start="2026-07-04T06:00:00+00:00",
+        duration=700,
+        miles=1.0,
+    )
+
+
+def test_history_sorts_by_date_both_ways(signed_in, db_session, member):
+    """The default is the newest first, and the oldest first is one parameter
+    away. Nothing else about the page changes."""
+    a_dashboard_history(db_session, member)
+    assert sorted_miles(signed_in) == [1.0, 6.0, 2.0, 3.0]
+    assert sorted_miles(signed_in, sort="date", order="asc") == [3.0, 2.0, 6.0, 1.0]
+
+
+def test_history_sorts_by_distance_both_ways(signed_in, db_session, member):
+    a_dashboard_history(db_session, member)
+    assert sorted_miles(signed_in, sort="distance", order="desc") == [6.0, 3.0, 2.0, 1.0]
+    assert sorted_miles(signed_in, sort="distance", order="asc") == [1.0, 2.0, 3.0, 6.0]
+
+
+def test_history_sorts_by_pace_both_ways(signed_in, db_session, member):
+    """Pace is time over distance, so the smallest number is the quickest: the
+    6-mile run at 7:30 a mile leads the ascending page and the 2-mile walk at
+    20:00 a mile ends it."""
+    a_dashboard_history(db_session, member)
+    assert sorted_miles(signed_in, sort="pace", order="asc") == [6.0, 3.0, 1.0, 2.0]
+    assert sorted_miles(signed_in, sort="pace", order="desc") == [2.0, 1.0, 3.0, 6.0]
+
+
+def test_a_workout_with_no_distance_has_no_pace_and_sorts_last(signed_in, db_session, member):
+    """Never a division, and never first either. A row that covered no ground
+    has no pace at all, so it goes to the end of the pace page whichever way
+    the page is pointed."""
+    a_dashboard_history(db_session, member)
+    stored(
+        db_session,
+        member.id,
+        activity="walk",
+        start="2026-07-05T06:00:00+00:00",
+        duration=900,
+        miles=0.0,
+    )
+    assert sorted_miles(signed_in, sort="pace", order="asc")[-1] == 0.0
+    assert sorted_miles(signed_in, sort="pace", order="desc")[-1] == 0.0
+
+
+def test_history_sorts_by_heart_rate_with_the_missing_ones_last(signed_in, db_session, member):
+    """A workout that never carried a heart rate is not a slow one and not a
+    fast one: it is at the bottom of both pages."""
+    a_dashboard_history(db_session, member)
+    high = signed_in.get("/api/workouts", params={"sort": "avg_hr", "order": "desc"}).json()
+    assert [row["avg_hr"] for row in high] == [165.0, 150.0, 110.0, None]
+    low = signed_in.get("/api/workouts", params={"sort": "avg_hr", "order": "asc"}).json()
+    assert [row["avg_hr"] for row in low] == [110.0, 150.0, 165.0, None]
+
+
+def test_history_filters_to_one_activity(signed_in, db_session, member):
+    a_dashboard_history(db_session, member)
+    walks = signed_in.get("/api/workouts", params={"activity": "walk"}).json()
+    assert [row["activity"] for row in walks] == ["walk", "walk"]
+    # The filter and the sort are read together rather than one instead of the
+    # other, which is the whole of finding your shortest walk.
+    assert sorted_miles(signed_in, activity="walk", sort="distance", order="asc") == [1.0, 2.0]
+
+
+def test_a_sorted_or_filtered_history_still_leaves_out_deleted_workouts(
+    signed_in, db_session, member
+):
+    """The Deleted section is the one place a deleted workout appears, and no
+    parameter on this endpoint is a way round that."""
+    a_dashboard_history(db_session, member)
+    longest = signed_in.get("/api/workouts", params={"sort": "distance"}).json()[0]
+    assert signed_in.delete(f"/api/workouts/{longest['workout_id']}").status_code == 204
+    assert sorted_miles(signed_in, sort="distance", order="desc") == [3.0, 2.0, 1.0]
+    assert sorted_miles(signed_in, sort="pace", order="asc") == [3.0, 1.0, 2.0]
+    assert sorted_miles(signed_in, activity="run") == [3.0]
+
+
+def test_history_refuses_parameters_it_does_not_have(signed_in):
+    """Said in words rather than as a schema error: the sentence names what the
+    endpoint would have accepted."""
+    bad_sort = signed_in.get("/api/workouts", params={"sort": "calories"})
+    assert bad_sort.status_code == 400
+    assert bad_sort.json()["detail"] == "sort must be one of date, distance, pace, avg_hr."
+
+    bad_order = signed_in.get("/api/workouts", params={"order": "sideways"})
+    assert bad_order.status_code == 400
+    assert bad_order.json()["detail"] == "order must be asc or desc."
+
+    bad_activity = signed_in.get("/api/workouts", params={"activity": "ski"})
+    assert bad_activity.status_code == 400
+    assert bad_activity.json()["detail"] == "activity must be one of walk, run, cycle, swim."
+
+
 def test_history_is_per_user(signed_in, client, db_session, member, admin):
     from conftest import ADMIN
 

@@ -12,7 +12,7 @@ import { getWorkoutRoute, type RoutePoint } from './api.ts'
 const cache = new Map<number, RoutePoint[] | null>()
 const inFlight = new Map<number, Promise<RoutePoint[] | null>>()
 
-// A feed page is twenty cards and a Log page fifty. Without a limit, one screen
+// A feed page is twenty cards and an Activity page fifty. Without a limit, one screen
 // would ask for fifty routes at once.
 const MAX_ACTIVE = 4
 let active = 0

@@ -975,12 +975,12 @@ button:disabled {
 /* Home: the feed */
 
 /* Activity cards stack three places over: the home feed, a friend's profile
-   and the Log. Stacked, one long card runs into the next and the pair reads as
-   one, so an activity card is drawn with a brighter edge than the rest of the
-   app's boxes, and a consecutive pair is pushed apart to a little over twice
-   the column's own gap. Only the pair: the space above the first card, and
-   below a week's totals in the Log, stays the column's. Cards that do not
-   stack keep the quieter seam they had. */
+   and the Activity tab. Stacked, one long card runs into the next and the pair
+   reads as one, so an activity card is drawn with a brighter edge than the rest
+   of the app's boxes, and a consecutive pair is pushed apart to a little over
+   twice the column's own gap. Only the pair: the space above the first card,
+   and below a week's totals, stays the column's. Cards that do not stack keep
+   the quieter seam they had. */
 .card.feed {
   border-color: var(--line-strong);
 }
@@ -1509,12 +1509,197 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
+/* Activity */
+
+/* The dashboard header: which of the two views is on, what the history is
+   ordered by, and which sport it is narrowed to. One card, because these belong
+   together and the list under them is the answer to all three at once. */
+.dash {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.75rem 0.85rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+/* The view toggle, and the way into what has been deleted beside it. */
+.dash-top {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dash-shape {
+  flex: 1 1 auto;
+}
+
+/* Quiet: a count of what is on its way out, not a fifth place to go. It reads
+   as the pill it is rather than as one of the two buttons beside it, so nobody
+   presses it looking for a third view. */
+.deleted-pill {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 0.4rem 0.85rem;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.deleted-pill-open {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* The sort: what to order by, then which way, in the words that direction means
+   for that key. The two share a line wherever there is room for them. */
+.dash-sort {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.dash-field {
+  flex: 0 1 9rem;
+}
+
+.dash-order {
+  flex: 1 1 12rem;
+}
+
+/* Eight letters of Shortest in capitals against half of what is left of a
+   phone: the pair is drawn a shade tighter than the choices elsewhere so both
+   words sit on the line beside the sort. */
+.dash-order .choice-option {
+  min-width: 0;
+  padding-inline: 0.5rem;
+  font-size: 0.75rem;
+}
+
+/* One sport or all of them. The chips on the You screen are figures in a grid;
+   these are pressable and wrap, so they are laid out as the row of words they
+   are and share the border, the radius and the mark. */
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  /* A thumb target, in px like the rest of them: five of these wrap onto two
+     rows on a narrow phone rather than being shrunk into something to aim at. */
+  min-height: 44px;
+  padding: 0.3rem 0.6rem;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.filter-chip-on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* The mark takes the chip's own colour rather than the accent every other one
+   wears, so a chip that is not chosen is grey all the way through. */
+.filter-chip .sport-icon {
+  margin-inline-end: 0.22rem;
+  color: inherit;
+}
+
+/* The list view: one row per workout, no maps and no photographs, built for
+   running an eye down a year of them. */
+.activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* The whole row is the control, because the whole row is what unfolds. Two
+   lines on purpose: the name reads as a name, and the figures underneath line
+   up into columns down the list. */
+.list-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  width: 100%;
+  /* px, like every other thumb target in this sheet. */
+  min-height: 52px;
+  padding: 0.45rem 0.6rem;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--text);
+}
+
+.list-row-open {
+  border-color: var(--accent);
+}
+
+/* An unfolded card sits under its own row, with the row still above it as the
+   way to fold it away again. */
+.list-item .card.feed {
+  margin-top: 0.3rem;
+}
+
+.list-head {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+/* A long title gives way rather than pushing the row into two lines of its
+   own: the whole card is one press away underneath. */
+.list-name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-weight: 700;
+}
+
+.list-head .tag {
+  flex: 0 0 auto;
+}
+
+/* Five columns, in fractions so they fit any phone, and the heart-rate column
+   is drawn empty rather than dropped on a workout that never carried one: a
+   column that moves is a column nobody can read down. */
+.list-figures {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr 0.85fr 1.15fr 0.85fr;
+  gap: 0 0.35rem;
+  font-family: var(--font-nums);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
 /* History */
 
 /* One week: its totals card, then that week's activities as the same cards the
    feed draws. Stacked with the column's own gap; the wider seam between two
-   consecutive activities is the feed's own and arrives with the card. */
-.log-week {
+   consecutive activities is the feed's own and arrives with the card. Sorted by
+   anything but the date it holds the whole history instead, with no totals card
+   above it, because a week is a date-sort idea. */
+.activity-group {
   display: flex;
   flex-direction: column;
   gap: var(--gap);
@@ -1558,9 +1743,10 @@ button:disabled {
   color: var(--muted);
 }
 
-/* What has been deleted and can still be got back, under the history. Muted
-   throughout: these are workouts on their way out, and the section should read
-   as a drawer rather than as more of the log. */
+/* What has been deleted and can still be got back, opened from the pill in the
+   dashboard header and drawn under it. Muted throughout: these are workouts on
+   their way out, and the section should read as a drawer rather than as more of
+   the history. */
 .deleted .hint {
   margin: 0 0 var(--gap);
 }

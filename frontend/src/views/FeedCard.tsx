@@ -455,9 +455,9 @@ export interface EditableWorkout {
   videos?: number[]
 }
 
-// How long a deleted workout waits in the Log before it is gone for good. The
-// server's own window, said here as well because the dialog below has to state
-// it plainly and a number nobody can read is not a promise.
+// How long a deleted workout waits under Activity before it is gone for good.
+// The server's own window, said here as well because the dialog below has to
+// state it plainly and a number nobody can read is not a promise.
 const DELETED_DAYS = 30
 
 // The last thing before a workout goes. Its own modal, in the same native
@@ -508,8 +508,9 @@ function ConfirmDelete({
             stays, and chests you have already found stay.
           </p>
           <p>
-            It waits under Deleted in your log for {DELETED_DAYS} days, and you
-            can put it back any time until then. After that it is gone for good.
+            It waits under Deleted on your Activity tab for {DELETED_DAYS} days,
+            and you can put it back any time until then. After that it is gone
+            for good.
           </p>
 
           <div className="item-verbs">
@@ -541,8 +542,9 @@ interface EditProps<T extends EditableWorkout> {
   // put the change back where it lives without losing the rest of the row.
   onChanged: (item: T) => void
   onClose: () => void
-  // Where deleting is offered. Given by the feed and the log, which can take a
-  // card off the screen and ask for the totals again; left out by the letter,
+  // Where deleting is offered. Given by the feed and the Activity tab, which
+  // can take a card off the screen and ask for the totals again; left out by
+  // the letter,
   // whose rows are a report of what arrived and would be reporting a workout
   // that is no longer there.
   onDeleted?: (workoutId: number) => void
@@ -861,8 +863,8 @@ interface Props {
   // ask the server for its totals again.
   onDeleted?: (workoutId: number) => void
   // What the server marked about the numbers, in a sentence, on your own card
-  // only. The log is the one screen that reads flags, so this arrives from
-  // there rather than off the row.
+  // only. The Activity tab is the one screen that reads flags, so this arrives
+  // from there rather than off the row.
   note?: string
   // Opens the profile of whoever this card belongs to, from their picture and
   // from their name. Only a friend's card ever uses it: your own rows are not a

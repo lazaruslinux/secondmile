@@ -10,7 +10,7 @@ import os
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -69,6 +69,15 @@ NO_SUCH_WORKOUT = "No such workout."
 NO_SUCH_PHOTO = "No such photo."
 NO_SUCH_VIDEO = "No such video."
 
+# What the history can be ordered by, and which way. Date is the default and the
+# one the weekly groups are built on; the other three are the dashboard's, for
+# finding the shortest walk or the hardest run in a year of them.
+WORKOUT_SORTS = ("date", "distance", "pace", "avg_hr")
+SORT_ORDERS = ("asc", "desc")
+# The two that can have nothing in them: a workout with no distance has no pace,
+# and plenty of rows never carried a heart rate.
+NULLABLE_SORTS = ("pace", "avg_hr")
+
 
 def _serialize(
     workout: models.Workout,
@@ -81,14 +90,14 @@ def _serialize(
 ) -> dict:
     """One row of your own history, in the shape the feed sends a workout in.
 
-    The log draws the same card the home feed draws, so it is served the same
-    row: whoever did the workout, what it earned, and what came back for it.
-    Own rows carry everything, so nothing here is ever kept back.
+    The Activity tab draws the same card the home feed draws, so it is served
+    the same row: whoever did the workout, what it earned, and what came back
+    for it. Own rows carry everything, so nothing here is ever kept back.
 
-    The flags are the one thing the feed has no use for and the log does. They
-    are the server's own doubts about the numbers, said to nobody but the person
-    whose numbers they are, which is why they are added here rather than in
-    feed_row.
+    The flags are the one thing the feed has no use for and the Activity tab
+    does. They are the server's own doubts about the numbers, said to nobody but
+    the person whose numbers they are, which is why they are added here rather
+    than in feed_row.
 
     The route itself is not here, only whether there is one: a list has a couple
     of hundred coordinate pairs on it, and a page of history would be mostly
@@ -193,25 +202,77 @@ def parse_cursor(before: str) -> dt.datetime:
     raise HTTPException(status.HTTP_400_BAD_REQUEST, "before must be an ISO timestamp.")
 
 
+def sort_key(sort: str):
+    """What one of the four sorts actually orders on.
+
+    Pace is the only one that is not a column. It is time over distance, and a
+    workout that covered no distance has no pace at all rather than an infinite
+    one, so the guard answers null instead of dividing: the same reading the
+    cards give when they print a dash.
+    """
+    if sort == "distance":
+        return models.Workout.distance_mi
+    if sort == "avg_hr":
+        return models.Workout.avg_hr
+    if sort == "pace":
+        return case(
+            (
+                models.Workout.distance_mi > 0,
+                models.Workout.duration_s / models.Workout.distance_mi,
+            ),
+            else_=None,
+        )
+    return models.Workout.start_ts
+
+
 @router.get("")
 def list_workouts(
     limit: int = Query(50, ge=1, le=MAX_LIMIT),
     before: str | None = None,
+    sort: str = "date",
+    order: str = "desc",
+    activity: str | None = None,
     db: Session = Depends(get_db),
     user: models.User = Depends(security.current_user),
 ) -> list[dict]:
-    """Your own history, newest first. Deleted workouts are not in it; they are
-    in the Deleted section below, which is the endpoint under this one."""
+    """Your own history, newest first unless it is asked for another way.
+
+    Deleted workouts are never in it whatever it is sorted or filtered by; they
+    are in the Deleted section, which is the endpoint under this one.
+    """
+    if sort not in WORKOUT_SORTS:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, f"sort must be one of {', '.join(WORKOUT_SORTS)}."
+        )
+    if order not in SORT_ORDERS:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "order must be asc or desc.")
+    if activity is not None and activity not in ACTIVITIES:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, f"activity must be one of {', '.join(ACTIVITIES)}."
+        )
+
     stmt = select(models.Workout).where(
         models.Workout.user_id == user.id, models.Workout.deleted_at.is_(None)
     )
+    if activity is not None:
+        stmt = stmt.where(models.Workout.activity == activity)
     if before:
         cutoff = parse_cursor(before)
         stmt = stmt.where(models.Workout.start_ts < cutoff)
-    # Ordered by id as well as time so that two workouts sharing a start time
-    # keep a stable order between pages; without it, paging can show one twice
-    # and skip another.
-    stmt = stmt.order_by(models.Workout.start_ts.desc(), models.Workout.id.desc()).limit(limit)
+
+    key = sort_key(sort)
+    ordering = []
+    if sort in NULLABLE_SORTS:
+        # Nothing sorts last whichever way the list is pointed, written as an
+        # ordering key rather than as NULLS LAST: the clause is spelled
+        # differently from one database to the next, and false before true is
+        # the same answer in Postgres and in SQLite.
+        ordering.append(key.is_(None))
+    ordering.append(key.asc() if order == "asc" else key.desc())
+    # Ordered by id last so that two workouts sharing a start time, a distance
+    # or a heart rate keep a stable order between pages; without it, paging can
+    # show one twice and skip another.
+    stmt = stmt.order_by(*ordering, models.Workout.id.desc()).limit(limit)
     rows = list(db.execute(stmt).scalars())
     earned = medals.medals_for(db, rows)
     routed = routes_for(db, rows)
@@ -268,8 +329,8 @@ def list_deleted(
     window is not here whether or not the purge has swept it yet, because the
     window is what was promised and the sweep is only how it is kept.
 
-    No limiter, the same as the history above it: the Log asks for both
-    together on every visit, and one of them is not the read to start counting.
+    No limiter, the same as the history above it: the Activity tab asks for
+    both on every visit, and one of them is not the read to start counting.
     """
     return [_deleted_row(row) for row in history.deleted_workouts(db, user.id)]
 
@@ -385,8 +446,8 @@ def restore_workout(
     which is behind the last acknowledgement for anything old enough to have
     been deleted and read about already.
 
-    Answers with the whole row in the shape the history sends it, so the Log
-    can put the card back without asking for the page again. A workout past the
+    Answers with the whole row in the shape the history sends it, so the
+    Activity tab can put the card back without asking for the page again. A workout past the
     window, or one nobody deleted, is the same 404 as a workout that never
     existed.
     """

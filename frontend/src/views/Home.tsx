@@ -280,7 +280,7 @@ interface Props {
   refreshToken: number
   // The app owns which screen is up, so the rows that go somewhere are handed
   // the switch rather than reaching for it.
-  onOpenLog: () => void
+  onOpenActivity: () => void
   onOpenGrove: () => void
   onOpenProfile: () => void
   // A friend's card goes to their screen. Own cards ignore it, which is what
@@ -292,7 +292,7 @@ export default function Home({
   userId,
   units,
   refreshToken,
-  onOpenLog,
+  onOpenActivity,
   onOpenGrove,
   onOpenProfile,
   onOpenPerson,
@@ -471,8 +471,8 @@ export default function Home({
             <Streak streak={streak} days={days} />
           </div>
 
-          <button type="button" className="row-link" onClick={onOpenLog}>
-            Your training log
+          <button type="button" className="row-link" onClick={onOpenActivity}>
+            All your activity
           </button>
         </section>
 

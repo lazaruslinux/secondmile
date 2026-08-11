@@ -284,7 +284,7 @@ export default function Recap({ recap, units, onDismiss }: Props) {
                   )
                 })}
               </ul>
-              {held > 0 && <p className="hint">and {held} more in your log.</p>}
+              {held > 0 && <p className="hint">and {held} more under Activity.</p>}
             </section>
           )}
         </div>

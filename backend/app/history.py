@@ -1,8 +1,8 @@
 """What happens to a workout after its owner deletes it.
 
 Two things, and they are the two halves of one promise. For
-DELETED_WORKOUT_RETENTION_DAYS the row is only hidden, and the Log's Deleted
-section can hand it back whole. After that the pictures, the video, the route
+DELETED_WORKOUT_RETENTION_DAYS the row is only hidden, and the Activity tab's
+Deleted list can hand it back whole. After that the pictures, the video, the route
 line, the words and everything said about it are purged, and what is left is a
 tombstone: the workout row itself, kept forever so the sync dedupe key on it
 goes on refusing the same session when the phone offers it again.

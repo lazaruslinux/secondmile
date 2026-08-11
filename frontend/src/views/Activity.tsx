@@ -1,0 +1,573 @@
+import { useCallback, useEffect, useState } from 'react'
+import {
+  errorText,
+  getProfile,
+  listDeletedWorkouts,
+  listWeeks,
+  listWorkouts,
+  restoreWorkout,
+  type Activity as Sport,
+  type DeletedWorkout,
+  type FeedItem,
+  type SortOrder,
+  type Units,
+  type Week,
+  type Workout,
+  type WorkoutFlags,
+  type WorkoutSort,
+} from '../api.ts'
+import {
+  formatDistance,
+  formatClock,
+  formatPace,
+  formatShortDate,
+  formatStart,
+  weekStartKey,
+  zonedDay,
+} from '../format.ts'
+import { ACTIVITY_ICONS, ACTIVITY_NAMES, ACTIVITY_ORDER, defaultHeadline } from '../labels.ts'
+import FeedCard from './FeedCard.tsx'
+import Icon from './Icon.tsx'
+
+const WORKOUT_PAGE = 50
+const WEEK_COUNT = 8
+
+// Which of the two views this browser was last left on. The only thing kept
+// between visits: a sort is asked for on purpose and a sport filter even more
+// so, and coming back tomorrow to yesterday's filter would be the app hiding
+// workouts nobody asked it to hide.
+const VIEW_KEY = 'secondmile.activity.view'
+
+type Shape = 'cards' | 'list'
+
+function rememberedShape(): Shape {
+  try {
+    return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'cards'
+  } catch {
+    // A browser with storage turned off simply opens on the cards every time.
+    return 'cards'
+  }
+}
+
+function rememberShape(shape: Shape): void {
+  try {
+    localStorage.setItem(VIEW_KEY, shape)
+  } catch {
+    // Nothing to say: the choice holds for this visit and is forgotten after.
+  }
+}
+
+// What the four sorts are called, and what each direction of each one means. A
+// direction has no name of its own here: descending distance is the longest
+// first and descending pace is the slowest, and the buttons say so rather than
+// making somebody work out which way an arrow points. The first of each pair is
+// the one a sort opens on.
+const SORT_NAMES: Record<WorkoutSort, string> = {
+  date: 'Date',
+  distance: 'Distance',
+  pace: 'Pace',
+  avg_hr: 'Avg. HR',
+}
+
+const SORT_ORDERS: Record<WorkoutSort, { order: SortOrder; word: string }[]> = {
+  date: [
+    { order: 'desc', word: 'Newest' },
+    { order: 'asc', word: 'Oldest' },
+  ],
+  distance: [
+    { order: 'desc', word: 'Longest' },
+    { order: 'asc', word: 'Shortest' },
+  ],
+  pace: [
+    { order: 'asc', word: 'Fastest' },
+    { order: 'desc', word: 'Slowest' },
+  ],
+  avg_hr: [
+    { order: 'desc', word: 'Highest' },
+    { order: 'asc', word: 'Lowest' },
+  ],
+}
+
+const SORT_KEYS = Object.keys(SORT_NAMES) as WorkoutSort[]
+
+// The Monday that starts a workout's week, read in the instance's zone, which
+// is the zone the weekly totals below it were added up in.
+function weekKeyOf(iso: string): string {
+  return weekStartKey(zonedDay(iso))
+}
+
+// A plain calendar date rather than a moment, so no zone comes into it: the
+// date is built and read in the same one.
+function formatWeekStart(key: string): string {
+  const [year, month, day] = key.split('-').map(Number)
+  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
+// Flags are machine words in the database; a person reading their own history
+// deserves the sentence version.
+function flagNotes(flags: WorkoutFlags): string {
+  const notes: string[] = []
+  if (flags.impossible_pace) {
+    notes.push('This pace looks too fast, so the numbers may be off. It still counts.')
+  }
+  if (flags.daily_cap) {
+    notes.push('This day went over the daily distance limit. It still counts.')
+  }
+  return notes.join(' ')
+}
+
+// "1 day left" the day before it goes, and "gone today" on the last of them,
+// which is the honest reading of a window that has hours rather than days in
+// it. The number is the server's; this only puts it into words.
+function daysLeftLine(days: number): string {
+  if (days <= 0) return 'Gone today'
+  return `${days} ${days === 1 ? 'day' : 'days'} left`
+}
+
+interface Cached {
+  workouts: Workout[]
+  weeks: Week[]
+  deleted: DeletedWorkout[]
+  avatarVersion: number | null
+  // Kept with the rows they produced, so coming back to the tab draws the list
+  // the controls above it claim to be showing.
+  sort: WorkoutSort
+  order: SortOrder
+  sport: Sport | null
+}
+
+// What this tab last showed, kept by account so a second person signing in on
+// the same browser never sees the first one's history. It lives as long as the
+// page does and no longer.
+const cache = new Map<number, Cached>()
+
+interface Props {
+  userId: number
+  units: Units
+}
+
+export default function ActivityView({ userId, units }: Props) {
+  // Coming back to the tab draws what was here before and asks the server again
+  // underneath, so switching tabs is not a blank screen every time.
+  const [workouts, setWorkouts] = useState<Workout[]>(() => cache.get(userId)?.workouts ?? [])
+  const [weeks, setWeeks] = useState<Week[]>(() => cache.get(userId)?.weeks ?? [])
+  const [deleted, setDeleted] = useState<DeletedWorkout[]>(
+    () => cache.get(userId)?.deleted ?? [],
+  )
+  const [shape, setShape] = useState<Shape>(rememberedShape)
+  const [sort, setSort] = useState<WorkoutSort>(() => cache.get(userId)?.sort ?? 'date')
+  const [order, setOrder] = useState<SortOrder>(() => cache.get(userId)?.order ?? 'desc')
+  const [sport, setSport] = useState<Sport | null>(() => cache.get(userId)?.sport ?? null)
+  // Which row of the list is unfolded, one at a time: two cards open at once in
+  // a list built for scanning is a feed again, only a worse one.
+  const [opened, setOpened] = useState<number | null>(null)
+  const [showDeleted, setShowDeleted] = useState(false)
+  // Which row is being put back, so only its own button says so.
+  const [restoring, setRestoring] = useState<number | null>(null)
+  const [restoreError, setRestoreError] = useState('')
+  // Only ever used to address your own picture, so a new one shows here as soon
+  // as it shows anywhere else.
+  const [avatarVersion, setAvatarVersion] = useState<number | null>(
+    () => cache.get(userId)?.avatarVersion ?? null,
+  )
+  const [loading, setLoading] = useState(() => !cache.has(userId))
+  const [loadError, setLoadError] = useState('')
+
+  const load = useCallback(async () => {
+    try {
+      const [history, totals, gone, mine] = await Promise.all([
+        // The sorting and the filtering are the server's: a page is fifty rows
+        // of a history that may run to thousands, so ordering what arrived
+        // would order the wrong fifty.
+        listWorkouts(WORKOUT_PAGE, {
+          sort,
+          order,
+          ...(sport === null ? {} : { activity: sport }),
+        }),
+        listWeeks(WEEK_COUNT),
+        listDeletedWorkouts(),
+        getProfile(),
+      ])
+      setWorkouts(history)
+      setWeeks(totals)
+      setDeleted(gone)
+      setAvatarVersion(mine.avatar_version)
+      setLoadError('')
+    } catch (err) {
+      setLoadError(errorText(err))
+    } finally {
+      setLoading(false)
+    }
+  }, [sort, order, sport])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  // Kept from what is on screen rather than from what arrived, so a card edited
+  // here is still edited after a trip to another tab. A load that failed writes
+  // nothing, so a first visit that went wrong still says Loading on the next.
+  useEffect(() => {
+    if (!loading && loadError === '')
+      cache.set(userId, { workouts, weeks, deleted, avatarVersion, sort, order, sport })
+  }, [userId, workouts, weeks, deleted, avatarVersion, sort, order, sport, loading, loadError])
+
+  function chooseShape(next: Shape) {
+    setShape(next)
+    rememberShape(next)
+  }
+
+  // A new sort opens on its own natural direction: picking Pace means wanting
+  // the fastest, not whichever way the last sort happened to be pointed.
+  function chooseSort(next: WorkoutSort) {
+    setSort(next)
+    setOrder(SORT_ORDERS[next][0].order)
+    setOpened(null)
+  }
+
+  // An edited card is put back where it sat, flags and all: the panel hands
+  // back the feed's part of the row and the rest of it is already here.
+  const cardChanged = useCallback((updated: FeedItem) => {
+    setWorkouts((current) =>
+      current.map((row) =>
+        row.workout_id === updated.workout_id ? { ...row, ...updated } : row,
+      ),
+    )
+  }, [])
+
+  // A deleted card leaves at once so the screen answers the press, and the
+  // whole page is asked for again underneath: the week totals above it and the
+  // Deleted list both changed, and neither can be worked out here.
+  const cardDeleted = useCallback(
+    (workoutId: number) => {
+      setWorkouts((current) => current.filter((row) => row.workout_id !== workoutId))
+      setOpened((open) => (open === workoutId ? null : open))
+      void load()
+    },
+    [load],
+  )
+
+  async function putBack(workoutId: number) {
+    setRestoring(workoutId)
+    setRestoreError('')
+    try {
+      await restoreWorkout(workoutId)
+      const left = deleted.filter((row) => row.workout_id !== workoutId)
+      setDeleted(left)
+      // The pill goes with the last row in it, and so does what it opened: an
+      // empty drawer left standing would reopen itself on the next deletion.
+      if (left.length === 0) setShowDeleted(false)
+      // Straight back into the history in its own place, with this week's
+      // totals and the streak behind it: the same reload the deletion does.
+      await load()
+    } catch (err) {
+      setRestoreError(errorText(err))
+    } finally {
+      setRestoring(null)
+    }
+  }
+
+  const totalsByWeek = new Map(weeks.map((week) => [week.week_start.slice(0, 10), week]))
+
+  // Weekly totals are a date-sort idea: they add up a week of rows that are
+  // next to each other because they happened next to each other. Sorted by
+  // distance, or narrowed to one sport, the page is one list and says so.
+  const grouped = sort === 'date' && sport === null
+
+  // The history arrives in week order when it is in date order, so walking it
+  // produces the groups in the same order. Ungrouped, it is one list under one
+  // empty key, so both views draw the same shape either way.
+  const groups: { key: string; workouts: Workout[] }[] = []
+  for (const workout of workouts) {
+    const key = grouped ? weekKeyOf(workout.start_ts) : ''
+    const current = groups[groups.length - 1]
+    if (current && current.key === key) current.workouts.push(workout)
+    else groups.push({ key, workouts: [workout] })
+  }
+
+  function card(workout: Workout) {
+    return (
+      <FeedCard
+        key={workout.workout_id}
+        item={workout}
+        units={units}
+        avatarVersion={avatarVersion}
+        onChanged={cardChanged}
+        onDeleted={cardDeleted}
+        note={flagNotes(workout.flags)}
+      />
+    )
+  }
+
+  // One row of the list: what it was, when, and its figures, and nothing that
+  // has to be fetched. Pressing it unfolds the whole card underneath, pencil
+  // and all; pressing it again folds it away.
+  function row(workout: Workout) {
+    const open = opened === workout.workout_id
+    const given = (workout.title ?? '').trim()
+    const headline = given === '' ? defaultHeadline(workout.activity, workout.start_ts) : given
+    const flagged = flagNotes(workout.flags) !== ''
+    return (
+      <li key={workout.workout_id} className="list-item">
+        <button
+          type="button"
+          className={open ? 'list-row list-row-open' : 'list-row'}
+          aria-expanded={open}
+          onClick={() => setOpened(open ? null : workout.workout_id)}
+        >
+          <span className="list-head">
+            <span className="sport-icon sport-icon-small">
+              <Icon name={ACTIVITY_ICONS[workout.activity]} />
+            </span>
+            <span className="list-name">{headline}</span>
+            {/* The server's own doubt about the numbers, marked rather than
+                explained: the card underneath carries the sentence. */}
+            {flagged && <span className="tag tag-flag">Flagged</span>}
+          </span>
+          <span className="list-figures">
+            <span>{formatShortDate(workout.start_ts)}</span>
+            <span>{formatDistance(workout.distance_mi, units)}</span>
+            <span>{formatClock(workout.duration_s)}</span>
+            <span>
+              {formatPace(workout.activity, workout.distance_mi, workout.duration_s, units)}
+            </span>
+            {/* Empty rather than absent, so the columns stay columns down a
+                list where some workouts carried a heart rate and some did not. */}
+            <span>
+              {typeof workout.avg_hr === 'number' ? `${Math.round(workout.avg_hr)} bpm` : ''}
+            </span>
+          </span>
+        </button>
+
+        {open && card(workout)}
+      </li>
+    )
+  }
+
+  return (
+    <>
+      <div className="view-head">
+        <h1 className="view-title">Activity</h1>
+      </div>
+
+      <section className="dash">
+        <div className="dash-top">
+          <div className="choice dash-shape">
+            {/* Cards is what this tab has always been, so it is what a first
+                visit opens on. */}
+            <button
+              type="button"
+              className={shape === 'cards' ? 'choice-option choice-current' : 'choice-option'}
+              aria-pressed={shape === 'cards'}
+              onClick={() => chooseShape('cards')}
+            >
+              Cards
+            </button>
+            <button
+              type="button"
+              className={shape === 'list' ? 'choice-option choice-current' : 'choice-option'}
+              aria-pressed={shape === 'list'}
+              onClick={() => chooseShape('list')}
+            >
+              List
+            </button>
+          </div>
+
+          {/* Absent at zero: a pill reading Deleted (0) would put the idea in
+              front of somebody who has never deleted anything. */}
+          {deleted.length > 0 && (
+            <button
+              type="button"
+              className={showDeleted ? 'deleted-pill deleted-pill-open' : 'deleted-pill'}
+              aria-expanded={showDeleted}
+              onClick={() => setShowDeleted((open) => !open)}
+            >
+              Deleted ({deleted.length})
+            </button>
+          )}
+        </div>
+
+        <div className="dash-sort">
+          <label className="label dash-field">
+            Sort
+            <select
+              value={sort}
+              onChange={(event) => chooseSort(event.target.value as WorkoutSort)}
+            >
+              {SORT_KEYS.map((key) => (
+                <option key={key} value={key}>
+                  {SORT_NAMES[key]}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="choice dash-order">
+            {SORT_ORDERS[sort].map((choice) => (
+              <button
+                key={choice.order}
+                type="button"
+                className={
+                  order === choice.order ? 'choice-option choice-current' : 'choice-option'
+                }
+                aria-pressed={order === choice.order}
+                onClick={() => {
+                  setOrder(choice.order)
+                  setOpened(null)
+                }}
+              >
+                {choice.word}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* One sport at a time, or all of them, which is where it starts. */}
+        <ul className="filter-chips">
+          {([null, ...ACTIVITY_ORDER] as (Sport | null)[]).map((name) => {
+            const on = sport === name
+            return (
+              <li key={name ?? 'all'}>
+                <button
+                  type="button"
+                  className={on ? 'filter-chip filter-chip-on' : 'filter-chip'}
+                  aria-pressed={on}
+                  onClick={() => {
+                    setSport(name)
+                    setOpened(null)
+                  }}
+                >
+                  {name !== null && (
+                    <span className="sport-icon sport-icon-small">
+                      <Icon name={ACTIVITY_ICONS[name]} />
+                    </span>
+                  )}
+                  {name === null ? 'All' : ACTIVITY_NAMES[name]}
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      </section>
+
+      {/* Opened from the pill above and drawn here, at the top, where it was
+          asked for. Rows rather than cards, because a deleted workout has no
+          pictures to show and nothing to say. */}
+      {showDeleted && deleted.length > 0 && (
+        <section className="deleted">
+          <h2>Deleted</h2>
+          <p className="hint">
+            Hidden from everyone and out of your totals. Put one back any time
+            before its last day.
+          </p>
+
+          {restoreError && (
+            <p className="error" role="alert">
+              {restoreError}
+            </p>
+          )}
+
+          <ul className="deleted-list">
+            {deleted.map((gone) => (
+              <li key={gone.workout_id} className="deleted-row">
+                <span className="deleted-what">
+                  <span className="sport-icon sport-icon-small">
+                    <Icon name={ACTIVITY_ICONS[gone.activity]} />
+                  </span>
+                  <span className="deleted-name">
+                    {gone.title?.trim() || ACTIVITY_NAMES[gone.activity]}
+                  </span>
+                  <span className="muted">
+                    {formatStart(gone.start_ts)}, {formatDistance(gone.distance_mi, units)}
+                  </span>
+                </span>
+                <span className="deleted-left">{daysLeftLine(gone.days_left)}</span>
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={restoring !== null}
+                  onClick={() => void putBack(gone.workout_id)}
+                >
+                  {restoring === gone.workout_id ? 'Restoring' : 'Restore'}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <section>
+        <h2>History</h2>
+        {loading && <p className="notice">Loading.</p>}
+        {loadError && (
+          <p className="error" role="alert">
+            {loadError}
+          </p>
+        )}
+        {!loading && !loadError && groups.length === 0 && (
+          <p className="notice">
+            {sport === null
+              ? 'Nothing recorded yet. Your next sync fills this in.'
+              : 'Nothing recorded in that sport yet.'}
+          </p>
+        )}
+
+        {groups.map((group) => (
+          <div className="activity-group" key={group.key}>
+            {grouped && (
+              <div className="week">
+                <h3>Week of {formatWeekStart(group.key)}</h3>
+
+                {totalsByWeek.get(group.key) && (
+                  <ul className="totals">
+                    {ACTIVITY_ORDER.map((name) => {
+                      const total = totalsByWeek.get(group.key)?.activities[name]
+                      if (!total) return null
+                      return (
+                        <li key={name}>
+                          {/* Inside the label rather than beside it, so the mark
+                              comes out of the width the label already reserves
+                              and the figures stay in their column. */}
+                          <span className="totals-activity">
+                            <span className="sport-icon sport-icon-small">
+                              <Icon name={ACTIVITY_ICONS[name]} />
+                            </span>
+                            {ACTIVITY_NAMES[name]}
+                          </span>
+                          <span>{formatDistance(total.distance_mi, units)}</span>
+                          <span className="muted">
+                            {total.workouts} {total.workouts === 1 ? 'workout' : 'workouts'}
+                            {total.active_kcal > 0 && `, ${Math.round(total.active_kcal)} kcal`}
+                          </span>
+                        </li>
+                      )
+                    })}
+                    <li className="totals-week">
+                      <span className="totals-activity">Week</span>
+                      <span>
+                        {Math.round(totalsByWeek.get(group.key)?.total_active_kcal ?? 0)} kcal
+                      </span>
+                    </li>
+                  </ul>
+                )}
+              </div>
+            )}
+
+            {/* The same card the feed draws, because it is the same workout:
+                naming one, writing about it, and adding pictures happen here as
+                well. The list draws the row and unfolds the very same card. */}
+            {shape === 'cards' ? (
+              group.workouts.map((workout) => card(workout))
+            ) : (
+              <ul className="activity-list">{group.workouts.map((workout) => row(workout))}</ul>
+            )}
+          </div>
+        ))}
+      </section>
+    </>
+  )
+}
