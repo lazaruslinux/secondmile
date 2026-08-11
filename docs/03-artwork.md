@@ -314,8 +314,8 @@ Every species levels. One level costs what that species costs: fifteen converted
 miles for a common, forty for an uncommon, a hundred for a rare and for the
 mustard. Level one is grown, which is where the third drawing starts, and a
 plant goes on levelling from there without changing what it is drawn as. The
-mustard is drawn the way the parable tells it, a plant, then a shrub, then a
-tree, at the same three points as everything else.
+mustard is drawn as the real plant grows: a sprout, then a young plant, then a
+tall stand of yellow flowers, at the same three points as everything else.
 
 The species and the file each one reads:
 
