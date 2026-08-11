@@ -329,7 +329,7 @@ def test_a_run_earns_its_badge_and_the_history_row_names_it(signed_in, db_sessio
     created = log_workout(db_session, member.id, "run", 6.5, pace_min=10)
     assert [row.badge_id for row in medal_rows(db_session, member.id)] == ["race_10k"]
     row = signed_in.get("/api/workouts").json()[0]
-    assert (row["id"], row["medals"]) == (created.id, ["race_10k"])
+    assert (row["workout_id"], row["medals"]) == (created.id, ["race_10k"])
 
 
 def test_a_replayed_history_earns_the_same_medals_once(signed_in, db_session, member):

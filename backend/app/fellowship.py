@@ -17,6 +17,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app import models, progress
+from app.activity import converted_miles
 from app.config import (
     FLOURISH_RENOWN,
     RENOWN_CHEER,
@@ -470,3 +471,65 @@ def counts(db: Session, workout_ids, viewer_id: int) -> dict[int, dict]:
     ).scalars():
         out[workout_id]["cheered_by_me"] = True
     return out
+
+
+def feed_row(
+    workout: models.Workout,
+    person: dict,
+    own: bool,
+    medal_ids: list[str],
+    has_route: bool,
+    photo_ids: list[int],
+    encouragement: dict,
+    hidden: tuple[str, ...] = (),
+) -> dict:
+    """One feed event.
+
+    Here rather than in a router because three of them serve these rows: the
+    feed, a friend's profile, and your own training log. This function is the
+    only place the rule below is written down, and a second copy of it is a copy
+    somebody can edit on its own.
+
+    A friend sees what you did, in full: the distance, the time, the heart
+    rate, the calories, and the line you ran. What they do not see is what you
+    said they may not. `hidden` is the owner's own list, from HIDEABLE, and a
+    field on it is left out of the row altogether rather than sent as a null: a
+    null would say the workout carried no heart rate, which is a different thing
+    from being asked not to look. The route is hidden by has_route reading
+    false, so no map is drawn and nothing asks for the line the endpoint would
+    refuse anyway.
+
+    Own rows carry everything whatever the list says. Hiding a number from
+    yourself is not a privacy setting, and the experience a workout earned is
+    still on your own rows and nowhere else.
+
+    Pace is not here and never was: it is the distance over the time, both of
+    which every row carries, and the client does that division itself.
+    """
+    kept_back = () if own else hidden
+    row = {
+        "workout_id": workout.id,
+        "user": person,
+        "activity": workout.activity,
+        "start_ts": workout.start_ts.isoformat(),
+        "distance_mi": round(workout.distance_mi, 3),
+        "duration_s": workout.duration_s,
+        "medals": medal_ids,
+        # False rather than absent when the route is hidden: a card reads this
+        # to decide whether to draw a map, and the honest answer to "is there
+        # one you can see" is no.
+        "has_route": has_route and "route" not in kept_back,
+        "title": workout.title,
+        "post": workout.post,
+        "photos": photo_ids,
+        "source": workout.source,
+        "own": own,
+    }
+    if "avg_hr" not in kept_back:
+        row["avg_hr"] = round(workout.avg_hr, 1) if workout.avg_hr is not None else None
+    if "active_kcal" not in kept_back:
+        row["active_kcal"] = round(workout.active_kcal, 1)
+    if own:
+        row["xp"] = round(converted_miles(workout.activity, workout.distance_mi), 2)
+    row["encouragement"] = encouragement
+    return row

@@ -22,7 +22,7 @@ import {
   formatStart,
   unitName,
 } from '../format.ts'
-import { ACTIVITY_ICONS, ACTIVITY_NAMES, personName } from '../labels.ts'
+import { ACTIVITY_ICONS, ACTIVITY_NAMES, defaultHeadline, personName } from '../labels.ts'
 import AvatarFrame from './AvatarFrame.tsx'
 import Icon from './Icon.tsx'
 import { MAX_MEDAL_SLOTS } from './MedalNest.tsx'
@@ -49,12 +49,13 @@ interface Given {
   cheered: boolean
 }
 
-// "+6 Hype, 1 note", and nothing at all when there is nothing. A workout
+// "+6 hype, 1 comment", and nothing at all when there is nothing. A workout
 // nobody has said anything about looks like a workout, not like an empty box.
+// The kind stays 'note' under the screen; on the feed it is a comment.
 function countLine(given: Given): string {
   const parts: string[] = []
-  if (given.cheers > 0) parts.push(`+${given.cheers} Hype`)
-  if (given.notes > 0) parts.push(`${given.notes} ${given.notes === 1 ? 'note' : 'notes'}`)
+  if (given.cheers > 0) parts.push(`+${given.cheers} hype`)
+  if (given.notes > 0) parts.push(`${given.notes} ${given.notes === 1 ? 'comment' : 'comments'}`)
   return parts.join(', ')
 }
 
@@ -141,8 +142,8 @@ function EncourageRow({ workoutId, encouragement }: EncourageProps) {
           type="button"
           className={given.cheered ? 'cheer cheer-on' : 'cheer'}
           aria-pressed={given.cheered}
-          aria-label={given.cheered ? 'Hyped' : '+1 Hype'}
-          title={given.cheered ? 'Hyped' : '+1 Hype'}
+          aria-label={given.cheered ? 'hyped' : '+1 hype'}
+          title={given.cheered ? 'hyped' : '+1 hype'}
           disabled={busy}
           onClick={() => void cheer()}
         >
@@ -555,6 +556,10 @@ interface Props {
   // An edited card is handed back to whoever holds the feed, so the row it is
   // drawn from carries the change rather than only this card knowing about it.
   onChanged: (item: FeedItem) => void
+  // What the server marked about the numbers, in a sentence, on your own card
+  // only. The log is the one screen that reads flags, so this arrives from
+  // there rather than off the row.
+  note?: string
   // Opens the profile of whoever this card belongs to, from their picture and
   // from their name. Only a friend's card ever uses it: your own rows are not a
   // way to your own screen the long way round, and the cards on a profile do
@@ -571,6 +576,7 @@ export default function FeedCard({
   units,
   avatarVersion,
   onChanged,
+  note,
   onOpenPerson,
 }: Props) {
   const [editing, setEditing] = useState(false)
@@ -578,8 +584,9 @@ export default function FeedCard({
   const activityName = ACTIVITY_NAMES[item.activity]
   const given = (item.title ?? '').trim()
   // A title takes the headline and pushes the activity name down to the small
-  // line the date and the source sit on. Without one nothing moves.
-  const headline = given === '' ? activityName : given
+  // line the date and the source sit on. Without one the workout is named for
+  // the part of the day it started in.
+  const headline = given === '' ? defaultHeadline(item.activity, item.start_ts) : given
   const when =
     given === ''
       ? formatStart(item.start_ts)
@@ -660,6 +667,11 @@ export default function FeedCard({
         {!editing && post !== '' && <p className="feed-post">{post}</p>}
 
         <StatRow item={item} units={units} />
+
+        {/* Under the numbers it is about, and worded as the sentence it is: a
+            flagged workout still counts, and the card says so rather than
+            hiding a machine word behind a tooltip. */}
+        {note && <p className="flag-note">{note}</p>}
 
         {item.has_route && <RouteLine workoutId={item.workout_id} />}
 

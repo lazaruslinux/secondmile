@@ -415,28 +415,3 @@ def week_start(moment: dt.datetime) -> dt.date:
     """The Monday of the local week a moment falls in."""
     local = moment.astimezone(SERVER_TZ).date()
     return local - dt.timedelta(days=local.weekday())
-
-
-def serialize(workout: models.Workout, photo_ids: list[int] | None = None) -> dict:
-    """One workout in the shape every endpoint returns it in.
-
-    The photo ids are passed in rather than read off the row, because every
-    caller has a page of workouts and a query per row is how a history stops
-    being fast. See photos_for in the workouts router.
-    """
-    return {
-        "id": workout.id,
-        "activity": workout.activity,
-        "start_ts": workout.start_ts.isoformat(),
-        "duration_s": workout.duration_s,
-        "distance_mi": round(workout.distance_mi, 3),
-        "active_kcal": round(workout.active_kcal, 1),
-        "avg_hr": round(workout.avg_hr, 1) if workout.avg_hr is not None else None,
-        "source": workout.source,
-        "flags": workout.flags or {},
-        # What the owner wrote, and the ids of what they attached. Null and an
-        # empty list for a workout nobody has said anything about.
-        "title": workout.title,
-        "post": workout.post,
-        "photos": photo_ids or [],
-    }

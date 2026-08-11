@@ -151,6 +151,20 @@ export function formatTimeOfDay(iso: string): string {
   return `${found.get('hour')}:${found.get('minute')}${meridiem}`
 }
 
+// The hour a moment falls on in the instance's zone, 0 to 23. Read from Intl
+// for the same reason the day below is: Date's own getters answer in the
+// browser's zone, and that is the zone this app does not trust. Midnight comes
+// back as 24 from some engines, which the remainder puts back at 0.
+export function zonedHour(iso: string): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: zone,
+    hour: 'numeric',
+    hour12: false,
+  }).formatToParts(new Date(iso))
+  const hour = Number(parts.find((part) => part.type === 'hour')?.value)
+  return isFinite(hour) ? hour % 24 : 0
+}
+
 // Monday first, which is how the weeks are counted here and on the server.
 const WEEKDAY_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 

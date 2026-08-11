@@ -50,28 +50,38 @@ NO_SUCH_PHOTO = "No such photo."
 
 def _serialize(
     workout: models.Workout,
+    person: dict,
+    encouragement: dict,
     medal_ids: list[str] | None = None,
     has_route: bool = False,
     photo_ids: list[int] | None = None,
 ) -> dict:
-    """One workout plus what it was worth, which the history shows on each row.
+    """One row of your own history, in the shape the feed sends a workout in.
 
-    The experience is the converted distance the pipeline credited, computed
-    from the same function rather than a copy of it, so a row can never claim a
-    number the account was not given. The medals are read from the table
-    instead, because earning one is a fact about what happened rather than a
-    number that can be recomputed from the row. A workout carries the ones it
-    earned itself, which is none, one, or one race medal and one time medal.
+    The log draws the same card the home feed draws, so it is served the same
+    row: whoever did the workout, what it earned, and what came back for it.
+    Own rows carry everything, so nothing here is ever kept back.
+
+    The flags are the one thing the feed has no use for and the log does. They
+    are the server's own doubts about the numbers, said to nobody but the person
+    whose numbers they are, which is why they are added here rather than in
+    feed_row.
 
     The route itself is not here, only whether there is one: a list has a couple
     of hundred coordinate pairs on it, and a page of history would be mostly
     route for a view that draws none of them until it is scrolled to.
     """
     return {
-        **activity_rules.serialize(workout, photo_ids),
-        "xp": round(activity_rules.converted_miles(workout.activity, workout.distance_mi), 2),
-        "medals": medal_ids or [],
-        "has_route": has_route,
+        **fellowship.feed_row(
+            workout,
+            person,
+            True,
+            medal_ids or [],
+            has_route,
+            photo_ids or [],
+            encouragement,
+        ),
+        "flags": workout.flags or {},
     }
 
 
@@ -140,8 +150,18 @@ def list_workouts(
     earned = medals.medals_for(db, rows)
     routed = routes_for(db, rows)
     pictures = photos_for(db, rows)
+    # One card for the whole page: every row here is this account's own.
+    person = fellowship.people(db, {user.id})[user.id]
+    given = fellowship.counts(db, [row.id for row in rows], user.id)
     return [
-        _serialize(row, earned.get(row.id), row.id in routed, pictures.get(row.id))
+        _serialize(
+            row,
+            person,
+            given[row.id],
+            earned.get(row.id),
+            row.id in routed,
+            pictures.get(row.id),
+        )
         for row in rows
     ]
 
@@ -243,8 +263,12 @@ def update_workout(
     if "post" in body.model_fields_set:
         workout.post = _clean_words(body.post, WORKOUT_POST_MAX_CHARS, "A post")
     db.commit()
+    # The whole row comes back, in the same shape the history sends it, so the
+    # card that sent the edit redraws from this without asking again.
     return _serialize(
         workout,
+        fellowship.people(db, {user.id})[user.id],
+        fellowship.counts(db, [workout.id], user.id)[workout.id],
         medals.medals_for(db, [workout]).get(workout.id),
         workout.id in routes_for(db, [workout]),
         photos_for(db, [workout]).get(workout.id),

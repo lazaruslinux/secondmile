@@ -20,7 +20,7 @@ from app import avatars, fellowship, grove, images, medals, models, progress, se
 from app.config import MAX_AVATAR_BYTES, MAX_DIAMOND_SPORTS, MAX_DISPLAYED_BADGES, SERVER_TZ
 from app.db import get_db
 from app.models import ACTIVITIES
-from app.routers.fellowship import feed_row
+from app.fellowship import feed_row
 from app.routers.workouts import photos_for, routes_for
 
 router = APIRouter(tags=["profile"])

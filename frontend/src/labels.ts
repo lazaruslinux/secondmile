@@ -11,6 +11,7 @@ import type {
   Rarity,
   SatchelItem,
 } from './api.ts'
+import { zonedHour } from './format.ts'
 
 export const ACTIVITY_ORDER: Activity[] = ['walk', 'run', 'cycle', 'swim']
 
@@ -29,6 +30,18 @@ export const ACTIVITY_ICONS: Record<Activity, string> = {
   run: 'sport-run',
   cycle: 'sport-cycle',
   swim: 'sport-swim',
+}
+
+// What a workout is called when nobody has named it: the part of the day it
+// started in, then the activity. Read on the instance's clock, which is the
+// clock the card's own date line is read on, so a run started at 05:44 is a
+// morning run wherever the browser thinks it is. Written once here and used
+// wherever a headline falls back, so the feed, the log, and the letter never
+// name the same workout two ways.
+export function defaultHeadline(activity: Activity, startTs: string): string {
+  const hour = zonedHour(startTs)
+  const bucket = hour >= 4 && hour < 12 ? 'Morning' : hour >= 12 && hour < 17 ? 'Lunch' : 'Evening'
+  return `${bucket} ${ACTIVITY_NAMES[activity]}`
 }
 
 // The two the edit form offers. The API accepts exactly these, so the list is
@@ -214,7 +227,7 @@ export function itemName(item: SatchelItem): string {
 export const ITEM_LINES: Record<ItemKind, string> = {
   seed: 'Plant it and it grows with your miles.',
   water: 'Pour it on a plant for 10 miles of growth.',
-  oil: 'Given to a friend. One chest they earn opens one step rarer.',
+  oil: 'Anoint a friend to boost their next chest!',
   wish: 'Choose any seed you have not found yet. One use.',
 }
 
@@ -226,14 +239,16 @@ export const REVEAL_LINES: Record<string, string> = {
   wish: 'Choose what it will become: any seed you have not yet found.',
 }
 
-// What oil buys, said wherever a person is picked for it.
-export const ANOINT_HINT = 'One chest they earn will open one step rarer.'
+// What oil buys, said wherever a person is picked for it. The same promise the
+// square makes, without the square's exclamation: this one is read while
+// choosing rather than while opening.
+export const ANOINT_HINT = 'Boosts their next chest, one step rarer.'
 
 // What the three acts say once they are done, and what a refused anointing adds
 // so a legendary item never looks spent for nothing.
 export const PLANTED = 'Planted. It is in your grove.'
 export const POURED = 'Poured. Ten miles of growth.'
-export const ANOINTED = 'Done. One chest they earn will open one step rarer.'
+export const ANOINTED = 'Done. Their next chest opens one step rarer.'
 export const OIL_KEPT = 'The oil is still in your inventory.'
 
 // The step of the ladder a chest dropped on. The names are the server's; a

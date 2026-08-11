@@ -68,6 +68,23 @@ def test_a_history_row_says_where_the_workout_came_from(signed_in, db_session, m
     assert rows[1]["flags"] == {}
 
 
+def test_a_history_row_is_the_card_the_feed_draws(signed_in, db_session, member):
+    """The log draws the feed's own card, so it is served the feed's row: who
+    did the workout, what it earned, and what came back for it. The flags ride
+    along on top, because they are the one thing the log shows and the feed
+    does not."""
+    workout = stored(db_session, member.id, active_kcal=320.0, avg_hr=148.0)
+    row = signed_in.get("/api/workouts").json()[0]
+    assert row["workout_id"] == workout.id
+    assert "id" not in row
+    assert row["own"] is True
+    assert row["user"]["username"] == member.username
+    assert row["encouragement"] == {"cheers": 0, "notes": 0, "cheered_by_me": False}
+    # Own rows carry everything: nothing is ever kept back from the person whose
+    # workout it is.
+    assert (row["avg_hr"], row["active_kcal"], row["flags"]) == (148.0, 320.0, {})
+
+
 def test_history_is_newest_first_and_pages(signed_in, db_session, member):
     for day in range(1, 6):
         stored(db_session, member.id, start=f"2026-07-0{day}T06:00:00+00:00")

@@ -48,36 +48,12 @@ export interface WorkoutFlags {
   daily_cap?: boolean
 }
 
-export interface Workout {
-  id: number
-  activity: Activity
-  start_ts: string
-  duration_s: number
-  distance_mi: number
-  active_kcal: number | null
-  avg_hr: number | null
-  source: Source
+// One row of your own history: the feed's row with the flags added. The log
+// draws the same card the feed does, so the two are one shape and the log is
+// served the feed's row. The flags are the only thing on top, because they are
+// said to the person whose numbers they are and to nobody else.
+export interface Workout extends FeedItem {
   flags: WorkoutFlags
-  // What this workout was worth, in converted miles. Computed by the server
-  // from the same formula the pipeline uses; optional here so the app still
-  // renders against a server that predates the field.
-  xp?: number
-  // The medals this one workout earned, as ids. At most two: the race medal for
-  // the distance it qualified for and the medal for the hour it was started at.
-  // Weekly medals and the second mile are not earned by one workout and never
-  // appear here.
-  medals?: string[]
-  // Whether the server holds a route for this workout. Optional so the app
-  // still renders against a server that predates the field.
-  has_route?: boolean
-  // What the person who did it called it and what they wrote about it. Both are
-  // optional, both are cleared by sending a null, and both are absent from a
-  // server that predates them.
-  title?: string | null
-  post?: string | null
-  // The pictures on it, oldest first, as ids. Each one is fetched by its own
-  // address rather than carried here.
-  photos?: number[]
 }
 
 // One point of a route, latitude then longitude, as the server sends it.

@@ -1127,9 +1127,11 @@ button:disabled {
 }
 
 /* What was written on a workout, own or a friend's. Line breaks are kept: what
-   was typed as two paragraphs reads as two paragraphs. */
+   was typed as two paragraphs reads as two paragraphs. The room underneath is
+   the stats block's: a post ending a line above a figure read as a caption for
+   it. */
 .feed-post {
-  margin: 0.7rem 0 0;
+  margin: 0.7rem 0 1.1rem;
   font-size: 0.95rem;
   white-space: pre-line;
   overflow-wrap: anywhere;
@@ -1191,6 +1193,17 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
+}
+
+/* The caption is loud; what gets typed under it is not. The fields say `font:
+   inherit` so a phone cannot shrink them, and that takes the caption's weight
+   and capitals along with the family, which made a post read bold in the box
+   and plain on the card. Written back to what a post is. */
+.feed-edit-panel .label input,
+.feed-edit-panel .label textarea {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
 }
 
 .feed-edit-panel .hint {
@@ -1367,27 +1380,30 @@ button:disabled {
 
 /* History */
 
-/* One week of history is one card, the same as everything else in the column. */
-.week {
+/* One week: its totals card, then that week's activities as the same cards the
+   feed draws. Stacked with the column's own gap, because a feed card carries no
+   margin of its own anywhere else either. */
+.log-week {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
   margin-bottom: var(--gap);
+}
+
+/* The week's totals are one card, the same as everything else in the column. */
+.week {
   padding: 0.75rem 0.85rem;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
 }
 
-.totals,
-.workouts {
-  list-style: none;
-  margin: 0 0 0.75rem;
-  padding: 0;
-}
-
-/* Already inside the week card, so this is a block of rows rather than a box. */
+/* Already inside the week card, so this is a block of rows rather than a box,
+   and it is the last thing in the card. */
 .totals {
-  margin-bottom: 0.5rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--line);
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
 .totals li {
@@ -1411,44 +1427,6 @@ button:disabled {
   color: var(--muted);
 }
 
-.workouts li {
-  border-bottom: 1px solid var(--line);
-  padding: 0.6rem 0.25rem;
-}
-
-.workouts li:last-child {
-  border-bottom: none;
-}
-
-.workout-head {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 0.25rem 0.75rem;
-}
-
-.workout-activity {
-  font-weight: 700;
-}
-
-/* What a workout was called, when it has been given a name. Its own line under
-   the activity, so the row keeps the shape it has always had. */
-.workout-title {
-  margin: 0.15rem 0 0;
-  font-size: 0.9rem;
-  overflow-wrap: anywhere;
-}
-
-.workout-body {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem 0.9rem;
-  font-size: 0.9rem;
-  font-family: var(--font-nums);
-  font-variant-numeric: tabular-nums;
-  color: var(--muted);
-}
-
 .tag {
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -1463,8 +1441,10 @@ button:disabled {
   font-weight: 700;
 }
 
+/* What the server marked about a workout's numbers, on the card the numbers are
+   on. Quiet, because a flagged workout still counts. */
 .flag-note {
-  margin: 0.35rem 0 0;
+  margin: 0.7rem 0 0;
   font-size: 0.82rem;
   color: var(--muted);
 }

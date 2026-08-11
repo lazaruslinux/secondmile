@@ -9,7 +9,13 @@ import {
   formatStart,
   formatTimeOfDay,
 } from '../format.ts'
-import { ACTIVITY_ICONS, ACTIVITY_NAMES, MEDAL_DETAILS, medalName } from '../labels.ts'
+import {
+  ACTIVITY_ICONS,
+  ACTIVITY_NAMES,
+  defaultHeadline,
+  MEDAL_DETAILS,
+  medalName,
+} from '../labels.ts'
 import {
   flourishLine,
   noteAuthor,
@@ -123,7 +129,7 @@ export default function Recap({ recap, units, onDismiss }: Props) {
                 </ul>
               )}
               {cheers > 0 && (
-                <p className="recap-cheers">+{cheers} Hype.</p>
+                <p className="recap-cheers">+{cheers} hype.</p>
               )}
             </section>
           )}
@@ -223,6 +229,10 @@ export default function Recap({ recap, units, onDismiss }: Props) {
                   const open = editing === row.workout_id
                   const name = ACTIVITY_NAMES[row.activity]
                   const title = (row.title ?? '').trim()
+                  // Named the same way the feed names it: the activity while a
+                  // title of its own sits on the line below, and the
+                  // time-of-day name while there is none.
+                  const heading = title === '' ? defaultHeadline(row.activity, row.start_ts) : name
                   return (
                     <li key={row.workout_id} className="recap-activity">
                       <div className="recap-activity-head">
@@ -231,7 +241,7 @@ export default function Recap({ recap, units, onDismiss }: Props) {
                             <span className="sport-icon">
                               <Icon name={ACTIVITY_ICONS[row.activity]} />
                             </span>
-                            {name}
+                            {heading}
                           </p>
                           <p className="recap-activity-stats">
                             <span>{formatDistance(row.distance_mi, units)}</span>
