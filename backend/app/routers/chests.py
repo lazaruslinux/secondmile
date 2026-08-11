@@ -160,10 +160,13 @@ def _miles(
 
     All four activities, always, zeros included, because the letter prints four
     rows and the client should never have to invent the ones nobody did.
+
+    A deleted workout is not in the window at all. The letter reports what the
+    account did, and taking a workout back is saying it did not.
     """
     stmt = select(
         models.Workout.activity, func.coalesce(func.sum(models.Workout.distance_mi), 0.0)
-    ).where(models.Workout.user_id == user_id)
+    ).where(models.Workout.user_id == user_id, models.Workout.deleted_at.is_(None))
     if since is not None:
         stmt = stmt.where(models.Workout.created_at > since)
     miles = dict.fromkeys(models.ACTIVITIES, 0.0)
@@ -244,9 +247,11 @@ def _arrived(db: Session, user_id: int, since: dt.datetime | None) -> dict:
     about them, which is what the rows carry a title, a post and photos for.
 
     The true count travels beside a capped list, because a cut nobody is told
-    about is the same as a lie.
+    about is the same as a lie. A deleted workout is in neither, which is also
+    why a restored one is not re-reported: its arrival is behind the last
+    acknowledgement, exactly where it was before.
     """
-    where = [models.Workout.user_id == user_id]
+    where = [models.Workout.user_id == user_id, models.Workout.deleted_at.is_(None)]
     if since is not None:
         where.append(models.Workout.created_at > since)
     rows = list(
@@ -431,7 +436,11 @@ def _fresh_medals(db: Session, user_id: int, since: dt.datetime | None) -> list[
         stmt = (
             select(table)
             .join(models.Workout, models.Workout.id == table.workout_id)
-            .where(table.user_id == user_id)
+            # A medal a deleted workout earned is already gone from the table,
+            # taken out by the rebuild the deletion ran. Said here as well
+            # because this is a join to the workouts, and the letter is the one
+            # place a stale row would be announced as news.
+            .where(table.user_id == user_id, models.Workout.deleted_at.is_(None))
         )
         if since is not None:
             stmt = stmt.where(models.Workout.created_at > since)

@@ -182,6 +182,10 @@ friend_action_limiter = RateLimiter(20, "friend-action")
 # Taking media back down: a profile picture, or a photo or video off a workout.
 # The same budget as the uploads it undoes.
 delete_media_limiter = RateLimiter(10, "media-delete")
+# Deleting a workout and putting one back, out of one budget: they are the two
+# halves of the same decision, and each one reworks the account's whole derived
+# history. Ten is a tidy-up in one sitting and nothing is looping.
+workout_delete_limiter = RateLimiter(10, "workout-delete")
 # The three screens the app reads on every visit. Sixty a minute is well past
 # anything a person does and well under what a stuck poll would do.
 profile_read_limiter = RateLimiter(60, "profile-read")

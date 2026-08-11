@@ -8,7 +8,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app import activity, models, progress, routemaps, security, throttle
+from app import activity, history, models, progress, routemaps, security, throttle
 from app.config import INGEST_LOG_RETENTION_DAYS, MAX_INGEST_WORKOUTS
 from app.db import get_db
 
@@ -153,6 +153,14 @@ async def ingest(request: Request, db: Session = Depends(get_db)) -> dict:
             < security.now_utc() - dt.timedelta(days=INGEST_LOG_RETENTION_DAYS),
         )
     )
+
+    # And the same bargain one table over: whatever this account deleted longer
+    # ago than the window has its pictures, its video, its line and its words
+    # taken away here, on this account's own sync and in this transaction. The
+    # workout rows themselves stay. They are the tombstones the dedupe above
+    # reads, which is why the export that just arrived carrying one of them
+    # counted as skipped rather than importing it all over again.
+    history.purge_expired(db, user.id)
     db.commit()
 
     # Credit whatever this sync brought in. Doing it here rather than only

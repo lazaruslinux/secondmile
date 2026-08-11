@@ -203,7 +203,10 @@ def cmd_backfill_badges(args: argparse.Namespace) -> None:
                 models.ProcessedWorkout,
                 models.ProcessedWorkout.workout_id == models.Workout.id,
             )
-            .where(models.Workout.user_id == user.id)
+            # The join already leaves deleted workouts out, since a deletion
+            # takes their marker with it. Written down as well because this is
+            # a command that awards medals.
+            .where(models.Workout.user_id == user.id, models.Workout.deleted_at.is_(None))
             .order_by(models.Workout.start_ts, models.Workout.id)
         ).scalars().all()
         awarded = 0
@@ -259,6 +262,10 @@ def cmd_backfill_routes(args: argparse.Namespace) -> None:
                 )
                 .where(
                     models.Workout.user_id == user.id,
+                    # Never a deleted one. Its line was purged on purpose, or is
+                    # about to be, and writing it back from the log would undo
+                    # the deletion one table at a time.
+                    models.Workout.deleted_at.is_(None),
                     models.WorkoutRoute.workout_id.is_(None),
                 )
             ).scalars()

@@ -143,6 +143,14 @@ docker compose exec backend python manage.py strip-ingest-log
 It strips the route arrays from every stored payload, deletes rows past the
 retention window, and prints what it did. Safe to run twice.
 
+A deleted workout keeps the same kind of window. Deleting one hides it
+everywhere and takes its miles back out of the totals; it waits under Deleted
+in the owner's log for 30 days and can be restored whole until then. After
+that, its photos, video, route line, words and everything said about it are
+purged on that account's next sync. The workout row itself is kept forever,
+holding nothing but the date and duration the sync deduplicates on, so a phone
+exporting old history cannot import the same session again.
+
 ## Pictures and video
 
 Avatars, workout photos, and workout videos are files, not database rows. They

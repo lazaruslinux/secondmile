@@ -275,7 +275,12 @@ def read_feed(
     progress.process_user(db, user.id)
     visible = fellowship.friend_ids(db, user.id) | {user.id}
 
-    stmt = select(models.Workout).where(models.Workout.user_id.in_(visible))
+    # Nobody's deleted workouts, the owner's own included: a deletion is a
+    # disappearance from every feed at once rather than only from other
+    # people's.
+    stmt = select(models.Workout).where(
+        models.Workout.user_id.in_(visible), models.Workout.deleted_at.is_(None)
+    )
     if before:
         stmt = stmt.where(models.Workout.start_ts < parse_cursor(before))
     rows = list(

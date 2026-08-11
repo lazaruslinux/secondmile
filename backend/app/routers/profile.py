@@ -455,7 +455,9 @@ def _recent_photos(db: Session, user_id: int) -> list[dict]:
             models.Workout.duration_s,
         )
         .join(models.Workout, models.Workout.id == models.WorkoutPhoto.workout_id)
-        .where(models.Workout.user_id == user_id)
+        # A picture on a deleted workout is not on the strip: the endpoint that
+        # serves it answers 404 now, so a tile here would draw a hole.
+        .where(models.Workout.user_id == user_id, models.Workout.deleted_at.is_(None))
         # By id within a stamp, so two pictures uploaded in the same second
         # keep a stable order between reads.
         .order_by(models.WorkoutPhoto.created_at.desc(), models.WorkoutPhoto.id.desc())
@@ -489,7 +491,7 @@ def _friend_workouts(db: Session, user: models.User, viewer_id: int) -> list[dic
     rows = list(
         db.execute(
             select(models.Workout)
-            .where(models.Workout.user_id == user.id)
+            .where(models.Workout.user_id == user.id, models.Workout.deleted_at.is_(None))
             # By id within a timestamp, the feed's own tie-break, so two
             # workouts sharing a start time keep a stable order between reads.
             .order_by(models.Workout.start_ts.desc(), models.Workout.id.desc())

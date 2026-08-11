@@ -119,13 +119,19 @@ def ensure_progress(db: Session, user_id: int) -> models.UserProgress:
 
 
 def process_user(db: Session, user_id: int) -> models.UserProgress:
-    """Credit every workout this account has not been credited for, oldest first."""
+    """Credit every workout this account has not been credited for, oldest first.
+
+    A deleted workout is not one of them, ever. It has no marker row either, so
+    this is the line that keeps it uncredited rather than a marker standing in
+    for it, and restoring one is what puts it back through here.
+    """
     progress = ensure_progress(db, user_id)
     pending = (
         db.execute(
             select(models.Workout)
             .where(
                 models.Workout.user_id == user_id,
+                models.Workout.deleted_at.is_(None),
                 models.Workout.id.not_in(select(models.ProcessedWorkout.workout_id)),
             )
             # By id within a timestamp so simultaneous workouts credit in a
@@ -235,8 +241,12 @@ def next_chest(progress: models.UserProgress, gifts: Sequence[str] = ()) -> dict
 
 
 def _advance_chests(
-    db: Session, progress: models.UserProgress, miles: float, moment: dt.datetime
-) -> None:
+    db: Session,
+    progress: models.UserProgress,
+    miles: float,
+    moment: dt.datetime,
+    owed: int = 0,
+) -> int:
     """Bank converted Miles toward the next chest and drop what falls out.
 
     The accumulator carries between workouts, so a run that ends short of a
@@ -247,6 +257,13 @@ def _advance_chests(
     chest, in the order the gifts arrived, and a chest with no room for one is
     passed over. A gift is never spent on the miles themselves, only on what
     they were already going to bring.
+
+    `owed` is how many chests are already sitting in the account and have to be
+    paid for again before anything new falls out, which is only ever the case
+    on a rebuild after a deletion (see rebuild_from_surviving). Those crossings
+    cost their miles and move the ladder on, and drop nothing: the chest they
+    would drop is the one already held. Answers with however much of that debt
+    is still unpaid, which is zero on every ordinary call.
     """
     waiting = grove.pending_anointings(db, progress.user_id)
     remaining = miles
@@ -255,10 +272,16 @@ def _advance_chests(
         room = cost - progress.chest_progress_mi
         if remaining < room - _EPSILON:
             progress.chest_progress_mi += remaining
-            return
+            return owed
         remaining -= room
         progress.chest_progress_mi = 0.0
         progress.cycle_pos = (progress.cycle_pos + 1) % len(CHEST_LADDER)
+        if owed > 0:
+            # Already paid out once. No chest, and no gift spent on it either:
+            # whatever oil lifted it is recorded on the chest that is still
+            # there, and spending a second gift would be minting one.
+            owed -= 1
+            continue
         lifted = waiting.pop(0) if waiting and can_lift(tier_id) else None
         chest = _drop_chest(
             db, progress.user_id, tier_id, lifted.id if lifted is not None else None
@@ -454,6 +477,94 @@ def recompute(db: Session, user_id: int) -> models.UserProgress:
     return process_user(db, user_id)
 
 
+def rebuild_from_surviving(db: Session, user_id: int) -> models.UserProgress:
+    """Rework one account's derived progress around the workouts it still has.
+
+    What a deletion and a restore both call, and deliberately not recompute()
+    above. That one throws every chest away and drops them again from scratch,
+    which closes chests somebody already opened; opening them a second time
+    pays out a second set of items, so a player could delete a workout to mint
+    loot. Deleting miles takes back the miles and never what the miles became.
+
+    Rebuilt from the surviving workouts: experience, the level, every medal on
+    a workout and on a week, and the weekly totals and streaks that are read
+    from the history rather than stored. All of them are pure derivations, so
+    they come back the same in both directions and a restore returns exactly
+    what a deletion took.
+
+    Chests are not rebuilt. Every chest row stays where it is, opened or not,
+    and only the ladder under them recomputes: the surviving miles have to pay
+    for the chests already dropped before a single new one falls out. Where
+    they no longer cover them, the ladder parks empty at the step past the last
+    chest, which is never negative and never a re-drop. The part of a step the
+    shortfall eats into is forgiven rather than carried, because carrying it
+    would need a column on the progress row and the chests themselves are the
+    honest record of what has been paid.
+
+    The plot is not touched at all, in either direction. Growth already put
+    into a plant stays: a tree does not shrink because a run was taken back,
+    and a rebuild of the plot would also lose whatever poured water grew, which
+    nothing records. The other half of that is that a restore does not
+    re-credit the growth it never took away. Deliberate, and pinned by a test.
+
+    Nothing anybody chose is rebuilt either: the satchel, the plantings, every
+    anointing, and the renown are actions rather than consequences.
+    """
+    progress = ensure_progress(db, user_id)
+    medals.clear_earns(db, user_id)
+    # Every marker, including the deleted workout's own, so a restore credits
+    # it again from here rather than needing one kept back for it.
+    db.execute(
+        delete(models.ProcessedWorkout).where(
+            models.ProcessedWorkout.workout_id.in_(
+                select(models.Workout.id).where(models.Workout.user_id == user_id)
+            )
+        )
+    )
+    # What the ladder has already paid out. Counted before anything is credited,
+    # because every one of these rows was a crossing once.
+    dropped = db.execute(
+        select(func.count())
+        .select_from(models.Chest)
+        .where(models.Chest.user_id == user_id)
+    ).scalar_one()
+
+    progress.xp = 0.0
+    progress.level = 0
+    progress.chest_progress_mi = 0.0
+    progress.cycle_pos = 0
+
+    now = now_utc()
+    fuel = 0.0
+    for workout in db.execute(
+        select(models.Workout)
+        .where(models.Workout.user_id == user_id, models.Workout.deleted_at.is_(None))
+        .order_by(models.Workout.start_ts, models.Workout.id)
+    ).scalars():
+        if not _claim(db, workout.id):
+            continue
+        miles = converted_miles(workout.activity, workout.distance_mi)
+        fuel += miles
+        progress.xp += miles
+        medals.award_workout_medals(db, user_id, workout)
+        medals.update_week_for(db, user_id, workout)
+    progress.level = level_for_xp(progress.xp)
+
+    # One walk over the whole ladder rather than one per workout: the chests
+    # this can still drop are dropping now whatever their miles were dated, so
+    # the order they are banked in changes nothing about where it lands.
+    if _advance_chests(db, progress, fuel, now, dropped) > 0:
+        # The miles left no longer reach every chest already dropped, so the
+        # walk stopped part way up. Park past the last of them with nothing
+        # banked: the next chest is then a step nobody has been paid for.
+        progress.cycle_pos = dropped % len(CHEST_LADDER)
+        progress.chest_progress_mi = 0.0
+
+    progress.updated_at = now
+    db.commit()
+    return progress
+
+
 # --------------------------------------------------------------------------
 # Reading the state back
 # --------------------------------------------------------------------------
@@ -463,13 +574,18 @@ def _totals(
     db: Session, user_id: int, since: dt.datetime | None = None
 ) -> dict[str, dict]:
     """Per-activity distance, energy, and count, in the Almanac's shape:
-    absent activities are missing keys, same as the weekly endpoint."""
+    absent activities are missing keys, same as the weekly endpoint.
+
+    Deleted workouts are not in it. This is what the profile's lifetime and
+    week cards, the diamonds, and a friend's view of all three are added up
+    from, so one test here keeps every one of them saying the same thing.
+    """
     stmt = select(
         models.Workout.activity,
         func.coalesce(func.sum(models.Workout.distance_mi), 0.0),
         func.coalesce(func.sum(models.Workout.active_kcal), 0.0),
         func.count(),
-    ).where(models.Workout.user_id == user_id)
+    ).where(models.Workout.user_id == user_id, models.Workout.deleted_at.is_(None))
     if since is not None:
         stmt = stmt.where(models.Workout.start_ts >= since)
     rows = db.execute(stmt.group_by(models.Workout.activity)).all()
@@ -510,7 +626,9 @@ def streak_weeks(db: Session, user_id: int, moment: dt.datetime | None = None) -
     one_week = dt.timedelta(weeks=1)
     stamps = db.execute(
         select(models.Workout.start_ts)
-        .where(models.Workout.user_id == user_id)
+        # A deleted week is a quiet week: the streak is counted from what is
+        # still there, and a run taken back can break one.
+        .where(models.Workout.user_id == user_id, models.Workout.deleted_at.is_(None))
         # Newest first so the walk below stops at the first gap rather than
         # reading a whole history to answer a question about recent weeks.
         .order_by(models.Workout.start_ts.desc())
@@ -554,7 +672,9 @@ def week_days(db: Session, user_id: int, moment: dt.datetime | None = None) -> l
     days = [False] * 7
     for stamp in db.execute(
         select(models.Workout.start_ts).where(
-            models.Workout.user_id == user_id, models.Workout.start_ts >= cutoff
+            models.Workout.user_id == user_id,
+            models.Workout.deleted_at.is_(None),
+            models.Workout.start_ts >= cutoff,
         )
     ).scalars():
         if week_start(stamp) != this_week:

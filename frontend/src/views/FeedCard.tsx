@@ -1,7 +1,8 @@
-import { useState, type ChangeEvent, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import {
   ApiError,
   avatarUrl,
+  deleteWorkout,
   deleteWorkoutPhoto,
   deleteWorkoutVideo,
   encourage,
@@ -404,12 +405,97 @@ export interface EditableWorkout {
   videos?: number[]
 }
 
+// How long a deleted workout waits in the Log before it is gone for good. The
+// server's own window, said here as well because the dialog below has to state
+// it plainly and a number nobody can read is not a promise.
+const DELETED_DAYS = 30
+
+// The last thing before a workout goes. Its own modal, in the same native
+// dialog every other question in this app is asked in: the focus trap, the page
+// held still behind it, and Esc come with the element rather than being built
+// here. Nothing is deleted until the button in it is pressed.
+function ConfirmDelete({
+  busy,
+  error,
+  onConfirm,
+  onCancel,
+}: {
+  busy: boolean
+  error: string
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  const dialog = useRef<HTMLDialogElement>(null)
+
+  useEffect(() => {
+    dialog.current?.showModal()
+  }, [])
+
+  return (
+    <dialog
+      className="overlay overlay-middle"
+      ref={dialog}
+      aria-labelledby="delete-title"
+      onCancel={(event) => {
+        // Esc. Closing is the caller's business, so the browser's own close is
+        // left undone and the caller takes this off the screen.
+        event.preventDefault()
+        onCancel()
+      }}
+    >
+      <section className="overlay-panel">
+        <header className="overlay-head">
+          <h2 id="delete-title">Delete this activity?</h2>
+        </header>
+
+        <div className="item-detail">
+          {/* Said plainly and in full, because every one of these is a
+              consequence somebody would rather hear now than find out. */}
+          <p>It goes out of your feed and your friends&apos; feeds.</p>
+          <p>
+            The miles come back off your totals, your level, your streak and the
+            medals they earned. What those miles already grew in your grove
+            stays, and chests you have already found stay.
+          </p>
+          <p>
+            It waits under Deleted in your log for {DELETED_DAYS} days, and you
+            can put it back any time until then. After that it is gone for good.
+          </p>
+
+          <div className="item-verbs">
+            <button type="button" className="primary" disabled={busy} onClick={onConfirm}>
+              Delete
+            </button>
+          </div>
+
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
+        </div>
+
+        <footer className="overlay-foot">
+          <button type="button" className="secondary" disabled={busy} onClick={onCancel}>
+            Keep it
+          </button>
+        </footer>
+      </section>
+    </dialog>
+  )
+}
+
 interface EditProps<T extends EditableWorkout> {
   item: T
   // Handed back as the same shape it came in as, so whoever owns the row can
   // put the change back where it lives without losing the rest of the row.
   onChanged: (item: T) => void
   onClose: () => void
+  // Where deleting is offered. Given by the feed and the log, which can take a
+  // card off the screen and ask for the totals again; left out by the letter,
+  // whose rows are a report of what arrived and would be reporting a workout
+  // that is no longer there.
+  onDeleted?: (workoutId: number) => void
   // Whether to open with the line saying what can and cannot be edited. The
   // feed keeps it; the letter drops it, because a letter that lists several
   // workouts would repeat the same paragraph down the page.
@@ -424,6 +510,7 @@ export function EditPanel<T extends EditableWorkout>({
   item,
   onChanged,
   onClose,
+  onDeleted,
   explain = true,
 }: EditProps<T>) {
   const [title, setTitle] = useState(item.title ?? '')
@@ -433,10 +520,13 @@ export function EditPanel<T extends EditableWorkout>({
   // video is its own value because it is the one that takes a moment.
   const [mediaBusy, setMediaBusy] = useState<'' | 'photo' | 'video' | 'remove'>('')
   const [failed, setFailed] = useState('')
+  const [asking, setAsking] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteFailed, setDeleteFailed] = useState('')
 
   const photos = item.photos ?? []
   const videos = item.videos ?? []
-  const busy = saving || mediaBusy !== ''
+  const busy = saving || mediaBusy !== '' || deleting
   // One count over both, because they fill the same slots.
   const full = photos.length + videos.length >= MEDIA_LIMIT
 
@@ -508,6 +598,22 @@ export function EditPanel<T extends EditableWorkout>({
       setFailed(mediaErrorText(err, VIDEO_TOO_LARGE))
     } finally {
       setMediaBusy('')
+    }
+  }
+
+  async function remove() {
+    setDeleting(true)
+    setDeleteFailed('')
+    try {
+      await deleteWorkout(item.workout_id)
+      setAsking(false)
+      // The panel is not closed on the way out: the card it is inside goes
+      // with the workout, and whoever owns the list takes both away.
+      onDeleted?.(item.workout_id)
+    } catch (err) {
+      setDeleteFailed(errorText(err))
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -661,6 +767,32 @@ export function EditPanel<T extends EditableWorkout>({
           Cancel
         </button>
       </div>
+
+      {/* Under the two that save, behind a rule and behind a question: it is
+          not a third way to leave the panel. Absent altogether where deleting
+          is not offered, which is the letter. */}
+      {onDeleted && (
+        <button
+          type="button"
+          className="workout-delete"
+          disabled={busy}
+          onClick={() => {
+            setDeleteFailed('')
+            setAsking(true)
+          }}
+        >
+          Delete activity
+        </button>
+      )}
+
+      {asking && (
+        <ConfirmDelete
+          busy={deleting}
+          error={deleteFailed}
+          onConfirm={() => void remove()}
+          onCancel={() => setAsking(false)}
+        />
+      )}
     </form>
   )
 }
@@ -674,6 +806,10 @@ interface Props {
   // An edited card is handed back to whoever holds the feed, so the row it is
   // drawn from carries the change rather than only this card knowing about it.
   onChanged: (item: FeedItem) => void
+  // A deleted one is handed back the same way, and the card goes with it. Only
+  // your own cards ever offer it, and only where the screen holding them can
+  // ask the server for its totals again.
+  onDeleted?: (workoutId: number) => void
   // What the server marked about the numbers, in a sentence, on your own card
   // only. The log is the one screen that reads flags, so this arrives from
   // there rather than off the row.
@@ -694,6 +830,7 @@ export default function FeedCard({
   units,
   avatarVersion,
   onChanged,
+  onDeleted,
   note,
   onOpenPerson,
 }: Props) {
@@ -764,6 +901,7 @@ export default function FeedCard({
           <EditPanel
             item={item}
             onChanged={onChanged}
+            onDeleted={onDeleted}
             onClose={() => setEditing(false)}
           />
         ) : (

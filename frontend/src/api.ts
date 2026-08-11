@@ -56,6 +56,23 @@ export interface Workout extends FeedItem {
   flags: WorkoutFlags
 }
 
+// One row of the Log's Deleted section. Not a card and not a feed row: a
+// deleted workout's pictures, video and route answer 404 to everybody, so
+// there is nothing here to draw beyond what it was and how long is left to
+// change your mind.
+export interface DeletedWorkout {
+  workout_id: number
+  activity: Activity
+  start_ts: string
+  distance_mi: number
+  duration_s: number
+  title: string | null
+  deleted_at: string
+  // Counted by the server, from the same window the restore endpoint checks,
+  // so the number on screen and the answer to pressing Restore agree.
+  days_left: number
+}
+
 // One point of a route, latitude then longitude, as the server sends it.
 export type RoutePoint = [number, number]
 
@@ -782,6 +799,26 @@ export interface WorkoutEdit {
 export async function updateWorkout(workoutId: number, edit: WorkoutEdit): Promise<Workout> {
   const res = await sendJson(`/workouts/${workoutId}`, 'PATCH', edit)
   return (await res.json()) as Workout
+}
+
+// Takes the workout out of every feed and every total at once. Nothing comes
+// back: what changed is the whole account, so whoever called this reloads the
+// screen rather than patching one card's worth of it.
+export async function deleteWorkout(workoutId: number): Promise<void> {
+  await send(`/workouts/${workoutId}`, { method: 'DELETE' })
+}
+
+// Puts one back, and answers with the row in the history's own shape so the
+// card can be drawn again without asking for the page.
+export async function restoreWorkout(workoutId: number): Promise<Workout> {
+  const res = await send(`/workouts/${workoutId}/restore`, { method: 'POST' })
+  return (await res.json()) as Workout
+}
+
+// The Deleted section: your own deleted workouts that can still be got back,
+// newest first. Empty once the window has run out on all of them.
+export function listDeletedWorkouts(): Promise<DeletedWorkout[]> {
+  return getJson<DeletedWorkout[]>('/workouts/deleted')
 }
 
 // What the server accepts, checked here as well so an oversized picture is

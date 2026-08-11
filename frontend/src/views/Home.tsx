@@ -348,6 +348,17 @@ export default function Home({
     )
   }, [])
 
+  // A deleted one leaves the feed at once, and the page is asked for again
+  // underneath: the miles, the level, the streak and this week's totals in the
+  // cards beside it all just changed, and none of them can be worked out here.
+  const cardDeleted = useCallback(
+    (workoutId: number) => {
+      setFeed((current) => current.filter((row) => row.workout_id !== workoutId))
+      void load()
+    },
+    [load],
+  )
+
   async function loadMore() {
     const last = feed[feed.length - 1]
     if (!last) return
@@ -579,6 +590,7 @@ export default function Home({
             units={units}
             avatarVersion={profile.avatar_version}
             onChanged={cardChanged}
+            onDeleted={cardDeleted}
             onOpenPerson={onOpenPerson}
           />
         ))}

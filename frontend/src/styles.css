@@ -1248,6 +1248,23 @@ button:disabled {
   margin: 0;
 }
 
+/* The way out of the whole workout, at the very bottom of the panel and behind
+   its own rule: it is not one of the two buttons that save, and it should not
+   be reachable by the same glance. Quiet in the accent rather than a filled
+   red slab, because the question it opens is where the weight belongs. */
+.workout-delete {
+  align-self: flex-start;
+  margin-top: 0.35rem;
+  padding-left: 0;
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
 .feed-edit-photos {
   display: flex;
   flex-direction: column;
@@ -1325,7 +1342,10 @@ button:disabled {
 .route-shot {
   position: fixed;
   bottom: 100%;
-  left: 0;
+  /* Parked past the LEFT edge, never the right: content beyond the right edge
+     widens the phone's layout viewport, which let the whole app pan sideways
+     and sized every dialog against 600px. Negative space does neither. */
+  right: 100%;
   width: 600px;
   height: 240px;
   pointer-events: none;
@@ -1501,6 +1521,65 @@ button:disabled {
   margin-top: 0.35rem;
   padding-top: 0.45rem;
   color: var(--muted);
+}
+
+/* What has been deleted and can still be got back, under the history. Muted
+   throughout: these are workouts on their way out, and the section should read
+   as a drawer rather than as more of the log. */
+.deleted .hint {
+  margin: 0 0 var(--gap);
+}
+
+.deleted-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+/* One row: what it was, how long is left, and the way back. The middle column
+   is what gives way on a phone, so the button never wraps under itself. */
+.deleted-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.75rem;
+  padding: 0.6rem 0.85rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.deleted-what {
+  display: flex;
+  flex: 1 1 12rem;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+  min-width: 0;
+  font-family: var(--font-nums);
+  font-variant-numeric: tabular-nums;
+}
+
+.deleted-name {
+  font-weight: 700;
+}
+
+/* The countdown, in the accent because it is the part of the row with a
+   deadline in it. */
+.deleted-left {
+  color: var(--accent);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.deleted-row button {
+  min-height: 0;
+  padding: 0.3rem 0.7rem;
 }
 
 .tag {

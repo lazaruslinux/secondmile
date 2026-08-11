@@ -223,6 +223,16 @@ class Workout(Base):
     created_at: Mapped[dt.datetime] = mapped_column(
         UtcDateTime, nullable=False, server_default=func.now()
     )
+    # When the owner deleted this, or null for a workout that is simply there.
+    # A deleted row is out of every feed, every total and every derivation, and
+    # appears only in the Log's own Deleted section until the window in
+    # DELETED_WORKOUT_RETENTION_DAYS runs out.
+    #
+    # The row is never removed, even once its pictures and words have been
+    # purged. It is the tombstone the unique key above is written on: the phone
+    # exports overlapping windows forever, and a deleted session that left no
+    # row would be imported again on the next catch-up sync.
+    deleted_at: Mapped[dt.datetime | None] = mapped_column(UtcDateTime, nullable=True)
 
 
 class WorkoutPhoto(Base):

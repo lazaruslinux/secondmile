@@ -332,6 +332,14 @@ MAX_INGEST_WORKOUTS = 2000
 # Each account's old rows go on that account's own next sync.
 INGEST_LOG_RETENTION_DAYS = 90
 
+# How long a deleted workout can still be got back. Long enough to undo a
+# mistake noticed a fortnight later, short enough that the promise "then it is
+# gone" means something. Past it, the pictures, the video, the route line and
+# the words are purged on that account's own next sync; the workout row itself
+# stays forever as a tombstone, because the sync dedupe key is on that row and
+# losing it would let the phone import the same session all over again.
+DELETED_WORKOUT_RETENTION_DAYS = 30
+
 
 def daily_cap_mi(activity: str) -> float:
     """The configured daily distance ceiling for one activity, in miles."""

@@ -398,11 +398,16 @@ def over_daily_cap(db: Session, user_id: int, activity: str, start_ts: dt.dateti
     too. Earlier workouts on the same day keep their unflagged state: they were
     plausible when they arrived, and the flag is a marker on the entry that made
     the day implausible, not a verdict on the day.
+
+    A deleted workout is not part of the day's total. Somebody who has already
+    taken the bogus hundred-mile ride back should not have the next real one
+    flagged by it.
     """
     day_start, day_end = local_day_bounds(start_ts)
     total = db.execute(
         select(func.coalesce(func.sum(models.Workout.distance_mi), 0.0)).where(
             models.Workout.user_id == user_id,
+            models.Workout.deleted_at.is_(None),
             models.Workout.activity == activity,
             models.Workout.start_ts >= day_start,
             models.Workout.start_ts < day_end,

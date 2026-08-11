@@ -22,7 +22,18 @@ from starlette.datastructures import UploadFile
 from starlette.formparsers import MultiPartException
 
 from app import activity as activity_rules
-from app import fellowship, images, medals, models, photos, security, throttle, videos
+from app import (
+    fellowship,
+    history,
+    images,
+    medals,
+    models,
+    photos,
+    progress,
+    security,
+    throttle,
+    videos,
+)
 from app.config import (
     MAX_MEDIA_PER_WORKOUT,
     MAX_PHOTO_BYTES,
@@ -189,7 +200,11 @@ def list_workouts(
     db: Session = Depends(get_db),
     user: models.User = Depends(security.current_user),
 ) -> list[dict]:
-    stmt = select(models.Workout).where(models.Workout.user_id == user.id)
+    """Your own history, newest first. Deleted workouts are not in it; they are
+    in the Deleted section below, which is the endpoint under this one."""
+    stmt = select(models.Workout).where(
+        models.Workout.user_id == user.id, models.Workout.deleted_at.is_(None)
+    )
     if before:
         cutoff = parse_cursor(before)
         stmt = stmt.where(models.Workout.start_ts < cutoff)
@@ -219,6 +234,46 @@ def list_workouts(
     ]
 
 
+def _deleted_row(workout: models.Workout) -> dict:
+    """One row of the Deleted section: enough to recognise the workout, and how
+    long is left to change your mind.
+
+    Deliberately not the feed's row. Nothing here is a card: no medals, no
+    encouragement, no pictures and no route, because a deleted workout's media
+    endpoints answer 404 to everybody, its owner included, and a row that
+    tried to draw a photograph would draw a broken one. What it is, when it
+    was, how far it went, and the way back.
+    """
+    return {
+        "workout_id": workout.id,
+        "activity": workout.activity,
+        "start_ts": workout.start_ts.isoformat(),
+        "distance_mi": round(workout.distance_mi, 3),
+        "duration_s": workout.duration_s,
+        "title": workout.title,
+        "deleted_at": workout.deleted_at.isoformat(),
+        "days_left": history.days_left(workout.deleted_at),
+    }
+
+
+@router.get("/deleted")
+def list_deleted(
+    db: Session = Depends(get_db),
+    user: models.User = Depends(security.current_user),
+) -> list[dict]:
+    """Your own deleted workouts that can still be got back, newest first.
+
+    Only ever your own: there is no such thing as reading anybody else's, which
+    is why this takes no id and has no friend-shaped twin. A workout past the
+    window is not here whether or not the purge has swept it yet, because the
+    window is what was promised and the sweep is only how it is kept.
+
+    No limiter, the same as the history above it: the Log asks for both
+    together on every visit, and one of them is not the read to start counting.
+    """
+    return [_deleted_row(row) for row in history.deleted_workouts(db, user.id)]
+
+
 @router.get("/{workout_id}/route")
 def workout_route(
     workout_id: int,
@@ -233,6 +288,9 @@ def workout_route(
     minus whoever has said their friends may not see one. The same 404 answers a
     workout with no line, a workout that does not exist, a stranger's, and a
     friend's that is being kept back. Nothing here says which of the four it was.
+    A deleted workout is a fifth way to the same sentence, its owner included:
+    a friend holding an old address gets nothing, and so does the person who
+    deleted it, because the Deleted section draws no map.
 
     The owner's list is read in the same query as the line, so this cannot be
     answered from the line alone by a later edit that forgets to ask.
@@ -245,7 +303,10 @@ def workout_route(
         )
         .join(models.Workout, models.Workout.id == models.WorkoutRoute.workout_id)
         .join(models.User, models.User.id == models.Workout.user_id)
-        .where(models.WorkoutRoute.workout_id == workout_id)
+        .where(
+            models.WorkoutRoute.workout_id == workout_id,
+            models.Workout.deleted_at.is_(None),
+        )
     ).first()
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No route for that workout.")
@@ -257,14 +318,99 @@ def workout_route(
     return {"points": points}
 
 
-def _owned(db: Session, workout_id: int, user_id: int) -> models.Workout:
+def _owned(
+    db: Session, workout_id: int, user_id: int, *, deleted_too: bool = False
+) -> models.Workout:
     """One of your own workouts, or the same 404 a workout that does not exist
     gets. Whose history an id belongs to is not something a caller learns by
-    asking for it."""
+    asking for it.
+
+    A deleted one is the same 404 as well, everywhere but the two endpoints
+    that are about being deleted: it is hidden from its owner too, so titling
+    it or hanging a photograph on it is not a thing to do to it.
+    """
     workout = db.get(models.Workout, workout_id)
     if workout is None or workout.user_id != user_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, NO_SUCH_WORKOUT)
+    if workout.deleted_at is not None and not deleted_too:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, NO_SUCH_WORKOUT)
     return workout
+
+
+@router.delete("/{workout_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_workout(
+    workout_id: int,
+    response: Response,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(security.current_user),
+) -> Response:
+    """Take one of your own workouts out of the game.
+
+    Hidden from everybody at once: your feed, your friends' feeds, your
+    profile, the letter, the streak, and every total. What the miles earned is
+    worked out again without them, both ways, by rebuild_from_surviving, which
+    is where the rule lives about what a deletion may and may not take back.
+
+    Idempotent: deleting a workout that is already deleted answers the same 204
+    and leaves the first deletion's date alone, because the window is counted
+    from when it was deleted rather than from the last time somebody asked.
+    """
+    if throttle.workout_delete_limiter.hit(throttle.user_key(user)):
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS, "Too many changes just now. Wait a minute."
+        )
+    workout = _owned(db, workout_id, user.id, deleted_too=True)
+    if workout.deleted_at is None:
+        workout.deleted_at = security.now_utc()
+        db.commit()
+        progress.rebuild_from_surviving(db, user.id)
+    response.status_code = status.HTTP_204_NO_CONTENT
+    return response
+
+
+@router.post("/{workout_id}/restore")
+def restore_workout(
+    workout_id: int,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(security.current_user),
+) -> dict:
+    """Put a deleted workout back, as though it had never gone.
+
+    Everything it earned is earned again by the same rebuild the deletion ran:
+    the experience, the level, the medals on it and on its week, the streak.
+    The one thing that does not come back is the growth in the plot, because
+    the deletion never took it; see rebuild_from_surviving.
+
+    The letter does not re-report it. Its arrival stamp is the day it synced,
+    which is behind the last acknowledgement for anything old enough to have
+    been deleted and read about already.
+
+    Answers with the whole row in the shape the history sends it, so the Log
+    can put the card back without asking for the page again. A workout past the
+    window, or one nobody deleted, is the same 404 as a workout that never
+    existed.
+    """
+    if throttle.workout_delete_limiter.hit(throttle.user_key(user)):
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS, "Too many changes just now. Wait a minute."
+        )
+    workout = _owned(db, workout_id, user.id, deleted_too=True)
+    # Past the window it is not restorable, whether or not the purge has
+    # already been round: what the window promised is what this answers to.
+    if workout.deleted_at is None or workout.deleted_at <= history.cutoff():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, NO_SUCH_WORKOUT)
+    workout.deleted_at = None
+    db.commit()
+    progress.rebuild_from_surviving(db, user.id)
+    return _serialize(
+        workout,
+        fellowship.people(db, {user.id})[user.id],
+        fellowship.counts(db, [workout.id], user.id)[workout.id],
+        medals.medals_for(db, [workout]).get(workout.id),
+        workout.id in routes_for(db, [workout]),
+        photos_for(db, [workout]).get(workout.id),
+        videos_for(db, [workout]).get(workout.id),
+    )
 
 
 def _clean_words(sent: str | None, limit: int, what: str) -> str | None:
@@ -428,8 +574,9 @@ def read_photo(
 
     The reach is the feed's, the same as a route line: yours, and the people you
     have both agreed to. A post is a deliberate share, so a friend sees all of
-    it. The same 404 answers a photo that does not exist, a stranger's, and one
-    the disk has lost; nothing here says which of the three it was.
+    it. The same 404 answers a photo that does not exist, a stranger's, one on a
+    deleted workout, and one the disk has lost; nothing here says which of the
+    four it was.
     """
     owner_id = db.execute(
         select(models.Workout.user_id)
@@ -437,6 +584,7 @@ def read_photo(
         .where(
             models.WorkoutPhoto.id == photo_id,
             models.WorkoutPhoto.workout_id == workout_id,
+            models.Workout.deleted_at.is_(None),
         )
     ).scalar_one_or_none()
     if owner_id is None:
@@ -581,8 +729,8 @@ def _may_watch(db: Session, workout_id: int, video_id: int, user: models.User) -
     """The photo endpoint's reach, said once for the video and its poster.
 
     Yours, and the people you have both agreed to. The same 404 answers a video
-    that does not exist, a stranger's, and one the disk has lost; nothing here
-    says which of the three it was.
+    that does not exist, a stranger's, one on a deleted workout, and one the
+    disk has lost; nothing here says which of the four it was.
     """
     owner_id = db.execute(
         select(models.Workout.user_id)
@@ -590,6 +738,7 @@ def _may_watch(db: Session, workout_id: int, video_id: int, user: models.User) -
         .where(
             models.WorkoutVideo.id == video_id,
             models.WorkoutVideo.workout_id == workout_id,
+            models.Workout.deleted_at.is_(None),
         )
     ).scalar_one_or_none()
     if owner_id is None:
@@ -675,7 +824,9 @@ def encourage(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Kind must be cheer or note.")
 
     workout = db.get(models.Workout, workout_id)
-    if workout is None:
+    # A deleted workout takes the same branch as one that never existed: it is
+    # off the feed, so nothing is left to say a word about.
+    if workout is None or workout.deleted_at is not None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such workout.")
     if workout.user_id == user.id:
         raise HTTPException(
@@ -788,7 +939,9 @@ def weekly_totals(
     cutoff = dt.datetime.combine(earliest, dt.time.min, tzinfo=activity_rules.SERVER_TZ)
     rows = db.execute(
         select(models.Workout).where(
-            models.Workout.user_id == user.id, models.Workout.start_ts >= cutoff
+            models.Workout.user_id == user.id,
+            models.Workout.deleted_at.is_(None),
+            models.Workout.start_ts >= cutoff,
         )
     ).scalars()
 

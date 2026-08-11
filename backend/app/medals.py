@@ -183,6 +183,10 @@ def _week_workouts(db: Session, user_id: int, monday: dt.date) -> list[models.Wo
     medal for the workout it is on, and a week is a total rather than a claim
     about any one session. Bounded by the next Monday rather than by adding
     seven days, because the week a clock change falls in is not 168 hours long.
+
+    A deleted workout is not part of the week. It has no marker row either, so
+    the join would already leave it out; the test is written down anyway,
+    because this is the query that decides what a week's medal is worth.
     """
     start = dt.datetime.combine(monday, dt.time.min, tzinfo=SERVER_TZ)
     end = dt.datetime.combine(monday + dt.timedelta(days=7), dt.time.min, tzinfo=SERVER_TZ)
@@ -195,6 +199,7 @@ def _week_workouts(db: Session, user_id: int, monday: dt.date) -> list[models.Wo
             )
             .where(
                 models.Workout.user_id == user_id,
+                models.Workout.deleted_at.is_(None),
                 models.Workout.start_ts >= start,
                 models.Workout.start_ts < end,
             )
