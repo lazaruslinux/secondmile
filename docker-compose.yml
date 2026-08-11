@@ -44,6 +44,11 @@ services:
       # Workout photos, on the same terms and for the same reason. The path
       # matches PHOTO_DIR's default.
       - photo-data:/data/photos
+      # Workout videos and their poster frames, third verse the same as the
+      # first. Its own volume rather than a folder inside the photos' one, so
+      # the largest files here can be backed up, moved, or left behind on their
+      # own. The path matches VIDEO_DIR's default.
+      - video-data:/data/videos
     # Bind to localhost only so the raw API stays on this machine, not the
     # LAN. Everything normal goes through the frontend's /api proxy.
     ports:
@@ -70,3 +75,4 @@ volumes:
   postgres-data:
   avatar-data:
   photo-data:
+  video-data:

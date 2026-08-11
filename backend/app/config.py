@@ -68,6 +68,11 @@ class Settings(BaseSettings):
     # rather than from anything the uploader sent.
     photo_dir: str = "/data/photos"
 
+    # Where re-encoded workout videos and their poster frames are written, on
+    # the photos' terms again: a third named volume, and names built from the
+    # workout and video ids rather than from anything the uploader sent.
+    video_dir: str = "/data/videos"
+
     daily_cap_walk_mi: float = 40.0
     daily_cap_run_mi: float = 40.0
     daily_cap_cycle_mi: float = 200.0
@@ -274,9 +279,32 @@ MAX_PHOTO_PIXELS = 25_000_000
 # The longest edge a stored photo may have. Anything smaller is left alone:
 # scaling a small picture up would invent detail and cost bytes doing it.
 PHOTO_MAX_EDGE = 1600
-# How many photos one workout may carry. A handful from a morning out, not an
-# album, and a bound on what one workout can ask the disk for.
-MAX_PHOTOS_PER_WORKOUT = 6
+# How many pictures and videos one workout may carry between them. A handful
+# from a morning out, not an album, and a bound on what one workout can ask the
+# disk for. A video takes one of these slots exactly as a photo does.
+MAX_MEDIA_PER_WORKOUT = 6
+
+# Workout video limits. The duration is the real one and the byte cap is the
+# guard in front of it: a minute off a phone is fifty megabytes or so, and a
+# hundred leaves room for a phone that records richer than that without leaving
+# room for an hour of anything. Checked against Content-Length and again while
+# reading, like every other upload here.
+MAX_VIDEO_BYTES = 100 * 1024 * 1024
+# Sixty seconds is the rule and this is the tolerance around it: a clip trimmed
+# to a minute by hand is often a second or two over, and refusing that would be
+# a rule about arithmetic rather than about length.
+MAX_VIDEO_SECONDS = 65
+# Below this, whatever was uploaded is a still picture in a container that
+# calls itself a video. A JPEG opens as a video stream four hundredths of a
+# second long.
+MIN_VIDEO_SECONDS = 0.5
+# The shorter edge a stored video may have, which is what 720p means for a clip
+# held portrait. Anything smaller is left alone, for the reason a small photo
+# is: scaling up invents detail and pays bytes for it.
+VIDEO_MAX_SHORT_EDGE = 720
+# How many videos one workout may carry. A minute of video is a moment, and two
+# moments is an album; the slot cap above is shared with the photos regardless.
+MAX_VIDEOS_PER_WORKOUT = 1
 
 # Request body ceilings, enforced by the app itself so an install that fronts
 # uvicorn with something other than the bundled proxy, or with nothing, still
@@ -289,6 +317,8 @@ MAX_INGEST_BODY_BYTES = 15 * 1024 * 1024
 # the avatar one: the upload endpoint keeps refusing an oversized picture in its
 # own words rather than having the middleware answer first.
 MAX_PHOTO_BODY_BYTES = 11 * 1024 * 1024
+# And the same again for a video, five megabytes above its hundred.
+MAX_VIDEO_BODY_BYTES = 105 * 1024 * 1024
 
 # How many workout entries one export may carry. The byte cap above bounds the
 # body, not the entry count, and an export of tiny entries is a request that

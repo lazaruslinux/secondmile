@@ -134,6 +134,11 @@ workout_edit_limiter = RateLimiter(30, "workout-edit")
 # the server up to ten megabytes to decode and re-encode, which is the most
 # expensive thing a signed-in account can ask it to do.
 photo_limiter = RateLimiter(10, "photo")
+# Attaching a video. Tighter again: every accepted call hands the server up to
+# a hundred megabytes and re-encodes it while the request waits, which takes
+# the photo endpoint's place as the most expensive thing a signed-in account
+# can ask for.
+video_limiter = RateLimiter(5, "video")
 # Spending a verification link. Its own budget because the token is the only
 # secret it checks, and without one the endpoint is a place to guess tokens at
 # whatever rate the network allows.
@@ -174,7 +179,7 @@ token_rotate_limiter = RateLimiter(5, "token-rotate")
 # Answering invites: accepting one, declining one, cancelling one, or ending a
 # friendship. Enough to tidy a whole list in one sitting.
 friend_action_limiter = RateLimiter(20, "friend-action")
-# Taking a picture back down, whether a profile picture or one off a workout.
+# Taking media back down: a profile picture, or a photo or video off a workout.
 # The same budget as the uploads it undoes.
 delete_media_limiter = RateLimiter(10, "media-delete")
 # The three screens the app reads on every visit. Sixty a minute is well past

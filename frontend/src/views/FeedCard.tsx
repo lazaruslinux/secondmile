@@ -3,13 +3,18 @@ import {
   ApiError,
   avatarUrl,
   deleteWorkoutPhoto,
+  deleteWorkoutVideo,
   encourage,
   errorText,
   getWorkoutNotes,
   PHOTO_TOO_LARGE,
   updateWorkout,
   uploadWorkoutPhoto,
+  uploadWorkoutVideo,
+  VIDEO_TOO_LARGE,
   workoutPhotoUrl,
+  workoutVideoPosterUrl,
+  workoutVideoUrl,
   type FeedItem,
   type Units,
   type WorkoutNote,
@@ -40,7 +45,8 @@ const NOTE_LIMIT = 500
 // point the server would have refused them.
 const TITLE_LIMIT = 100
 const POST_LIMIT = 2000
-const PHOTO_LIMIT = 6
+// Photos and videos share these slots, which is why the name is not PHOTO.
+const MEDIA_LIMIT = 6
 
 interface Given {
   cheers: number
@@ -266,30 +272,79 @@ function orNull(value: string): string | null {
   return trimmed === '' ? null : trimmed
 }
 
-// A picture is refused for reasons a person can act on, and two of them can be
-// answered by the proxy in front of the app rather than by the server, so the
-// sentence is written here rather than read off the response.
-function photoErrorText(err: unknown): string {
+// A picture or a video is refused for reasons a person can act on, and two of
+// them can be answered by the proxy in front of the app rather than by the
+// server, so those sentences are written here rather than read off the
+// response. The too-large one differs by what was being added, so it is passed
+// in rather than guessed at.
+function mediaErrorText(err: unknown, tooLarge: string): string {
   if (err instanceof ApiError) {
-    if (err.status === 413) return PHOTO_TOO_LARGE
+    if (err.status === 413) return tooLarge
     if (err.status === 429) return 'Too many uploads just now. Wait a minute and try again.'
     return err.message
   }
   return 'Something went wrong. Try again.'
 }
 
-// The pictures on a workout, at the size a card can hold without becoming an
-// album. Every box keeps its space whether the picture inside it arrives or not,
-// so one that will not load leaves a gap rather than shortening the card.
-function PhotoStrip({ workoutId, photos }: { workoutId: number; photos: number[] }) {
-  if (photos.length === 0) return null
+// The pictures and the video on a workout, at the size a card can hold without
+// becoming an album. Every box keeps its space whether what is inside it
+// arrives or not, so one that will not load leaves a gap rather than shortening
+// the card.
+//
+// A video sits in the strip as its poster with a play mark on it, and pressing
+// it swaps that slot for the browser's own player across the full width of the
+// strip. Inline rather than in a dialog: a clip is part of the card the way a
+// photograph is, and a thumbnail-sized player is no use to anybody.
+function MediaStrip({
+  workoutId,
+  photos,
+  videos,
+}: {
+  workoutId: number
+  photos: number[]
+  videos: number[]
+}) {
+  const [playing, setPlaying] = useState<number | null>(null)
+  if (photos.length === 0 && videos.length === 0) return null
   return (
     <ul className="feed-photos">
       {photos.map((photoId) => (
-        <li key={photoId} className="photo-thumb">
+        <li key={`p${photoId}`} className="photo-thumb">
           <img src={workoutPhotoUrl(workoutId, photoId)} alt="" loading="lazy" />
         </li>
       ))}
+      {videos.map((videoId) =>
+        playing === videoId ? (
+          <li key={`v${videoId}`} className="video-playing">
+            {/* No caption track: a clip off somebody's phone has none to
+                offer, and inventing one would be putting words in their
+                mouth. The player's own controls carry everything else. */}
+            <video
+              className="feed-video"
+              controls
+              autoPlay
+              playsInline
+              preload="metadata"
+              poster={workoutVideoPosterUrl(workoutId, videoId)}
+              src={workoutVideoUrl(workoutId, videoId)}
+            />
+          </li>
+        ) : (
+          <li key={`v${videoId}`} className="photo-thumb">
+            <button
+              type="button"
+              className="video-open"
+              aria-label="Play video"
+              onClick={() => setPlaying(videoId)}
+            >
+              <img src={workoutVideoPosterUrl(workoutId, videoId)} alt="" loading="lazy" />
+              <span className="video-play">
+                <Icon name="play" />
+              </span>
+            </button>
+          </li>
+        ),
+      )}
     </ul>
   )
 }
@@ -346,6 +401,7 @@ export interface EditableWorkout {
   title?: string | null
   post?: string | null
   photos?: number[]
+  videos?: number[]
 }
 
 interface EditProps<T extends EditableWorkout> {
@@ -362,8 +418,8 @@ interface EditProps<T extends EditableWorkout> {
 
 // The owner's panel, on the card itself rather than over the page: what is being
 // written is read in the place it will be read from. The words are saved
-// together by Save; a picture is its own act and is added or taken away the
-// moment it is chosen.
+// together by Save; a picture or a video is its own act and is added or taken
+// away the moment it is chosen.
 export function EditPanel<T extends EditableWorkout>({
   item,
   onChanged,
@@ -373,13 +429,16 @@ export function EditPanel<T extends EditableWorkout>({
   const [title, setTitle] = useState(item.title ?? '')
   const [post, setPost] = useState(item.post ?? '')
   const [saving, setSaving] = useState(false)
-  // Which picture call is in flight, so the note can say what is happening.
-  const [photoBusy, setPhotoBusy] = useState<'' | 'upload' | 'remove'>('')
+  // Which media call is in flight, so the note can say what is happening. A
+  // video is its own value because it is the one that takes a moment.
+  const [mediaBusy, setMediaBusy] = useState<'' | 'photo' | 'video' | 'remove'>('')
   const [failed, setFailed] = useState('')
 
   const photos = item.photos ?? []
-  const busy = saving || photoBusy !== ''
-  const full = photos.length >= PHOTO_LIMIT
+  const videos = item.videos ?? []
+  const busy = saving || mediaBusy !== ''
+  // One count over both, because they fill the same slots.
+  const full = photos.length + videos.length >= MEDIA_LIMIT
 
   async function save(event: FormEvent) {
     event.preventDefault()
@@ -401,34 +460,67 @@ export function EditPanel<T extends EditableWorkout>({
     }
   }
 
-  async function addPhoto(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
-    // Cleared either way, so choosing the same file twice still counts as a
-    // change and the picker does not sit there naming a spent upload.
+  // Cleared either way, so choosing the same file twice still counts as a
+  // change and the picker does not sit there naming a spent upload.
+  function taken(event: ChangeEvent<HTMLInputElement>): File | null {
+    const file = event.target.files?.[0] ?? null
     event.target.value = ''
+    return file
+  }
+
+  async function addPhoto(event: ChangeEvent<HTMLInputElement>) {
+    const file = taken(event)
     if (!file) return
-    setPhotoBusy('upload')
+    setMediaBusy('photo')
     setFailed('')
     try {
       const photoId = await uploadWorkoutPhoto(item.workout_id, file)
       onChanged({ ...item, photos: [...photos, photoId] })
     } catch (err) {
-      setFailed(photoErrorText(err))
+      setFailed(mediaErrorText(err, PHOTO_TOO_LARGE))
     } finally {
-      setPhotoBusy('')
+      setMediaBusy('')
     }
   }
 
   async function removePhoto(photoId: number) {
-    setPhotoBusy('remove')
+    setMediaBusy('remove')
     setFailed('')
     try {
       await deleteWorkoutPhoto(item.workout_id, photoId)
       onChanged({ ...item, photos: photos.filter((id) => id !== photoId) })
     } catch (err) {
-      setFailed(photoErrorText(err))
+      setFailed(mediaErrorText(err, PHOTO_TOO_LARGE))
     } finally {
-      setPhotoBusy('')
+      setMediaBusy('')
+    }
+  }
+
+  async function addVideo(event: ChangeEvent<HTMLInputElement>) {
+    const file = taken(event)
+    if (!file) return
+    setMediaBusy('video')
+    setFailed('')
+    try {
+      const videoId = await uploadWorkoutVideo(item.workout_id, file)
+      onChanged({ ...item, videos: [...videos, videoId] })
+    } catch (err) {
+      setFailed(mediaErrorText(err, VIDEO_TOO_LARGE))
+    } finally {
+      setMediaBusy('')
+    }
+  }
+
+  async function removeVideo(videoId: number) {
+    setMediaBusy('remove')
+    setFailed('')
+    try {
+      await deleteWorkoutVideo(item.workout_id, videoId)
+      onChanged({ ...item, videos: videos.filter((id) => id !== videoId) })
+    } catch (err) {
+      setFailed(mediaErrorText(err, VIDEO_TOO_LARGE))
+    } finally {
+      setMediaBusy('')
     }
   }
 
@@ -436,8 +528,8 @@ export function EditPanel<T extends EditableWorkout>({
     <form className="feed-edit-panel" onSubmit={save}>
       {explain && (
         <p className="hint">
-          You can edit the title, your words, and up to {PHOTO_LIMIT} photos. Distance and
-          time are not editable.
+          You can edit the title, your words, and up to {MEDIA_LIMIT} photos and videos.
+          Distance and time are not editable.
         </p>
       )}
 
@@ -465,7 +557,7 @@ export function EditPanel<T extends EditableWorkout>({
       </label>
 
       <div className="feed-edit-photos">
-        <p className="label">Photos</p>
+        <p className="label">Photos and video</p>
         {photos.length > 0 && (
           <ul className="photo-edit-list">
             {photos.map((photoId) => (
@@ -487,21 +579,68 @@ export function EditPanel<T extends EditableWorkout>({
           </ul>
         )}
 
+        {/* The video sits under the pictures and is removed the same way. Its
+            poster stands in for it here: this is the picking of media, not the
+            watching of it, and there is a player on the card itself. */}
+        {videos.length > 0 && (
+          <ul className="photo-edit-list">
+            {videos.map((videoId) => (
+              <li key={videoId}>
+                <span className="photo-thumb">
+                  <img
+                    src={workoutVideoPosterUrl(item.workout_id, videoId)}
+                    alt=""
+                    loading="lazy"
+                  />
+                </span>
+                <button
+                  type="button"
+                  className="photo-remove"
+                  disabled={busy}
+                  aria-label="Remove video"
+                  onClick={() => void removeVideo(videoId)}
+                >
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
         <label className="file-field label">
           Add a photo
           <input type="file" accept="image/*" disabled={busy || full} onChange={addPhoto} />
         </label>
+
+        <label className="file-field label">
+          Add a video
+          <input
+            type="file"
+            accept="video/*"
+            disabled={busy || full || videos.length > 0}
+            onChange={addVideo}
+          />
+        </label>
+
         <p className="hint">
           {full
-            ? `${PHOTO_LIMIT} photos is the limit. Remove one to add another.`
-            : `Up to ${PHOTO_LIMIT} photos, 10 MB each. A photo is saved as soon as you choose it.`}
+            ? `${MEDIA_LIMIT} photos and videos is the limit. Remove one to add another.`
+            : `Up to ${MEDIA_LIMIT} photos and videos, 10 MB a photo. One video of about a ` +
+              'minute, 100 MB. Each one is saved as soon as you choose it.'}
         </p>
-        {photoBusy === 'upload' && (
+        {mediaBusy === 'photo' && (
           <p className="hint" role="status">
             Uploading.
           </p>
         )}
-        {photoBusy === 'remove' && (
+        {/* Said differently because it is true differently: the server
+            re-encodes the clip before it answers, so this one waits. */}
+        {mediaBusy === 'video' && (
+          <p className="hint" role="status">
+            Uploading. A video takes a moment.
+          </p>
+        )}
+        {mediaBusy === 'remove' && (
           <p className="hint" role="status">
             Removing.
           </p>
@@ -581,6 +720,7 @@ export default function FeedCard({
   )
   const post = (item.post ?? '').trim()
   const photos = item.photos ?? []
+  const videos = item.videos ?? []
   const medals = item.medals ?? []
   // The name they go by if they gave one, and their username otherwise.
   const who = personName(user)
@@ -605,7 +745,7 @@ export default function FeedCard({
             <p className="feed-when">{when}</p>
             <p className="feed-source">{SOURCE_NAMES[item.source]}</p>
           </div>
-          {/* The owner's way in, and only the words and the pictures are behind
+          {/* The owner's way in, and only the words and the media are behind
               it. What was covered, how long it took, and when it happened are
               editable nowhere. */}
           <button
@@ -633,7 +773,7 @@ export default function FeedCard({
           </h2>
         )}
 
-        {/* This and the pictures are in the panel while it is open, so the card
+        {/* This and the media are in the panel while it is open, so the card
             does not say the same thing twice. */}
         {!editing && post !== '' && <p className="feed-post">{post}</p>}
 
@@ -646,7 +786,9 @@ export default function FeedCard({
 
         {item.has_route && <RouteLine workoutId={item.workout_id} />}
 
-        {!editing && <PhotoStrip workoutId={item.workout_id} photos={photos} />}
+        {!editing && (
+          <MediaStrip workoutId={item.workout_id} photos={photos} videos={videos} />
+        )}
 
         {(item.xp !== undefined || medals.length > 0) && (
           <p className="feed-foot">
@@ -717,15 +859,15 @@ export default function FeedCard({
         {headline}
       </h2>
 
-      {/* What they wrote and what they took pictures of, theirs to share, and
-          sharing it is what putting it here was. */}
+      {/* What they wrote and what they pointed a camera at, theirs to share,
+          and sharing it is what putting it here was. */}
       {post !== '' && <p className="feed-post">{post}</p>}
 
       <StatRow item={item} units={units} />
 
       {item.has_route && <RouteLine workoutId={item.workout_id} />}
 
-      <PhotoStrip workoutId={item.workout_id} photos={photos} />
+      <MediaStrip workoutId={item.workout_id} photos={photos} videos={videos} />
 
       {medals.length > 0 && (
         <p className="feed-foot">

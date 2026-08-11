@@ -143,24 +143,40 @@ docker compose exec backend python manage.py strip-ingest-log
 It strips the route arrays from every stored payload, deletes rows past the
 retention window, and prints what it did. Safe to run twice.
 
-## Profile pictures
+## Pictures and video
 
-Avatars and workout photos are files, not database rows. They live in the
-container at the paths `AVATAR_DIR` and `PHOTO_DIR` name, and the compose file
-mounts named volumes there so they survive a rebuild. They are not in the
-Postgres dump: back both volumes up separately if you want to keep them.
+Avatars, workout photos, and workout videos are files, not database rows. They
+live in the container at the paths `AVATAR_DIR`, `PHOTO_DIR`, and `VIDEO_DIR`
+name, and the compose file mounts a named volume at each so they survive a
+rebuild. They are not in the Postgres dump: back all three volumes up
+separately if you want to keep them.
 
 ```
 docker compose cp backend:/data/avatars ./avatars-backup
 docker compose cp backend:/data/photos ./photos-backup
+docker compose cp backend:/data/videos ./videos-backup
 ```
 
 Every avatar upload is capped at 5 MB, decoded to prove it is really an image,
 and re-encoded from its pixels into a 512 by 512 webp. Workout photos get the
-same treatment at 10 MB and a 1600 pixel longest edge, six per workout. What
-lands on disk is never the file that was uploaded, carries no metadata or
-location, and is named by the server rather than after anything the uploader
-chose.
+same treatment at 10 MB and a 1600 pixel longest edge. What lands on disk is
+never the file that was uploaded, carries no metadata or location, and is
+named by the server rather than after anything the uploader chose.
+
+A workout may also carry one video, and photos and videos share six slots
+between them. A video is capped at 100 MB and about a minute of running time,
+which is measured before anything is encoded, and it is then re-encoded to an
+H.264 mp4 no larger than 720p on its shorter edge, with a poster frame cut
+beside it. The same rule holds as for the pictures: what lands on disk is a
+file this server built, with the camera, the date, and the GPS position gone.
+
+That re-encoding is why **ffmpeg is installed in the backend image**. It is
+the only part of the app that is not a Python package, it is installed from
+the base image's own distribution, and both `ffmpeg` and `ffprobe` are used:
+one to read the length of an upload before accepting it, the other to encode
+what is kept. The encode happens while the upload request is still open, so a
+slow machine makes the upload button wait rather than failing; a minute of
+720p is a couple of seconds of work on an ordinary desktop.
 
 ## The basemap behind a route
 

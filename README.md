@@ -53,8 +53,11 @@ Current version: **0.1.1**. Releases are tagged in git.
   no discovery, no suggestions, and no count of anybody's friends. The home
   feed carries your workouts and theirs, and a friend's card shows the whole
   workout: the distance, the time, the pace, the calories, the heart rate, the
-  medal, and the route line. Tapping a route line opens it on a map your own
-  server draws, from a tile archive you install or do without. Settings has
+  medal, and the route line. A workout carries what you took of it as well:
+  up to six photos and videos between them, one of which may be a video of
+  about a minute, re-encoded by the server so nothing keeps the camera, the
+  date, or the place it was shot in. Tapping a route line opens it on a map
+  your own server draws, from a tile archive you install or do without. Settings has
   switches for the heart rate, the
   calories, and the route, and anything switched off is left out of what the
   server sends rather than hidden by the app. You can hype a workout without

@@ -480,6 +480,7 @@ def feed_row(
     medal_ids: list[str],
     has_route: bool,
     photo_ids: list[int],
+    video_ids: list[int],
     encouragement: dict,
     hidden: tuple[str, ...] = (),
 ) -> dict:
@@ -522,6 +523,10 @@ def feed_row(
         "title": workout.title,
         "post": workout.post,
         "photos": photo_ids,
+        # Beside the photos rather than folded in with them: the card fetches
+        # the two from different endpoints and draws a play mark on one of
+        # them, so a reader that could not tell them apart would draw neither.
+        "videos": video_ids,
         "source": workout.source,
         "own": own,
     }

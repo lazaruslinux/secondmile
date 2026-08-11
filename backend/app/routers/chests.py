@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app import fellowship, grove, medals, models, progress, security, throttle
 from app.activity import converted_miles
 from app.db import get_db
-from app.routers.workouts import photos_for
+from app.routers.workouts import photos_for, videos_for
 
 router = APIRouter(tags=["chests"])
 
@@ -267,6 +267,7 @@ def _arrived(db: Session, user_id: int, since: dt.datetime | None) -> dict:
         select(func.count()).select_from(models.Workout).where(*where)
     ).scalar_one()
     pictures = photos_for(db, rows)
+    clips = videos_for(db, rows)
     return {
         "workouts": [
             {
@@ -280,6 +281,7 @@ def _arrived(db: Session, user_id: int, since: dt.datetime | None) -> dict:
                 "title": row.title,
                 "post": row.post,
                 "photos": pictures.get(row.id, []),
+                "videos": clips.get(row.id, []),
             }
             for row in rows
         ],

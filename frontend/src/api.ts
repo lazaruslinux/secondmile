@@ -116,12 +116,15 @@ export interface FeedItem {
   own: boolean
   // Own rows only. What the workout was worth, in converted miles.
   xp?: number
-  // What the person wrote on it and the pictures they put with it. Friends' rows
-  // carry them too: a post is something deliberately shared. All three are
-  // optional, the same way they are on a workout.
+  // What the person wrote on it and the pictures and video they put with it.
+  // Friends' rows carry them too: a post is something deliberately shared. All
+  // of them are optional, the same way they are on a workout.
   title?: string | null
   post?: string | null
   photos?: number[]
+  // At most one, and a list all the same, because that is the shape the server
+  // counts media in and one shape is easier to read than two.
+  videos?: number[]
   encouragement: Encouragement
 }
 
@@ -541,6 +544,7 @@ export interface RecapWorkout {
   title?: string | null
   post?: string | null
   photos?: number[]
+  videos?: number[]
 }
 
 export interface RecapState {
@@ -807,6 +811,40 @@ export async function deleteWorkoutPhoto(workoutId: number, photoId: number): Pr
 // already there, which is why this is an address rather than a fetch.
 export function workoutPhotoUrl(workoutId: number, photoId: number): string {
   return `${BASE}/workouts/${workoutId}/photos/${photoId}`
+}
+
+// The video limits, stated here as well so a clip the server would refuse is
+// refused before it is uploaded. The length is the server's to judge: reading
+// it here would mean decoding the file in the browser first.
+export const MAX_VIDEO_BYTES = 100 * 1024 * 1024
+export const VIDEO_TOO_LARGE = 'That video is too large. The limit is 100 MB.'
+
+// The photo upload's twin: one part named "file", and the id of what was
+// stored comes back. The wait is longer than any other call in this file
+// because the server re-encodes the clip before it answers.
+export async function uploadWorkoutVideo(workoutId: number, file: File): Promise<number> {
+  if (file.size > MAX_VIDEO_BYTES) throw new ApiError(413, VIDEO_TOO_LARGE)
+  const body = new FormData()
+  body.append('file', file)
+  const res = await send(`/workouts/${workoutId}/videos`, { method: 'POST', body })
+  const created = (await res.json()) as { id: number }
+  return created.id
+}
+
+export async function deleteWorkoutVideo(workoutId: number, videoId: number): Promise<void> {
+  await send(`/workouts/${workoutId}/videos/${videoId}`, { method: 'DELETE' })
+}
+
+// Addresses rather than fetches, for the photo endpoint's reason: both are read
+// by an element on the page carrying the session cookie it already has. The
+// video answers byte ranges, which is what lets a browser start playing it
+// before it holds the whole file.
+export function workoutVideoUrl(workoutId: number, videoId: number): string {
+  return `${BASE}/workouts/${workoutId}/videos/${videoId}`
+}
+
+export function workoutVideoPosterUrl(workoutId: number, videoId: number): string {
+  return `${BASE}/workouts/${workoutId}/videos/${videoId}/poster`
 }
 
 // Asks for an address to be put on the account, or for the one there to be

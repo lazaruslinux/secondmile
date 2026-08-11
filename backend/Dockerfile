@@ -8,6 +8,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# The one thing this image needs that pip cannot install. Every uploaded video
+# is probed with ffprobe and re-encoded with ffmpeg before it is stored, so the
+# binaries are as much a dependency as Pillow is. Installed from the base
+# image's own distribution rather than as a Python wrapper: the wrappers ship
+# the same binaries with a package index in front of them.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
 # Requirements are copied on their own so the install layer stays cached across
 # every build that changed only application code. requirements.txt pins every
 # package with a hash, and --require-hashes makes pip refuse anything that does
@@ -27,7 +36,8 @@ RUN useradd --create-home app
 # Created and owned before the volume is mounted over it. A named volume takes
 # its ownership from the image's directory, so without this the mounted path
 # arrives owned by root and the unprivileged process cannot write an avatar.
-RUN mkdir -p /data/avatars /data/photos && chown app:app /data/avatars /data/photos
+RUN mkdir -p /data/avatars /data/photos /data/videos \
+    && chown app:app /data/avatars /data/photos /data/videos
 
 USER app
 

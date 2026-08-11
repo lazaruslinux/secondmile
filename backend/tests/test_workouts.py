@@ -1,5 +1,5 @@
-"""The history page, the weekly totals, and the words and pictures an owner
-puts on a workout.
+"""The history page, the weekly totals, and the words, pictures, and video an
+owner puts on a workout.
 
 Nothing here creates a workout over HTTP, because nothing can: the sync path is
 the only way one arrives, and it has its own file. The rows these cases read
@@ -8,6 +8,11 @@ are written straight into the table.
 
 import datetime as dt
 import io
+import json
+import os
+import pathlib
+import subprocess
+import tempfile
 
 import pytest
 from PIL import Image
@@ -369,7 +374,7 @@ def test_a_workout_holds_six_photos_and_no_more(signed_in, db_session, member):
     codes = [attach(signed_in, workout.id).status_code for _ in range(7)]
     assert codes == [201] * 6 + [400]
     full = attach(signed_in, workout.id)
-    assert full.json()["detail"] == "A workout can hold 6 photos."
+    assert full.json()["detail"] == "A workout can hold 6 photos and videos."
     assert db_session.query(models.WorkoutPhoto).count() == 6
 
 
@@ -462,3 +467,301 @@ def test_the_photo_endpoints_need_a_session(client):
     assert client.post("/api/workouts/1/photos", files={"file": ("a.jpg", b"x")}).status_code == 401
     assert client.get("/api/workouts/1/photos/1").status_code == 401
     assert client.delete("/api/workouts/1/photos/1").status_code == 401
+
+
+# --------------------------------------------------------------------------
+# The video on a workout
+# --------------------------------------------------------------------------
+# Every clip these cases use is built here by ffmpeg rather than committed as a
+# binary: a fixture nobody can read the source of is a fixture nobody can
+# change. They are cached per shape because building one costs a fraction of a
+# second and several cases want the same one.
+
+_clips: dict[tuple, bytes] = {}
+
+
+def clip_bytes(seconds=2, size="320x240", *, tagged=True) -> bytes:
+    """A real video carrying real metadata, so the case that says the metadata
+    is gone has something to lose."""
+    key = (seconds, size, tagged)
+    if key not in _clips:
+        with tempfile.TemporaryDirectory() as work:
+            built = os.path.join(work, "clip.mp4")
+            tags = []
+            if tagged:
+                tags = [
+                    "-metadata",
+                    "title=where I live",
+                    "-metadata",
+                    "comment=do not carry me",
+                    "-metadata",
+                    "location=+40.0-105.0/",
+                ]
+            subprocess.run(
+                [
+                    "ffmpeg", "-nostdin", "-y", "-hide_banner", "-loglevel", "error",
+                    "-f", "lavfi", "-i", f"testsrc=size={size}:rate=10:duration={seconds}",
+                    "-f", "lavfi", "-i", f"sine=frequency=440:duration={seconds}",
+                    "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+                    "-c:a", "aac", *tags, built,
+                ],
+                check=True,
+                capture_output=True,
+            )
+            _clips[key] = pathlib.Path(built).read_bytes()
+    return _clips[key]
+
+
+def probe(path) -> dict:
+    """What ffprobe says about a stored file, as a dict."""
+    done = subprocess.run(
+        [
+            "ffprobe", "-v", "error",
+            "-show_entries",
+            "stream=codec_name,codec_type,width,height:format=duration:format_tags",
+            "-of", "json", str(path),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    return json.loads(done.stdout)
+
+
+def attach_video(client, workout_id, data=None, name="clip.mp4", content_type="video/mp4"):
+    return client.post(
+        f"/api/workouts/{workout_id}/videos",
+        files={"file": (name, clip_bytes() if data is None else data, content_type)},
+    )
+
+
+def test_an_attached_video_becomes_an_mp4_with_nothing_carried_over(
+    signed_in, db_session, member, video_dir
+):
+    workout = stored(db_session, member.id)
+    # The source really does carry metadata, so what follows means something.
+    with tempfile.TemporaryDirectory() as work:
+        source = pathlib.Path(work) / "source.mp4"
+        source.write_bytes(clip_bytes())
+        assert probe(source)["format"]["tags"]["title"] == "where I live"
+
+    created = attach_video(signed_in, workout.id)
+    assert created.status_code == 201, created.text
+    video_id = created.json()["id"]
+    assert created.json() == {"id": video_id}
+
+    # Both names come from the two ids, never from the upload.
+    on_disk = video_dir / f"{workout.id}-{video_id}.mp4"
+    poster = video_dir / f"{workout.id}-{video_id}.jpg"
+    assert on_disk.exists() and poster.exists()
+    assert not (video_dir / "clip.mp4").exists()
+    assert not list(video_dir.glob("*.tmp"))
+    # The working directory the encoder used is cleared up behind it.
+    assert not list(video_dir.glob("incoming-*"))
+
+    written = probe(on_disk)
+    kinds = {stream["codec_type"]: stream["codec_name"] for stream in written["streams"]}
+    assert kinds == {"video": "h264", "audio": "aac"}
+    # Nothing the uploader wrote into the file came through. What is left is
+    # the container saying what kind of container it is.
+    tags = written["format"].get("tags", {})
+    assert not {"title", "comment", "location", "location-eng", "encoder"} & set(tags)
+
+    row = db_session.get(models.WorkoutVideo, video_id)
+    assert row.workout_id == workout.id
+    assert row.created_at.tzinfo is not None
+
+
+def test_a_small_video_is_not_scaled_up(signed_in, db_session, member, video_dir):
+    workout = stored(db_session, member.id)
+    video_id = attach_video(signed_in, workout.id).json()["id"]
+    stream = probe(video_dir / f"{workout.id}-{video_id}.mp4")["streams"][0]
+    assert (stream["width"], stream["height"]) == (320, 240)
+
+
+def test_a_tall_video_is_capped_on_its_shorter_edge(signed_in, db_session, member, video_dir):
+    """720p for a clip held portrait is 720 across, not 720 tall: capping the
+    height would leave a phone video 405 wide."""
+    workout = stored(db_session, member.id)
+    tall = clip_bytes(seconds=1, size="900x1600", tagged=False)
+    video_id = attach_video(signed_in, workout.id, data=tall).json()["id"]
+    stream = probe(video_dir / f"{workout.id}-{video_id}.mp4")["streams"][0]
+    assert (stream["width"], stream["height"]) == (720, 1280)
+
+
+def test_a_video_longer_than_about_a_minute_is_refused(
+    signed_in, db_session, member, video_dir
+):
+    """Read from the upload before a single frame is encoded, which is the
+    point: the duration is the real limit and the byte cap only guards it."""
+    workout = stored(db_session, member.id)
+    long_one = clip_bytes(seconds=66, size="128x96", tagged=False)
+    refused = attach_video(signed_in, workout.id, data=long_one)
+    assert refused.status_code == 400
+    assert refused.json() == {"detail": "That video is too long. About a minute is the limit."}
+    assert db_session.query(models.WorkoutVideo).count() == 0
+    assert not list(video_dir.glob("*.mp4"))
+
+
+def test_a_file_that_is_not_a_video_is_not_a_video(signed_in, db_session, member, video_dir):
+    workout = stored(db_session, member.id)
+    not_a_video = "That file is not a video this server can read."
+    # A convincing name and content type over bytes no decoder will accept.
+    junk = attach_video(signed_in, workout.id, data=b"not a video at all")
+    assert junk.status_code == 400
+    assert junk.json() == {"detail": not_a_video}
+    # A still picture opens as a video stream a few hundredths of a second
+    # long, and nobody meant to post one as a clip.
+    still = attach_video(signed_in, workout.id, data=photo_bytes(320, 240), name="clip.mp4")
+    assert still.status_code == 400
+    assert still.json() == {"detail": not_a_video}
+    assert attach_video(signed_in, workout.id, data=b"").status_code == 400
+    # Neither a row nor a file for any of them.
+    assert db_session.query(models.WorkoutVideo).count() == 0
+    assert not video_dir.exists() or list(video_dir.glob("*.mp4")) == []
+
+
+def test_a_workout_holds_one_video(signed_in, db_session, member):
+    workout = stored(db_session, member.id)
+    assert attach_video(signed_in, workout.id).status_code == 201
+    second = attach_video(signed_in, workout.id)
+    assert second.status_code == 400
+    assert second.json() == {"detail": "A workout can hold one video."}
+    assert db_session.query(models.WorkoutVideo).count() == 1
+
+
+def test_photos_and_a_video_share_the_six_slots(signed_in, db_session, member):
+    """One cap over two tables. A video takes a slot exactly as a picture
+    does, and the sentence a full workout answers with says so."""
+    workout = stored(db_session, member.id)
+    small = photo_bytes(200, 200)
+    assert [attach(signed_in, workout.id, data=small).status_code for _ in range(5)] == [201] * 5
+    video_id = attach_video(signed_in, workout.id).json()["id"]
+
+    full = attach(signed_in, workout.id, data=small)
+    assert full.status_code == 400
+    assert full.json() == {"detail": "A workout can hold 6 photos and videos."}
+    assert db_session.query(models.WorkoutPhoto).count() == 5
+
+    # And the other way round: with the clip taken back down there is room for
+    # a sixth picture, and once it is there, none for a clip.
+    assert signed_in.delete(f"/api/workouts/{workout.id}/videos/{video_id}").status_code == 204
+    assert attach(signed_in, workout.id, data=small).status_code == 201
+    no_room = attach_video(signed_in, workout.id)
+    assert no_room.status_code == 400
+    assert no_room.json() == {"detail": "A workout can hold 6 photos and videos."}
+
+
+def test_the_video_is_listed_on_the_workout_beside_the_photos(signed_in, db_session, member):
+    workout = stored(db_session, member.id)
+    photo_id = attach(signed_in, workout.id, data=photo_bytes(200, 200)).json()["id"]
+    video_id = attach_video(signed_in, workout.id).json()["id"]
+    row = signed_in.get("/api/workouts").json()[0]
+    assert (row["photos"], row["videos"]) == ([photo_id], [video_id])
+
+
+def test_an_attached_video_and_its_poster_can_be_fetched_by_their_owner(
+    signed_in, db_session, member
+):
+    workout = stored(db_session, member.id)
+    video_id = attach_video(signed_in, workout.id).json()["id"]
+
+    served = signed_in.get(f"/api/workouts/{workout.id}/videos/{video_id}")
+    assert served.status_code == 200
+    assert served.headers["content-type"] == "video/mp4"
+    assert served.headers["cache-control"].startswith("private")
+    # The index at the front, which is what lets a browser start playing before
+    # it holds the whole file.
+    assert served.content[4:8] == b"ftyp"
+    assert served.content.find(b"moov") < served.content.find(b"mdat")
+
+    poster = signed_in.get(f"/api/workouts/{workout.id}/videos/{video_id}/poster")
+    assert poster.status_code == 200
+    assert poster.headers["content-type"] == "image/jpeg"
+    assert poster.content[:2] == b"\xff\xd8"
+
+
+def test_a_video_is_served_in_ranges(signed_in, db_session, member):
+    """iOS Safari will not play a video at all from a URL that answers a range
+    request with the whole file, and a phone is what this app is read on."""
+    workout = stored(db_session, member.id)
+    video_id = attach_video(signed_in, workout.id).json()["id"]
+    address = f"/api/workouts/{workout.id}/videos/{video_id}"
+
+    whole = signed_in.get(address)
+    assert whole.headers["accept-ranges"] == "bytes"
+    size = len(whole.content)
+
+    part = signed_in.get(address, headers={"Range": "bytes=0-1023"})
+    assert part.status_code == 206
+    assert part.headers["content-range"] == f"bytes 0-1023/{size}"
+    assert part.content == whole.content[:1024]
+
+    tail = signed_in.get(address, headers={"Range": "bytes=-512"})
+    assert tail.status_code == 206
+    assert tail.content == whole.content[-512:]
+
+
+def test_a_video_that_is_not_there_is_the_same_404(signed_in, db_session, member, video_dir):
+    workout = stored(db_session, member.id)
+    video_id = attach_video(signed_in, workout.id).json()["id"]
+
+    missing = signed_in.get(f"/api/workouts/{workout.id}/videos/9999")
+    assert missing.status_code == 404
+    assert missing.json() == {"detail": "No such video."}
+    # A video asked for under the wrong workout is not found either.
+    assert signed_in.get(f"/api/workouts/9999/videos/{video_id}").status_code == 404
+
+    # A volume that did not come back is not a server error to the caller, and
+    # the poster answers the same way for the same reason.
+    (video_dir / f"{workout.id}-{video_id}.mp4").unlink()
+    (video_dir / f"{workout.id}-{video_id}.jpg").unlink()
+    lost = signed_in.get(f"/api/workouts/{workout.id}/videos/{video_id}")
+    assert lost.status_code == 404
+    assert lost.json() == {"detail": "No such video."}
+    assert signed_in.get(f"/api/workouts/{workout.id}/videos/{video_id}/poster").status_code == 404
+
+
+def test_deleting_a_video_takes_the_row_and_both_files(
+    signed_in, db_session, member, video_dir
+):
+    workout = stored(db_session, member.id)
+    video_id = attach_video(signed_in, workout.id).json()["id"]
+    on_disk = video_dir / f"{workout.id}-{video_id}.mp4"
+    poster = video_dir / f"{workout.id}-{video_id}.jpg"
+    assert on_disk.exists() and poster.exists()
+
+    assert signed_in.delete(f"/api/workouts/{workout.id}/videos/{video_id}").status_code == 204
+    assert not on_disk.exists() and not poster.exists()
+    assert db_session.query(models.WorkoutVideo).count() == 0
+    assert signed_in.get("/api/workouts").json()[0]["videos"] == []
+    # Gone twice is a 404, not a second deletion, and the slot is free again.
+    assert signed_in.delete(f"/api/workouts/{workout.id}/videos/{video_id}").status_code == 404
+    assert attach_video(signed_in, workout.id).status_code == 201
+
+
+def test_only_the_owner_can_attach_or_delete_a_video(signed_in, db_session, member, admin):
+    from conftest import ADMIN
+
+    workout = stored(db_session, member.id)
+    video_id = attach_video(signed_in, workout.id).json()["id"]
+    signed_in.post("/api/auth/logout")
+    signed_in.post("/api/auth/login", json=ADMIN)
+    assert attach_video(signed_in, workout.id).status_code == 404
+    assert signed_in.delete(f"/api/workouts/{workout.id}/videos/{video_id}").status_code == 404
+
+
+def test_video_uploads_are_rate_limited(signed_in, db_session, member):
+    """The limiter is spent before the one-video rule refuses, which is the
+    order that matters: an upload that was read and encoded has cost the server
+    the work whether it was kept or not."""
+    workout = stored(db_session, member.id)
+    codes = [attach_video(signed_in, workout.id).status_code for _ in range(6)]
+    assert codes[0] == 201
+    assert codes[-1] == 429
+
+
+def test_the_video_endpoints_need_a_session(client):
+    assert client.post("/api/workouts/1/videos", files={"file": ("a.mp4", b"x")}).status_code == 401
+    assert client.get("/api/workouts/1/videos/1").status_code == 401
+    assert client.get("/api/workouts/1/videos/1/poster").status_code == 401
+    assert client.delete("/api/workouts/1/videos/1").status_code == 401

@@ -641,6 +641,7 @@ def test_the_recap_carries_chests_medals_and_miles_then_clears(signed_in, db_ses
         "title",
         "post",
         "photos",
+        "videos",
     }
     listed = recap["workouts"][0]
     assert (listed["activity"], listed["distance_mi"]) == ("run", 11.0)

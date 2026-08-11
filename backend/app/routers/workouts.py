@@ -17,14 +17,17 @@ from sqlalchemy.orm import Session
 # Straight from starlette: the multipart parser produces starlette's UploadFile,
 # and an isinstance check against fastapi's subclass would refuse every real
 # upload.
+from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile
 from starlette.formparsers import MultiPartException
 
 from app import activity as activity_rules
-from app import fellowship, images, medals, models, photos, security, throttle
+from app import fellowship, images, medals, models, photos, security, throttle, videos
 from app.config import (
+    MAX_MEDIA_PER_WORKOUT,
     MAX_PHOTO_BYTES,
-    MAX_PHOTOS_PER_WORKOUT,
+    MAX_VIDEO_BYTES,
+    MAX_VIDEOS_PER_WORKOUT,
     NOTE_MAX_CHARS,
     WORKOUT_POST_MAX_CHARS,
     WORKOUT_TITLE_MAX_CHARS,
@@ -43,9 +46,17 @@ PHOTO_TOO_LARGE = (
     "That photo is too large. "
     f"The limit is {MAX_PHOTO_BYTES // (1024 * 1024)} MB."
 )
-PHOTOS_FULL = f"A workout can hold {MAX_PHOTOS_PER_WORKOUT} photos."
+VIDEO_TOO_LARGE = (
+    "That video is too large. "
+    f"The limit is {MAX_VIDEO_BYTES // (1024 * 1024)} MB."
+)
+# One sentence for the shared cap, because a photo and a video fill the same
+# slot and being told about photos while adding a video would be a lie.
+MEDIA_FULL = f"A workout can hold {MAX_MEDIA_PER_WORKOUT} photos and videos."
+VIDEOS_FULL = "A workout can hold one video."
 NO_SUCH_WORKOUT = "No such workout."
 NO_SUCH_PHOTO = "No such photo."
+NO_SUCH_VIDEO = "No such video."
 
 
 def _serialize(
@@ -55,6 +66,7 @@ def _serialize(
     medal_ids: list[str] | None = None,
     has_route: bool = False,
     photo_ids: list[int] | None = None,
+    video_ids: list[int] | None = None,
 ) -> dict:
     """One row of your own history, in the shape the feed sends a workout in.
 
@@ -79,6 +91,7 @@ def _serialize(
             medal_ids or [],
             has_route,
             photo_ids or [],
+            video_ids or [],
             encouragement,
         ),
         "flags": workout.flags or {},
@@ -112,6 +125,44 @@ def photos_for(db: Session, workouts: list[models.Workout]) -> dict[int, list[in
     ):
         found.setdefault(workout_id, []).append(photo_id)
     return found
+
+
+def videos_for(db: Session, workouts: list[models.Workout]) -> dict[int, list[int]]:
+    """The video ids on each of these workouts, one query for the page.
+
+    A list rather than a single id even though a workout holds one video: it is
+    the photo shape, so the rows, the payloads, and the strip all count media
+    the same way, and the one-per-workout rule lives in the upload endpoint
+    where it can be read.
+    """
+    ids = [row.id for row in workouts]
+    if not ids:
+        return {}
+    found: dict[int, list[int]] = {}
+    for workout_id, video_id in db.execute(
+        select(models.WorkoutVideo.workout_id, models.WorkoutVideo.id)
+        .where(models.WorkoutVideo.workout_id.in_(ids))
+        .order_by(models.WorkoutVideo.id)
+    ):
+        found.setdefault(workout_id, []).append(video_id)
+    return found
+
+
+def _media_held(db: Session, workout_id: int) -> int:
+    """How many of the workout's media slots are already spent, photos and
+    videos together. Both tables, because the cap is one number over the two."""
+    return (
+        db.execute(
+            select(func.count())
+            .select_from(models.WorkoutPhoto)
+            .where(models.WorkoutPhoto.workout_id == workout_id)
+        ).scalar_one()
+        + db.execute(
+            select(func.count())
+            .select_from(models.WorkoutVideo)
+            .where(models.WorkoutVideo.workout_id == workout_id)
+        ).scalar_one()
+    )
 
 
 def parse_cursor(before: str) -> dt.datetime:
@@ -150,6 +201,7 @@ def list_workouts(
     earned = medals.medals_for(db, rows)
     routed = routes_for(db, rows)
     pictures = photos_for(db, rows)
+    clips = videos_for(db, rows)
     # One card for the whole page: every row here is this account's own.
     person = fellowship.people(db, {user.id})[user.id]
     given = fellowship.counts(db, [row.id for row in rows], user.id)
@@ -161,6 +213,7 @@ def list_workouts(
             earned.get(row.id),
             row.id in routed,
             pictures.get(row.id),
+            clips.get(row.id),
         )
         for row in rows
     ]
@@ -272,6 +325,7 @@ def update_workout(
         medals.medals_for(db, [workout]).get(workout.id),
         workout.id in routes_for(db, [workout]),
         photos_for(db, [workout]).get(workout.id),
+        videos_for(db, [workout]).get(workout.id),
     )
 
 
@@ -293,13 +347,8 @@ async def upload_photo(
             status.HTTP_429_TOO_MANY_REQUESTS, "Too many uploads just now. Wait a minute."
         )
     workout = _owned(db, workout_id, user.id)
-    held = db.execute(
-        select(func.count())
-        .select_from(models.WorkoutPhoto)
-        .where(models.WorkoutPhoto.workout_id == workout.id)
-    ).scalar_one()
-    if held >= MAX_PHOTOS_PER_WORKOUT:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, PHOTOS_FULL)
+    if _media_held(db, workout.id) >= MAX_MEDIA_PER_WORKOUT:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, MEDIA_FULL)
 
     # Content-Length is a claim, checked first to refuse the obvious case
     # cheaply; the parser below enforces the same cap on the actual bytes.
@@ -412,6 +461,192 @@ def read_photo(
             "X-Content-Type-Options": "nosniff",
         },
     )
+
+
+# How much of an upload is read at a time on its way to the disk. Big enough
+# that a hundred megabytes is not a hundred thousand calls, small enough that
+# the bytes in flight are never the size of the file.
+_UPLOAD_CHUNK = 1024 * 1024
+
+
+@router.post("/{workout_id}/videos", status_code=status.HTTP_201_CREATED)
+async def upload_video(
+    workout_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(security.current_user),
+) -> dict:
+    """Attach a short video to your own workout (app/videos.py stores it).
+
+    The photo endpoint's shape throughout, with the two differences the size of
+    the thing forces. The part is written straight to a file rather than read
+    into memory, because a hundred megabytes per request is a different
+    proposition from ten. And the re-encode happens here, inside the request,
+    which is what makes the answer honest: a minute of 720p is a couple of
+    seconds of work, and a job queue for that would be a system to run rather
+    than a feature to have.
+    """
+    if throttle.video_limiter.hit(throttle.client_address(request)):
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS, "Too many uploads just now. Wait a minute."
+        )
+    workout = _owned(db, workout_id, user.id)
+    holds = db.execute(
+        select(func.count())
+        .select_from(models.WorkoutVideo)
+        .where(models.WorkoutVideo.workout_id == workout.id)
+    ).scalar_one()
+    if holds >= MAX_VIDEOS_PER_WORKOUT:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, VIDEOS_FULL)
+    if _media_held(db, workout.id) >= MAX_MEDIA_PER_WORKOUT:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, MEDIA_FULL)
+
+    # Content-Length is a claim, checked first to refuse the obvious case
+    # cheaply; the parser below enforces the same cap on the actual bytes.
+    declared = request.headers.get("content-length")
+    if declared is not None and declared.isdigit() and int(declared) > MAX_VIDEO_BYTES:
+        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, VIDEO_TOO_LARGE)
+
+    try:
+        form = await request.form(max_files=1, max_fields=0, max_part_size=MAX_VIDEO_BYTES)
+    except MultiPartException:
+        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, VIDEO_TOO_LARGE) from None
+    try:
+        upload = form.get("file")
+        if not isinstance(upload, UploadFile):
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "No video was uploaded.")
+        with videos.workspace() as work:
+            source = os.path.join(work, "upload")
+            written = 0
+            with open(source, "wb") as out:
+                while chunk := await upload.read(_UPLOAD_CHUNK):
+                    written += len(chunk)
+                    out.write(chunk)
+            if written == 0:
+                raise HTTPException(status.HTTP_400_BAD_REQUEST, "No video was uploaded.")
+            # Probed and encoded before the row exists, so something this server
+            # will not store never burns an id.
+            #
+            # In a worker thread, not here. This request waits for the encode
+            # either way, which is the point; what it must not do is hold the
+            # event loop for the couple of seconds it takes, because that is
+            # every other request on the server waiting for one upload.
+            try:
+                seconds = await run_in_threadpool(videos.inspect, source)
+                encoded, poster = await run_in_threadpool(videos.encode, source, seconds)
+            except videos.RejectedVideo as exc:
+                raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from None
+    finally:
+        await form.close()
+
+    video = models.WorkoutVideo(workout_id=workout.id, created_at=security.now_utc())
+    db.add(video)
+    db.flush()
+    try:
+        videos.store(workout.id, video.id, encoded, poster)
+    except OSError:
+        # No row for a video that is not on the disk: an id in the list with
+        # nothing behind it is a broken card on every later read.
+        db.rollback()
+        raise
+    db.commit()
+    return {"id": video.id}
+
+
+@router.delete("/{workout_id}/videos/{video_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_video(
+    workout_id: int,
+    video_id: int,
+    response: Response,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(security.current_user),
+) -> Response:
+    """Take your own video back off a workout, poster and all."""
+    if throttle.delete_media_limiter.hit(throttle.user_key(user)):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many changes just now. Wait a minute.")
+    _owned(db, workout_id, user.id)
+    video = db.get(models.WorkoutVideo, video_id)
+    if video is None or video.workout_id != workout_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, NO_SUCH_VIDEO)
+    db.delete(video)
+    db.commit()
+    # After the row, and never a failure, for the reason a photo's file is
+    # removed after its row.
+    videos.remove(workout_id, video_id)
+    response.status_code = status.HTTP_204_NO_CONTENT
+    return response
+
+
+def _may_watch(db: Session, workout_id: int, video_id: int, user: models.User) -> None:
+    """The photo endpoint's reach, said once for the video and its poster.
+
+    Yours, and the people you have both agreed to. The same 404 answers a video
+    that does not exist, a stranger's, and one the disk has lost; nothing here
+    says which of the three it was.
+    """
+    owner_id = db.execute(
+        select(models.Workout.user_id)
+        .join(models.WorkoutVideo, models.WorkoutVideo.workout_id == models.Workout.id)
+        .where(
+            models.WorkoutVideo.id == video_id,
+            models.WorkoutVideo.workout_id == workout_id,
+        )
+    ).scalar_one_or_none()
+    if owner_id is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, NO_SUCH_VIDEO)
+    if owner_id != user.id and not fellowship.are_friends(db, user.id, owner_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, NO_SUCH_VIDEO)
+
+
+def _served(stored: str, media_type: str) -> FileResponse:
+    if not os.path.isfile(stored):
+        # The row says there is a file and the disk disagrees, which is what a
+        # lost or unmounted volume looks like. Handing that to FileResponse
+        # raises inside the response and answers 500.
+        raise HTTPException(status.HTTP_404_NOT_FOUND, NO_SUCH_VIDEO)
+    return FileResponse(
+        stored,
+        media_type=media_type,
+        headers={
+            # The photos' terms: private so a shared cache cannot hand one
+            # person's video to another request, and a year because a stored
+            # video is written once and replacing it means a new id.
+            "Cache-Control": "private, max-age=31536000, immutable",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+@router.get("/{workout_id}/videos/{video_id}")
+def read_video(
+    workout_id: int,
+    video_id: int,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(security.current_user),
+) -> FileResponse:
+    """One stored video, to its owner or to an accepted friend.
+
+    FileResponse answers a Range request with 206 and the bytes asked for, and
+    that is a requirement rather than a nicety: iOS Safari refuses to play a
+    video at all from a URL that answers a range request with the whole file,
+    and a phone is what this app is read on.
+    """
+    _may_watch(db, workout_id, video_id, user)
+    return _served(videos.path_for(workout_id, video_id), videos.MEDIA_TYPE)
+
+
+@router.get("/{workout_id}/videos/{video_id}/poster")
+def read_video_poster(
+    workout_id: int,
+    video_id: int,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(security.current_user),
+) -> FileResponse:
+    """The frame the strip shows before anybody presses play, gated exactly as
+    the video is: a poster is a picture of the video, so it cannot be the
+    looser of the two."""
+    _may_watch(db, workout_id, video_id, user)
+    return _served(videos.poster_path_for(workout_id, video_id), videos.POSTER_MEDIA_TYPE)
 
 
 class EncourageBody(BaseModel):

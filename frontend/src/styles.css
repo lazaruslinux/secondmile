@@ -1153,6 +1153,61 @@ button:disabled {
   object-fit: cover;
 }
 
+/* A video's slot is the same box as a photo's, with the poster inside it and a
+   play mark over the middle. The box is a button because pressing it does
+   something, so it is stripped back to the picture it holds. */
+.video-open {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+}
+
+.video-open img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.video-play {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+}
+
+.video-play .icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  /* A dark disc behind the mark, so it reads over a bright frame as well as a
+     dark one. Drawn here rather than into the file: the same icon is a line
+     drawing everywhere else. */
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 50%;
+}
+
+/* Playing takes the whole width of the strip rather than the one small square:
+   a clip watched at thumbnail size is not watched. */
+.video-playing {
+  flex: 1 0 100%;
+}
+
+.feed-video {
+  display: block;
+  width: 100%;
+  max-height: 70vh;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
 /* The owner's pencil, on the right of the card's own header. */
 .feed-edit {
   margin-left: auto;

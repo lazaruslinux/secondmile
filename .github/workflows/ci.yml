@@ -27,6 +27,10 @@ jobs:
             backend/requirements-dev.txt
       # Two installs: production deps are hash-locked, dev deps are not, and
       # pip refuses to mix hashed and unhashed requirements in one command.
+      # The video pipeline shells out to ffmpeg and ffprobe, so the test
+      # machine needs them exactly as the backend image does. The video cases
+      # build their own fixture clips with the same binaries.
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
       - run: pip install --require-hashes -r requirements.txt
       - run: pip install -r requirements-dev.txt
       - run: ruff check .

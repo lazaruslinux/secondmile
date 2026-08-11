@@ -237,6 +237,17 @@ def photo_dir(tmp_path, monkeypatch):
     return target
 
 
+@pytest.fixture(autouse=True)
+def video_dir(tmp_path, monkeypatch):
+    """And the videos, on the same terms. Autouse as well, because the encoder
+    writes its working copies here too: a case that uploaded one without this
+    would be writing a hundred megabytes into a mounted volume's default path.
+    """
+    target = tmp_path / "videos"
+    monkeypatch.setattr(config.settings, "video_dir", str(target))
+    return target
+
+
 def neutral_start() -> dt.datetime:
     """Half a day ago, snapped to mid-morning in the instance timezone.
 

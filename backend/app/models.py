@@ -239,6 +239,21 @@ class WorkoutPhoto(Base):
     created_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
 
 
+class WorkoutVideo(Base):
+    __tablename__ = "workout_videos"
+
+    # One row per stored video, on the photo table's terms. The files are
+    # <workout_id>-<id>.mp4 and <workout_id>-<id>.jpg under VIDEO_DIR, named
+    # from these two ids and never from the upload. No duration and no size
+    # column: neither is asked of a row anywhere, and the file is the truth
+    # about both.
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workout_id: Mapped[int] = mapped_column(
+        ForeignKey("workouts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    created_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
+
+
 class WorkoutRoute(Base):
     __tablename__ = "workout_routes"
 

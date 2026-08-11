@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from app import fellowship, medals, models, progress, security, throttle
 from app.db import get_db
-from app.routers.workouts import parse_cursor, photos_for, routes_for
+from app.routers.workouts import parse_cursor, photos_for, routes_for, videos_for
 
 router = APIRouter(tags=["fellowship"])
 
@@ -291,6 +291,7 @@ def read_feed(
     earned = medals.medals_for(db, rows)
     routed = routes_for(db, rows)
     pictures = photos_for(db, rows)
+    clips = videos_for(db, rows)
     people = fellowship.people(db, {row.user_id for row in rows})
     counts = fellowship.counts(db, [row.id for row in rows], user.id)
     # Asked of the owners on this page, not of the reader: what a row shows is
@@ -304,6 +305,7 @@ def read_feed(
             earned.get(row.id, []),
             row.id in routed,
             pictures.get(row.id, []),
+            clips.get(row.id, []),
             counts[row.id],
             kept_back.get(row.user_id, ()),
         )

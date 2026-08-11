@@ -18,7 +18,7 @@ from conftest import LETTER_KEYS, let_a_moment_pass, make_user, neutral_start
 
 # The photo upload helper, borrowed rather than written twice: what a friend
 # sees of a picture is tested here, and how one is stored is tested there.
-from test_workouts import attach
+from test_workouts import attach, attach_video
 
 # What a feed row carries for somebody else's workout when they have hidden
 # nothing, which is every account until it says otherwise. Asserted as a whole
@@ -36,11 +36,13 @@ FRIEND_ROW_KEYS = {
     "active_kcal",
     "medals",
     "has_route",
-    # The words and the pictures are on a friend's row in full: a post is
-    # something somebody chose to write, not something read off their body.
+    # The words, the pictures, and the video are on a friend's row in full: a
+    # post is something somebody chose to write, not something read off their
+    # body.
     "title",
     "post",
     "photos",
+    "videos",
     "source",
     "own",
     "encouragement",
@@ -1104,6 +1106,56 @@ def test_a_stranger_cannot_read_a_photo(signed_in, db_session, member, mate):
     assert signed_in.get(f"/api/workouts/{workout.id}/photos/{photo_id}").status_code == 404
 
 
+def test_a_friend_sees_the_video_and_can_play_it(signed_in, db_session, member, mate):
+    """A video crosses on the post's terms, exactly as a photograph does: it
+    was put there to be seen, and the ids on the row are what fetch it."""
+    other, theirs = mate
+    befriend(db_session, member, other)
+    workout = post_workout(db_session, other.id, miles=4.0)
+    video_id = attach_video(theirs, workout.id).json()["id"]
+
+    row = signed_in.get("/api/feed").json()[0]
+    assert row["videos"] == [video_id]
+
+    served = signed_in.get(f"/api/workouts/{workout.id}/videos/{video_id}")
+    assert served.status_code == 200
+    assert served.headers["content-type"] == "video/mp4"
+    # In ranges to a friend as much as to the owner, or their phone will not
+    # play it either.
+    part = signed_in.get(
+        f"/api/workouts/{workout.id}/videos/{video_id}", headers={"Range": "bytes=0-99"}
+    )
+    assert part.status_code == 206
+    poster = signed_in.get(f"/api/workouts/{workout.id}/videos/{video_id}/poster")
+    assert poster.status_code == 200
+
+
+def test_a_stranger_cannot_read_a_video(signed_in, db_session, member, mate):
+    """The photo endpoint's answer, word for word: no friendship, so the same
+    404 a video that does not exist gets, and a pending invite is not a
+    friendship. The poster is gated with it, because a poster is a picture of
+    the video."""
+    other, theirs = mate
+    workout = post_workout(db_session, other.id, miles=3.0)
+    video_id = attach_video(theirs, workout.id).json()["id"]
+
+    stranger = signed_in.get(f"/api/workouts/{workout.id}/videos/{video_id}")
+    assert stranger.status_code == 404
+    assert stranger.json() == {"detail": "No such video."}
+    poster = signed_in.get(f"/api/workouts/{workout.id}/videos/{video_id}/poster")
+    assert poster.status_code == 404
+    assert poster.json() == {"detail": "No such video."}
+    # A stranger asking for a range is answered the same way, not with a 206 of
+    # somebody else's video.
+    ranged = signed_in.get(
+        f"/api/workouts/{workout.id}/videos/{video_id}", headers={"Range": "bytes=0-99"}
+    )
+    assert ranged.status_code == 404
+
+    befriend(db_session, member, other, status="pending")
+    assert signed_in.get(f"/api/workouts/{workout.id}/videos/{video_id}").status_code == 404
+
+
 def test_a_friend_still_cannot_write_on_your_workout(signed_in, db_session, member, mate):
     other, theirs = mate
     befriend(db_session, member, other)
@@ -1112,12 +1164,15 @@ def test_a_friend_still_cannot_write_on_your_workout(signed_in, db_session, memb
         f"/api/workouts/{workout.id}", json={"title": "mine now"}
     ).status_code == 404
     assert attach(theirs, workout.id).status_code == 404
+    assert attach_video(theirs, workout.id).status_code == 404
 
 
-def test_the_photo_limiters_are_registered_for_the_reset():
+def test_the_media_limiters_are_registered_for_the_reset():
     from app import throttle
 
     names = {limiter.name for limiter in throttle._ALL_LIMITERS}
-    assert {"workout-edit", "photo"} <= names
+    assert {"workout-edit", "photo", "video"} <= names
     assert throttle.workout_edit_limiter.max_attempts == 30
     assert throttle.photo_limiter.max_attempts == 10
+    # Tighter than the photos', because every accepted call re-encodes.
+    assert throttle.video_limiter.max_attempts == 5

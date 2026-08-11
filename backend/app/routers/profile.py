@@ -21,7 +21,7 @@ from app.config import MAX_AVATAR_BYTES, MAX_DIAMOND_SPORTS, MAX_DISPLAYED_BADGE
 from app.db import get_db
 from app.models import ACTIVITIES
 from app.fellowship import feed_row
-from app.routers.workouts import photos_for, routes_for
+from app.routers.workouts import photos_for, routes_for, videos_for
 
 router = APIRouter(tags=["profile"])
 
@@ -501,6 +501,7 @@ def _friend_workouts(db: Session, user: models.User, viewer_id: int) -> list[dic
     earned = medals.medals_for(db, rows)
     routed = routes_for(db, rows)
     pictures = photos_for(db, rows)
+    clips = videos_for(db, rows)
     card = fellowship.people(db, [user.id])[user.id]
     encouragement = fellowship.counts(db, [row.id for row in rows], viewer_id)
     return [
@@ -513,6 +514,7 @@ def _friend_workouts(db: Session, user: models.User, viewer_id: int) -> list[dic
             earned.get(row.id, []),
             row.id in routed,
             pictures.get(row.id, []),
+            clips.get(row.id, []),
             encouragement[row.id],
             hidden,
         )

@@ -555,6 +555,38 @@ def test_the_account_columns_arrive_empty_and_disturb_nothing(migrated):
         assert row == ("runner", None, None, None, None, None)
 
 
+def test_the_video_table_arrives_empty_beside_the_photo_one(migrated):
+    """0019 is purely additive as well: a workout that existed before it keeps
+    working with nothing attached, and the photo table beside it is untouched.
+    """
+    engine, upgrade = migrated
+    with engine.connect() as connection:
+        _fill(connection)
+        _run(connection, 1, 1, "2026-07-01 06:00:00")
+        connection.commit()
+
+    upgrade()
+
+    with engine.connect() as connection:
+        tables = set(
+            connection.execute(
+                sa.text("SELECT name FROM sqlite_master WHERE type = 'table'")
+            ).scalars()
+        )
+        assert {"workout_photos", "workout_videos"} <= tables
+        assert connection.execute(
+            sa.text("SELECT COUNT(*) FROM workout_videos")
+        ).scalar_one() == 0
+        columns = {
+            row[1] for row in connection.execute(sa.text("PRAGMA table_info(workout_videos)"))
+        }
+        assert columns == {"id", "workout_id", "created_at"}
+        # The workout it hangs off is still exactly what it was.
+        assert connection.execute(
+            sa.text("SELECT distance_mi FROM workouts")
+        ).scalar_one() == 9.0
+
+
 def test_the_workout_words_and_photos_arrive_empty(migrated):
     """0011 is purely additive too: a workout that existed before it keeps
     working with both columns empty and no pictures on it."""

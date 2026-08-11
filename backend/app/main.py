@@ -11,6 +11,7 @@ from app.config import (
     MAX_BODY_BYTES,
     MAX_INGEST_BODY_BYTES,
     MAX_PHOTO_BODY_BYTES,
+    MAX_VIDEO_BODY_BYTES,
     check_deploy_config,
 )
 from app.routers import auth, chests, fellowship, grove, ingest, profile, settings, workouts
@@ -28,15 +29,18 @@ _BODY_CAPS = {"/api/ingest": MAX_INGEST_BODY_BYTES}
 def _cap_for(path: str) -> int:
     """Which body ceiling this path gets.
 
-    Photo uploads are matched by shape rather than looked up, because the path
-    carries a workout id in the middle of it. Nothing else lives under that
-    shape, and a path that only nearly matches gets the smaller default, which
-    is the safe way round to be wrong.
+    The two media uploads are matched by shape rather than looked up, because
+    the path carries a workout id in the middle of it. Nothing else lives under
+    those shapes, and a path that only nearly matches gets the smaller default,
+    which is the safe way round to be wrong.
     """
     if path in _BODY_CAPS:
         return _BODY_CAPS[path]
-    if path.startswith("/api/workouts/") and path.endswith("/photos"):
-        return MAX_PHOTO_BODY_BYTES
+    if path.startswith("/api/workouts/"):
+        if path.endswith("/photos"):
+            return MAX_PHOTO_BODY_BYTES
+        if path.endswith("/videos"):
+            return MAX_VIDEO_BODY_BYTES
     return MAX_BODY_BYTES
 
 
