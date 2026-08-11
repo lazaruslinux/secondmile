@@ -65,6 +65,12 @@ export function gildArt(): string | null {
   return grove.get('gild') ?? null
 }
 
+// The soil the band on a profile stands its plot on. One file for the whole
+// strip, stretched to the width of the band.
+export function groundArt(): string | null {
+  return grove.get('ground') ?? null
+}
+
 // Everything on the inventory grid that is not a plant: water, oil, the
 // unmarked seed, and an unopened chest. Each reads one file named after its
 // kind, and a kind with no file of its own draws nothing.

@@ -18,10 +18,11 @@ whole of what a commission would cover.
 | Flourishes | 3 | The growth earned by encouraging people, `f1` to `f3` | Over the border, on every avatar |
 | Interface icons | 9 | Tab bar, cheer, gear, pencil, sport diamond, chest ladder marker | Chrome, everywhere |
 | Plants | 39 | Thirteen species at three growth stages each | The plot, and the reveal when a seed is found |
+| Ground | 1 | The strip of soil a grove stands on, `ground` | The floor of the band across the top of both profiles |
 | Loose pieces | 5 | Chest, gilding overlay, oil, water, unmarked seed | Inventory squares, chest reveals, finished plants |
 | Landing hero | 1 | The four sports in four strips, `landing-hero` | The top of the landing page |
 
-Seventy-four files in total, all under `frontend/src/assets/`.
+Seventy-five files in total, all under `frontend/src/assets/`.
 
 There are two chest drawings on purpose. `grove/chest.svg` is a picture loaded
 by URL with its own colours, used for an inventory square. `icons/chest.svg` is
@@ -344,7 +345,8 @@ missing file costs a picture rather than a screen.
 - **Draw them standing on the same floor.** Every plant is bottom aligned
   wherever it appears, so leave no empty space under it and keep the ground at
   the same height in all thirty nine files. The placeholder art puts it at 58
-  in a 64 by 64 viewBox.
+  in a 64 by 64 viewBox, and the band across the top of a profile stands the
+  whole row on that line: see the ground below.
 - **Scale is the story.** The three stages are read side by side down the plot
   and along the band on the profile, and a grown olive tree standing next to a
   seedling is how growth shows. Make each stage plainly bigger than the last,
@@ -355,6 +357,29 @@ missing file costs a picture rather than a screen.
 - **Distinct at a glance.** Thirteen species share one plot, so shape carries
   more than colour: a vine on a wire, an arching bramble, a flat olive crown, a
   round pomegranate crown, banana paddles, a date palm's bare trunk and fronds.
+
+### The ground
+
+`frontend/src/assets/grove/ground.svg`
+
+One strip of soil, drawn along the floor of the band across the top of both
+profiles, with the whole plot standing on its top edge. Only the band reads it:
+the plot on the Grove screen and the row in the Home rail draw their plants
+without it.
+
+The strip is stretched to the width of the band, which is a phone's screen at
+one end and most of a desktop window at the other, so draw it low and wide and
+keep what is in it horizontal. A speck of texture becomes a smear four times its
+width on the wide end; a layer or a seam does not. An SVG has to carry
+`preserveAspectRatio="none"` to stretch at all, and without it the drawing is
+fitted to the height and left floating in the middle of the strip. A `.png` or a
+`.webp` stretches on its own.
+
+Every plant in the band is dropped by a seventh of its height, which puts the
+ground line each drawing carries at 58 just under the soil's top edge and is
+what makes the row share one floor. So the top of the strip has to be solid
+across its whole width: a feathered or broken edge lets those lines show through
+and the plants go back to floating on dashes of their own.
 
 ### The gild
 

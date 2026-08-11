@@ -25,6 +25,7 @@ import {
   ownedMedalIds,
 } from '../profile.ts'
 import AvatarFrame from './AvatarFrame.tsx'
+import BandGrove from './BandGrove.tsx'
 import ChestBar from './ChestBar.tsx'
 import ChestItem from './ChestItem.tsx'
 import EditProfile from './EditProfile.tsx'
@@ -33,7 +34,6 @@ import Icon from './Icon.tsx'
 import ItemTallies from './ItemTallies.tsx'
 import MedalNest, { MAX_MEDAL_SLOTS } from './MedalNest.tsx'
 import Medals, { MedalMark } from './Medals.tsx'
-import PlantArt from './PlantArt.tsx'
 import ProfileCounts from './ProfileCounts.tsx'
 import SportChips from './SportChips.tsx'
 import Stats from './Stats.tsx'
@@ -229,29 +229,20 @@ export default function Profile({
       )}
 
       {/* The band across the top is where the grove lives. Everything in it
-          stands on the band's floor at the size it has reached; nothing here is
-          pressable, and the plot itself is tended, planted, and watered on the
-          Grove screen. */}
+          stands on the strip of soil along the band's floor at the size it has
+          reached; nothing here is pressable, and the plot itself is tended,
+          planted, and watered on the Grove screen. */}
       <div className="you-banner">
-        <div className="you-band">
-          {plantings.length > 0 && (
-            <ul className="band-grove">
-              {plantings.map((row) => (
-                <li
-                  key={row.id}
-                  className={row.mature ? 'band-plant band-plant-grown' : 'band-plant'}
-                >
-                  <PlantArt
-                    species={row.species}
-                    name={plantingName(row)}
-                    stage={plantStage(row)}
-                    gilded={row.gilded}
-                  />
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        <BandGrove
+          plants={plantings.map((row) => ({
+            id: row.id,
+            species: row.species,
+            name: plantingName(row),
+            stage: plantStage(row),
+            mature: row.mature,
+            gilded: row.gilded,
+          }))}
+        />
         <div className="you-ident">
           <div className="avatar-block">
             <AvatarFrame

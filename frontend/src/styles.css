@@ -1485,7 +1485,13 @@ button:disabled {
 }
 
 .you-band {
+  /* How deep the soil along the floor is, read by the strip itself and by the
+     row of plants standing on its top edge. */
+  --soil: 0.9rem;
+
+  position: relative;
   height: 100px;
+  overflow: hidden;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -1500,8 +1506,13 @@ button:disabled {
   padding: 0 0.5rem;
 }
 
+/* The margin is the whole of what keeps the name, the level, and the bio out of
+   the band: the block is bottom aligned, so a long bio would otherwise climb up
+   behind the grove. Held to the distance the pair overlaps, it grows downward
+   instead and the band stays the grove's. */
 .you-ident-text {
   min-width: 0;
+  margin-top: 3.5rem;
   padding-bottom: 0.4rem;
 }
 
@@ -1512,9 +1523,12 @@ button:disabled {
 }
 
 /* The picture, its frame, and the medals nestled under it. The block leaves
-   room below for the half of a medal that hangs off the frame. */
+   room below for the half of a medal that hangs off the frame, and stays at the
+   top of the row: a bio long enough to make the row taller would otherwise
+   carry the picture down off the band it rides over. */
 .avatar-block {
   position: relative;
+  align-self: flex-start;
   flex: 0 0 auto;
   padding: 0 0 1.6rem;
 }
@@ -3336,9 +3350,22 @@ button:disabled {
   font-size: 0.95rem;
 }
 
-/* The grove in the band across the top of You. It stands along the band's
-   floor to the right of the picture, small, and is not pressable: the plot is
-   worked on the Grove screen. */
+/* The grove in the band across the top of You. It stands on the soil along the
+   band's floor to the right of the picture, small, and is not pressable: the
+   plot is worked on the Grove screen. */
+
+/* The soil: one strip the whole row stands on, in place of the ground line each
+   drawing carries. It runs the full width and passes behind the picture, which
+   rides over the band's lower edge. */
+.band-ground {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  /* A width, not a right edge: a picture given both keeps its own width and
+     stops short of one of them. */
+  width: 100%;
+  height: var(--soil);
+}
 
 .band-grove {
   display: flex;
@@ -3346,16 +3373,44 @@ button:disabled {
   justify-content: flex-end;
   gap: 0.35rem;
   height: 100%;
-  margin: 0;
-  padding: 0 0.75rem;
+  /* Clear of the picture, which rides up over the band's lower edge from the
+     left: nothing grows behind it, or behind the name and bio below it. A
+     margin rather than padding, so a plot too big for the band is clipped at
+     that edge instead of showing through underneath the picture. */
+  margin: 0 0 0 9rem;
+  /* Standing on the soil's top edge rather than on the floor of the band. */
+  padding: 0 0.75rem var(--soil) 0;
   overflow: hidden;
   list-style: none;
+  /* The clipped edge fades rather than slicing a plant down the middle. */
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 1.5rem);
+  mask-image: linear-gradient(to right, transparent, #000 1.5rem);
 }
 
 .band-plant {
   display: flex;
   align-items: flex-end;
   height: 2.25rem;
+}
+
+/* One slot per plant, whatever is in it, so the row is evenly spaced rather
+   than paced by how wide each drawing happens to be. The widest grown pictures
+   are wider than the slot, and the ink inside them is not, so they lean into
+   the gap without touching. */
+.band-grove .band-plant {
+  flex: 0 0 2.5rem;
+  justify-content: center;
+  /* Each drawing carries its own ground line a tenth of the way up the picture
+     (58 in a 64 viewBox). Dropping every plant by a seventh of its height sinks
+     that line just under the soil, so the row shares one floor instead of each
+     plant floating on a dash of its own. */
+  transform: translateY(14%);
+}
+
+/* Never squeezed into the slot: the picture keeps its shape and any extra width
+   falls in the gap. */
+.band-grove .plant-art {
+  flex: 0 0 auto;
 }
 
 .band-plant .plant-art {
@@ -3592,14 +3647,20 @@ button:disabled {
   }
 
   /* The band is taller where there is height to spare, and what grows in it
-     takes the extra height with it. */
+     takes the extra height with it. The soil deepens with it. */
   .you-band {
+    --soil: 1.15rem;
+
     height: 140px;
   }
 
   .band-grove {
     gap: 0.6rem;
-    padding: 0 1.25rem;
+    padding: 0 1.25rem var(--soil) 0;
+  }
+
+  .band-grove .band-plant {
+    flex-basis: 3.4rem;
   }
 
   .band-plant {
@@ -3612,6 +3673,12 @@ button:disabled {
 
   .you-ident {
     margin-top: -4.5rem;
+  }
+
+  /* The pair overlaps by more here, so the identity block is held down by more
+     to keep out of the band. */
+  .you-ident-text {
+    margin-top: 4.5rem;
   }
 
   .you {

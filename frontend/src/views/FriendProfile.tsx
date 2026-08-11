@@ -30,6 +30,7 @@ import {
 import { ownedMedalIds } from '../profile.ts'
 import { pileItems, type Stack } from '../satchel.ts'
 import AvatarFrame from './AvatarFrame.tsx'
+import BandGrove from './BandGrove.tsx'
 import FeedCard from './FeedCard.tsx'
 import Icon from './Icon.tsx'
 import ItemPicker from './ItemPicker.tsx'
@@ -336,32 +337,23 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
       {head}
 
       {/* The band across the top, exactly as the You screen draws one: their
-          plot stands along its floor and their picture rides up over its lower
-          edge. It stays decoration and stays unpressable. These are silhouettes
-          two thirds of an inch tall with no names on them and no room for any,
-          and spending something out of the satchel should not begin with a tap
-          on a picture that small. The plot below is where it begins, drawn full
-          size with a name under every plant. */}
+          plot stands on the soil along its floor and their picture rides up
+          over its lower edge. It stays decoration and stays unpressable. These
+          are silhouettes two thirds of an inch tall with no names on them and
+          no room for any, and spending something out of the satchel should not
+          begin with a tap on a picture that small. The plot below is where it
+          begins, drawn full size with a name under every plant. */}
       <div className="you-banner">
-        <div className="you-band">
-          {plot.length > 0 && (
-            <ul className="band-grove">
-              {plot.map((row) => (
-                <li
-                  key={row.id}
-                  className={row.mature ? 'band-plant band-plant-grown' : 'band-plant'}
-                >
-                  <PlantArt
-                    species={row.species}
-                    name={plantingName(row)}
-                    stage={friendStage(row)}
-                    gilded={row.gilded}
-                  />
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        <BandGrove
+          plants={plot.map((row) => ({
+            id: row.id,
+            species: row.species,
+            name: plantingName(row),
+            stage: friendStage(row),
+            mature: row.mature === true,
+            gilded: row.gilded === true,
+          }))}
+        />
         <div className="you-ident">
           <div className="avatar-block">
             <AvatarFrame
