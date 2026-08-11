@@ -319,16 +319,25 @@ function MediaStrip({
           <li key={`v${videoId}`} className="video-playing">
             {/* No caption track: a clip off somebody's phone has none to
                 offer, and inventing one would be putting words in their
-                mouth. The player's own controls carry everything else. */}
+                mouth. The player's own controls carry everything else.
+                nodownload takes the save button off those controls; the
+                bytes still arrive, because they have to for it to play. */}
             <video
               className="feed-video"
               controls
+              controlsList="nodownload"
               autoPlay
               playsInline
               preload="metadata"
               poster={workoutVideoPosterUrl(workoutId, videoId)}
               src={workoutVideoUrl(workoutId, videoId)}
             />
+            {/* Under the player, in the strip's own small-button shape, rather
+                than floating over the frame where the native controls live.
+                Unmounting the video is what stops the sound. */}
+            <button type="button" className="video-close" onClick={() => setPlaying(null)}>
+              Close video
+            </button>
           </li>
         ) : (
           <li key={`v${videoId}`} className="photo-thumb">

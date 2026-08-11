@@ -138,6 +138,11 @@ body {
   margin: 0;
   font-size: 1rem;
   background: var(--bg);
+  /* The page never scrolls sideways; only a media strip does, and each of
+     those is its own overflow-x: auto box, so none of them is affected. clip
+     rather than hidden so the vertical axis stays plainly visible and nothing
+     here becomes a scroll container. */
+  overflow-x: clip;
 }
 
 h1,
@@ -1197,15 +1202,26 @@ button:disabled {
    a clip watched at thumbnail size is not watched. */
 .video-playing {
   flex: 1 0 100%;
+  /* A flex item's floor is its content, and a video's content has an intrinsic
+     width of its own. Without this the clip can push the row wider than the
+     card on Safari. */
+  min-width: 0;
 }
 
 .feed-video {
   display: block;
   width: 100%;
+  max-width: 100%;
   max-height: 70vh;
   background: var(--bg);
   border: 1px solid var(--line);
   border-radius: var(--radius);
+}
+
+/* Wears the small outlined shape the edit panel's Remove does, set with it
+   further down; only the room under the player belongs here. */
+.video-close {
+  margin-top: 0.3rem;
 }
 
 /* The owner's pencil, on the right of the card's own header. */
@@ -1284,7 +1300,8 @@ button:disabled {
   align-items: center;
 }
 
-.photo-remove {
+.photo-remove,
+.video-close {
   min-height: 0;
   padding: 0.15rem 0.4rem;
   background: transparent;
