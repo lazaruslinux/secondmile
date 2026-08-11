@@ -1247,10 +1247,31 @@ button:disabled {
   color: inherit;
 }
 
-.route-map svg {
+.route-map svg,
+.route-thumb {
   display: block;
   width: 100%;
   height: 100%;
+}
+
+/* The map, once it has been drawn: the same band the line had, filled rather
+   than fitted, because a picture with bars down the sides of it is worse than
+   a few metres cropped off the ends. */
+.route-thumb {
+  object-fit: cover;
+}
+
+/* Where the pictures are taken. One map, the size of the band it draws for,
+   parked above the top of the window: off screen, but still painted, which is
+   what the capture needs. Nothing here is for reading. */
+.route-shot {
+  position: fixed;
+  bottom: 100%;
+  left: 0;
+  width: 600px;
+  height: 240px;
+  pointer-events: none;
+  z-index: -1;
 }
 
 .route-line {
@@ -2469,12 +2490,16 @@ button:disabled {
   min-height: 0;
 }
 
-/* Said once, quietly, when there is no archive to draw: the line is still the
-   line, and a reader should know why there is nothing behind it. */
-.route-missing {
-  margin: 0;
+/* Said quietly under the map: that the ends of the route are not the ends of
+   the workout, and, when there is no archive to draw, why there is nothing
+   behind the line. Either line reads alone and both read together. */
+.route-note {
   padding: 0.5rem 1rem;
   border-top: 1px solid var(--line);
+}
+
+.route-note p {
+  margin: 0;
 }
 
 /* The letter itself, which is the part that gives way between the head and the
