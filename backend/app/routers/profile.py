@@ -183,6 +183,9 @@ def serialize_profile(db: Session, user: models.User, row: models.UserProgress) 
         # How much is in the plot and how much of it is grown. Not a
         # collection: there is no total to fill, only what somebody planted.
         "grove": grove.summary(db, user.id),
+        # Oil and water, spent and arrived. Counts only, the same four on the
+        # friend payload: a tally of giving, not a record of it.
+        "item_tallies": grove.item_tallies(db, user.id),
         # Which chest is coming and how far off it is, so the banner can say
         # so without asking a second endpoint, and whose oil is on it.
         "next_chest": progress.next_chest(row, gifts),
@@ -570,6 +573,10 @@ def serialize_friend_profile(db: Session, user: models.User, viewer_id: int) -> 
         # the same screen already calls, and serving it twice would mean two
         # places to remember when what a friend sees of a garden changes.
         "grove": grove.summary(db, user.id),
+        # The same four counts the You screen carries. Aggregates with nobody
+        # named in them, and the oil column only moves once a gift has landed,
+        # so this says how much somebody gives without telling anybody who.
+        "item_tallies": grove.item_tallies(db, user.id),
         # The same two cards the You screen carries, in the same shape, so the
         # sport chips and the tables are drawn from one payload rather than
         # worked out twice. The calories come out of both where they are

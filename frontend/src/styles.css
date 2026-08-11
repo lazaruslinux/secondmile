@@ -3334,6 +3334,23 @@ button:disabled {
   list-style: none;
 }
 
+/* The two figures under the row: how many of the twelve have been found and
+   what every plant's level comes to. The same value-over-label pair the profile
+   counts use, side by side in a narrow card. */
+.grove-figures {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.grove-figures li {
+  display: flex;
+  flex-direction: column;
+}
+
 /* A friend's profile. It borrows the You screen's band, picture, name and
    counts whole, so the only thing written here is the verbs underneath them and
    the column their activities stand in. */
@@ -3519,6 +3536,13 @@ button:disabled {
   /* The streak has a home inside the summary card here, so the phone's copy of
      it stands down and the rail shows the medals and the challenge instead. */
   .home-streak {
+    display: none;
+  }
+
+  /* Three columns name the middle one by shape, so the heading over it stands
+     down too. On a phone there is one column and the label is what says which
+     of the things on it the cards below are. */
+  .home-feed-label {
     display: none;
   }
 

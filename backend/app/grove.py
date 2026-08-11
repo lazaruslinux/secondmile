@@ -11,11 +11,16 @@ growth and never touches the rows themselves.
 
 import datetime as dt
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app import models, species
 from app.config import SWIM_GROWTH_BONUS, WATER_POUR_MI
+
+# The two items one person can spend on another. Seeds are not here: a seed is
+# planted in your own plot and never crosses a fence, so it has no other side to
+# count.
+GIVEN_KINDS = ("oil", "water")
 
 # Three drawings per species: a seedling, something growing, and the grown
 # thing. The first third of the way to level one is the seedling; from level one
@@ -370,4 +375,54 @@ def summary(db: Session, user_id: int) -> dict:
         "plant_levels": sum(
             level_for(species_id, growth_mi) for species_id, growth_mi in rows
         ),
+    }
+
+
+def item_tallies(db: Session, user_id: int) -> dict:
+    """How much oil and water an account has spent, and how much of it arrived.
+
+    Counts and nothing else: no names and no dates. A tally says how much giving
+    has passed through an account without saying who did any of it or when, so
+    it can sit on a friend's screen as readily as on your own.
+
+    Used is a spent item of that kind, whoever it was spent on: water poured
+    into your own plot is water used. Received is the other side of a gift and
+    so is never your own doing. Water is read off the item itself, which records
+    whose plot it went into; oil is read off the anointings it made, and only
+    those that have already landed on a chest. A gift still waiting says nothing
+    anywhere until then, which is the whole of the oil rule, and a number that
+    moved the moment it was given would be the announcement oil never makes.
+    """
+    used = dict(
+        db.execute(
+            select(models.SatchelItem.kind, func.count())
+            .where(
+                models.SatchelItem.user_id == user_id,
+                models.SatchelItem.kind.in_(GIVEN_KINDS),
+                models.SatchelItem.used_at.is_not(None),
+            )
+            .group_by(models.SatchelItem.kind)
+        ).all()
+    )
+    water_received = db.execute(
+        select(func.count())
+        .select_from(models.SatchelItem)
+        .where(
+            models.SatchelItem.kind == "water",
+            # Only ever set when the plot belonged to somebody else, so this
+            # never counts a pour into your own ground as a gift to yourself.
+            models.SatchelItem.given_to_user_id == user_id,
+        )
+    ).scalar_one()
+    oil_received = db.execute(
+        select(func.count())
+        .select_from(models.Anointing)
+        .where(
+            models.Anointing.to_user_id == user_id,
+            models.Anointing.consumed_at.is_not(None),
+        )
+    ).scalar_one()
+    return {
+        "oil": {"used": used.get("oil", 0), "received": oil_received},
+        "water": {"used": used.get("water", 0), "received": water_received},
     }

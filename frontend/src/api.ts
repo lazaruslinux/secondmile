@@ -239,6 +239,20 @@ export interface ProfileDetails {
   bio: string | null
 }
 
+// How much of one item an account has spent and how much of it was spent on
+// them. Counts only: the server sends no names and no dates with these.
+export interface ItemTally {
+  used?: number
+  received?: number
+}
+
+// The two items that can be given away. Seeds stay out: a seed is planted in
+// your own plot and never crosses a fence.
+export interface ItemTallies {
+  oil?: ItemTally
+  water?: ItemTally
+}
+
 export interface Profile {
   user_id: number
   username: string
@@ -297,6 +311,8 @@ export interface Profile {
   // plant added up. Optional so the app still renders against a server that
   // predates the grove.
   grove?: { seeds_found: number; plant_levels: number }
+  // Oil and water, spent and arrived. Optional like the grove above it.
+  item_tallies?: ItemTallies
   // The next chest and how far off it is, if the server says. Both shapes a
   // server might reasonably use are allowed for, and the bar is left out
   // entirely when neither is there.
@@ -350,6 +366,9 @@ export interface FriendProfile {
   medals?: Medal[]
   // The summary only. The plot itself comes from the grove endpoint.
   grove?: { seeds_found?: number; plant_levels?: number }
+  // The same four counts the You screen carries. Nobody is named in them, so
+  // they cross the fence whole.
+  item_tallies?: ItemTallies
   // The same two sets of totals the You screen carries, in the same shape, so
   // the sport chips and the two cards are drawn by the same components. A
   // calorie figure is missing from these where they have hidden it.

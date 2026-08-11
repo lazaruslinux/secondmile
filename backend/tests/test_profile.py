@@ -5,7 +5,7 @@ import io
 from zoneinfo import ZoneInfo
 
 import pytest
-from conftest import give_planting, log_workout, neutral_start
+from conftest import give_item, give_planting, log_workout, neutral_start
 from PIL import Image
 
 from app import activity as activity_rules
@@ -67,6 +67,11 @@ def test_a_fresh_profile_reports_the_whole_shape(signed_in, member):
     assert body["lifetime"] == {}
     # Nothing found and nothing growing: the plot is not a collection.
     assert body["grove"] == {"seeds_found": 0, "plant_levels": 0}
+    # Nothing given and nothing received, which is where every account starts.
+    assert body["item_tallies"] == {
+        "oil": {"used": 0, "received": 0},
+        "water": {"used": 0, "received": 0},
+    }
     assert body["next_chest"] == {
         "tier": "5K",
         "tier_id": "5k",
@@ -763,6 +768,7 @@ FRIEND_PROFILE_KEYS = {
     "miles",
     "medals",
     "grove",
+    "item_tallies",
     "week",
     "lifetime",
     "recent_photos",
@@ -991,6 +997,8 @@ def test_a_friend_profile_mirrors_the_you_screen(signed_in, db_session, friend):
     assert body["miles"] == 5.0
     assert body["grove"] == mine["grove"]
     assert len(body["medals"]) == len(mine["medals"])
+    # The items grid, the same four numbers under the same names.
+    assert body["item_tallies"] == mine["item_tallies"]
     # The sport chips and the two cards read these, and a sport nobody has done
     # is a missing key on both screens rather than a zero row.
     assert body["week"] == mine["week"]
@@ -998,6 +1006,102 @@ def test_a_friend_profile_mirrors_the_you_screen(signed_in, db_session, friend):
     assert body["lifetime"]["run"]["distance_mi"] == 4.0
     assert body["lifetime"]["swim"]["distance_mi"] == 1.0
     assert "cycle" not in body["lifetime"]
+
+
+# --------------------------------------------------------------------------
+# The items grid
+# --------------------------------------------------------------------------
+
+
+def test_the_item_tallies_count_what_was_spent_and_what_arrived(
+    signed_in, db_session, member, friend
+):
+    """Both kinds, both directions, driven through the endpoints that spend
+    them: what a tally counts is what the verbs actually did."""
+    other, other_client = friend
+    mine = give_planting(db_session, member.id, "strawberry")
+    theirs = give_planting(db_session, other.id, "raspberry")
+
+    # Water into their plot, water into my own, and water back from them. Only
+    # the first two are mine to have used, and only the last was given to me.
+    first = give_item(db_session, member.id, "water")
+    second = give_item(db_session, member.id, "water")
+    back = give_item(db_session, other.id, "water")
+    assert (
+        signed_in.post(f"/api/satchel/{first.id}/pour", json={"planting_id": theirs.id}).status_code
+        == 200
+    )
+    assert (
+        signed_in.post(f"/api/satchel/{second.id}/pour", json={"planting_id": mine.id}).status_code
+        == 200
+    )
+    assert (
+        other_client.post(
+            f"/api/satchel/{back.id}/pour", json={"planting_id": mine.id}
+        ).status_code
+        == 200
+    )
+
+    # Oil each way. Theirs lands on a chest my own miles bring; mine is still
+    # waiting on a mile they have not run.
+    given = give_item(db_session, member.id, "oil", rarity="rare")
+    sent = give_item(db_session, other.id, "oil", rarity="rare")
+    assert (
+        signed_in.post(f"/api/satchel/{given.id}/anoint", json={"user_id": other.id}).status_code
+        == 204
+    )
+    assert (
+        other_client.post(f"/api/satchel/{sent.id}/anoint", json={"user_id": member.id}).status_code
+        == 204
+    )
+    log_workout(db_session, member.id, "run", 4.0)
+
+    body = signed_in.get("/api/profile").json()
+    assert body["item_tallies"] == {
+        "oil": {"used": 1, "received": 1},
+        "water": {"used": 2, "received": 1},
+    }
+    # Their side of the same four acts, read from their own screen.
+    assert other_client.get("/api/profile").json()["item_tallies"] == {
+        # The gift they were given has not landed on a chest yet, so their
+        # screen says nothing about it. It is not a count until it arrives.
+        "oil": {"used": 1, "received": 0},
+        "water": {"used": 1, "received": 1},
+    }
+
+
+def test_a_friend_reads_the_same_item_tallies_the_owner_does(
+    signed_in, db_session, member, friend
+):
+    """The grid is on both screens and says the same thing on each: aggregates
+    with nobody named in them, so there is nothing here to keep back."""
+    other, other_client = friend
+    theirs = give_planting(db_session, other.id, "raspberry")
+    water = give_item(db_session, member.id, "water")
+    assert (
+        signed_in.post(f"/api/satchel/{water.id}/pour", json={"planting_id": theirs.id}).status_code
+        == 200
+    )
+
+    theirs_own = other_client.get("/api/profile").json()["item_tallies"]
+    seen = signed_in.get(f"/api/profile/{other.id}").json()["item_tallies"]
+    assert seen == theirs_own
+    assert seen == {
+        "oil": {"used": 0, "received": 0},
+        "water": {"used": 0, "received": 1},
+    }
+
+
+def test_an_account_that_has_spent_nothing_tallies_nought_on_both_screens(
+    signed_in, db_session, friend
+):
+    other, _other_client = friend
+    # Held rather than spent: an item in the satchel is not a thing anybody did.
+    give_item(db_session, other.id, "water")
+    give_item(db_session, other.id, "oil", rarity="rare")
+    empty = {"oil": {"used": 0, "received": 0}, "water": {"used": 0, "received": 0}}
+    assert signed_in.get("/api/profile").json()["item_tallies"] == empty
+    assert signed_in.get(f"/api/profile/{other.id}").json()["item_tallies"] == empty
 
 
 def test_hidden_calories_are_absent_from_every_total_a_friend_reads(

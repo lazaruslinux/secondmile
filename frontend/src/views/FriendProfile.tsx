@@ -33,6 +33,7 @@ import AvatarFrame from './AvatarFrame.tsx'
 import FeedCard from './FeedCard.tsx'
 import Icon from './Icon.tsx'
 import ItemPicker from './ItemPicker.tsx'
+import ItemTallies from './ItemTallies.tsx'
 import MedalNest from './MedalNest.tsx'
 import Medals from './Medals.tsx'
 import PlantArt from './PlantArt.tsx'
@@ -138,8 +139,9 @@ interface Props {
 
 // One friend, reached by a deliberate tap on their picture, their name, or
 // their row in the friends list. It reads as the You screen does: the same
-// banner, the same level and meter, the same four counts, the same sport chips
-// and the same two tables, plus the pictures off their recent workouts.
+// banner, the same level and meter, the same four counts, the same sport chips,
+// the same two tables and the same items grid, plus the pictures off their
+// recent workouts.
 //
 // What is not here is deliberate. No chests and no ladder, no pending gifts, no
 // medal picker, no sport picker and no pencil: those are the game and the
@@ -554,6 +556,14 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
       <section className="card">
         <h2>Lifetime</h2>
         <Stats stats={lifetime} units={units} empty="Nothing recorded yet." />
+      </section>
+
+      {/* The same card in the same place the You screen keeps it: under the two
+          tables. Counts with nobody named in them, which is why this one of the
+          game's cards is on a screen the rest of the game stays off. */}
+      <section className="card">
+        <h2>Items</h2>
+        <ItemTallies tallies={profile.item_tallies} />
       </section>
 
       <Medals medals={medals} />

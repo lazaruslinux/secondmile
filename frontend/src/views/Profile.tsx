@@ -30,6 +30,7 @@ import ChestItem from './ChestItem.tsx'
 import EditProfile from './EditProfile.tsx'
 import Fellowship from './Fellowship.tsx'
 import Icon from './Icon.tsx'
+import ItemTallies from './ItemTallies.tsx'
 import MedalNest, { MAX_MEDAL_SLOTS } from './MedalNest.tsx'
 import Medals, { MedalMark } from './Medals.tsx'
 import PlantArt from './PlantArt.tsx'
@@ -429,6 +430,14 @@ export default function Profile({
               units={units}
               empty="Nothing recorded yet. Your next sync fills this in."
             />
+          </section>
+
+          {/* What the satchel has been spent on and what has come the other
+              way. It sits under the two tables and over the chests the items
+              came out of, which is the order the things themselves happen in. */}
+          <section className="card">
+            <h2>Items</h2>
+            <ItemTallies tallies={profile.item_tallies} />
           </section>
 
           <section className="card">

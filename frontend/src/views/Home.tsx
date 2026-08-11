@@ -26,6 +26,7 @@ import {
   lifetimeWorkouts,
   medalCountsOf,
   nextWeeklyTarget,
+  SEEDS_TO_FIND,
   starsFor,
   weekTotals,
 } from '../profile.ts'
@@ -193,19 +194,26 @@ function Challenge({ distance, counts }: { distance: number; counts: Map<string,
   )
 }
 
-// The plot in miniature: the band's row of plants, a plain count off the mature
-// flag, and the way through to where they are tended. Shown only in the wide
-// rail; the phone reaches the grove from its tab bar, so this is never folded in
-// below like the two cards above it.
+// The plot in miniature: the band's row of plants, the two figures the You
+// screen counts it by, and the way through to where they are tended. Shown only
+// in the wide rail; the phone reaches the grove from its tab bar, so this is
+// never folded in below like the two cards above it.
+//
+// The figures come from the profile the rail is already drawn from rather than
+// from the rows beside them. The seeds found are the server's count, which
+// leaves the one species nobody found out of it, and counting the plot here
+// would put it back in.
 function GrovePreview({
   plantings,
+  seeds,
+  plantLevels,
   onOpenGrove,
 }: {
   plantings: Planting[]
+  seeds: number
+  plantLevels: number
   onOpenGrove: () => void
 }) {
-  const grown = plantings.filter((row) => row.mature).length
-  const growing = plantings.length - grown
   return (
     <>
       <h2 className="label">Grove</h2>
@@ -230,9 +238,18 @@ function GrovePreview({
               </li>
             ))}
           </ul>
-          <p className="hint">
-            {growing} growing, {grown} grown
-          </p>
+          <ul className="grove-figures">
+            <li>
+              <span className="count-value">
+                {seeds} / {SEEDS_TO_FIND}
+              </span>
+              <span className="count-label">Found</span>
+            </li>
+            <li>
+              <span className="count-value">{plantLevels}</span>
+              <span className="count-label">Total plant level</span>
+            </li>
+          </ul>
         </>
       )}
       <button type="button" className="row-link" onClick={onOpenGrove}>
@@ -526,7 +543,12 @@ export default function Home({
                 card unwritten. */}
             {grove && (
               <section className="card">
-                <GrovePreview plantings={grove} onOpenGrove={onOpenGrove} />
+                <GrovePreview
+                  plantings={grove}
+                  seeds={profile.grove?.seeds_found ?? 0}
+                  plantLevels={profile.grove?.plant_levels ?? 0}
+                  onOpenGrove={onOpenGrove}
+                />
               </section>
             )}
           </>
@@ -534,10 +556,10 @@ export default function Home({
       </aside>
 
       <div className="home-col home-main">
-        {/* Names the column it heads. One label for both arrangements: the
-            streak card is ordered above this wrapper on a phone, so it lands
-            under the streak there and over the middle column on a wide
-            screen. */}
+        {/* Names what is under it on a phone, where one column runs streak card
+            then feed and the label is what tells them apart. The stylesheet
+            takes it away from 900px up: three columns already say which one the
+            feed is, and a heading over the middle of them read as a stray. */}
         <p className="label home-feed-label">Feed</p>
 
         {loadError && (
