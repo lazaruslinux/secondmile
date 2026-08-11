@@ -162,6 +162,49 @@ lands on disk is never the file that was uploaded, carries no metadata or
 location, and is named by the server rather than after anything the uploader
 chose.
 
+## The basemap behind a route
+
+Optional. Tapping a route in the app opens it on a map, and that map is drawn
+from one file you cut yourself and your own nginx serves. Nothing about it
+reaches a tile company: no keys, no accounts, no request leaving your server.
+Without the file the map still opens, the route still draws, and a quiet line
+under it says there is no basemap installed.
+
+The fonts and the icons are already in the build. The tiles are not, because a
+useful extract runs to hundreds of megabytes and only you know which part of
+the world your routes are in.
+
+Install [pmtiles](https://github.com/protomaps/go-pmtiles/releases), then cut
+your area out of a daily planet build. The build is read over the network by
+byte range, so this downloads the region rather than the planet:
+
+```
+mkdir -p tiles
+pmtiles extract https://build.protomaps.com/20260801.pmtiles tiles/basemap.pmtiles \
+  --bbox=-115.0,31.3,-109.0,37.1
+```
+
+Use a date that exists in the [build list](https://maps.protomaps.com/builds/).
+The bbox is west, south, east, north in degrees; the one above is roughly
+Arizona and lands near half a gigabyte. Then pick the frontend up again:
+
+```
+docker compose up -d frontend
+```
+
+The compose file mounts `tiles/` into the frontend container read-only, so the
+archive is served without being baked into an image, and the directory is
+gitignored so it never reaches a repository. The filename is deliberately
+plain: to widen the coverage later, cut a bigger extract, drop it in as
+`tiles/basemap.pmtiles`, and restart the frontend. No rebuild, no code.
+
+Coverage is exactly what you cut. A route outside the bbox draws over an empty
+background rather than failing, so a wider extract is the only fix for a
+holiday.
+
+The tiles are OpenStreetMap data under the ODbL, which asks for the credit. The
+map carries it in the corner; leave it there.
+
 ## Putting it behind a domain
 
 The app serves plain HTTP on `127.0.0.1:8110` and expects a reverse proxy in

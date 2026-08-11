@@ -54,6 +54,13 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
+    # The basemap archive, if you installed one. Read-only and mounted rather
+    # than built in: it is one large optional file, and dropping a wider
+    # extract in its place changes the map's coverage with no rebuild. Missing
+    # directory and missing file both come out as a map with no basemap, which
+    # the app says out loud. See docs/01-self-hosting.md.
+    volumes:
+      - ./tiles:/usr/share/nginx/tiles:ro
     # nginx serves the built app and proxies /api to the backend. Point your
     # reverse proxy, terminating HTTPS, at this port.
     ports:

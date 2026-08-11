@@ -1,6 +1,10 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import type { RoutePoint } from '../api.ts'
 import { cachedRoute, loadRoute, routePath } from '../route.ts'
+
+// The renderer is a large thing to carry for a picture that draws itself, so it
+// arrives on the tap and not before.
+const RouteMap = lazy(() => import('./RouteMap.tsx'))
 
 // A feed card gives the route a wide band across the middle of it. A row of
 // history gets a small sketch instead, in a box near enough to square that the
@@ -22,6 +26,7 @@ export default function RouteLine({ workoutId, compact = false }: Props) {
   const [points, setPoints] = useState<RoutePoint[] | null>(
     () => cachedRoute(workoutId) ?? null,
   )
+  const [open, setOpen] = useState(false)
 
   useEffect(() => {
     let live = true
@@ -39,15 +44,32 @@ export default function RouteLine({ workoutId, compact = false }: Props) {
   if (!path) return null
 
   return (
-    <div className={compact ? 'route-map route-map-small' : 'route-map'}>
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        preserveAspectRatio={compact ? 'xMinYMid meet' : 'xMidYMid meet'}
-        role="img"
-        aria-label="Route"
+    <>
+      {/* The sketch is the way into the map, so the box itself is the control.
+          The name moves to the button with it, and the drawing goes quiet
+          rather than being announced twice. */}
+      <button
+        type="button"
+        className={compact ? 'route-map route-map-small route-open' : 'route-map route-open'}
+        aria-label="Open route map"
+        onClick={() => setOpen(true)}
       >
-        <polyline className="route-line" points={path} />
-      </svg>
-    </div>
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          preserveAspectRatio={compact ? 'xMinYMid meet' : 'xMidYMid meet'}
+          aria-hidden="true"
+        >
+          <polyline className="route-line" points={path} />
+        </svg>
+      </button>
+
+      {/* The map is handed the points already fetched, so the tap costs the
+          server nothing. */}
+      {open && (
+        <Suspense fallback={null}>
+          <RouteMap points={points} onClose={() => setOpen(false)} />
+        </Suspense>
+      )}
+    </>
   )
 }

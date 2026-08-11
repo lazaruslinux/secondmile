@@ -23,6 +23,11 @@ docker-compose.override.yml
 *.key
 *.crt
 
+# --- Basemap archive ---
+# An optional map extract, hundreds of megabytes of it, cut locally and mounted
+# into the frontend container. Instructions in docs/01-self-hosting.md.
+tiles/
+
 # --- Runtime data ---
 *.sqlite
 *.sqlite3

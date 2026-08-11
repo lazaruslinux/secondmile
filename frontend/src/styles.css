@@ -1233,6 +1233,20 @@ button:disabled {
   margin: 0 0 0.85rem;
 }
 
+/* Every sketch is the way into the map, so the box is a button stripped back
+   like the identity controls on a card: the row reads exactly as it did before
+   it became one. The outline on focus is the app's own and is left alone. */
+.route-open {
+  display: block;
+  width: 100%;
+  min-height: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: inherit;
+}
+
 .route-map svg {
   display: block;
   width: 100%;
@@ -2439,6 +2453,28 @@ button:disabled {
 
 .overlay-foot button {
   width: 100%;
+}
+
+/* The route on the map. Wider and taller than a panel of words because the
+   shape is the whole content, with only the way out under it. */
+.route-panel {
+  max-width: 52rem;
+  height: 88vh;
+}
+
+/* maplibre draws into whatever room this is given, so it has to be the part
+   that gives way rather than the part that grows to fit its contents. */
+.route-canvas {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Said once, quietly, when there is no archive to draw: the line is still the
+   line, and a reader should know why there is nothing behind it. */
+.route-missing {
+  margin: 0;
+  padding: 0.5rem 1rem;
+  border-top: 1px solid var(--line);
 }
 
 /* The letter itself, which is the part that gives way between the head and the
