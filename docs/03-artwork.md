@@ -333,7 +333,11 @@ The species and the file each one reads:
 | Dates | Rare | `dates-s1.svg`, `-s2`, `-s3` |
 | Coffee | Rare | `coffee-s1.svg`, `-s2`, `-s3` |
 | Pomegranate | Rare | `pomegranate-s1.svg`, `-s2`, `-s3` |
-| Mustard | Rare | `mustard-s1.svg`, `-s2`, `-s3` |
+| Mustard | Rare | `mustard-s1.png`, `-s2`, `-s3` |
+
+The mustard is real artwork now, the first species done (2026-08-11); the other
+twelve remain placeholders, and its three files are the reference for what a
+finished species looks like: 512 by 512, transparent, the ground at 464.
 
 The species ids are in `backend/app/species.py`. An id written with an
 underscore reads as a hyphen here, so `fig_bush` is `fig-bush-s1.svg`. A species
