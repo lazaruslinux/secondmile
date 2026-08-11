@@ -570,13 +570,12 @@ export default function FeedCard({
     given === ''
       ? formatStart(item.start_ts)
       : `${activityName}, ${formatStart(item.start_ts)}`
-  // The sport's mark goes wherever the activity name went, which is the headline
-  // on a card without a title and the small line underneath on a card with one.
-  // It is drawn once either way, beside the word rather than in place of it, and
-  // it takes the smaller size on the small line so it sits with those words
-  // rather than over them.
+  // The sport's mark sits beside the headline on every card, titled or not, so
+  // the sport is in the same place down the whole feed. The activity name still
+  // moves to the small line when a title takes the headline; the mark does not
+  // follow it.
   const mark = (
-    <span className={given === '' ? 'sport-icon' : 'sport-icon sport-icon-small'}>
+    <span className="sport-icon">
       <Icon name={ACTIVITY_ICONS[item.activity]} />
     </span>
   )
@@ -603,10 +602,7 @@ export default function FeedCard({
           />
           <div className="feed-who">
             <p className="feed-name">{who}</p>
-            <p className="feed-when">
-              {given !== '' && mark}
-              {when}
-            </p>
+            <p className="feed-when">{when}</p>
             <p className="feed-source">{SOURCE_NAMES[item.source]}</p>
           </div>
           {/* The owner's way in, and only the words and the pictures are behind
@@ -632,7 +628,7 @@ export default function FeedCard({
           />
         ) : (
           <h2 className="feed-title">
-            {given === '' && mark}
+            {mark}
             {headline}
           </h2>
         )}
@@ -712,15 +708,12 @@ export default function FeedCard({
               who
             )}
           </p>
-          <p className="feed-when">
-            {given !== '' && mark}
-            {when}
-          </p>
+          <p className="feed-when">{when}</p>
         </div>
       </header>
 
       <h2 className="feed-title">
-        {given === '' && mark}
+        {mark}
         {headline}
       </h2>
 
