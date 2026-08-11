@@ -12,12 +12,13 @@ interface Props {
 }
 
 // What has been given away and what has arrived, on the You screen and on a
-// friend's profile both. Two items and two directions: water poured and oil
+// friend's profile both. Two items and two directions: water poured and potions
 // spent on the left, the same two coming the other way on the right.
 //
 // Counts and nothing else. There are no names here and no dates, so the grid
 // says how much giving an account has done without saying who it was done with,
-// and a gift still on its way is not in it: oil is counted once it has landed.
+// and a gift still on its way is not in it: a potion is counted once it has
+// landed. The kind is still 'oil' under the screen.
 export default function ItemTallies({ tallies }: Props) {
   const oil = tallies?.oil
   const water = tallies?.water
@@ -32,7 +33,7 @@ export default function ItemTallies({ tallies }: Props) {
       </thead>
       <tbody>
         <tr>
-          <th scope="row">Oil</th>
+          <th scope="row">Boost potion</th>
           <td>{count(oil?.used)}</td>
           <td>{count(oil?.received)}</td>
         </tr>

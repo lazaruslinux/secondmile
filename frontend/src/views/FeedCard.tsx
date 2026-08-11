@@ -77,6 +77,62 @@ interface EncourageProps {
   encouragement: FeedItem['encouragement']
 }
 
+// One person's words, with their face beside their name. Both the picture and
+// the name open their profile where the screen holding the card can go there;
+// where it cannot, the row reads exactly as it did before either became a
+// control. Nobody's own "You wrote" row is drawn this way: you are not a
+// destination, and the row above says who wrote it either way.
+function NoteRow({
+  note,
+  onOpenPerson,
+}: {
+  note: WorkoutNote
+  onOpenPerson?: (userId: number) => void
+}) {
+  const who = personName(note.user)
+  const face = (
+    <AvatarFrame
+      name={who}
+      src={note.user.has_avatar ? avatarUrl(note.user.user_id, null) : null}
+      borderTier={note.user.border_tier}
+      flourish={note.user.flourish}
+      frameClass="note-frame"
+    />
+  )
+  return (
+    <li className="encourage-note">
+      {onOpenPerson ? (
+        <button
+          type="button"
+          className="feed-identity"
+          aria-label={`${who}'s profile`}
+          onClick={() => onOpenPerson(note.user.user_id)}
+        >
+          {face}
+        </button>
+      ) : (
+        face
+      )}
+      <span className="encourage-note-said">
+        <span className="encourage-note-who">
+          {onOpenPerson ? (
+            <button
+              type="button"
+              className="feed-name-open"
+              onClick={() => onOpenPerson(note.user.user_id)}
+            >
+              {who}
+            </button>
+          ) : (
+            who
+          )}
+        </span>
+        <span className="encourage-note-body">{note.body}</span>
+      </span>
+    </li>
+  )
+}
+
 // Under a friend's workout: a place to write to them, and a cheer for when
 // there is nothing to say. Nothing here suggests any words; whatever gets sent
 // is typed by the person sending it.
@@ -203,7 +259,11 @@ function EncourageRow({ workoutId, encouragement }: EncourageProps) {
 // Under your own workout: what came back for it, and the words themselves once
 // you ask for them. No box and no hype button, because both of those go toward
 // the person who did the miles and that is you.
-function ReceivedRow({ workoutId, encouragement }: EncourageProps) {
+function ReceivedRow({
+  workoutId,
+  encouragement,
+  onOpenPerson,
+}: EncourageProps & { onOpenPerson?: (userId: number) => void }) {
   // Null until the first time the notes are opened, and kept afterwards, so
   // closing and reopening a card does not ask again.
   const [notes, setNotes] = useState<WorkoutNote[] | null>(null)
@@ -262,10 +322,7 @@ function ReceivedRow({ workoutId, encouragement }: EncourageProps) {
       {showing && notes !== null && (
         <ul className="encourage-notes">
           {notes.map((note, index) => (
-            <li key={index}>
-              <span className="encourage-note-who">{note.from}</span>
-              <span className="encourage-note-body">{note.body}</span>
-            </li>
+            <NoteRow key={index} note={note} onOpenPerson={onOpenPerson} />
           ))}
         </ul>
       )}
@@ -881,10 +938,11 @@ interface Props {
   // only. The Activity tab is the one screen that reads flags, so this arrives
   // from there rather than off the row.
   note?: string
-  // Opens the profile of whoever this card belongs to, from their picture and
-  // from their name. Only a friend's card ever uses it: your own rows are not a
-  // way to your own screen the long way round, and the cards on a profile do
-  // not lead to another one.
+  // Opens somebody's profile. On a friend's card that is whoever it belongs
+  // to, from their picture and from their name; on your own it is whoever
+  // wrote to you, from the notes under it. Your own header is never a way to
+  // your own screen the long way round, and the cards on a profile do not lead
+  // to another one, which is where this arrives undefined.
   onOpenPerson?: (userId: number) => void
 }
 
@@ -1008,7 +1066,14 @@ export default function FeedCard({
           </p>
         )}
 
-        <ReceivedRow workoutId={item.workout_id} encouragement={item.encouragement} />
+        {/* Your own card, and the people in it are the ones who wrote to you:
+            the way through to them is here rather than in the header, which is
+            you. */}
+        <ReceivedRow
+          workoutId={item.workout_id}
+          encouragement={item.encouragement}
+          onOpenPerson={onOpenPerson}
+        />
       </article>
     )
   }

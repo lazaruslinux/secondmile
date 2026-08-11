@@ -178,8 +178,8 @@ export function rarityTier(rarity: Rarity | string): RarityTier {
 
 // The tools are one rarity each by what they are, so their frame is read off
 // the kind rather than off the row. Rows written before the tiers grew carry
-// older rarities and are not rewritten, and this is what makes an old oil and a
-// new one draw the same. A seed keeps the rarity it was rolled at.
+// older rarities and are not rewritten, and this is what makes an old potion and
+// a new one draw the same. A seed keeps the rarity it was rolled at.
 //
 // Water is the one thing held that has no rarity at all: its row carries
 // whichever slot it fell out of, which would colour one jar white and the next
@@ -206,13 +206,13 @@ export function itemTabLabel(item: SatchelItem): string | undefined {
   return undefined
 }
 
-// Oil is named for what it is, which is what was poured over a head before ever
-// it was a game item. The kind stays 'oil' everywhere under the screen: this is
-// the word, not the thing.
+// The boost potion is named for what it does. The kind stays 'oil' everywhere
+// under the screen, in the database and across the API: this is the word, not
+// the thing. The verb is still anoint.
 const KIND_NAMES: Record<ItemKind, string> = {
   seed: 'Seed',
   water: 'Water',
-  oil: 'Olive oil',
+  oil: 'Boost potion',
   wish: 'Unmarked seed',
 }
 
@@ -225,8 +225,10 @@ export function itemName(item: SatchelItem): string {
 
 // What each item is for, said once here and read wherever a square is opened.
 export const ITEM_LINES: Record<ItemKind, string> = {
-  seed: 'Plant it and it grows with your miles.',
-  water: 'Pour it on a plant for 10 miles of growth.',
+  // XP rather than miles: the grove has always grown on the weighted number,
+  // and miles on screen mean raw distance everywhere else in the app.
+  seed: 'Plant it and it grows with your XP.',
+  water: 'Pour it on a plant for 10 XP of growth.',
   oil: 'Anoint a friend to boost their next chest!',
   wish: 'Choose any seed you have not found yet. One use.',
 }
@@ -247,9 +249,9 @@ export const ANOINT_HINT = 'Boosts their next chest, one step rarer.'
 // What the three acts say once they are done, and what a refused anointing adds
 // so a legendary item never looks spent for nothing.
 export const PLANTED = 'Planted. It is in your grove.'
-export const POURED = 'Poured. Ten miles of growth.'
+export const POURED = 'Poured. Ten XP of growth.'
 export const ANOINTED = 'Done. Their next chest opens one step rarer.'
-export const OIL_KEPT = 'The oil is still in your inventory.'
+export const OIL_KEPT = 'The potion is still in your inventory.'
 
 // The step of the ladder a chest dropped on. The names are the server's; a
 // chest from before the ladder simply has none.

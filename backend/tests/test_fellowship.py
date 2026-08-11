@@ -687,11 +687,17 @@ def test_the_owner_reads_the_notes_on_their_own_workout(friends, db_session):
     response = mine.get(f"/api/workouts/{workout.id}/notes")
     assert response.status_code == 200
     rows = response.json()
-    assert [(row["from"], row["body"]) for row in rows] == [
+    named = [(row["user"]["display_name"] or row["user"]["username"], row["body"]) for row in rows]
+    assert named == [
         ("Ada Rowe", "Strong finish."),
         ("neighbour", "See you Saturday."),
     ]
     assert rows[0]["created_at"] < rows[1]["created_at"]
+    # Enough of a person to draw the frame beside the words and to open their
+    # profile from it, which is the whole reason the block is here.
+    assert rows[0]["user"]["user_id"] == other.id
+    assert rows[0]["user"]["has_avatar"] is False
+    assert "border_tier" in rows[0]["user"] and "flourish" in rows[0]["user"]
 
 
 def test_the_words_on_a_workout_are_the_owners_alone(friends, db_session):

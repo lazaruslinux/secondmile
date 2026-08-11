@@ -111,7 +111,7 @@ family earns it.
 
 Nothing anybody chose is rebuilt either. What is in the satchel, what has been
 planted, and every anointing given or received stay exactly as they are, and a
-chest that came out of somebody else's oil is left alone with them.
+chest that came out of somebody else's potion is left alone with them.
 
 Replaying the same workouts produces the same chests in the same order, because
 the ladder is fixed. Chests that were already opened do come back closed,

@@ -95,7 +95,7 @@ function friendGrowing(row: FriendPlanting): boolean {
 function growthLine(row: Planting): string {
   return `Level ${row.level}, ${convertedValue(levelProgress(row).into)} of ${convertedValue(
     row.level_mi,
-  )} mi`
+  )} XP`
 }
 
 // What one square is, said in the modal it opens. A chest is described by its
@@ -332,7 +332,7 @@ export function ItemDialog({
 }
 
 // Where the tap on a square has got to. The verbs come first, and two of them
-// lead somewhere: water to a plant, oil to a person, and water on a friend's
+// lead somewhere: water to a plant, a potion to a person, and water on a friend's
 // plot to a person and then to their plants.
 type Step =
   | { at: 'verbs' }
@@ -340,7 +340,7 @@ type Step =
   | { at: 'people'; then: 'water' | 'anoint' }
   | { at: 'friend'; person: Person; plot: FriendPlanting[] }
   | { at: 'species' }
-  // The last thing before an item is gone. Water and oil cannot be got back
+  // The last thing before an item is gone. Water and potions cannot be got back
   // and cannot be undone, so every path that spends one asks the same question
   // in the same words, whether it started here or on a friend's own page. The
   // deed rides in the step rather than a callback, so the step stays a value
@@ -490,10 +490,10 @@ export default function Inventory({ onChanged }: Props) {
     else anoint(deed.userId)
   }
 
-  // Oil can be turned down: nobody holds more than three gifts at once, and the
-  // answer to that is the server's sentence with the oil's own fate added, said
-  // where the person was picked rather than anywhere they would have to go
-  // looking for it.
+  // A potion can be turned down: nobody holds more than three gifts at once,
+  // and the answer to that is the server's sentence with the potion's own fate
+  // added, said where the person was picked rather than anywhere they would
+  // have to go looking for it.
   function anoint(userId: number) {
     const item = live?.items[0]
     if (!item) return
@@ -663,7 +663,7 @@ export default function Inventory({ onChanged }: Props) {
       {step.at === 'plants' && (
         <Chooser
           title="Water plant"
-          hint="Pick a plant. It gets 10 miles of growth."
+          hint="Pick a plant. It gets 10 XP of growth."
           choices={ownChoices}
           empty="Nothing of yours is growing yet."
           busy={busy}
@@ -691,7 +691,7 @@ export default function Inventory({ onChanged }: Props) {
             const person = friends.find((one) => one.user_id === id)
             if (!person) return
             if (step.then === 'anoint') {
-              askFirst(`Use 1 oil on ${personName(person)}?`, { verb: 'anoint', userId: id })
+              askFirst(`Use 1 potion on ${personName(person)}?`, { verb: 'anoint', userId: id })
             } else void toFriendPlot(person)
           }}
           onCancel={() => setStep({ at: 'verbs' })}

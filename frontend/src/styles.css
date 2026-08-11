@@ -884,6 +884,46 @@ button:disabled {
 
 /* Home: the streak header */
 
+/* The band across the top of the phone's streak card: who this is and what the
+   week has come to, over a rule, in the same shape the rail's summary uses for
+   the same two facts. A control stripped back to nothing, like every other
+   identity in this app that opens a profile. Drawn only on a phone; the wide
+   layout has the rail's cards instead. */
+.streak-band {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  min-height: 0;
+  margin: 0 0 0.9rem;
+  padding: 0 0 0.9rem;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  color: inherit;
+  text-align: left;
+}
+
+.streak-band-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.streak-band-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.streak-band-week {
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
 .streak-count {
   display: flex;
   align-items: baseline;
@@ -1494,6 +1534,20 @@ button:disabled {
   border-bottom: none;
 }
 
+/* A note somebody else wrote: their face beside their words, at the size the
+   feed's own header wears. Your own "You wrote" rows have no face and keep the
+   plain block above. */
+.encourage-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.encourage-note-said {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
 .encourage-note-who {
   display: block;
   font-size: 11px;
@@ -1501,6 +1555,14 @@ button:disabled {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--muted);
+}
+
+/* The browser's own button defaults take the capitals and the tracking off a
+   name that is a control, which left a linked writer reading as a different
+   line from the plain "You wrote" above it. Written back. */
+.encourage-note-who .feed-name-open {
+  text-transform: inherit;
+  letter-spacing: inherit;
 }
 
 .encourage-note-body {
@@ -1737,6 +1799,14 @@ button:disabled {
   margin-bottom: var(--gap);
 }
 
+/* The last answer, still on screen while the next one is fetched. Dimmed
+   rather than taken away, so the page keeps its height and its place and reads
+   as thinking rather than as broken. Still pressable: it is a real list until
+   the moment it is replaced. */
+.activity-group-stale {
+  opacity: 0.45;
+}
+
 /* The week's totals are one card, the same as everything else in the column. */
 .week {
   padding: 0.75rem 0.85rem;
@@ -1938,6 +2008,30 @@ button:disabled {
 .feed-frame .avatar-empty,
 .friend-frame .avatar-empty {
   font-size: 1rem;
+}
+
+/* The band across the top of the phone's streak card, and the face beside a
+   note somebody wrote. Sized here for the same reason the two above are: the
+   frame's own 8rem is written below and would otherwise win on source order. */
+.band-frame {
+  width: 3rem;
+  height: 3rem;
+  flex: 0 0 auto;
+}
+
+.band-frame .avatar-empty {
+  font-size: 1.2rem;
+}
+
+.note-frame {
+  width: 1.75rem;
+  height: 1.75rem;
+  flex: 0 0 auto;
+  margin-top: 0.1rem;
+}
+
+.note-frame .avatar-empty {
+  font-size: 0.75rem;
 }
 
 /* The artwork is drawn over the whole square and the picture is inset inside
@@ -3422,12 +3516,6 @@ button:disabled {
   background: none;
   border: 0;
   border-radius: 0;
-}
-
-/* The line under the grid, which is the only place the app says what oil does
-   before you spend it. */
-.inv-explainer {
-  margin: 0.6rem 0 0;
 }
 
 /* The grid itself: four squares across at every width, growing downward as

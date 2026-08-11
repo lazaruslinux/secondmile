@@ -15,8 +15,10 @@ export function plantStage(planting: Planting): number {
   return planting.growth_mi / step >= 1 / 3 ? 2 : 1
 }
 
-// How far into its current level a planting is, in converted miles, and what
-// that level costs. A finished plant has no next level, so it has no bar.
+// How far into its current level a planting is and what that level costs, both
+// in XP: the fields are named _mi because converted miles are what the server
+// counts growth in, and XP is the word for that number everywhere it is shown.
+// A finished plant has no next level, so it has no bar.
 export function levelProgress(planting: Planting): { into: number; step: number } {
   const step = planting.level_mi > 0 ? planting.level_mi : 1
   return { into: planting.growth_mi - planting.level * step, step }

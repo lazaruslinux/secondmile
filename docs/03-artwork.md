@@ -19,7 +19,7 @@ whole of what a commission would cover.
 | Interface icons | 10 | Tab bar, cheer, gear, pencil, play, sport diamond, chest ladder marker | Chrome, everywhere |
 | Plants | 39 | Thirteen species at three growth stages each | The plot, and the reveal when a seed is found |
 | Ground | 1 | The strip of soil a grove stands on, `ground` | The floor of the band across the top of both profiles |
-| Loose pieces | 5 | Chest, gilding overlay, oil, water, unmarked seed | Inventory squares, chest reveals, finished plants |
+| Loose pieces | 5 | Chest, gilding overlay, boost potion, water, unmarked seed | Inventory squares, chest reveals, finished plants |
 | Landing hero | 1 | The four sports in four strips, `landing-hero` | The top of the landing page |
 
 Seventy-six files in total, all under `frontend/src/assets/`.
@@ -407,12 +407,14 @@ The three things a chest holds that are not a seed. They live beside the plants
 because they are used on them, and each reads one file named after its kind, so
 swapping any of them is the same one-file swap as everything else here. A file
 that is not there costs the picture and nothing else: the satchel row and the
-chest reveal both still read.
+chest reveal both still read. The file names are the item kinds the code and the
+API use, which is why the potion's file is `oil.svg`: the picture and the word
+on screen changed, the kind did not.
 
 | File | What it is | Rarity |
 | --- | --- | --- |
 | `water.svg` | Water, poured onto one plant | none |
-| `oil.svg` | Oil, used to anoint a friend | Legendary |
+| `oil.svg` | The boost potion, used to anoint a friend | Legendary |
 | `wish.svg` | The unmarked seed, spent on any species the grove is missing | Epic |
 
 Drawn in the same 64 by 64 viewBox as the plants, and shown at 72 pixels in the
@@ -421,11 +423,13 @@ each is centred in its square, so draw them to fill the box rather than to sit
 on the bottom of it. In a chest reveal the picture is what is pressed to find
 out what the thing is for, so give it enough shape to look pressable.
 
-Oil and the wish are drawn inside a rarity frame, so the two pixels around the
-square are the frame's rather than the drawing's; water is the one thing in the
-satchel with no rarity, and it is drawn in a plain square. The rarity of a tool
-is fixed by what it is rather than rolled, so a wish is always epic and oil is
-always legendary.
+The potion and the wish are drawn inside a rarity frame, so the two pixels
+around the square are the frame's rather than the drawing's; water is the one
+thing in the satchel with no rarity, and it is drawn in a plain square. The
+rarity of a tool is fixed by what it is rather than rolled, so a wish is always
+epic and the potion is always legendary. The two are both purple and have to
+read apart at 72 pixels: the wish is a muted epic teardrop with stars, the potion
+a bright stoppered flask.
 
 ### The chest
 
@@ -456,7 +460,7 @@ which is what makes an epic or a legendary frame mean something when it appears.
 | Uncommon | `--rarity-uncommon` | Four species |
 | Rare | `--rarity-rare` | Five species |
 | Epic | `--rarity-epic` | The unmarked seed |
-| Legendary | `--rarity-legendary` | Oil |
+| Legendary | `--rarity-legendary` | The boost potion |
 
 The same five colours name the chests. A chest is named for the step of the
 ladder it dropped on, and that name is printed in the step's colour: a 5K chest

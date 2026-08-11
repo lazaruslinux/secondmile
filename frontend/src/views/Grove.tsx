@@ -8,18 +8,27 @@ import PlantArt from './PlantArt.tsx'
 import RarityFrame from './RarityFrame.tsx'
 
 // What the grove is, in three sentences, said once at the top and nowhere else.
+// XP rather than miles: growth was always the weighted number, and the grove was
+// the one place in the app wearing the word miles for it. Miles are raw distance
+// everywhere else and stay that way.
 const HEADER =
-  "Plants grow with your miles. Water one of yours, or a friend's, for a 10 mile boost. " +
+  "Plants grow with your XP. Water one of yours, or a friend's, for a 10 XP boost. " +
   'Level 33 is fully grown.'
 
-// What the oil in the inventory is for, said under the inventory itself. The
-// word is oil here rather than olive oil: this is the act, not the item. It
-// lifts a chest they earn themselves; it never sends one.
-const ANOINT =
-  'Anoint a friend with oil and one chest they earn opens one step rarer than it would have.'
-
-// Said under anything that has reached the last level.
+// Said under anything that has reached the last level, and nowhere else: every
+// other grown plant says which level it is on instead.
 const FULLY_GROWN = 'Fully grown.'
+
+// Where a plant has got to, in one line. A plot of grown plants used to read as
+// a column of the word Grown with a level number above each one; a grown plant
+// says which level it is on instead, the last level is the only one that says it
+// is finished, and anything younger says which of the two early stages the
+// drawing above it is at.
+function stateLine(row: Planting): string {
+  if (row.gilded) return FULLY_GROWN
+  if (row.mature) return `Level ${row.level}`
+  return plantStage(row) === 1 ? 'Seedling' : 'Growing'
+}
 
 interface Props {
   userId: number
@@ -104,7 +113,7 @@ export default function Grove({ userId }: Props) {
                   {!row.gilded && (
                     <div className="plant-scale">
                       <progress className="xp-meter" value={into} max={step}>
-                        {convertedValue(into)} of {convertedValue(step)} mi
+                        {convertedValue(into)} of {convertedValue(step)} XP
                       </progress>
                       <p className="plant-numbers" aria-hidden="true">
                         <span
@@ -117,11 +126,7 @@ export default function Grove({ userId }: Props) {
                     </div>
                   )}
                   <p className="plant-growth">Acquired {formatAcquired(row.planted_at)}</p>
-                  <p className="plant-growth">Lv {row.level}</p>
-                  {row.gilded && <p className="plant-ready">{FULLY_GROWN}</p>}
-                  {row.mature && !row.gilded && (
-                    <p className="plant-ready">Grown.</p>
-                  )}
+                  <p className="plant-ready">{stateLine(row)}</p>
                 </li>
               )
             })}
@@ -134,7 +139,6 @@ export default function Grove({ userId }: Props) {
       <section className="card">
         <h2 className="label">Inventory</h2>
         <Inventory onChanged={() => void load()} />
-        <p className="hint inv-explainer">{ANOINT}</p>
       </section>
     </>
   )

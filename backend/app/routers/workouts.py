@@ -1037,13 +1037,10 @@ def workout_notes(
     _owned(db, workout_id, user.id)
     rows = db.execute(
         select(
+            models.Encouragement.from_user_id,
             models.Encouragement.body,
             models.Encouragement.created_at,
-            models.User.username,
-            models.User.first_name,
-            models.User.last_name,
         )
-        .join(models.User, models.User.id == models.Encouragement.from_user_id)
         .where(
             models.Encouragement.workout_id == workout_id,
             models.Encouragement.kind == "note",
@@ -1052,15 +1049,17 @@ def workout_notes(
         # they were written in is the order they should be read in.
         .order_by(models.Encouragement.created_at, models.Encouragement.id)
     ).all()
+    # The same little card a workout carries, so a note is drawn with the
+    # writer's face and frame the way every other mention of a person is, and
+    # tapping it reaches their profile. Two queries for the whole list.
+    people = fellowship.people(db, {from_user_id for from_user_id, _, _ in rows})
     return [
         {
-            # The name they go by, falling back to the username, the same way
-            # every other card names a person.
-            "from": fellowship.display_name(first_name, last_name) or username,
+            "user": people[from_user_id],
             "body": body or "",
             "created_at": created_at.isoformat(),
         }
-        for body, created_at, username, first_name, last_name in rows
+        for from_user_id, body, created_at in rows
     ]
 
 

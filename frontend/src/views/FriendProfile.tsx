@@ -61,6 +61,16 @@ function friendStage(row: FriendPlanting): number {
   return row.mature === true ? 3 : 1
 }
 
+// Where one of their plants has got to, in the one line their owner's own plot
+// says: which level a grown plant is on, the finished word only at the last
+// one, and the stage word before that. A row that arrived without a level says
+// its stage rather than inventing a number.
+function friendState(row: FriendPlanting): string {
+  if (row.gilded === true) return FULLY_GROWN
+  if (row.mature === true && typeof row.level === 'number') return `Level ${row.level}`
+  return friendStage(row) === 1 ? 'Seedling' : 'Growing'
+}
+
 // How full their bar is. The server sends the fraction of the level already
 // covered rather than the miles behind it, so this is the whole of what the bar
 // can be drawn from, and a row that arrived without it draws empty.
@@ -237,10 +247,10 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
     })
   }
 
-  // Oil can be turned down: nobody holds more than three gifts at once, and the
-  // answer to that is the server's own sentence with the oil's fate added,
-  // said where the oil was picked rather than anywhere anyone has to go looking
-  // for it. Nothing is spent on a refusal.
+  // A potion can be turned down: nobody holds more than three gifts at once,
+  // and the answer to that is the server's own sentence with the potion's fate
+  // added, said where it was picked rather than anywhere anyone has to go
+  // looking for it. Nothing is spent on a refusal.
   function anoint(stack: Stack) {
     const item = stack.items[0]
     if (!item) return
@@ -450,7 +460,7 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
           </div>
 
           {oils.length === 0 && (
-            <p className="hint">No oil in your inventory. It comes out of chests.</p>
+            <p className="hint">No potions in your inventory. They come out of chests.</p>
           )}
 
           {note && (
@@ -610,16 +620,13 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
                         the content security policy allows no inline styles, and
                         this one reads correctly to a screen reader as well.
                         Nothing rides under it here, because what rides under it
-                        on their owner's own screen is miles. */}
+                        on their owner's own screen is their own XP. */}
                     {!grown && (
                       <progress className="xp-meter" value={friendFill(row)} max={1}>
                         {Math.round(friendFill(row) * 100)}% of this level
                       </progress>
                     )}
-                    {typeof row.level === 'number' && (
-                      <span className="plant-growth">Lv {row.level}</span>
-                    )}
-                    {grown && <span className="plant-ready">{FULLY_GROWN}</span>}
+                    <span className="plant-ready">{friendState(row)}</span>
                   </>
                 )
 
@@ -695,15 +702,15 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
         />
       )}
 
-      {/* Oil goes onto the person rather than onto anything of theirs, so there
-          is no plant in front of it and the question names them. */}
+      {/* A potion goes onto the person rather than onto anything of theirs, so
+          there is no plant in front of it and the question names them. */}
       {step.at === 'oil' && (
         <ItemPicker
           title="Anoint"
           hint={ANOINT_HINT}
           stacks={oils}
           onto={who}
-          empty="No oil in your inventory. It comes out of chests."
+          empty="No potions in your inventory. They come out of chests."
           busy={busy}
           error={actionError}
           onUse={(stack) => anoint(stack)}

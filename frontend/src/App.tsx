@@ -230,7 +230,9 @@ export default function App() {
             onOpenPerson={openFriend}
           />
         )}
-        {view === 'activity' && <ActivityView userId={me.id} units={me.units} />}
+        {view === 'activity' && (
+          <ActivityView userId={me.id} units={me.units} onOpenPerson={openFriend} />
+        )}
         {view === 'grove' && <Grove userId={me.id} />}
         {view === 'you' && (
           <Profile

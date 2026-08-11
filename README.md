@@ -40,14 +40,15 @@ Current version: **0.1.1**. Releases are tagged in git.
   from every activity are the fuel, a long run climbs several steps at once,
   what is left over carries, and nothing ever expires or decays.
 - **Fills a plot rather than an album.** Every chest holds one of three things,
-  and all three are tools: a seed to plant, water to pour into one plant, or
-  oil to spend on a friend. Plantings grow from every workout you log, all of
-  them at once, with nothing to tend and no timers; swimming brings extra
-  water. Everything levels on the miles, is grown at level one, and is fully
-  grown at the last one. Nothing can wither and nothing can be bought.
+  and all three are tools: a seed to plant, water to pour into one plant, or a
+  boost potion to spend on a friend. Plantings grow from every workout you log,
+  all of them at once, with nothing to tend and no timers; swimming brings extra
+  water. Everything levels on the XP your miles convert to, is grown at level
+  one, and is fully grown at the last one. Nothing can wither and nothing can be
+  bought.
 - **Gives you something to give away.** Water can be poured into a friend's
-  plot as easily as your own. Oil is quieter: it says nothing to the friend
-  you spend it on, and their next workout simply brings them a chest they did
+  plot as easily as your own. A potion is quieter: it says nothing to the
+  friend you spend it on, and their next workout simply brings them a chest they did
   not earn, with your name on it in their letter.
 - **Keeps a small circle.** Friends are mutual and added by username: there is
   no discovery, no suggestions, and no count of anybody's friends. The home

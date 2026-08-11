@@ -3,10 +3,10 @@ import type { Stack } from '../satchel.ts'
 import { ItemDialog, Square } from './Inventory.tsx'
 
 // The word the question spends. It is the plain one rather than the item's
-// proper name, because "Use 1 oil" reads as a sentence and "Use 1 Olive Oil"
-// reads as a label off a shelf. Anything without a word of its own falls back to
-// what it is called.
-const SPENT_AS: Record<string, string> = { water: 'water', oil: 'oil' }
+// proper name, because "Use 1 potion" reads as a sentence and "Use 1 Boost
+// Potion" reads as a label off a shelf. Anything without a word of its own falls
+// back to what it is called.
+const SPENT_AS: Record<string, string> = { water: 'water', oil: 'potion' }
 
 function spentAs(stack: Stack): string {
   return SPENT_AS[stack.kind] ?? stack.name.toLowerCase()

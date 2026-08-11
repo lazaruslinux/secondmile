@@ -155,9 +155,11 @@ const cache = new Map<number, Cached>()
 interface Props {
   userId: number
   units: Units
+  // Whoever wrote on one of these workouts, from the notes under the card.
+  onOpenPerson: (userId: number) => void
 }
 
-export default function ActivityView({ userId, units }: Props) {
+export default function ActivityView({ userId, units, onOpenPerson }: Props) {
   // Coming back to the tab draws what was here before and asks the server again
   // underneath, so switching tabs is not a blank screen every time.
   const [workouts, setWorkouts] = useState<Workout[]>(() => cache.get(userId)?.workouts ?? [])
@@ -208,6 +210,12 @@ export default function ActivityView({ userId, units }: Props) {
 
   const load = useCallback(async () => {
     const mine = ++wanted.current
+    // Said before the first await, so the page is already saying it is thinking
+    // by the time anything is in the air. Every one of these takes four
+    // requests, and a phone on a slow connection spends most of a second on
+    // them with nothing on screen changing but the button that was pressed:
+    // that wait is what reads as a freeze.
+    setLoading(true)
     try {
       const [history, totals, gone, me] = await Promise.all([
         // The sorting and the filtering are the server's: a page is twenty rows
@@ -251,19 +259,29 @@ export default function ActivityView({ userId, units }: Props) {
   // comes after the rows still here.
   async function loadMore() {
     const mine = wanted.current
+    // What the offset was counted from. A press that lands while the first page
+    // of a fresh sort is still in the air asks for what comes after a list that
+    // is about to be thrown away, and appending it would leave a hole where the
+    // rows between the two should be.
+    const from = workouts.length
     setMoreBusy(true)
     setMoreError('')
     try {
       const next = await listWorkouts(WORKOUT_PAGE, {
         sort,
         order,
-        offset: workouts.length,
+        offset: from,
         ...(sport === null ? {} : { activity: sport }),
       })
       // A page asked for under controls that have since changed is not this
       // list's page, whenever it turns up.
       if (mine !== wanted.current) return
       setWorkouts((current) => {
+        // Not the list this page was counted off, so it is not this list's
+        // page. The button is unavailable while a fresh first page is on its
+        // way, which is what keeps this from arising; it is checked anyway,
+        // because the cost of being wrong is a gap in somebody's history.
+        if (current.length !== from) return current
         // An offset moves when a row is deleted under it, so a repeat is
         // possible and is dropped rather than drawn twice.
         const held = new Set(current.map((row) => row.workout_id))
@@ -421,6 +439,7 @@ export default function ActivityView({ userId, units }: Props) {
         onChanged={cardChanged}
         onDeleted={cardDeleted}
         note={flagNotes(workout.flags)}
+        onOpenPerson={onOpenPerson}
       />
     )
   }
@@ -702,7 +721,13 @@ export default function ActivityView({ userId, units }: Props) {
 
       <section>
         <h2>History</h2>
-        {loading && <p className="notice">Loading.</p>}
+        {/* A live region, because this one comes and goes as somebody works
+            the controls rather than only on the way in. */}
+        {loading && (
+          <p className="notice" role="status">
+            Loading.
+          </p>
+        )}
         {loadError && (
           <p className="error" role="alert">
             {loadError}
@@ -716,8 +741,15 @@ export default function ActivityView({ userId, units }: Props) {
           </p>
         )}
 
+        {/* What is on screen while a new answer is on its way is the old
+            answer, so it is dimmed: the page is showing yesterday's list and
+            saying so, rather than looking like a list that will not respond.
+            The controls above are outside this and stay live. */}
         {groups.map((group) => (
-          <div className="activity-group" key={group.key}>
+          <div
+            className={loading ? 'activity-group activity-group-stale' : 'activity-group'}
+            key={group.key}
+          >
             {grouped && (
               <div className="week">
                 <h3>Week of {formatWeekStart(group.key)}</h3>
@@ -781,7 +813,9 @@ export default function ActivityView({ userId, units }: Props) {
           <button
             type="button"
             className="secondary"
-            disabled={moreBusy}
+            // Nothing to add a page to while the first page of a fresh sort is
+            // still coming: the list under it is about to be replaced.
+            disabled={moreBusy || loading}
             onClick={() => void loadMore()}
           >
             {moreBusy ? 'Loading' : 'Load more'}

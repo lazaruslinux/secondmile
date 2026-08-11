@@ -229,12 +229,12 @@ def anoint_friend(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such friend.")
     if grove.anointing_waits(db, user.id, body.user_id):
         raise HTTPException(
-            status.HTTP_409_CONFLICT, "You already have oil waiting on that friend."
+            status.HTTP_409_CONFLICT, "You already have a potion waiting on that friend."
         )
     if len(grove.pending_anointings(db, body.user_id)) >= MAX_PENDING_ANOINTINGS:
         # How much of one walker's coming ladder may be lifted before they have
-        # run any of it. Refused rather than swallowed: oil is a legendary item
-        # and spending it on nothing would be the worse answer by far. Counted
+        # run any of it. Refused rather than swallowed: the potion is a legendary
+        # item and spending it on nothing would be the worse answer by far. Counted
         # here and not in an index, so two givers racing can leave a fourth
         # waiting; the miles spend them all the same, one chest each.
         raise HTTPException(
@@ -264,7 +264,7 @@ def anoint_friend(
         # one is the conflict it would have been a moment later.
         db.rollback()
         raise HTTPException(
-            status.HTTP_409_CONFLICT, "You already have oil waiting on that friend."
+            status.HTTP_409_CONFLICT, "You already have a potion waiting on that friend."
         ) from None
     # Renown to the giver, now, quietly. The recipient's side of this stays
     # silent until the chest lands: nothing they can read has changed.

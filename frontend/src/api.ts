@@ -789,7 +789,9 @@ export function getWorkoutRoute(workoutId: number): Promise<WorkoutRoute> {
 
 // One note somebody wrote on a workout, as its owner reads it.
 export interface WorkoutNote {
-  from: string
+  // The writer, as the same little card a workout carries: enough to draw their
+  // face in its frame and to open their profile from it.
+  user: Person
   body: string
   created_at: string
 }

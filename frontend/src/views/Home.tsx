@@ -520,6 +520,38 @@ export default function Home({
             column has: the wide layout shows the streak inside the summary card
             instead and hides this one. */}
         <section className="card home-streak">
+          {/* The top of the phone's first card: who this is and what the week
+              has come to. The wide layout says both in the rail's own cards, so
+              this is a band inside the streak card rather than a card of its
+              own, and it is drawn only where there is no rail. The picture and
+              the name open the You screen, the same control the rail's summary
+              carries. */}
+          {!wide && (
+            <button type="button" className="streak-band" onClick={onOpenProfile}>
+              <AvatarFrame
+                name={shownName || profile.username}
+                src={
+                  profile.has_avatar
+                    ? avatarUrl(profile.user_id, profile.avatar_version)
+                    : null
+                }
+                borderTier={profile.border_tier}
+                flourish={flourish}
+                frameClass="band-frame"
+                labelled
+              />
+              <span className="streak-band-text">
+                <span className="streak-band-name">{shownName || profile.username}</span>
+                {/* Raw distance, which is what "mi" means everywhere in this
+                    app, and the same figure the rail's This week card leads
+                    with. */}
+                <span className="streak-band-week">
+                  This week: {distanceValue(week.distance, units)} {unitName(units)}
+                </span>
+              </span>
+            </button>
+          )}
+
           <Streak streak={streak} days={days} />
           <p className="hint">
             Miles counted this week. Your phone syncs on its own.
