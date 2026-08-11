@@ -482,6 +482,112 @@ def test_delete_and_restore_are_rate_limited(signed_in, db_session, member):
 
 
 # --------------------------------------------------------------------------
+# Several at once
+# --------------------------------------------------------------------------
+
+
+def test_a_batch_deletes_all_of_them_and_leaves_the_rest(signed_in, db_session, member):
+    """Select mode's whole job: several workouts out in one act, answered with
+    the Deleted rows so the tab can count them without asking again."""
+    kept = log_workout(db_session, member.id, miles=2.0)
+    first = log_workout(db_session, member.id, miles=5.0, offset_min=60)
+    second = log_workout(db_session, member.id, miles=4.0, offset_min=120)
+
+    answer = signed_in.post("/api/workouts/delete", json={"ids": [first.id, second.id]})
+    assert answer.status_code == 200
+    # Newest first, the order the Deleted list draws them in, with the days
+    # left on each one.
+    rows = answer.json()
+    assert [row["workout_id"] for row in rows] == [second.id, first.id]
+    assert [row["days_left"] for row in rows] == [DELETED_WORKOUT_RETENTION_DAYS] * 2
+
+    assert [row["workout_id"] for row in signed_in.get("/api/workouts").json()] == [kept.id]
+    deleted = signed_in.get("/api/workouts/deleted").json()
+    assert [row["workout_id"] for row in deleted] == [second.id, first.id]
+
+
+def test_a_batch_rebuilds_the_totals_once_and_correctly(
+    signed_in, db_session, member, monkeypatch
+):
+    """One rebuild for the batch, and the arithmetic afterwards is the same as
+    deleting them one at a time would have left."""
+    log_workout(db_session, member.id, activity="walk", miles=8.0)
+    race = log_workout(db_session, member.id, miles=13.5, offset_min=300)
+    extra = log_workout(db_session, member.id, miles=20.0, offset_min=600)
+    assert "race_half" in medal_ids(db_session, member.id)
+    before = signed_in.get("/api/profile").json()
+
+    calls = []
+    real = progress.rebuild_from_surviving
+    monkeypatch.setattr(
+        progress,
+        "rebuild_from_surviving",
+        lambda db, user_id: (calls.append(user_id), real(db, user_id))[1],
+    )
+    assert (
+        signed_in.post("/api/workouts/delete", json={"ids": [race.id, extra.id]}).status_code
+        == 200
+    )
+    assert calls == [member.id]
+    after = signed_in.get("/api/profile").json()
+    assert after["xp"] == 8.0
+    assert after["level"] < before["level"]
+    # The race medal went with its run and the week fell back to what the walk
+    # still reaches, exactly as the single delete leaves it.
+    assert medal_ids(db_session, member.id) == set()
+
+    # And every one of them is still restorable on its own.
+    assert signed_in.post(f"/api/workouts/{race.id}/restore").status_code == 200
+    assert signed_in.post(f"/api/workouts/{extra.id}/restore").status_code == 200
+    assert signed_in.get("/api/profile").json()["xp"] == before["xp"]
+    assert "race_half" in medal_ids(db_session, member.id)
+    assert signed_in.get("/api/workouts/deleted").json() == []
+
+
+def test_a_batch_holding_one_bad_id_deletes_nothing_and_says_nothing(
+    signed_in, db_session, member, mate
+):
+    """No partial success and no oracle. A stranger's id, an id nobody owns,
+    and one already deleted all answer the same 404 for the whole call, and the
+    good ids in the same batch are untouched."""
+    other, _other_client = mate
+    mine = log_workout(db_session, member.id, miles=3.0)
+    also_mine = log_workout(db_session, member.id, miles=4.0, offset_min=60)
+    theirs = log_workout(db_session, other.id, miles=5.0)
+    already = log_workout(db_session, member.id, miles=6.0, offset_min=120)
+    assert signed_in.delete(f"/api/workouts/{already.id}").status_code == 204
+
+    for batch in ([mine.id, theirs.id], [mine.id, 999999], [mine.id, already.id]):
+        answer = signed_in.post("/api/workouts/delete", json={"ids": batch})
+        assert answer.status_code == 404
+        assert answer.json()["detail"] == "No such workout."
+
+    db_session.expire_all()
+    assert db_session.get(models.Workout, mine.id).deleted_at is None
+    assert db_session.get(models.Workout, also_mine.id).deleted_at is None
+    assert db_session.get(models.Workout, theirs.id).deleted_at is None
+
+
+def test_a_batch_refuses_an_empty_list_and_an_enormous_one(signed_in):
+    assert signed_in.post("/api/workouts/delete", json={"ids": []}).status_code == 400
+    huge = signed_in.post("/api/workouts/delete", json={"ids": list(range(1, 500))})
+    assert huge.status_code == 400
+
+
+def test_a_batch_counts_as_one_delete_against_the_limiter(signed_in, db_session, member):
+    """The cap is ten of these a minute. It counts calls, not workouts, so a
+    tidy-up of thirty rows in three batches is three of the ten."""
+    rows = [log_workout(db_session, member.id, offset_min=n * 20) for n in range(22)]
+    ids = [row.id for row in rows]
+    for start in range(0, 20, 2):
+        answer = signed_in.post("/api/workouts/delete", json={"ids": ids[start : start + 2]})
+        assert answer.status_code == 200
+    # Ten calls spent, twenty workouts gone, and the eleventh call refused.
+    assert len(signed_in.get("/api/workouts/deleted").json()) == 20
+    assert signed_in.post("/api/workouts/delete", json={"ids": ids[20:]}).status_code == 429
+
+
+# --------------------------------------------------------------------------
 # The letter
 # --------------------------------------------------------------------------
 

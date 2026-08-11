@@ -228,7 +228,7 @@ def sort_key(sort: str):
 @router.get("")
 def list_workouts(
     limit: int = Query(50, ge=1, le=MAX_LIMIT),
-    before: str | None = None,
+    offset: int = Query(0, ge=0),
     sort: str = "date",
     order: str = "desc",
     activity: str | None = None,
@@ -236,6 +236,19 @@ def list_workouts(
     user: models.User = Depends(security.current_user),
 ) -> list[dict]:
     """Your own history, newest first unless it is asked for another way.
+
+    Paged by offset rather than by a cursor, which the feed next door uses. A
+    cursor has to be a value the ordering key is monotonic in, and three of the
+    four sorts here are ordered by something that repeats and can be nothing at
+    all: two workouts of the same distance, or a page of rows with no heart
+    rate, have no such value between them. Four cursor shapes, two of them
+    null-aware and spelled differently on SQLite and Postgres, is a great deal
+    of machinery for a personal history: an offset skips at most a few thousand
+    of one account's own indexed rows. What offset costs is the honest wobble
+    of any offset: a workout deleted while somebody is paging shifts everything
+    after it up by one, so the next page can repeat a row or step over one. The
+    Activity tab drops repeats by id; a page that skipped one is a refresh away
+    from the truth.
 
     Deleted workouts are never in it whatever it is sorted or filtered by; they
     are in the Deleted section, which is the endpoint under this one.
@@ -256,9 +269,6 @@ def list_workouts(
     )
     if activity is not None:
         stmt = stmt.where(models.Workout.activity == activity)
-    if before:
-        cutoff = parse_cursor(before)
-        stmt = stmt.where(models.Workout.start_ts < cutoff)
 
     key = sort_key(sort)
     ordering = []
@@ -272,7 +282,7 @@ def list_workouts(
     # Ordered by id last so that two workouts sharing a start time, a distance
     # or a heart rate keep a stable order between pages; without it, paging can
     # show one twice and skip another.
-    stmt = stmt.order_by(*ordering, models.Workout.id.desc()).limit(limit)
+    stmt = stmt.order_by(*ordering, models.Workout.id.desc()).offset(offset).limit(limit)
     rows = list(db.execute(stmt).scalars())
     earned = medals.medals_for(db, rows)
     routed = routes_for(db, rows)
@@ -427,6 +437,82 @@ def delete_workout(
         progress.rebuild_from_surviving(db, user.id)
     response.status_code = status.HTTP_204_NO_CONTENT
     return response
+
+
+class DeleteBatch(BaseModel):
+    """Which workouts the Select mode had ticked when Delete was pressed."""
+
+    ids: list[int]
+
+
+# One press deletes what one page of the list can hold several times over. The
+# ceiling is here so a batch is a batch rather than an unbounded transaction,
+# and it is well past anything the Select mode can put on screen.
+MAX_DELETE_BATCH = 200
+
+
+@router.post("/delete")
+def delete_workouts(
+    body: DeleteBatch,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(security.current_user),
+) -> list[dict]:
+    """Take several of your own workouts out of the game in one act.
+
+    All of them or none of them. An id that is not yours, does not exist, or is
+    already deleted answers the same 404 the single delete answers, for the
+    whole call, and nothing is written: a batch that quietly deleted the rows it
+    recognised would be a way of asking whether a stranger's id exists.
+
+    One transaction and one rebuild for the batch. Rebuilding per workout would
+    be the same arithmetic run n times over the same history and would leave a
+    half-deleted account behind if it stopped in the middle.
+
+    Every one of them is individually restorable afterwards, on the same
+    thirty-day window and through the same endpoint: this is the single delete
+    n times, not a different kind of deletion.
+
+    Answers with the Deleted rows it just made, newest first, so the tab can
+    move them into its Deleted list and count them without asking again.
+    """
+    # One hit for the call, not one per id. The cap is ten of these a minute,
+    # which is ten batches rather than ten workouts.
+    if throttle.workout_delete_limiter.hit(throttle.user_key(user)):
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS, "Too many changes just now. Wait a minute."
+        )
+    # Ticking the same row twice is the caller's business and not an error; it
+    # is one workout either way.
+    ids = list(dict.fromkeys(body.ids))
+    if not ids:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "No workouts were chosen.")
+    if len(ids) > MAX_DELETE_BATCH:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"That is more than {MAX_DELETE_BATCH} workouts at once.",
+        )
+
+    found = list(
+        db.execute(
+            select(models.Workout).where(
+                models.Workout.id.in_(ids),
+                models.Workout.user_id == user.id,
+                models.Workout.deleted_at.is_(None),
+            )
+        ).scalars()
+    )
+    if len(found) != len(ids):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, NO_SUCH_WORKOUT)
+
+    moment = security.now_utc()
+    for workout in found:
+        workout.deleted_at = moment
+    db.commit()
+    progress.rebuild_from_surviving(db, user.id)
+    # The order the Deleted list itself is in: newest deletion first, and these
+    # share a moment, so the id settles it exactly as it does there.
+    found.sort(key=lambda row: row.id, reverse=True)
+    return [_deleted_row(row) for row in found]
 
 
 @router.post("/{workout_id}/restore")

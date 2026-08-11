@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
+  deleteWorkouts,
   errorText,
   getProfile,
   listDeletedWorkouts,
@@ -26,10 +27,13 @@ import {
   zonedDay,
 } from '../format.ts'
 import { ACTIVITY_ICONS, ACTIVITY_NAMES, ACTIVITY_ORDER, defaultHeadline } from '../labels.ts'
-import FeedCard from './FeedCard.tsx'
+import FeedCard, { ConfirmDelete } from './FeedCard.tsx'
 import Icon from './Icon.tsx'
 
-const WORKOUT_PAGE = 50
+// Twenty at a time, which is the feed's page as well: the cards view draws the
+// same card the feed does, and fifty of them at once is a page that keeps
+// drawing long after somebody has stopped reading it.
+const WORKOUT_PAGE = 20
 const WEEK_COUNT = 8
 
 // Which of the two views this browser was last left on. The only thing kept
@@ -138,6 +142,9 @@ interface Cached {
   sort: WorkoutSort
   order: SortOrder
   sport: Sport | null
+  // Whether the last page was a short one, so Load more is not offered again
+  // at the end of a history that has already been walked to its end.
+  done: boolean
 }
 
 // What this tab last showed, kept by account so a second person signing in on
@@ -176,13 +183,36 @@ export default function ActivityView({ userId, units }: Props) {
   )
   const [loading, setLoading] = useState(() => !cache.has(userId))
   const [loadError, setLoadError] = useState('')
+  // Whether the history has been walked to its end under the controls as they
+  // stand, and the state of the button that walks it.
+  const [done, setDone] = useState(() => cache.get(userId)?.done ?? false)
+  const [moreBusy, setMoreBusy] = useState(false)
+  const [moreError, setMoreError] = useState('')
+  // Select mode, and what is ticked in it. Ids rather than rows: a row can be
+  // redrawn under a tick and the tick still means the same workout.
+  const [selecting, setSelecting] = useState(false)
+  const [picked, setPicked] = useState<Set<number>>(() => new Set())
+  const [asking, setAsking] = useState(false)
+  const [removing, setRemoving] = useState(false)
+  const [removeError, setRemoveError] = useState('')
+
+  // Which request the screen is waiting for. Every control here starts a fresh
+  // one, and two of them can easily be in the air at once: on a phone, a press
+  // half a second after another is ordinary, and answers to a multiplexed
+  // connection arrive in whatever order the server finishes them. Without this
+  // count the slower answer lands last and the list shows a sort the buttons no
+  // longer claim, with no way back except pressing something else, because
+  // pressing the one already lit changes no state and asks for nothing. That is
+  // the freeze: rows stuck in April under a header saying Newest.
+  const wanted = useRef(0)
 
   const load = useCallback(async () => {
+    const mine = ++wanted.current
     try {
-      const [history, totals, gone, mine] = await Promise.all([
-        // The sorting and the filtering are the server's: a page is fifty rows
+      const [history, totals, gone, me] = await Promise.all([
+        // The sorting and the filtering are the server's: a page is twenty rows
         // of a history that may run to thousands, so ordering what arrived
-        // would order the wrong fifty.
+        // would order the wrong twenty.
         listWorkouts(WORKOUT_PAGE, {
           sort,
           order,
@@ -192,33 +222,125 @@ export default function ActivityView({ userId, units }: Props) {
         listDeletedWorkouts(),
         getProfile(),
       ])
+      if (mine !== wanted.current) return
       setWorkouts(history)
+      setDone(history.length < WORKOUT_PAGE)
       setWeeks(totals)
       setDeleted(gone)
-      setAvatarVersion(mine.avatar_version)
+      setAvatarVersion(me.avatar_version)
       setLoadError('')
     } catch (err) {
+      if (mine !== wanted.current) return
       setLoadError(errorText(err))
     } finally {
-      setLoading(false)
+      if (mine === wanted.current) setLoading(false)
     }
   }, [sort, order, sport])
 
   useEffect(() => {
+    // A fresh set of controls is a fresh first page: what was loaded before
+    // was a different question's answer, and ticks put against rows that are
+    // no longer on screen are not a list anybody chose.
+    setMoreError('')
+    setPicked(new Set())
     void load()
   }, [load])
+
+  // The next page, appended. Counted by what is already on screen rather than
+  // by a page number, so a Load more pressed after a deletion asks for what
+  // comes after the rows still here.
+  async function loadMore() {
+    const mine = wanted.current
+    setMoreBusy(true)
+    setMoreError('')
+    try {
+      const next = await listWorkouts(WORKOUT_PAGE, {
+        sort,
+        order,
+        offset: workouts.length,
+        ...(sport === null ? {} : { activity: sport }),
+      })
+      // A page asked for under controls that have since changed is not this
+      // list's page, whenever it turns up.
+      if (mine !== wanted.current) return
+      setWorkouts((current) => {
+        // An offset moves when a row is deleted under it, so a repeat is
+        // possible and is dropped rather than drawn twice.
+        const held = new Set(current.map((row) => row.workout_id))
+        return [...current, ...next.filter((row) => !held.has(row.workout_id))]
+      })
+      if (next.length < WORKOUT_PAGE) setDone(true)
+    } catch (err) {
+      if (mine === wanted.current) setMoreError(errorText(err))
+    } finally {
+      setMoreBusy(false)
+    }
+  }
 
   // Kept from what is on screen rather than from what arrived, so a card edited
   // here is still edited after a trip to another tab. A load that failed writes
   // nothing, so a first visit that went wrong still says Loading on the next.
   useEffect(() => {
     if (!loading && loadError === '')
-      cache.set(userId, { workouts, weeks, deleted, avatarVersion, sort, order, sport })
-  }, [userId, workouts, weeks, deleted, avatarVersion, sort, order, sport, loading, loadError])
+      cache.set(userId, { workouts, weeks, deleted, avatarVersion, sort, order, sport, done })
+  }, [
+    userId,
+    workouts,
+    weeks,
+    deleted,
+    avatarVersion,
+    sort,
+    order,
+    sport,
+    done,
+    loading,
+    loadError,
+  ])
 
   function chooseShape(next: Shape) {
     setShape(next)
     rememberShape(next)
+    // Select mode belongs to the list; the cards are for reading.
+    if (next === 'cards') stopSelecting()
+  }
+
+  function stopSelecting() {
+    setSelecting(false)
+    setPicked(new Set())
+    setAsking(false)
+    setRemoveError('')
+  }
+
+  function pick(workoutId: number) {
+    setPicked((current) => {
+      const next = new Set(current)
+      if (!next.delete(workoutId)) next.add(workoutId)
+      return next
+    })
+  }
+
+  // The batch. One call, one confirmation, one answer: the rows leave the list
+  // at once and the Deleted list above takes them, which is where the count on
+  // the pill comes from, so nothing is asked for again to draw it. The week
+  // totals did change and are the one thing fetched afresh.
+  async function removePicked() {
+    setRemoving(true)
+    setRemoveError('')
+    try {
+      const gone = await deleteWorkouts([...picked])
+      const ids = new Set(gone.map((row) => row.workout_id))
+      setWorkouts((current) => current.filter((row) => !ids.has(row.workout_id)))
+      setOpened((open) => (open !== null && ids.has(open) ? null : open))
+      // Straight to the front: they were deleted just now, and the list is in
+      // the order they were deleted in.
+      setDeleted((current) => [...gone, ...current])
+      stopSelecting()
+      setWeeks(await listWeeks(WEEK_COUNT))
+    } catch (err) {
+      setRemoveError(errorText(err))
+    } finally {
+      setRemoving(false)
+    }
   }
 
   // A new sort opens on its own natural direction: picking Pace means wanting
@@ -305,9 +427,12 @@ export default function ActivityView({ userId, units }: Props) {
 
   // One row of the list: what it was, when, and its figures, and nothing that
   // has to be fetched. Pressing it unfolds the whole card underneath, pencil
-  // and all; pressing it again folds it away.
+  // and all; pressing it again folds it away. In Select mode the same press
+  // ticks the row instead, because a row is a big honest target and a tick box
+  // on its own is a small one.
   function row(workout: Workout) {
     const open = opened === workout.workout_id
+    const ticked = picked.has(workout.workout_id)
     const given = (workout.title ?? '').trim()
     const headline = given === '' ? defaultHeadline(workout.activity, workout.start_ts) : given
     const flagged = flagNotes(workout.flags) !== ''
@@ -315,11 +440,32 @@ export default function ActivityView({ userId, units }: Props) {
       <li key={workout.workout_id} className="list-item">
         <button
           type="button"
-          className={open ? 'list-row list-row-open' : 'list-row'}
-          aria-expanded={open}
-          onClick={() => setOpened(open ? null : workout.workout_id)}
+          className={
+            selecting
+              ? ticked
+                ? 'list-row list-row-ticked'
+                : 'list-row'
+              : open
+                ? 'list-row list-row-open'
+                : 'list-row'
+          }
+          aria-expanded={selecting ? undefined : open}
+          aria-pressed={selecting ? ticked : undefined}
+          onClick={() =>
+            selecting ? pick(workout.workout_id) : setOpened(open ? null : workout.workout_id)
+          }
         >
           <span className="list-head">
+            {/* Drawn rather than an input: the whole row is the control, and a
+                checkbox inside a button is a second control nobody can reach.
+                The row carries the thumb target; this is the mark on it, and
+                the button's own pressed state is what a reader is told. */}
+            {selecting && (
+              <span
+                className={ticked ? 'list-tick list-tick-on' : 'list-tick'}
+                aria-hidden="true"
+              />
+            )}
             <span className="sport-icon sport-icon-small">
               <Icon name={ACTIVITY_ICONS[workout.activity]} />
             </span>
@@ -343,7 +489,9 @@ export default function ActivityView({ userId, units }: Props) {
           </span>
         </button>
 
-        {open && card(workout)}
+        {/* Nothing unfolds while rows are being ticked: the list is a tool
+            then, and a card in the middle of it is somewhere to lose a tick. */}
+        {!selecting && open && card(workout)}
       </li>
     )
   }
@@ -376,6 +524,25 @@ export default function ActivityView({ userId, units }: Props) {
               List
             </button>
           </div>
+
+          {/* The way into tidying up, offered by the list only: the cards are
+              for reading one workout at a time. */}
+          {shape === 'list' && (
+            <button
+              type="button"
+              className={selecting ? 'dash-select dash-select-on' : 'dash-select'}
+              aria-pressed={selecting}
+              onClick={() => {
+                if (selecting) stopSelecting()
+                else {
+                  setSelecting(true)
+                  setOpened(null)
+                }
+              }}
+            >
+              Select
+            </button>
+          )}
 
           {/* Absent at zero: a pill reading Deleted (0) would put the idea in
               front of somebody who has never deleted anything. */}
@@ -452,7 +619,40 @@ export default function ActivityView({ userId, units }: Props) {
             )
           })}
         </ul>
+
+        {/* What is ticked and what can be done with it, in the header the
+            ticking was started from. Nothing goes until the dialog says so. */}
+        {selecting && (
+          <div className="dash-acts">
+            {/* The app's delete verb, which is the accent: the same button the
+                confirmation behind it wears. */}
+            <button
+              type="button"
+              className="primary"
+              disabled={picked.size === 0 || removing}
+              onClick={() => {
+                setRemoveError('')
+                setAsking(true)
+              }}
+            >
+              Delete selected ({picked.size})
+            </button>
+            <button type="button" className="secondary" disabled={removing} onClick={stopSelecting}>
+              Cancel
+            </button>
+          </div>
+        )}
       </section>
+
+      {asking && (
+        <ConfirmDelete
+          busy={removing}
+          error={removeError}
+          count={picked.size}
+          onConfirm={() => void removePicked()}
+          onCancel={() => setAsking(false)}
+        />
+      )}
 
       {/* Opened from the pill above and drawn here, at the top, where it was
           asked for. Rows rather than cards, because a deleted workout has no
@@ -567,6 +767,26 @@ export default function ActivityView({ userId, units }: Props) {
             )}
           </div>
         ))}
+
+        {moreError && (
+          <p className="error" role="alert">
+            {moreError}
+          </p>
+        )}
+
+        {/* The foot of both views. Absent once the history has been walked to
+            its end, so nobody presses a button that can only answer with
+            nothing. */}
+        {workouts.length > 0 && !done && (
+          <button
+            type="button"
+            className="secondary"
+            disabled={moreBusy}
+            onClick={() => void loadMore()}
+          >
+            {moreBusy ? 'Loading' : 'Load more'}
+          </button>
+        )}
       </section>
     </>
   )

@@ -98,23 +98,84 @@ def test_history_is_newest_first_and_pages(signed_in, db_session, member):
     assert isinstance(page, list)
     assert [row["start_ts"][:10] for row in page] == ["2026-07-05", "2026-07-04"]
 
-    older = signed_in.get(
-        "/api/workouts", params={"limit": 2, "before": page[-1]["start_ts"]}
-    ).json()
+    older = signed_in.get("/api/workouts", params={"limit": 2, "offset": 2}).json()
     assert [row["start_ts"][:10] for row in older] == ["2026-07-03", "2026-07-02"]
 
-
-def test_paging_survives_an_unencoded_offset(signed_in, db_session, member):
-    """A client that drops the timestamp into the query string without encoding
-    it gets the offset back as a space; the second page still has to work."""
-    for day in range(1, 4):
-        stored(db_session, member.id, start=f"2026-07-0{day}T06:00:00+00:00")
-    older = signed_in.get("/api/workouts?limit=2&before=2026-07-03T06:00:00+00:00").json()
-    assert [row["start_ts"][:10] for row in older] == ["2026-07-02", "2026-07-01"]
+    # Past the end is an empty page rather than an error: that is how the tab
+    # learns there is no more of it.
+    assert signed_in.get("/api/workouts", params={"limit": 2, "offset": 5}).json() == []
 
 
-def test_history_rejects_a_bad_cursor(signed_in):
-    assert signed_in.get("/api/workouts?before=yesterday").status_code == 400
+def test_history_pages_under_every_sort(signed_in, db_session, member):
+    """A page boundary lands in the same place whatever the list is ordered by.
+
+    Five rows, three keys, both directions: the second page picks up exactly
+    where the first one stopped, with nothing repeated and nothing skipped.
+    """
+    for day, miles in enumerate([3.0, 1.0, 5.0, 2.0, 4.0], start=1):
+        stored(
+            db_session,
+            member.id,
+            start=f"2026-07-0{day}T06:00:00+00:00",
+            miles=miles,
+            duration=int(miles * 600),
+            avg_hr=100.0 + miles,
+        )
+
+    for sort in ("date", "distance", "pace", "avg_hr"):
+        for order in ("asc", "desc"):
+            whole = signed_in.get(
+                "/api/workouts", params={"sort": sort, "order": order}
+            ).json()
+            paged = []
+            for offset in (0, 2, 4):
+                paged += signed_in.get(
+                    "/api/workouts",
+                    params={"sort": sort, "order": order, "limit": 2, "offset": offset},
+                ).json()
+            assert [row["workout_id"] for row in paged] == [
+                row["workout_id"] for row in whole
+            ], f"{sort} {order}"
+
+
+def test_the_oldest_first_page_stops_at_the_end_of_the_history(signed_in, db_session, member):
+    """The date-sort freeze, pinned at the server.
+
+    His report was of the oldest-first page sticking in April with the controls
+    dead. The client half of that was a stale answer landing on top of a fresh
+    one; the half that lives here is the paging, which under the old cursor
+    could not walk forwards at all: `before` asked for rows earlier than the
+    last one on the page, which is the wrong end of an ascending list, so the
+    second page was the same page again and the list never left April.
+
+    A history the shape of his, February to August, paged oldest first: every
+    page moves forwards, nothing repeats, and the last one is short.
+    """
+    for day in range(190):
+        moment = dt.datetime(2026, 2, 1, 6, 0, tzinfo=dt.timezone.utc) + dt.timedelta(days=day)
+        if day % 4 == 3:
+            continue
+        stored(db_session, member.id, start=moment.isoformat(), miles=1.0 + (day % 7))
+
+    seen: list[int] = []
+    dates: list[str] = []
+    for offset in range(0, 200, 20):
+        page = signed_in.get(
+            "/api/workouts",
+            params={"sort": "date", "order": "asc", "limit": 20, "offset": offset},
+        ).json()
+        seen += [row["workout_id"] for row in page]
+        dates += [row["start_ts"][:10] for row in page]
+        if len(page) < 20:
+            break
+
+    assert len(seen) == len(set(seen)) == 143
+    # Forwards through the year, February at the top and August at the foot.
+    assert dates == sorted(dates)
+    assert dates[0].startswith("2026-02") and dates[-1].startswith("2026-08")
+    # April is a page in the middle of it rather than the end of it.
+    assert any(day.startswith("2026-04") for day in dates[40:80])
+    assert any(day.startswith("2026-08") for day in dates[-20:])
 
 
 def sorted_miles(signed_in, **params) -> list[float]:

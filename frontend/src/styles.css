@@ -1535,21 +1535,23 @@ button:disabled {
   flex: 1 1 auto;
 }
 
-/* Quiet: a count of what is on its way out, not a fifth place to go. It reads
-   as the pill it is rather than as one of the two buttons beside it, so nobody
-   presses it looking for a third view. */
+/* Quiet: a count of what is on its way out, not a fifth place to go, and the
+   way into tidying up beside it. Both are slightly rounded squares, which is
+   the shape every button in this app wears; they are told apart from the view
+   toggle by being grey rather than by being oval. */
+.dash-select,
 .deleted-pill {
   flex: 0 0 auto;
   min-height: 44px;
   padding: 0.4rem 0.85rem;
   background: transparent;
   border: 1px solid var(--line);
-  border-radius: 999px;
   color: var(--muted);
   font-size: 0.8rem;
   font-weight: 700;
 }
 
+.dash-select-on,
 .deleted-pill-open {
   border-color: var(--accent);
   color: var(--accent);
@@ -1602,7 +1604,6 @@ button:disabled {
   padding: 0.3rem 0.6rem;
   background: transparent;
   border: 1px solid var(--line);
-  border-radius: 999px;
   color: var(--muted);
   font-size: 0.8rem;
   font-weight: 700;
@@ -1618,6 +1619,18 @@ button:disabled {
 .filter-chip .sport-icon {
   margin-inline-end: 0.22rem;
   color: inherit;
+}
+
+/* What is ticked can be done with. Its own line under the chips, in the header
+   the ticking was started from, so the list below it does not move. */
+.dash-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.dash-acts .primary {
+  flex: 1 1 12rem;
 }
 
 /* The list view: one row per workout, no maps and no photographs, built for
@@ -1648,7 +1661,25 @@ button:disabled {
   color: var(--text);
 }
 
-.list-row-open {
+.list-row-open,
+.list-row-ticked {
+  border-color: var(--accent);
+}
+
+/* The tick. The row is the target, so this is only the mark on it: a slightly
+   rounded square like everything else, filled with the accent when it is on.
+   Its box is the width the row gives up while Select is running, so the
+   figures under it keep their columns. */
+.list-tick {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.list-tick-on {
+  background: var(--accent);
   border-color: var(--accent);
 }
 

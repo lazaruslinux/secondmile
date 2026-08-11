@@ -464,18 +464,26 @@ const DELETED_DAYS = 30
 // dialog every other question in this app is asked in: the focus trap, the page
 // held still behind it, and Esc come with the element rather than being built
 // here. Nothing is deleted until the button in it is pressed.
-function ConfirmDelete({
+//
+// One dialog for one workout and for a batch of them, because the consequences
+// are the same ones and saying them twice in two places is how the two drift
+// apart. The count is named in the question and on the button, so nobody
+// confirms a number they were not shown.
+export function ConfirmDelete({
   busy,
   error,
+  count = 1,
   onConfirm,
   onCancel,
 }: {
   busy: boolean
   error: string
+  count?: number
   onConfirm: () => void
   onCancel: () => void
 }) {
   const dialog = useRef<HTMLDialogElement>(null)
+  const many = count > 1
 
   useEffect(() => {
     dialog.current?.showModal()
@@ -495,27 +503,34 @@ function ConfirmDelete({
     >
       <section className="overlay-panel">
         <header className="overlay-head">
-          <h2 id="delete-title">Delete this activity?</h2>
+          <h2 id="delete-title">
+            {many ? `Delete ${count} activities?` : 'Delete this activity?'}
+          </h2>
         </header>
 
         <div className="item-detail">
           {/* Said plainly and in full, because every one of these is a
               consequence somebody would rather hear now than find out. */}
-          <p>It goes out of your feed and your friends&apos; feeds.</p>
+          <p>
+            {many
+              ? "They go out of your feed and your friends' feeds."
+              : "It goes out of your feed and your friends' feeds."}
+          </p>
           <p>
             The miles come back off your totals, your level, your streak and the
             medals they earned. What those miles already grew in your grove
             stays, and chests you have already found stay.
           </p>
           <p>
-            It waits under Deleted on your Activity tab for {DELETED_DAYS} days,
-            and you can put it back any time until then. After that it is gone
-            for good.
+            {many ? 'They wait' : 'It waits'} under Deleted on your Activity tab
+            for {DELETED_DAYS} days, and you can put{' '}
+            {many ? 'any of them' : 'it'} back any time until then. After that{' '}
+            {many ? 'they are' : 'it is'} gone for good.
           </p>
 
           <div className="item-verbs">
             <button type="button" className="primary" disabled={busy} onClick={onConfirm}>
-              Delete
+              {many ? `Delete ${count}` : 'Delete'}
             </button>
           </div>
 
@@ -528,7 +543,7 @@ function ConfirmDelete({
 
         <footer className="overlay-foot">
           <button type="button" className="secondary" disabled={busy} onClick={onCancel}>
-            Keep it
+            {many ? 'Keep them' : 'Keep it'}
           </button>
         </footer>
       </section>

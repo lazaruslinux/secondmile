@@ -718,17 +718,16 @@ export interface WorkoutQuery {
   order?: SortOrder
   // One sport, or every sport when it is left out.
   activity?: Activity
-  // The start_ts of the last row already shown; the server answers with what
-  // started strictly before it.
-  before?: string
+  // How many rows to skip: the number already shown. A count rather than a
+  // cursor because three of the four sorts are ordered by something that
+  // repeats and can be missing, which is nothing to hold a place with.
+  offset?: number
 }
 
-// Everything is encoded: an unescaped "+00:00" offset in the cursor arrives as
-// a space and only ever breaks page two.
 export function listWorkouts(limit: number, query: WorkoutQuery = {}): Promise<Workout[]> {
   const params = new URLSearchParams({ limit: String(limit) })
   for (const [name, value] of Object.entries(query)) {
-    if (value !== undefined) params.set(name, value)
+    if (value !== undefined) params.set(name, String(value))
   }
   return getJson<Workout[]>(`/workouts?${params}`)
 }
@@ -824,6 +823,14 @@ export async function updateWorkout(workoutId: number, edit: WorkoutEdit): Promi
 // screen rather than patching one card's worth of it.
 export async function deleteWorkout(workoutId: number): Promise<void> {
   await send(`/workouts/${workoutId}`, { method: 'DELETE' })
+}
+
+// Several at once, from the list's Select mode. All of them or none of them:
+// one id the account does not own answers 404 for the whole call. Answers with
+// the Deleted rows it made, so the count above the list is right at once.
+export async function deleteWorkouts(ids: number[]): Promise<DeletedWorkout[]> {
+  const res = await sendJson('/workouts/delete', 'POST', { ids })
+  return (await res.json()) as DeletedWorkout[]
 }
 
 // Puts one back, and answers with the row in the history's own shape so the
