@@ -28,6 +28,8 @@ interface Props {
 // The whole cycle of five chests as one bar: a marker per step in the colour of
 // what that step is worth, the walker's miles filling the rail up to wherever
 // they have got, and the step a friend's oil is waiting on marked as double.
+// Each step says which of three things it is by its state class: a chest opened
+// this cycle is crossed out, the one being walked is lit, the rest are dimmed.
 // It lives on this screen rather than in the side rail because the rail is a
 // desktop thing and this is the screen a phone can reach.
 export default function ChestBar({ bar }: Props) {

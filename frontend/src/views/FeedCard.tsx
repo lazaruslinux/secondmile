@@ -25,7 +25,6 @@ import {
 import { ACTIVITY_ICONS, ACTIVITY_NAMES, defaultHeadline, personName } from '../labels.ts'
 import AvatarFrame from './AvatarFrame.tsx'
 import Icon from './Icon.tsx'
-import { MAX_MEDAL_SLOTS } from './MedalNest.tsx'
 import { MedalChip } from './Medals.tsx'
 import RouteLine from './RouteLine.tsx'
 
@@ -292,26 +291,6 @@ function PhotoStrip({ workoutId, photos }: { workoutId: number; photos: number[]
         </li>
       ))}
     </ul>
-  )
-}
-
-// The medals somebody chose to show, beside their name. Friends' cards only:
-// your own three are already nestled on your picture on the You screen, so the
-// feed says them about everybody but you. These are who they are rather than
-// what this workout earned, which is why they sit at the top of the card and
-// the earned ones stay along the foot. They are drawn at the foot's size and
-// not nestled on the picture: nested medals come to about three times the width
-// of a 2.5rem feed avatar and would lie across the name, and shrinking them
-// takes the word off the plate, which is the only thing telling 5K from
-// MARATHON.
-function ChosenMedals({ ids }: { ids: string[] }) {
-  if (ids.length === 0) return null
-  return (
-    <p className="feed-chosen">
-      {ids.slice(0, MAX_MEDAL_SLOTS).map((id) => (
-        <MedalChip key={id} id={id} />
-      ))}
-    </p>
   )
 }
 
@@ -606,10 +585,6 @@ export default function FeedCard({
   const medals = item.medals ?? []
   // The name they go by if they gave one, and their username otherwise.
   const who = personName(user)
-  // Read as optional on purpose: the field arrives on the person card, and a
-  // card without it draws no medals rather than throwing. Own cards never draw
-  // it at all: your picture on You already wears the same three.
-  const chosen = user.displayed_badges ?? []
 
   if (item.own) {
     return (
@@ -742,7 +717,6 @@ export default function FeedCard({
             {when}
           </p>
         </div>
-        <ChosenMedals ids={chosen} />
       </header>
 
       <h2 className="feed-title">

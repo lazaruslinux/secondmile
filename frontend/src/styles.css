@@ -966,12 +966,9 @@ button:disabled {
 
 /* Home: the feed */
 
-/* Top-aligned rather than centred: the picture belongs beside the name. It
-   wraps because the chosen medals below the name are the width of the card
-   rather than the width of what is left beside the picture. */
+/* Top-aligned rather than centred: the picture belongs beside the name. */
 .feed-head {
   display: flex;
-  flex-wrap: wrap;
   align-items: flex-start;
   gap: 0.7rem;
 }
@@ -1022,20 +1019,6 @@ button:disabled {
   margin: 0;
   font-size: 0.78rem;
   color: var(--muted);
-}
-
-/* The medals a friend chose to show, on their own line under the name and
-   across the card. The same pill the foot uses, so the feed has one kind of
-   medal chip rather than two, and it wraps instead of shrinking: three of them
-   can still be wider than a phone, and the word on the plate is the only thing
-   telling one race medal from another. */
-.feed-chosen {
-  flex: 0 0 100%;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.25rem;
-  margin: 0;
 }
 
 .feed-title {
@@ -2276,6 +2259,24 @@ button:disabled {
    as one row of five and the colours still say what each step is worth. */
 .chest-step-ahead {
   opacity: 0.4;
+}
+
+/* A chest already opened this cycle keeps its colour and is struck through, the
+   way a list crosses off what is done. Drawn as a gradient across the mark
+   rather than an inline transform, so nothing here needs a style attribute:
+   two transparent halves meeting at a hairline of the step's own colour. The
+   line runs corner to corner because the mark is square. */
+.chest-step-behind .chest-mark::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  background: linear-gradient(
+    to top right,
+    transparent calc(50% - 1px),
+    currentColor calc(50% - 1px),
+    currentColor calc(50% + 1px),
+    transparent calc(50% + 1px)
+  );
 }
 
 .chest-lane {

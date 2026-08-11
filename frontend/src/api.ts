@@ -79,10 +79,9 @@ export interface Person {
   // How far the border's growth has come, 0 to 3. Earned by encouraging other
   // people, and the only outward sign of it: the number behind it is never sent.
   flourish: number
-  // The medals they chose to show, as ids, at most three. Their own doing rather
-  // than anything a workout earned. Optional: a server that predates the field
-  // simply sends a card with no medals on it, and the feed draws none.
-  displayed_badges?: string[]
+  // The server also sends the medals they chose to show. Nothing reads them
+  // here: the feed said them beside the name and they read as things this
+  // workout earned, so they are the profile's job now, one tap away.
 }
 
 // What a workout has been given, from everyone, plus whether this account is one
