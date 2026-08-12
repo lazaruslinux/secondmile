@@ -124,7 +124,17 @@ def register(
         invite = db.execute(
             select(models.Invite).where(models.Invite.code == code)
         ).scalar_one_or_none()
-        if invite is None or invite.used_by is not None or invite.expires_at <= now:
+        if (
+            invite is None
+            or invite.used_by is not None
+            # Taken back before it was spent. A separate ending from a claimed
+            # one, and the same sentence, because telling them apart is telling
+            # somebody holding a dead link what became of it.
+            or invite.revoked_at is not None
+            # Null means it never expires, which is every link minted in the
+            # app. The command line's codes still carry a date.
+            or (invite.expires_at is not None and invite.expires_at <= now)
+        ):
             raise invalid_invite
 
     # Hashing before the duplicate check, not after, and the wasted work on the
@@ -175,13 +185,32 @@ def register(
             .where(
                 models.Invite.id == invite.id,
                 models.Invite.used_by.is_(None),
-                models.Invite.expires_at > now,
+                models.Invite.revoked_at.is_(None),
+                # The same two endings the read above checked, in the clause
+                # that actually decides it: a link taken back or run out
+                # between the read and here updates no rows and loses.
+                or_(models.Invite.expires_at.is_(None), models.Invite.expires_at > now),
             )
             .values(used_by=user.id)
         )
         if claimed.rowcount != 1:
             db.rollback()
             raise invalid_invite
+        if invite.auto_friend and invite.created_by != user.id:
+            # A link minted in the app was sent by somebody to somebody they
+            # know, so the two of them are friends the moment it is spent
+            # rather than after another round of asking. Accepted outright, and
+            # one row, which is the mutual shape everything here reads: a pair
+            # is friends when an accepted row exists either way round.
+            db.add(
+                models.Friendship(
+                    requester_id=invite.created_by,
+                    addressee_id=user.id,
+                    status="accepted",
+                    created_at=now,
+                    responded_at=now,
+                )
+            )
 
     token = security.create_email_token(db, user.id)
     db.commit()
@@ -395,13 +424,19 @@ def change_password(
 
 
 def create_invite(db: Session, created_by: int, expires_days: int = 14) -> models.Invite:
-    """Mint an invite code. Used by the command line tool, and the only way into
-    an account while REGISTRATION_OPEN is false."""
+    """Mint an invite code from the command line.
+
+    Dated, and it makes no friendship: this is an account gate handed out by
+    whoever runs the server, who is not necessarily anybody the new account has
+    met. The links minted in the app are the other kind and are made in
+    routers/invites.py.
+    """
     invite = models.Invite(
         code=security.generate_token(),
         created_by=created_by,
         created_at=security.now_utc(),
         expires_at=security.now_utc() + dt.timedelta(days=expires_days),
+        auto_friend=False,
     )
     db.add(invite)
     return invite

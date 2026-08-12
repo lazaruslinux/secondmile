@@ -351,28 +351,22 @@ def read_avatar(
     db: Session = Depends(get_db),
     viewer: models.User = Depends(security.current_user),
 ) -> FileResponse:
-    """Serve one account's picture to the people entitled to see it.
+    """Serve one member's picture to any other member of this instance.
 
-    Three of them: yourself, an accepted friend, and somebody you have sent an
-    invite to. The third is why the reach is wider than the feed's, and it is
-    deliberately one-way. Answering an invitation means looking at whoever sent
-    it, so the recipient may see the inviter's face; the inviter may not see the
-    recipient's, because an account can create a pending invite to any name it
-    likes and the reverse rule would turn that into a way to pull a photograph
-    of whoever holds a username.
+    The gate is the session and nothing narrower, and that follows the club:
+    every member may look one another up by name and read the card that comes
+    back, and a card with the face cut out of it is not the card the instance
+    agreed to serve. The narrower rule this replaced -- yourself, your friends,
+    and whoever you had invited -- was shaped around an app with no way to find
+    anybody, and there is one now.
 
-    Everything else is the same 404 as an account with no picture, so this
-    cannot be asked which ids are real either. Behind a session in all cases:
-    an unauthenticated URL returning a photograph invites hotlinking.
+    An account with no picture, and an id nobody owns, are the same 404, so
+    this still cannot be asked which ids are real. Behind a session in all
+    cases: an unauthenticated URL returning a photograph invites hotlinking,
+    and a photograph is the one thing here worth hotlinking.
     """
     owner = db.get(models.User, user_id)
     if owner is None or owner.avatar_path is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No picture.")
-    if (
-        user_id != viewer.id
-        and not fellowship.are_friends(db, viewer.id, user_id)
-        and not fellowship.invited(db, user_id, viewer.id)
-    ):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No picture.")
     stored = avatars.path_for(user_id)
     if not os.path.isfile(stored):
@@ -598,23 +592,81 @@ def serialize_friend_profile(db: Session, user: models.User, viewer_id: int) -> 
     }
 
 
+def serialize_member_card(db: Session, user: models.User, viewer_id: int) -> dict:
+    """What one member may see of another they are not friends with.
+
+    A third serializer rather than either of the other two with a flag on it,
+    and for the reason the second one exists: a boolean deciding which fields
+    to drop is one careless edit away from sending all of them. The shape of
+    this function IS the allowlist, and it is short on purpose. A name, a face
+    in its frame, a line they wrote about themselves, and the month they
+    joined. Everything the game keeps -- the level, the miles, the medals, the
+    grove, the workouts -- stays behind friendship, where it has always been.
+
+    The frame and the flourish come along because they are how a person is
+    drawn everywhere in this app, on a feed row and in a friends list alike.
+    The medals do not: those are things somebody earned, and earning is the
+    part a friend gets to look at.
+    """
+    row = db.get(models.UserProgress, user.id)
+    level, _, _ = progress.level_bounds(row.xp if row else 0.0)
+    return {
+        "user_id": user.id,
+        "username": user.username,
+        "display_name": fellowship.display_name(user.first_name, user.last_name),
+        "has_avatar": user.avatar_path is not None,
+        "avatar_version": avatars.version(user.id) if user.avatar_path else None,
+        "border_tier": progress.border_tier(level),
+        "flourish": fellowship.flourish_stage(row.renown if row else 0),
+        "bio": user.bio,
+        "created_at": user.created_at.isoformat(),
+        # Said outright rather than left to be inferred from which keys are
+        # missing: the screen draws a different card, and it should know that
+        # from the payload rather than from the absence of one.
+        "restricted": True,
+        "friendship": friendship_state(db, user.id, viewer_id),
+    }
+
+
+def friendship_state(db: Session, user_id: int, viewer_id: int) -> str:
+    """Where these two accounts stand, in one word the button can read.
+
+    Only ever asked about a pair the caller is one half of, so nothing here
+    tells anybody about anyone else's invites. "friends" cannot appear on the
+    profile card, which is served to non-friends only; it is here because the
+    roster search serves the same card for people you already know.
+    """
+    if fellowship.are_friends(db, viewer_id, user_id):
+        return "friends"
+    if fellowship.invited(db, viewer_id, user_id):
+        return "invited_by_me"
+    if fellowship.invited(db, user_id, viewer_id):
+        return "invited_me"
+    return "none"
+
+
 @router.get("/profile/{user_id}")
 def read_friend_profile(
     user_id: int,
     db: Session = Depends(get_db),
     viewer: models.User = Depends(security.current_user),
 ) -> dict:
-    """A friend's profile: who they are, how they are doing, and what they did.
+    """One person, seen from wherever the reader is standing.
 
-    Friends only, and the refusal is a 404 rather than a 403 because a 403
-    would confirm the account exists. An id nobody owns takes the same branch
-    to the same sentence, so this cannot be asked whether a stranger is real
-    any more than the invite form can. Your own id is allowed and answers with
-    the friend-shaped view, which is the rule the friend's grove goes by.
+    Three answers. Yourself and your friends get the whole thing. Another
+    member of this instance gets the restricted card: a name, a face, a line,
+    and a month, which is what the club decided a member may see of a member
+    they have not met. An id nobody owns is the same 404 it always was, which
+    is why this still cannot be asked whether a stranger is real.
+
+    The 404 is now the only refusal, and it means one thing rather than two: no
+    such account. A member who is not a friend used to take it as well, and
+    that was the rule before the instance decided it was a private club and a
+    roster you were let into rather than an index of the world.
     """
     person = db.get(models.User, user_id)
-    if person is None or (
-        user_id != viewer.id and not fellowship.are_friends(db, viewer.id, user_id)
-    ):
+    if person is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such friend.")
+    if user_id != viewer.id and not fellowship.are_friends(db, viewer.id, user_id):
+        return serialize_member_card(db, person, viewer.id)
     return serialize_friend_profile(db, person, viewer.id)

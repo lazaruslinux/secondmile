@@ -268,16 +268,24 @@ def test_one_account_cannot_overwrite_another_avatar(signed_in, db_session, admi
     assert signed_in.get(f"/api/profile/avatar/{admin.id}").status_code == 404
 
 
-def test_a_stranger_cannot_read_a_picture(signed_in, db_session, member):
-    """Signing in is not enough. A picture is a photograph of somebody, so the
-    reach is the feed's: yourself and the people you have both agreed to."""
+def test_another_member_can_read_a_picture_and_nobody_outside_can(
+    client, signed_in, db_session, member
+):
+    """The club rule: a session is the gate, and there is nothing narrower.
+
+    Every member may look every other member up by name and read the card that
+    comes back, and the face is on that card. What is still refused is anybody
+    without a session at all: an unauthenticated URL serving a photograph is an
+    invitation to hotlink it.
+    """
     upload(signed_in, image_bytes())
-    _, stranger = sign_in(db_session, "stranger")
-    refused = stranger.get(f"/api/profile/avatar/{member.id}")
-    assert refused.status_code == 404
-    assert refused.json() == {"detail": "No picture."}
+    _, other_member = sign_in(db_session, "stranger")
+    assert other_member.get(f"/api/profile/avatar/{member.id}").status_code == 200
     # And the owner still sees their own.
     assert signed_in.get(f"/api/profile/avatar/{member.id}").status_code == 200
+    # Signed out is still nothing at all.
+    client.cookies.clear()
+    assert client.get(f"/api/profile/avatar/{member.id}").status_code == 401
 
 
 def test_a_friend_can_read_a_picture(signed_in, db_session, member):
@@ -287,28 +295,22 @@ def test_a_friend_can_read_a_picture(signed_in, db_session, member):
     assert other_client.get(f"/api/profile/avatar/{member.id}").status_code == 200
 
 
-def test_an_invite_shows_its_sender_face_and_never_the_other_way(
-    signed_in, db_session, member
-):
-    """The one direction wider than friendship, and it only goes one way.
+def test_an_invite_shows_a_face_both_ways_round_now(signed_in, db_session, member):
+    """What used to be a one-way rule and is not one any more.
 
-    Answering an invitation means looking at whoever sent it, so the recipient
-    may see the inviter's picture. The reverse is refused: an account can create
-    a pending invite to any name it likes, and serving the recipient's picture
-    back would make the invite form a way to pull a photograph out of a
-    username, which is the whole thing the sent list was fixed to stop.
+    The old asymmetry existed because an account could create a pending invite
+    to any name it liked, and serving the recipient's picture back would have
+    made the invite form a way to pull a photograph out of a username. In a
+    club with a roster search that rule protects nothing: the same picture is
+    one search away, so both ends of an invitation see each other.
     """
     other, other_client = sign_in(db_session, "mate")
     upload(signed_in, image_bytes())
     upload(other_client, image_bytes(colour=(200, 10, 10)))
     assert signed_in.post("/api/friends/invite", json={"username": "mate"}).status_code == 204
 
-    # The recipient may look at whoever is asking.
     assert other_client.get(f"/api/profile/avatar/{member.id}").status_code == 200
-    # The sender may not look at whoever they asked.
-    refused = signed_in.get(f"/api/profile/avatar/{other.id}")
-    assert refused.status_code == 404
-    assert refused.json() == {"detail": "No picture."}
+    assert signed_in.get(f"/api/profile/avatar/{other.id}").status_code == 200
 
 
 def test_an_avatar_the_row_claims_but_the_disk_lost_is_a_404(signed_in, member, avatar_dir):
@@ -1178,21 +1180,24 @@ def test_your_own_strip_is_on_the_friend_shaped_view(signed_in, db_session, memb
     assert [row["photo_id"] for row in strip] == [photo_id]
 
 
-def test_a_stranger_reaches_neither_the_strip_nor_the_pictures_on_it(
+def test_a_non_friend_reaches_neither_the_strip_nor_the_pictures_on_it(
     signed_in, db_session, friend
 ):
     """The ids on the strip are addresses, and the endpoint behind them is
-    gated on the same friendship the profile is. Pinned here as well as beside
-    the feed, because this is the second screen handing those ids out."""
+    gated on the same friendship the strip is. A member who is not a friend
+    gets the restricted card, which has no strip on it at all, so there are no
+    ids to try; asking the photo endpoint anyway is the same 404."""
     other, other_client = friend
     workout = log_workout(db_session, other.id, "run", 2.0, pace_min=9)
     photo_id = add_photo(other_client, workout.id)
     assert signed_in.get(f"/api/workouts/{workout.id}/photos/{photo_id}").status_code == 200
 
-    _, stranger_client = sign_in(db_session, "nobody")
-    # No profile at all, so no strip and no ids to try.
-    assert stranger_client.get(f"/api/profile/{other.id}").status_code == 404
-    refused = stranger_client.get(f"/api/workouts/{workout.id}/photos/{photo_id}")
+    _, outsider = sign_in(db_session, "nobody")
+    card = outsider.get(f"/api/profile/{other.id}")
+    assert card.status_code == 200
+    assert card.json()["restricted"] is True
+    assert "recent_photos" not in card.json()
+    refused = outsider.get(f"/api/workouts/{workout.id}/photos/{photo_id}")
     assert refused.status_code == 404
     assert refused.json() == {"detail": "No such photo."}
 
@@ -1213,24 +1218,98 @@ def test_a_friend_profile_shows_ten_workouts_newest_first(signed_in, db_session,
     assert stamps == sorted(stamps, reverse=True)
 
 
-def test_a_stranger_and_an_account_that_does_not_exist_answer_identically(
-    signed_in, db_session, client
-):
-    """404 rather than 403 on purpose, and the same 404 either way: an endpoint
-    that told the two apart would be a way to ask whether somebody has an
-    account here, which is exactly what the invite form refuses to answer."""
-    stranger, _ = sign_in(db_session, "stranger")
-    real = signed_in.get(f"/api/profile/{stranger.id}")
-    invented = signed_in.get("/api/profile/9999")
+# Everything the restricted card is allowed to carry, asserted as a whole set
+# for the reason the friend shape is: a field copied across out of habit has to
+# fail here rather than pass because nobody went looking for it.
+MEMBER_CARD_KEYS = {
+    "user_id",
+    "username",
+    "display_name",
+    "has_avatar",
+    "avatar_version",
+    "border_tier",
+    "flourish",
+    "bio",
+    "created_at",
+    "restricted",
+    "friendship",
+}
 
-    assert real.status_code == invented.status_code == 404
-    assert real.json() == {"detail": "No such friend."}
-    assert real.content == invented.content
+# Everything friendship still gates, named one by one. This is the list the
+# club round is about: a member you have not met is a name, a face, a line and
+# a month, and every number the game keeps stays behind an accepted invite.
+MEMBER_CARD_ABSENT = {
+    "level",
+    "miles",
+    "xp",
+    "xp_into_level",
+    "xp_for_next_level",
+    "medals",
+    "displayed_badges",
+    "grove",
+    "workouts",
+    "recent_photos",
+    "item_tallies",
+    "week",
+    "lifetime",
+    "email",
+    "birthdate",
+    "age",
+    "gender",
+}
 
 
-def test_a_pending_invite_is_not_a_friendship(signed_in, db_session, member):
-    """Asked for, not agreed to. Everything in this app is mutual, and a profile
-    a request alone opened would be the one thing that is not."""
+def test_a_member_who_is_not_a_friend_gets_the_restricted_card(signed_in, db_session):
+    """The club's own answer, which used to be a 404: a member is somebody you
+    were let into a room with, so their name and their face are readable."""
+    other, other_client = sign_in(db_session, "stranger")
+    other_client.patch(
+        "/api/profile", json={"first_name": "Ada", "last_name": "Rowe", "bio": "Slow and steady."}
+    )
+    log_workout(db_session, other.id, "run", 6.0, pace_min=9)
+
+    response = signed_in.get(f"/api/profile/{other.id}")
+    assert response.status_code == 200
+    body = response.json()
+    assert set(body) == MEMBER_CARD_KEYS
+    assert body["user_id"] == other.id
+    assert body["username"] == "stranger"
+    assert body["display_name"] == "Ada Rowe"
+    assert body["bio"] == "Slow and steady."
+    assert body["restricted"] is True
+    assert body["friendship"] == "none"
+    assert body["has_avatar"] is False
+
+
+def test_the_restricted_card_carries_none_of_what_friendship_gates(signed_in, db_session):
+    """The negative half, and the one that matters. Six miles were run, a plant
+    is in the ground and a medal was earned, and none of it is in the card."""
+    other, _ = sign_in(db_session, "stranger")
+    log_workout(db_session, other.id, "run", 6.5, pace_min=9)
+    give_planting(db_session, other.id, "strawberry", growth=4.0)
+
+    response = signed_in.get(f"/api/profile/{other.id}")
+    assert every_key(response.json()) & MEMBER_CARD_ABSENT == set()
+    assert every_key(response.json()) & FORBIDDEN_KEYS == set()
+    # And no number is hiding under another name either.
+    assert "6.5" not in response.text
+
+
+def test_the_restricted_card_says_which_way_an_invite_is_pointing(signed_in, db_session, member):
+    """The one field the button on the card is drawn from, and it only ever
+    describes a pair the reader is half of."""
+    asked, asked_client = sign_in(db_session, "asked")
+    assert signed_in.post("/api/friends/invite", json={"username": "asked"}).status_code == 204
+    assert signed_in.get(f"/api/profile/{asked.id}").json()["friendship"] == "invited_by_me"
+    # And from the other end of the same invite.
+    card = asked_client.get(f"/api/profile/{member.id}")
+    assert card.status_code == 200
+    assert card.json()["friendship"] == "invited_me"
+
+
+def test_a_pending_invite_is_still_not_a_friendship(signed_in, db_session, member):
+    """Asked for, not agreed to. The card opens either way now, and what it
+    carries is the restricted shape until somebody says yes."""
     asked, _ = sign_in(db_session, "asked")
     db_session.add(
         models.Friendship(
@@ -1241,14 +1320,24 @@ def test_a_pending_invite_is_not_a_friendship(signed_in, db_session, member):
         )
     )
     db_session.commit()
-    assert signed_in.get(f"/api/profile/{asked.id}").status_code == 404
+    body = signed_in.get(f"/api/profile/{asked.id}").json()
+    assert set(body) == MEMBER_CARD_KEYS
 
 
-def test_removing_a_friend_closes_their_profile_again(signed_in, friend):
+def test_an_account_that_does_not_exist_is_still_a_404(signed_in, db_session):
+    """The only refusal left, and it means one thing: no such account. A member
+    is answered, so nothing here is a way to ask which ids are real either --
+    every id that is real answers the same way."""
+    invented = signed_in.get("/api/profile/9999")
+    assert invented.status_code == 404
+    assert invented.json() == {"detail": "No such friend."}
+
+
+def test_removing_a_friend_closes_their_profile_back_to_the_card(signed_in, friend):
     other, _ = friend
-    assert signed_in.get(f"/api/profile/{other.id}").status_code == 200
+    assert set(signed_in.get(f"/api/profile/{other.id}").json()) == FRIEND_PROFILE_KEYS
     assert signed_in.delete(f"/api/friends/{other.id}").status_code == 204
-    assert signed_in.get(f"/api/profile/{other.id}").status_code == 404
+    assert set(signed_in.get(f"/api/profile/{other.id}").json()) == MEMBER_CARD_KEYS
 
 
 def test_your_own_id_answers_with_the_friend_shaped_view(signed_in, db_session, member):

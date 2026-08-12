@@ -122,6 +122,81 @@ def mate(client, db_session) -> tuple[models.User, TestClient]:
 
 
 # --------------------------------------------------------------------------
+# The roster search
+# --------------------------------------------------------------------------
+
+
+def test_a_member_is_found_by_username_and_by_the_name_they_go_by(signed_in, db_session):
+    other, other_client = sign_in(db_session, "aroweing")
+    other_client.patch("/api/profile", json={"first_name": "Ada", "last_name": "Rowe"})
+
+    for query in ("arow", "AROW", "ada", "rowe", "ada row"):
+        found = signed_in.get("/api/members", params={"q": query})
+        assert found.status_code == 200, query
+        assert [row["user_id"] for row in found.json()] == [other.id], query
+    # And what comes back is the restricted card, said outright.
+    row = signed_in.get("/api/members", params={"q": "ada"}).json()[0]
+    assert row["restricted"] is True
+    assert row["display_name"] == "Ada Rowe"
+    assert row["friendship"] == "none"
+    assert "level" not in row and "miles" not in row and "medals" not in row
+
+
+def test_a_search_is_not_a_way_to_read_the_roster(signed_in, db_session):
+    sign_in(db_session, "mate")
+    sign_in(db_session, "other")
+    # Nothing at all for an empty query or a single letter: a roster is not
+    # something to scroll, and one character is scrolling it.
+    assert signed_in.get("/api/members").json() == []
+    assert signed_in.get("/api/members", params={"q": ""}).json() == []
+    assert signed_in.get("/api/members", params={"q": "m"}).json() == []
+    assert signed_in.get("/api/members", params={"q": "  m  "}).json() == []
+    # And a wildcard is a letter like any other rather than a pattern.
+    assert signed_in.get("/api/members", params={"q": "%%"}).json() == []
+
+
+def test_a_search_never_finds_yourself(signed_in, db_session, member):
+    assert signed_in.get("/api/members", params={"q": member.username}).json() == []
+
+
+def test_a_friend_is_found_and_the_card_says_so(signed_in, db_session, member):
+    other, _ = sign_in(db_session, "mate")
+    befriend(db_session, member, other)
+    row = signed_in.get("/api/members", params={"q": "mate"}).json()[0]
+    assert row["friendship"] == "friends"
+
+
+def test_a_search_caps_what_it_answers_and_counts_nothing(signed_in, db_session):
+    # Accounts rather than sessions: none of these has to sign in for a search
+    # to find them, and twenty-one sign-ins would spend the login allowance.
+    for index in range(21):
+        make_user(db_session, f"walker{index:02d}", f"walker{index:02d}-password-1")
+    found = signed_in.get("/api/members", params={"q": "walker"})
+    rows = found.json()
+    assert len(rows) == 20
+    # By name, so the same search twice reads the same way round.
+    assert [row["username"] for row in rows] == sorted(row["username"] for row in rows)
+    # No total anywhere: a list is a list, not a count of what it left out.
+    assert isinstance(rows, list)
+
+
+def test_the_search_is_for_members_only(client, db_session, member):
+    """Signed out is nothing at all. The room is one somebody was let into."""
+    client.cookies.clear()
+    assert client.get("/api/members", params={"q": "run"}).status_code == 401
+
+
+def test_the_invite_form_still_proves_nothing_a_search_does_not(signed_in, db_session):
+    """R16 survives untouched. The 204 answers the same for a name that exists
+    and one that does not, which is the same answer it always gave."""
+    sign_in(db_session, "realname")
+    real = signed_in.post("/api/friends/invite", json={"username": "realname"})
+    invented = signed_in.post("/api/friends/invite", json={"username": "nobodyatall"})
+    assert real.status_code == invented.status_code == 204
+    assert real.content == invented.content
+
+
+# --------------------------------------------------------------------------
 # Invites and the friends list
 # --------------------------------------------------------------------------
 
@@ -700,7 +775,9 @@ def test_the_owner_reads_the_notes_on_their_own_workout(friends, db_session):
     assert "border_tier" in rows[0]["user"] and "flourish" in rows[0]["user"]
 
 
-def test_the_words_on_a_workout_are_the_owners_alone(friends, db_session):
+def test_the_words_on_a_workout_are_read_by_whoever_can_see_it(friends, db_session):
+    """The club reversal: a comment is part of the card rather than a letter to
+    the runner, so everybody whose feed the workout reaches reads the thread."""
     mine, member, theirs, other = friends
     workout = post_workout(db_session, member.id)
     assert (
@@ -710,13 +787,51 @@ def test_the_words_on_a_workout_are_the_owners_alone(friends, db_session):
         ).status_code
         == 201
     )
-    # The friend who wrote it sees the count on their card and never the words.
-    assert theirs.get(f"/api/workouts/{workout.id}/notes").status_code == 404
-    stranger, stranger_client = sign_in(db_session, "stranger")
-    assert stranger_client.get(f"/api/workouts/{workout.id}/notes").status_code == 404
+    # The friend who wrote it reads it back under the card it is on.
+    read = theirs.get(f"/api/workouts/{workout.id}/notes")
+    assert read.status_code == 200
+    assert [row["body"] for row in read.json()] == ["Good week."]
+    # A member who cannot see the workout is answered exactly as before.
+    _, outsider = sign_in(db_session, "stranger")
+    assert outsider.get(f"/api/workouts/{workout.id}/notes").status_code == 404
     # The same answer a workout that never existed gets, so an id cannot be
     # walked to find out whose it is.
     assert mine.get("/api/workouts/424242/notes").status_code == 404
+    assert (
+        outsider.get(f"/api/workouts/{workout.id}/notes").content
+        == outsider.get("/api/workouts/424242/notes").content
+    )
+
+
+def test_a_deleted_workout_takes_its_thread_with_it(friends, db_session):
+    """The reading gate is the feed's, and a deleted workout is on nobody's."""
+    mine, member, theirs, other = friends
+    workout = post_workout(db_session, member.id)
+    assert (
+        theirs.post(
+            f"/api/workouts/{workout.id}/encourage",
+            json={"kind": "note", "body": "Good week."},
+        ).status_code
+        == 201
+    )
+    assert mine.delete(f"/api/workouts/{workout.id}").status_code == 204
+    assert theirs.get(f"/api/workouts/{workout.id}/notes").status_code == 404
+    assert mine.get(f"/api/workouts/{workout.id}/notes").status_code == 404
+
+
+def test_a_viewer_who_cannot_see_a_workout_cannot_write_on_it_either(friends, db_session):
+    """Writing did not widen with reading. Visibility still equals friendship,
+    so a member who is not the owner's friend is refused the same 404."""
+    mine, member, theirs, other = friends
+    workout = post_workout(db_session, member.id)
+    _, outsider = sign_in(db_session, "stranger")
+    assert (
+        outsider.post(
+            f"/api/workouts/{workout.id}/encourage",
+            json={"kind": "note", "body": "Hello."},
+        ).status_code
+        == 404
+    )
 
 
 def test_a_workout_nobody_wrote_on_answers_an_empty_list(friends, db_session):

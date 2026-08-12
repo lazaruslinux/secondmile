@@ -409,6 +409,21 @@ def _owned(
     return workout
 
 
+def _visible(db: Session, workout_id: int, user_id: int) -> models.Workout:
+    """One workout this account can see on a feed: its own, or a friend's.
+
+    The reading gate, as against _owned above, which is the editing one. Same
+    404 for everything else, deleted workouts included, so which of the two
+    checks refused is not something the answer says.
+    """
+    workout = db.get(models.Workout, workout_id)
+    if workout is None or workout.deleted_at is not None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, NO_SUCH_WORKOUT)
+    if workout.user_id != user_id and not fellowship.are_friends(db, user_id, workout.user_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, NO_SUCH_WORKOUT)
+    return workout
+
+
 @router.delete("/{workout_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_workout(
     workout_id: int,
@@ -1019,14 +1034,18 @@ def workout_notes(
     db: Session = Depends(get_db),
     user: models.User = Depends(security.current_user),
 ) -> list[dict]:
-    """The words written on your own workout, oldest first.
+    """The words written on a workout, oldest first, read by whoever can see it.
 
-    The owner and nobody else. A friend sees that words were written, because
-    the count is on their card too, and never what they said: a note is a word
-    to the runner rather than a comment on a thread, so there is no audience for
-    it beyond the person it was written to. The same 404 answers a friend, a
-    stranger, and a workout that does not exist, so an id says nothing about
-    whose history it belongs to.
+    Words on a workout are readable at that workout by whoever can see it: the
+    owner, and the friends whose feed it appears on. A comment is part of the
+    card rather than a private letter to the runner, which is what this
+    endpoint used to hold and what the club decided against.
+
+    Everybody else takes the same 404, and so does a workout that does not
+    exist or has been deleted, so an id still says nothing about whose history
+    it belongs to. Writing is narrower than reading and stays exactly where it
+    was: encourage refuses anybody who is not a friend of the owner, so a
+    member who cannot see a workout cannot speak on it either.
 
     Fetched only when somebody opens the counts, which is why the feed carries
     totals rather than bodies. It spends the feed's own read allowance: opening
@@ -1035,7 +1054,7 @@ def workout_notes(
     """
     if throttle.feed_limiter.hit(throttle.user_key(user)):
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, throttle.TOO_MANY_READS)
-    _owned(db, workout_id, user.id)
+    _visible(db, workout_id, user.id)
     rows = db.execute(
         select(
             models.Encouragement.from_user_id,

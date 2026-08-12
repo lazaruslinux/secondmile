@@ -94,6 +94,17 @@ export function instanceTimezone(): string | undefined {
   return zone
 }
 
+// The month and the year, without the day. What a member card says about when
+// somebody joined: how long they have been here is worth knowing and which
+// Tuesday they signed up on is not.
+export function formatMonth(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, {
+    timeZone: zone,
+    month: 'long',
+    year: 'numeric',
+  })
+}
+
 export function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
     timeZone: zone,

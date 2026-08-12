@@ -1,23 +1,35 @@
-"""Friends, the invites between them, and the feed they share.
+"""Friends, the invites between them, the roster they can search, and the feed
+they share.
 
 Everything here answers as little as it can. An invite says nothing about
-whether the name existed, the friends list carries no counts, and a feed row
-for somebody else's workout holds the headline and nothing behind it: no heart
-rate, no calories, no flags, and no experience. What a friend sees is what a
-friend would be told at the door.
+whether the name existed, the friends list carries no counts, the search
+answers restricted cards and never a total, and a feed row for somebody else's
+workout holds the headline and nothing behind it: no heart rate, no calories,
+no flags, and no experience. What a friend sees is what a friend would be told
+at the door; what a member sees of a member is who they are and nothing they
+have done.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel
-from sqlalchemy import delete, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app import fellowship, medals, models, progress, security, throttle
 from app.db import get_db
+from app.routers.profile import serialize_member_card
 from app.routers.workouts import parse_cursor, photos_for, routes_for, videos_for
 
 router = APIRouter(tags=["fellowship"])
+
+# The shortest thing worth looking up. One letter is not a search, it is the
+# roster read a page at a time, and this instance does not serve the roster.
+MIN_QUERY = 2
+# How many names come back. No paging and no total: a search that finds more
+# than this wants a longer query, and a count of how many members share a
+# letter is a number this game does not keep.
+MAX_MATCHES = 20
 
 # One page of the feed. Fixed rather than asked for: the home screen is the
 # only thing that reads it, and a cursor is how it goes further back.
@@ -50,8 +62,13 @@ def invite_friend(
 
     Answers 204 whatever happens: whether that name exists, whether they have
     already been asked, and whether they already said yes are all things this
-    endpoint would otherwise be a way to look up. There is no discovery in this
-    app, and an invite form that reported back would be one.
+    endpoint would otherwise be a way to look up.
+
+    The roster search above does not make this rule pointless, and the two are
+    deliberately separate. A search is answered about members of this instance
+    and says so plainly; this form is answered about any string anybody types,
+    and a 204 that meant "no such person" would turn it into a way to test
+    names against every account that has ever existed here.
 
     Two rows can come out of it. The name as it was typed is always written
     down, real or not, and that is what the sent list is served from; the
@@ -104,6 +121,86 @@ def invite_friend(
     db.commit()
     response.status_code = status.HTTP_204_NO_CONTENT
     return response
+
+
+def _contains(needle: str):
+    """A case-insensitive substring match, with the wildcards taken out.
+
+    LIKE reads % and _ as patterns, so a query of "%" would otherwise match
+    every member at once, which is the browse-the-roster listing this endpoint
+    exists not to be. Escaped rather than stripped, so somebody whose name
+    really has an underscore in it can still be looked up.
+    """
+    escaped = needle.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
+
+
+@router.get("/members")
+def find_members(
+    q: str = "",
+    db: Session = Depends(get_db),
+    user: models.User = Depends(security.current_user),
+) -> list[dict]:
+    """Members of this instance whose name contains what was typed.
+
+    Members only, which is the whole of why this exists at all. An invite-only
+    instance is a room somebody was let into rather than an index of the world,
+    so a name you were told at the door is a name you may look up; a stranger
+    outside the door still cannot ask this anything, because there is no answer
+    without a session.
+
+    A search and not a listing. An empty query, and anything shorter than two
+    characters, answers with nothing: the roster is not something to scroll.
+    There is no total either, here or anywhere else in this app.
+
+    What comes back is the restricted card, the same one the profile endpoint
+    serves for somebody you are not friends with, so a row here and the screen
+    it opens cannot drift apart. Friends match too, and their card says so, so
+    that looking up somebody you already know is not a dead end.
+
+    The 204-always invite endpoint is untouched by all of this. It still
+    answers identically for a real name and an invented one, because it proves
+    nothing this does not: the two are separate on purpose.
+    """
+    if throttle.member_search_limiter.hit(throttle.user_key(user)):
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS, "Too many searches just now. Wait a minute."
+        )
+    wanted = q.strip()
+    if len(wanted) < MIN_QUERY:
+        return []
+    pattern = _contains(wanted.lower())
+    # The composed name as well as its halves, so "Ada Rowe" finds the account
+    # whose first and last names are stored apart. Coalesced because a half
+    # nobody filled in is null, and null concatenated with anything is null.
+    full_name = func.lower(
+        func.coalesce(models.User.first_name, "")
+        + " "
+        + func.coalesce(models.User.last_name, "")
+    )
+    rows = list(
+        db.execute(
+            select(models.User)
+            .where(
+                models.User.id != user.id,
+                or_(
+                    func.lower(models.User.username).like(pattern, escape="\\"),
+                    func.lower(func.coalesce(models.User.first_name, "")).like(
+                        pattern, escape="\\"
+                    ),
+                    func.lower(func.coalesce(models.User.last_name, "")).like(
+                        pattern, escape="\\"
+                    ),
+                    full_name.like(pattern, escape="\\"),
+                ),
+            )
+            # By username, so the same search twice reads the same way round
+            # rather than in whatever order the rows came back in.
+            .order_by(models.User.username)
+            .limit(MAX_MATCHES)
+        ).scalars()
+    )
+    return [serialize_member_card(db, person, user.id) for person in rows]
 
 
 @router.get("/friends")

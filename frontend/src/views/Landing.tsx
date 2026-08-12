@@ -141,11 +141,15 @@ export default function Landing({ onEnter }: Props) {
         {/* The first sentence is a setting rather than a fact, read off the
             same answer the button above is drawn from. The rest of the
             paragraph is true either way. */}
+        {/* "Nobody here is a stranger" went when comment threads opened to
+            everybody who can see the workout: a member you have not met can
+            read what you wrote on a friend's card. What is left is true. */}
         <p>
           {openRegistration === false && 'secondmile is invite-only. '}
-          Friends are mutual and invited by name. No follower counts, no leaderboards.
-          Nobody here is a stranger, and nothing here is a competition. You choose what
-          your friends can see.
+          Friends are mutual and invited by name. No follower counts, no leaderboards, and
+          nothing here is a competition. Your activities are for your friends; what people
+          write on one is read by everyone who can see it. You choose what your friends can
+          see.
         </p>
       </section>
 

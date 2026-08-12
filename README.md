@@ -50,9 +50,13 @@ Current version: **0.1.1**. Releases are tagged in git.
   plot as easily as your own. A potion is quieter: it says nothing to the
   friend you spend it on, and their next workout simply brings them a chest they did
   not earn, with your name on it in their letter.
-- **Keeps a small circle.** Friends are mutual and added by username: there is
-  no discovery, no suggestions, and no count of anybody's friends. The home
-  feed carries your workouts and theirs, and a friend's card shows the whole
+- **Keeps a small circle.** An instance is a private club rather than a general
+  app: everybody on it was invited by somebody, so members can look each other
+  up by name and see a card with a face, a bio, and the month they joined, and
+  nothing else without a friendship. Friends are mutual, there are no
+  suggestions, and no count of anybody's friends. The home
+  feed carries your workouts and your friends', and never anybody else's. A
+  friend's card shows the whole
   workout: the distance, the time, the pace, the calories, the heart rate, the
   medal, and the route line. A workout carries what you took of it as well:
   up to six photos and videos between them, one of which may be a video of
@@ -62,11 +66,15 @@ Current version: **0.1.1**. Releases are tagged in git.
   switches for the heart rate, the
   calories, and the route, and anything switched off is left out of what the
   server sends rather than hidden by the app. You can hype a workout without
-  words or write a note about it, and
-  nothing in the app ever suggests what to say.
+  words or write a comment on it, and
+  nothing in the app ever suggests what to say. Comments sit on the workout
+  they were written about: anyone who can see the workout can read them, and
+  only the owner's friends can write one.
 - **Multi-user from day one.** Accounts are invite-only out of the box: the
-  server admin creates invites from the command line. Flip `REGISTRATION_OPEN`
-  and anyone who can reach the site can sign up instead. Either way a new
+  server admin creates invites from the command line, and any member can mint
+  a single-use invite link from Settings, which opens a welcome page naming
+  whoever sent it and makes the two of you friends once it is claimed. Flip
+  `REGISTRATION_OPEN` and anyone who can reach the site can sign up instead. Either way a new
   account has to verify its email address before it can sign in, and an
   instance with no mail server configured writes the verification link to the
   backend log instead of sending it.

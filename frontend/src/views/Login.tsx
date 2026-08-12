@@ -21,17 +21,26 @@ interface Props {
   // Which of the two the landing page's button promised, so the form opens on
   // the one that was clicked rather than making it the first thing to fix.
   startRegistering?: boolean
+  // Carried out of a welcome link's address. Empty for everybody who reached
+  // this form any other way, which leaves the field to be typed into.
+  inviteCode?: string
   // Back to the landing page. Absent when there is nothing behind this screen,
   // which is the case for a session that expired mid-use.
   onBack?: () => void
 }
 
-export default function Login({ notice, onSignedIn, startRegistering = false, onBack }: Props) {
+export default function Login({
+  notice,
+  onSignedIn,
+  startRegistering = false,
+  inviteCode: carried = '',
+  onBack,
+}: Props) {
   const [registering, setRegistering] = useState(startRegistering)
   // Null until the server says which mode it is in, so the invite field is not
   // shown and then yanked away half a second later on an open instance.
   const [inviteRequired, setInviteRequired] = useState<boolean | null>(null)
-  const [inviteCode, setInviteCode] = useState('')
+  const [inviteCode, setInviteCode] = useState(carried)
   const [email, setEmail] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')

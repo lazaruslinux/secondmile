@@ -121,7 +121,9 @@ export function speciesName(species: string, name?: string | null): string {
 
 // What to call somebody: the name they gave if they gave one, and the name they
 // sign in with otherwise. The username is the identity; this is only the label.
-export function personName(person: Person): string {
+// Takes the two halves it reads rather than a whole Person, so the search
+// rows, which carry the restricted card instead, are named the same way.
+export function personName(person: Pick<Person, 'username'> & { display_name?: string | null }): string {
   const given = person.display_name?.trim()
   return given ? given : person.username
 }

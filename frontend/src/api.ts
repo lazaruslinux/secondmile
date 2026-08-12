@@ -328,12 +328,39 @@ export interface Profile {
   pending_gifts?: { from: string }[]
 }
 
+// Where two accounts stand with each other, in the one word a button is drawn
+// from. "friends" only ever appears on a search row: the profile endpoint
+// serves the restricted card to people who are not friends.
+export type FriendshipState = 'none' | 'invited_by_me' | 'invited_me' | 'friends'
+
+// A member of this instance you are not friends with: a name, a face in its
+// frame, a line they wrote, and the month they joined. Nothing the game keeps
+// is in it, which is the whole point of the shape. The same card comes back
+// from the roster search and from the profile endpoint, so a row and the
+// screen it opens cannot drift.
+export interface MemberCard {
+  user_id: number
+  username: string
+  display_name?: string | null
+  has_avatar: boolean
+  avatar_version?: string | null
+  border_tier?: number
+  flourish?: number
+  bio?: string | null
+  created_at?: string
+  restricted: true
+  friendship: FriendshipState
+}
+
 // Somebody else, as a deliberate tap on one person is allowed to see them.
 // Friends only, and nothing private travels in it: no email, no birthdate, no
 // age, no gender, no chests, no inventory. Everything but the name and the
 // picture is optional, because this screen is opened casually and a field that
 // is not there has to draw as nothing rather than take the app down.
 export interface FriendProfile {
+  // Never set on this shape, and declared so the two can be told apart by one
+  // field rather than by guessing from which keys turned up.
+  restricted?: false
   user_id: number
   username: string
   display_name?: string | null
@@ -792,7 +819,7 @@ export function getWorkoutRoute(workoutId: number): Promise<WorkoutRoute> {
   return getJson<WorkoutRoute>(`/workouts/${workoutId}/route`)
 }
 
-// One note somebody wrote on a workout, as its owner reads it.
+// One note somebody wrote on a workout, as anybody looking at it reads it.
 export interface WorkoutNote {
   // The writer, as the same little card a workout carries: enough to draw their
   // face in its frame and to open their profile from it.
@@ -801,9 +828,10 @@ export interface WorkoutNote {
   created_at: string
 }
 
-// The words written on your own workout, oldest first. Owner only: anybody
-// else, friends included, is answered the same 404 a workout that does not
-// exist gets, because a note is written to the runner rather than to a thread.
+// The words written on a workout, oldest first, read by whoever can see it:
+// the owner and their friends, which is everybody the workout reaches. Anybody
+// else is answered the same 404 a workout that does not exist gets. Writing is
+// narrower than reading and did not move: encourage is friends only.
 export function getWorkoutNotes(workoutId: number): Promise<WorkoutNote[]> {
   return getJson<WorkoutNote[]>(`/workouts/${workoutId}/notes`)
 }
@@ -957,12 +985,21 @@ export function getProfile(): Promise<Profile> {
   return getJson<Profile>('/profile')
 }
 
-// A friend's profile. Friends only: anybody else is a 404 that says nothing
-// about whether the account exists, which is why there is no way to look
-// somebody up anywhere in this app. Self is allowed and answers the same
-// friend-shaped view, exactly as the grove endpoint does.
-export function getFriendProfile(userId: number): Promise<FriendProfile> {
-  return getJson<FriendProfile>(`/profile/${userId}`)
+// One person's profile, in whichever of the two shapes this account may see.
+// Yourself and your friends come back whole; another member of the instance
+// comes back as the restricted card, which says so in its own `restricted`
+// field. An id nobody owns is still a 404 and still says nothing.
+export function getFriendProfile(userId: number): Promise<FriendProfile | MemberCard> {
+  return getJson<FriendProfile | MemberCard>(`/profile/${userId}`)
+}
+
+// Members whose name contains what was typed, at most twenty, restricted cards
+// every one. A query under two characters answers with nothing here as well as
+// on the server: the roster is searched, never listed.
+export function findMembers(query: string): Promise<MemberCard[]> {
+  const wanted = query.trim()
+  if (wanted.length < 2) return Promise.resolve([])
+  return getJson<MemberCard[]>(`/members?q=${encodeURIComponent(wanted)}`)
 }
 
 // Answers with the whole profile, so the slots under the picture can be
@@ -1010,6 +1047,57 @@ export async function deleteAvatar(): Promise<void> {
 // sends a string.
 export function avatarUrl(userId: number, version: number | string | null): string {
   return `${BASE}/profile/avatar/${userId}${version === null ? '' : `?v=${version}`}`
+}
+
+// One invite link this account minted. The code is here because the row on
+// screen is the whole address, which the app builds from where it was opened
+// rather than from anything the server guesses about its own name.
+export interface InviteLink {
+  id: number
+  code: string
+  created_at: string
+  // The name of whoever spent it, once somebody has. Null while it waits.
+  claimed_by: string | null
+  revoked_at: string | null
+}
+
+export function listInviteLinks(): Promise<InviteLink[]> {
+  return getJson<InviteLink[]>('/invites')
+}
+
+// Never expires and works once. Claiming it also makes the two accounts
+// friends, which is the difference between this and a command line code.
+export async function mintInviteLink(): Promise<InviteLink> {
+  const res = await send('/invites', { method: 'POST' })
+  return (await res.json()) as InviteLink
+}
+
+// Only while it is still waiting. A claimed link is a 404, because there is
+// nothing left to take back.
+export async function revokeInviteLink(inviteId: number): Promise<void> {
+  await send(`/invites/${inviteId}/revoke`, { method: 'POST' })
+}
+
+// Who sent a link, for the page it opens. The only signed-out call in this
+// file. Every dead code answers the same 404 with the same sentence, so
+// nothing here can be read as news about what became of a link.
+export interface Welcome {
+  inviter_display_name: string
+  inviter_has_avatar: boolean
+  inviter_avatar_version?: string | null
+  inviter_border_tier?: number
+  inviter_flourish?: number
+}
+
+export function getWelcome(code: string): Promise<Welcome> {
+  return getJson<Welcome>(`/invites/${encodeURIComponent(code)}/welcome`)
+}
+
+// The inviter's picture, gated by the code rather than by a session, because
+// the page it is drawn on has no session. An address rather than a fetch, for
+// the workout photo's reason: it is read by an element on the page.
+export function welcomeAvatarUrl(code: string): string {
+  return `${BASE}/invites/${encodeURIComponent(code)}/avatar`
 }
 
 export function getRecap(): Promise<RecapState> {

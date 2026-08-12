@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
+  acceptFriend,
   anointFriend,
   avatarUrl,
   errorText,
   getFriendProfile,
+  inviteFriend,
   listFriendGrove,
   listSatchel,
   pourWater,
@@ -14,11 +16,19 @@ import {
   type FeedItem,
   type FriendPlanting,
   type FriendProfile as FriendProfileData,
+  type MemberCard,
   type RecentPhoto,
   type SatchelItem,
   type Units,
 } from '../api.ts'
-import { convertedValue, distanceValue, formatClock, formatDate, unitName } from '../format.ts'
+import {
+  convertedValue,
+  distanceValue,
+  formatClock,
+  formatDate,
+  formatMonth,
+  unitName,
+} from '../format.ts'
 import {
   ACTIVITY_ICONS,
   ANOINT_HINT,
@@ -128,6 +138,94 @@ type Step =
   | { at: 'oil' }
   | { at: 'remove' }
 
+// A member of this instance who is not a friend, as much of them as the club
+// decided a member may see: their name, their face in its frame, the line they
+// wrote about themselves, the month they joined, and one way to ask.
+//
+// What is not here is everything friendship gates, and the reason there is a
+// second component rather than a flag on the first is the same reason there is
+// a second serializer on the server: a card that draws whatever it was given
+// draws whatever leaks.
+function MemberProfile({
+  card,
+  busy,
+  error,
+  onAsk,
+}: {
+  card: MemberCard
+  busy: boolean
+  error: string
+  onAsk: (work: () => Promise<void>) => void
+}) {
+  const given = words(card.display_name)
+  const username = words(card.username)
+  const who = given !== '' ? given : username
+  const bio = words(card.bio)
+  const since =
+    typeof card.created_at === 'string' && !isNaN(Date.parse(card.created_at))
+      ? formatMonth(card.created_at)
+      : ''
+
+  return (
+    <section className="card member-card">
+      <div className="avatar-block">
+        <AvatarFrame
+          name={who}
+          src={card.has_avatar ? avatarUrl(card.user_id, card.avatar_version ?? null) : null}
+          borderTier={card.border_tier ?? 0}
+          flourish={card.flourish ?? 0}
+          labelled
+        />
+      </div>
+
+      <h2 className="profile-name">{who}</h2>
+      {given !== '' && username !== '' && <p className="profile-username">{username}</p>}
+      {bio !== '' && <p className="profile-bio">{bio}</p>}
+      {since !== '' && <p className="hint">Member since {since}</p>}
+
+      {/* One button, and which one is decided by where the two of you already
+          stand. An invite already sent is a button that has done its job and
+          says so; an invite waiting on you is answered here rather than sending
+          somebody back to the friends list to find it. */}
+      {card.friendship === 'invited_me' ? (
+        <button
+          type="button"
+          className="primary"
+          disabled={busy}
+          onClick={() => onAsk(() => acceptFriend(card.user_id))}
+        >
+          Accept
+        </button>
+      ) : card.friendship === 'invited_by_me' ? (
+        <button type="button" className="primary" disabled>
+          Invite sent
+        </button>
+      ) : (
+        <button
+          type="button"
+          className="primary"
+          disabled={busy}
+          onClick={() => onAsk(() => inviteFriend(username))}
+        >
+          Invite to be friends
+        </button>
+      )}
+
+      {/* Said plainly, because the card above it is most of what there is to
+          see until somebody says yes. */}
+      <p className="hint">
+        Their activities, medals, and grove are for friends. Invite them to see them.
+      </p>
+
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+    </section>
+  )
+}
+
 interface Props {
   // Whose screen this is. Their own account decides everything on it; this one
   // only decides what may be done to them.
@@ -152,7 +250,7 @@ interface Props {
 // person may do to another: water something of theirs, anoint them, or stop
 // being friends.
 export default function FriendProfile({ userId, units, onBack, onRemoved }: Props) {
-  const [profile, setProfile] = useState<FriendProfileData | null>(null)
+  const [profile, setProfile] = useState<FriendProfileData | MemberCard | null>(null)
   const [plot, setPlot] = useState<FriendPlanting[]>([])
   const [held, setHeld] = useState<SatchelItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -198,7 +296,9 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
   // which is only ever on this screen when it is looking at itself.
   const rowChanged = useCallback((updated: FeedItem) => {
     setProfile((current) =>
-      current === null
+      // Nothing to put back on a card that carries no workouts, which is every
+      // restricted one.
+      current === null || current.restricted
         ? current
         : {
             ...current,
@@ -292,6 +392,23 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
         <p className="error" role="alert">
           {loadError || 'Something went wrong. Try again.'}
         </p>
+      </>
+    )
+  }
+
+  // A member of this instance who is not a friend. A different card rather than
+  // this one with most of it missing: what they are owed is a name, a face, a
+  // line, and a way to ask.
+  if (profile.restricted) {
+    return (
+      <>
+        {head}
+        <MemberProfile
+          card={profile}
+          busy={busy}
+          error={actionError}
+          onAsk={(work) => void act(work)}
+        />
       </>
     )
   }

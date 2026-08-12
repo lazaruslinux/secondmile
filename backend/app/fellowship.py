@@ -1,9 +1,12 @@
 """Friends, the encouragement they send each other, and the renown it pays.
 
-Friendship is strictly mutual and always by name: there is no discovery, no
-list of strangers, and no count of anybody's friends anywhere in the API. What
-a friend can see of a workout is decided here too, and it is deliberately less
-than the owner sees.
+Friendship is strictly mutual and always asked for by name: no count of
+anybody's friends appears anywhere in the API, and nothing suggests anybody to
+anybody. Members of one instance may look each other up, because an instance is
+a private club and its roster is a room somebody was let into, and what they
+find is a name, a face and a line: everything the game keeps stays behind an
+accepted invite. What a friend can see of a workout is decided here too, and it
+is deliberately less than the owner sees.
 
 Renown is the only thing kept score of, it is earned by giving rather than by
 receiving, and no response ever carries the number. It surfaces as a flourish

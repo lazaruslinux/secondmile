@@ -4,10 +4,12 @@ import {
   avatarUrl,
   cancelInvite,
   errorText,
+  findMembers,
   getFriends,
   inviteFriend,
   removeFriend,
   type Friends,
+  type MemberCard,
   type Person,
 } from '../api.ts'
 import { personName } from '../labels.ts'
@@ -26,7 +28,9 @@ const cache = new Map<number, Friends>()
 const EMPTY: Friends = { friends: [], pending_in: [], pending_out: [] }
 
 interface RowProps {
-  person: Person
+  // A friend's little card, or the restricted card a search comes back with.
+  // The two carry the same four things a row is drawn from.
+  person: Person | MemberCard
   // Opens their profile. Only a friend's row carries it: an invitation is not
   // yet somebody there is anything to see about.
   onOpen?: () => void
@@ -39,8 +43,8 @@ function PersonRow({ person, onOpen, children }: RowProps) {
     <AvatarFrame
       name={name}
       src={person.has_avatar ? avatarUrl(person.user_id, null) : null}
-      borderTier={person.border_tier}
-      flourish={person.flourish}
+      borderTier={person.border_tier ?? 0}
+      flourish={person.flourish ?? 0}
       frameClass="friend-frame"
     />
   )
@@ -73,9 +77,12 @@ interface Props {
   onOpenPerson: (userId: number) => void
 }
 
-// Friends, both ways round: who is one, who asked, and who was asked. There are
-// no numbers on this card and no way to look anybody up; a friendship starts
-// with a name typed by somebody who already knows it.
+// Friends, both ways round: who is one, who asked, and who was asked, with a
+// way to look a member up above them. There are no numbers on this card. The
+// search is for members of this instance, which is a room somebody was let
+// into rather than an index of the world; the invite form under it still takes
+// a name typed by somebody who already knows it, and still says the same thing
+// whether that name belongs to anybody or not.
 export default function Fellowship({ userId, onOpenPerson }: Props) {
   const [state, setState] = useState<Friends>(() => cache.get(userId) ?? EMPTY)
   const [loading, setLoading] = useState(() => !cache.has(userId))
@@ -92,6 +99,14 @@ export default function Fellowship({ userId, onOpenPerson }: Props) {
   const [busyId, setBusyId] = useState<number | null>(null)
   const [busyName, setBusyName] = useState('')
   const [actionError, setActionError] = useState('')
+
+  // Looking a member up. Null until a search has actually been run, so an
+  // empty result and a box nobody has used yet are two different states and
+  // only one of them says nothing was found.
+  const [query, setQuery] = useState('')
+  const [found, setFound] = useState<MemberCard[] | null>(null)
+  const [searching, setSearching] = useState(false)
+  const [searchError, setSearchError] = useState('')
 
   const load = useCallback(async () => {
     try {
@@ -126,6 +141,23 @@ export default function Fellowship({ userId, onOpenPerson }: Props) {
       setInviteError(errorText(err))
     } finally {
       setInviteBusy(false)
+    }
+  }
+
+  async function search(event: FormEvent) {
+    event.preventDefault()
+    const wanted = query.trim()
+    // The server refuses anything shorter and so does this: a single letter is
+    // the roster read a page at a time, and the roster is not on offer.
+    if (wanted.length < 2) return
+    setSearching(true)
+    setSearchError('')
+    try {
+      setFound(await findMembers(wanted))
+    } catch (err) {
+      setSearchError(errorText(err))
+    } finally {
+      setSearching(false)
     }
   }
 
@@ -173,6 +205,53 @@ export default function Fellowship({ userId, onOpenPerson }: Props) {
           {actionError}
         </p>
       )}
+
+      {/* Above the lists, because this is how somebody arrives at a person who
+          is not on any of them yet. A search and never a listing: nothing is
+          shown until a name is typed, and typing one letter shows nothing
+          either. */}
+      <form className="member-search" onSubmit={search}>
+        <label>
+          Find a member
+          <input
+            type="search"
+            value={query}
+            autoComplete="off"
+            autoCapitalize="none"
+            spellCheck={false}
+            disabled={searching}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
+        <button
+          type="submit"
+          className="secondary"
+          disabled={searching || query.trim().length < 2}
+        >
+          Search
+        </button>
+      </form>
+
+      {searchError && (
+        <p className="error" role="alert">
+          {searchError}
+        </p>
+      )}
+
+      {found !== null &&
+        (found.length === 0 ? (
+          <p className="hint">Nobody here by that name.</p>
+        ) : (
+          <ul className="friend-list">
+            {found.map((person) => (
+              <PersonRow
+                key={person.user_id}
+                person={person}
+                onOpen={() => onOpenPerson(person.user_id)}
+              />
+            ))}
+          </ul>
+        ))}
 
       {/* Friends first, directly under the heading that names them, so the
           lists below cannot be read as part of this one. Nothing is drawn for a
@@ -264,8 +343,8 @@ export default function Fellowship({ userId, onOpenPerson }: Props) {
           Send invite
         </button>
         <p className="hint">
-          An invite shows up in their app. Friends see each other's activities. Nobody else
-          does.
+          An invite shows up in their app. Friends see each other's activities. Comments on
+          an activity are read by everyone who can see it.
         </p>
         {inviteNote && (
           <p className="note note-success" role="status">

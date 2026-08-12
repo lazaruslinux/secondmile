@@ -613,10 +613,33 @@ button:disabled {
   margin: 0.5rem 0 0;
 }
 
+/* The links this account minted, one block each: the whole address, the verbs
+   under it, and whatever the row has to say about itself. */
+.link-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.link-row .hint,
+.link-row .note {
+  margin: 0.4rem 0 0;
+}
+
+.link-verbs {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
 /* The sync address borrows the token's code block but not its accent border:
    it is something to copy, not a secret shown once. */
 .token code,
-.endpoint code {
+.endpoint code,
+.link-url {
   display: block;
   /* A token is one long unbroken string; without this it runs off a phone. */
   overflow-wrap: anywhere;
@@ -2482,6 +2505,18 @@ button:disabled {
   font-size: 0.75rem;
 }
 
+/* Looking a member up, above the lists it is a way of adding to. Its own line
+   under the box rather than beside it, so the field is as wide as a name is. */
+.member-search {
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.member-search button {
+  margin-top: 0.5rem;
+}
+
 .invite {
   margin-top: 1rem;
   padding-top: 1rem;
@@ -3919,6 +3954,32 @@ button:disabled {
   margin-top: 1rem;
 }
 
+/* A member who is not a friend: one card, one column, and nothing under it.
+   Centred rather than laid out along a band, because there is no band: the
+   grove that would stand on it is one of the things friendship gates. */
+.member-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  text-align: center;
+}
+
+.member-card .avatar-block {
+  align-self: center;
+  padding-bottom: 0;
+}
+
+.member-card .profile-name,
+.member-card .profile-bio,
+.member-card .hint {
+  margin: 0;
+}
+
+.member-card button {
+  margin-top: 0.6rem;
+}
+
 /* The destructive one, kept away from the verb that gives something: its own
    line, at the foot, on its own rather than beside a verb it is nothing like. */
 .friend-remove {
@@ -4198,6 +4259,26 @@ button:disabled {
 .landing-hero {
   padding: 2.6rem 0 2.4rem;
   border-bottom: 1px solid var(--line);
+}
+
+/* The welcome page borrows the landing page whole and puts one thing at the
+   top of it: the person who sent the link, drawn the way they are drawn
+   everywhere inside the app. */
+.welcome-who {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8rem;
+  margin-bottom: 1.8rem;
+  text-align: center;
+}
+
+.welcome-name {
+  margin: 0;
+  font-size: clamp(1.4rem, 4.6vw, 2rem);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
 }
 
 .landing-verse {

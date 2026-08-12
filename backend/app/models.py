@@ -144,7 +144,17 @@ class Invite(Base):
     created_at: Mapped[dt.datetime] = mapped_column(
         UtcDateTime, nullable=False, server_default=func.now()
     )
-    expires_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
+    # Null means it never expires, which is what a link minted from the app is.
+    # The command line still dates the codes it makes.
+    expires_at: Mapped[dt.datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    # Set when somebody took a link back. A revoked code is dead whether or not
+    # it was ever claimed, and it is never cleared: taking a link back is not
+    # something to undo halfway.
+    revoked_at: Mapped[dt.datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    # Whether claiming this code also makes the two accounts friends. True for a
+    # link minted in the app, because whoever sent it knows who they sent it to;
+    # false for a command line code, which is an account gate and nothing more.
+    auto_friend: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
 
 class UserSession(Base):

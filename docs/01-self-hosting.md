@@ -42,8 +42,16 @@ assumes Docker with the compose plugin and nothing else.
 There are two modes, set by `REGISTRATION_OPEN` in `.env`.
 
 **Invite-only (`false`, the default).** Every account after the first one
-registers through the web form with a code from `create-invite`. Each code
-works once and expires after two weeks by default.
+registers through the web form with a code. There are two kinds, and both work
+exactly once.
+
+- `create-invite` makes one from the command line. It expires after two weeks
+  by default, and it is an account gate and nothing more: whoever claims it is
+  nobody's friend afterwards.
+- Any signed-in member can mint an **invite link** from Settings. It never
+  expires, it can be revoked while it is still waiting, and it opens a welcome
+  page naming whoever sent it. Claiming one makes the two accounts friends,
+  because a member sends it to somebody they already know.
 
 **Open (`true`).** Anyone who can reach the site can sign up, and the invite
 field disappears from the form. Worth knowing before you turn it on: a

@@ -24,6 +24,15 @@ import Icon from './views/Icon.tsx'
 import Profile from './views/Profile.tsx'
 import Recap from './views/Recap.tsx'
 import Settings from './views/Settings.tsx'
+import Welcome from './views/Welcome.tsx'
+
+// The one address this app reads: /welcome/<code>, where a link somebody was
+// sent lands. Everything else is still which screen is on rather than where
+// the browser thinks it is, so this is read once rather than routed.
+function welcomeCode(): string {
+  const found = /^\/welcome\/([^/]+)\/?$/.exec(window.location.pathname)
+  return found ? decodeURIComponent(found[1]) : ''
+}
 
 // A handful of screens still do not earn a router: the whole navigation model is
 // which of them is on screen, and the URL has nothing to say about it yet.
@@ -46,6 +55,9 @@ export default function App() {
   // Which of the two signed-out screens is on. Null is the landing page, and a
   // string is the form, opened on the tab whichever button asked for.
   const [gate, setGate] = useState<'signin' | 'register' | null>(null)
+  // The code the browser arrived with, read once: the address is cleaned up
+  // after signing in, and the code has to outlive that.
+  const [invite] = useState(welcomeCode)
   const [view, setView] = useState<View>('home')
   // Whose profile is open and which screen it was opened from, so Back goes
   // back to the feed or to the friends list rather than always to one of them.
@@ -178,12 +190,27 @@ export default function App() {
     // account that already exists, so showing that person what the app is
     // would be answering a question they did not ask.
     if (gate === null && verifyNote === '') {
+      // Somebody who arrived on a link gets the page about the link rather
+      // than the page about the app: it names who sent it, which is the whole
+      // reason they opened it.
+      if (invite !== '') {
+        return (
+          <Welcome
+            code={invite}
+            onJoin={() => setGate('register')}
+            onSignIn={() => setGate('signin')}
+          />
+        )
+      }
       return <Landing onEnter={(registering) => setGate(registering ? 'register' : 'signin')} />
     }
     return (
       <Login
         notice={verifyNote}
         startRegistering={gate === 'register'}
+        // Carried out of the address, so nobody retypes sixty characters they
+        // never saw. Empty for everybody who did not arrive on a link.
+        inviteCode={invite}
         // No way back from a verification link, because there is nothing
         // behind it: that address was opened from an email, not from the page.
         onBack={verifyNote === '' ? () => setGate(null) : undefined}
@@ -191,6 +218,10 @@ export default function App() {
           setMe(user)
           setGate(null)
           setView('home')
+          // The code is spent by now and the address is only confusing on a
+          // reload, so what is left is the ordinary app. The same tidy-up the
+          // verification link gets.
+          if (invite !== '') window.history.replaceState(null, '', '/')
         }}
       />
     )

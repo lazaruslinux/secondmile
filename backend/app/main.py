@@ -14,7 +14,17 @@ from app.config import (
     MAX_VIDEO_BODY_BYTES,
     check_deploy_config,
 )
-from app.routers import auth, chests, fellowship, grove, ingest, profile, settings, workouts
+from app.routers import (
+    auth,
+    chests,
+    fellowship,
+    grove,
+    ingest,
+    invites,
+    profile,
+    settings,
+    workouts,
+)
 
 # Run before anything else imports an engine. Failing during import stops
 # uvicorn before it binds a port, so a misconfigured install never serves a
@@ -171,3 +181,4 @@ app.include_router(profile.router, prefix="/api")
 app.include_router(chests.router, prefix="/api")
 app.include_router(grove.router, prefix="/api")
 app.include_router(fellowship.router, prefix="/api")
+app.include_router(invites.router, prefix="/api")

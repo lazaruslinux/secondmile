@@ -139,16 +139,105 @@ function NoteRow({
   )
 }
 
-// Under a friend's workout: a place to write to them, and a cheer for when
-// there is nothing to say. Nothing here suggests any words; whatever gets sent
-// is typed by the person sending it.
-function EncourageRow({ workoutId, encouragement }: EncourageProps) {
+// The count line and the words behind it, wherever a card carries them: your
+// own workout and a friend's read the same way now, so the rule about who may
+// open a thread lives in one component rather than in two copies of it.
+//
+// The counts are the line, and tapping it is what asks the server. Nothing is
+// fetched until somebody does, and what came back is kept, so closing and
+// reopening a card does not ask again.
+function NoteThread({
+  workoutId,
+  counts,
+  hasNotes,
+  onOpenPerson,
+}: {
+  workoutId: number
+  // The whole line as it is printed, worked out by whoever is drawing it: an
+  // own card counts nobody's cheer as its own and a friend's card does.
+  counts: string
+  // Whether there is anything behind the line. A line of hype alone is not a
+  // door, so it is not drawn as one.
+  hasNotes: boolean
+  onOpenPerson?: (userId: number) => void
+}) {
+  const [notes, setNotes] = useState<WorkoutNote[] | null>(null)
+  const [showing, setShowing] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [failed, setFailed] = useState('')
+
+  async function toggle() {
+    if (showing) {
+      setShowing(false)
+      return
+    }
+    setShowing(true)
+    if (notes !== null) return
+    setBusy(true)
+    setFailed('')
+    try {
+      setNotes(await getWorkoutNotes(workoutId))
+    } catch (err) {
+      setFailed(errorText(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      {hasNotes ? (
+        <button
+          type="button"
+          className="encourage-counts encourage-counts-open"
+          aria-expanded={showing}
+          disabled={busy}
+          onClick={() => void toggle()}
+        >
+          {counts}
+        </button>
+      ) : (
+        <p className="encourage-counts">{counts}</p>
+      )}
+
+      {failed && (
+        <p className="error" role="alert">
+          {failed}
+        </p>
+      )}
+
+      {/* Everybody's words and not only this account's. A comment sits on the
+          workout it was written about, and anybody who can see the workout can
+          read what was said on it. Somebody in here you have never met is a
+          card away: their face opens their profile. */}
+      {showing && notes !== null && (
+        <ul className="encourage-notes">
+          {notes.map((note, index) => (
+            <NoteRow key={index} note={note} onOpenPerson={onOpenPerson} />
+          ))}
+        </ul>
+      )}
+    </>
+  )
+}
+
+// Under a friend's workout: a place to write on it, a cheer for when there is
+// nothing to say, and the thread of what everybody else has already written.
+// Nothing here suggests any words; whatever gets sent is typed by the person
+// sending it.
+function EncourageRow({
+  workoutId,
+  encouragement,
+  onOpenPerson,
+}: EncourageProps & { onOpenPerson?: (userId: number) => void }) {
   // Null until this account acts, so the counts stay the server's word up to
   // that point and this account's own doing afterwards.
   const [acted, setActed] = useState<Given | null>(null)
   const [draft, setDraft] = useState('')
-  const [written, setWritten] = useState<string[]>([])
-  const [showing, setShowing] = useState(false)
+  // How many notes this account has written here. Only ever used as the
+  // thread's key: writing one makes whatever was fetched a line out of date,
+  // and a fresh component is the shortest way to say so.
+  const [sent, setSent] = useState(0)
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState('')
 
@@ -184,7 +273,7 @@ function EncourageRow({ workoutId, encouragement }: EncourageProps) {
     try {
       await encourage(workoutId, 'note', body)
       setActed({ ...given, notes: given.notes + 1 })
-      setWritten((current) => [...current, body])
+      setSent((count) => count + 1)
       setDraft('')
     } catch (err) {
       setFailed(errorText(err))
@@ -232,31 +321,16 @@ function EncourageRow({ workoutId, encouragement }: EncourageProps) {
         </p>
       )}
 
-      {counts !== '' &&
-        (written.length > 0 ? (
-          <button
-            type="button"
-            className="encourage-counts encourage-counts-open"
-            aria-expanded={showing}
-            onClick={() => setShowing((open) => !open)}
-          >
-            {counts}
-          </button>
-        ) : (
-          <p className="encourage-counts">{counts}</p>
-        ))}
-
-      {/* Words belong to the person they were written for: they arrive in that
-          account's letter. What is held here is what was typed on this screen. */}
-      {showing && written.length > 0 && (
-        <ul className="encourage-notes">
-          {written.map((body, index) => (
-            <li key={index}>
-              <span className="encourage-note-who">You wrote</span>
-              <span className="encourage-note-body">{body}</span>
-            </li>
-          ))}
-        </ul>
+      {counts !== '' && (
+        <NoteThread
+          // A note this account just wrote is part of the thread now, so the
+          // key moves and the component comes back with nothing cached.
+          key={sent}
+          workoutId={workoutId}
+          counts={counts}
+          hasNotes={given.notes > 0}
+          onOpenPerson={onOpenPerson}
+        />
       )}
     </div>
   )
@@ -270,68 +344,21 @@ function ReceivedRow({
   encouragement,
   onOpenPerson,
 }: EncourageProps & { onOpenPerson?: (userId: number) => void }) {
-  // Null until the first time the notes are opened, and kept afterwards, so
-  // closing and reopening a card does not ask again.
-  const [notes, setNotes] = useState<WorkoutNote[] | null>(null)
-  const [showing, setShowing] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [failed, setFailed] = useState('')
-
   const counts = countLine({
     cheers: encouragement.cheers,
     notes: encouragement.notes,
     cheered: false,
   })
-
-  async function toggle() {
-    if (showing) {
-      setShowing(false)
-      return
-    }
-    setShowing(true)
-    if (notes !== null) return
-    setBusy(true)
-    setFailed('')
-    try {
-      setNotes(await getWorkoutNotes(workoutId))
-    } catch (err) {
-      setFailed(errorText(err))
-    } finally {
-      setBusy(false)
-    }
-  }
-
   if (counts === '') return null
 
   return (
     <div className="encourage">
-      {encouragement.notes > 0 ? (
-        <button
-          type="button"
-          className="encourage-counts encourage-counts-open"
-          aria-expanded={showing}
-          disabled={busy}
-          onClick={() => void toggle()}
-        >
-          {counts}
-        </button>
-      ) : (
-        <p className="encourage-counts">{counts}</p>
-      )}
-
-      {failed && (
-        <p className="error" role="alert">
-          {failed}
-        </p>
-      )}
-
-      {showing && notes !== null && (
-        <ul className="encourage-notes">
-          {notes.map((note, index) => (
-            <NoteRow key={index} note={note} onOpenPerson={onOpenPerson} />
-          ))}
-        </ul>
-      )}
+      <NoteThread
+        workoutId={workoutId}
+        counts={counts}
+        hasNotes={encouragement.notes > 0}
+        onOpenPerson={onOpenPerson}
+      />
     </div>
   )
 }
@@ -1114,7 +1141,11 @@ export default function FeedCard({
         </p>
       )}
 
-      <EncourageRow workoutId={item.workout_id} encouragement={item.encouragement} />
+      <EncourageRow
+        workoutId={item.workout_id}
+        encouragement={item.encouragement}
+        onOpenPerson={onOpenPerson}
+      />
     </article>
   )
 }

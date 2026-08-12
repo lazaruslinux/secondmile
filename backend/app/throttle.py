@@ -151,6 +151,12 @@ invite_limiter = RateLimiter(10, "invite")
 # Cheering and writing notes. The most generous of the lot, because reading a
 # morning's feed and answering all of it is the behaviour this app is for.
 encourage_limiter = RateLimiter(30, "encourage")
+# Opening a welcome page, and fetching the face on it. Unauthenticated, so it
+# is counted per address like the rest of the anonymous endpoints. Twenty is a
+# person opening a link and reloading it a few times; it is nowhere near enough
+# to walk the code space, which is the thing this guards against, and the codes
+# are high entropy besides.
+welcome_limiter = RateLimiter(20, "welcome")
 
 # --------------------------------------------------------------------------
 # Keyed per account
@@ -186,6 +192,15 @@ delete_media_limiter = RateLimiter(10, "media-delete")
 # halves of the same decision, and each one reworks the account's whole derived
 # history. Ten is a tidy-up in one sitting and nothing is looping.
 workout_delete_limiter = RateLimiter(10, "workout-delete")
+# Looking a member up by name. Twenty a minute is somebody typing a name and
+# correcting it a few times, which is what the box is for; it is well short of
+# what walking the roster a letter at a time would take, and the endpoint
+# refuses a query under two characters anyway.
+member_search_limiter = RateLimiter(20, "member-search")
+# Minting an invite link. Single digits an hour is his own word for what is
+# plenty, and this window is a minute: five is a person making links for a
+# family in one sitting and nothing is looping.
+invite_link_limiter = RateLimiter(5, "invite-link")
 # The three screens the app reads on every visit. Sixty a minute is well past
 # anything a person does and well under what a stuck poll would do.
 profile_read_limiter = RateLimiter(60, "profile-read")
