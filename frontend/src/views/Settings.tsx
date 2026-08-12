@@ -590,13 +590,14 @@ export default function Settings({
               they land, and the sentence is honest about the wait. */}
           <p className="hint">
             Workouts arrive from Health Auto Export, an iPhone app that reads Apple Health and
-            posts to a URL you give it. In that app, add a REST API automation pointing at
+            posts to a URL you give it. In that app, add two REST API automations pointing at
             the address below, method POST, with the header Authorization: Bearer followed by
-            the token above. Set the format to JSON and the data types to Workouts and Health
-            Metrics, then run it on a schedule. Health Metrics is what carries your steps and
-            walking distance. Walks, runs, rides, and swims are imported; steps are along for the ride
-            until step rewards arrive; anything else in the export is ignored. Sending the
-            same data twice changes nothing, so overlapping exports are safe.
+            the token above, format JSON. Give the first the data type Workouts. Give the
+            second Health Metrics, and under Select Health Metrics turn everything off, then
+            pick Step Count and Walking + Running Distance. Run both on a schedule. Walks,
+            runs, rides, and swims are imported; steps are along for the ride until step
+            rewards arrive; anything else in the export is ignored. Sending the same data
+            twice changes nothing, so overlapping exports are safe.
           </p>
 
           {/* Built from the address this page was opened on, so it is right for
