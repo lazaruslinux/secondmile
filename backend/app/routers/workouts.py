@@ -51,7 +51,6 @@ router = APIRouter(prefix="/workouts", tags=["workouts"])
 # High enough that nobody paging through a real history notices, low enough that
 # a single request cannot ask the server to serialise everything at once.
 MAX_LIMIT = 200
-MAX_WEEKS = 52
 
 PHOTO_TOO_LARGE = (
     "That photo is too large. "
@@ -1067,40 +1066,51 @@ def workout_notes(
 
 @router.get("/weeks")
 def weekly_totals(
-    count: int = Query(8, ge=1, le=MAX_WEEKS),
     db: Session = Depends(get_db),
     user: models.User = Depends(security.current_user),
 ) -> list[dict]:
-    """Per-activity totals for the last `count` weeks, newest first.
+    """Per-activity totals for every week this account has, newest first.
 
-    Weeks start Monday in the server's timezone, and every week in the range is
-    returned whether anything happened in it or not: a rest week is part of the
-    rhythm, so it has to be visible rather than missing from the list. Within a
-    week, only the activities that actually happened appear.
+    Weeks start Monday in the server's timezone, and every week from the first
+    workout to this one is returned whether anything happened in it or not: a
+    rest week is part of the rhythm, so it has to be visible rather than missing
+    from the list. Within a week, only the activities that actually happened
+    appear.
+
+    The whole history rather than a window, because the history it labels is
+    paged: a window would leave the weeks past its edge with no totals, and a
+    week half-loaded at a page boundary cannot be added up from the rows that
+    arrived. A self-hosted account is months of weeks, which is a small read.
     """
     this_week = activity_rules.week_start(security.now_utc())
-    earliest = this_week - dt.timedelta(weeks=count - 1)
-    # One query for the whole range, grouped in Python. The alternative is
+    # One query for the whole history, grouped in Python. The alternative is
     # asking the database to do calendar arithmetic in the server timezone,
     # which is written differently in Postgres and SQLite and would give the
     # tests a different answer from production.
-    cutoff = dt.datetime.combine(earliest, dt.time.min, tzinfo=activity_rules.SERVER_TZ)
-    rows = db.execute(
-        select(models.Workout).where(
-            models.Workout.user_id == user.id,
-            models.Workout.deleted_at.is_(None),
-            models.Workout.start_ts >= cutoff,
-        )
-    ).scalars()
+    rows = list(
+        db.execute(
+            select(models.Workout).where(
+                models.Workout.user_id == user.id,
+                models.Workout.deleted_at.is_(None),
+            )
+        ).scalars()
+    )
+
+    # Where the history starts. A workout dated ahead of this week is not the
+    # start of anything that ends here, so it does not stretch the range; an
+    # account with nothing in it is this week alone.
+    mondays = [activity_rules.week_start(row.start_ts) for row in rows]
+    earliest = min((monday for monday in mondays if monday <= this_week), default=this_week)
 
     # Every week in the range gets an entry; an activity gets one only once it
     # has a workout in that week. An empty map therefore reads as a rest week
     # rather than as four zeroes the caller has to filter out.
     weeks: dict[dt.date, dict[str, dict]] = {
-        earliest + dt.timedelta(weeks=offset): {} for offset in range(count)
+        earliest + dt.timedelta(weeks=offset): {}
+        for offset in range((this_week - earliest).days // 7 + 1)
     }
-    for row in rows:
-        bucket = weeks.get(activity_rules.week_start(row.start_ts))
+    for row, monday in zip(rows, mondays):
+        bucket = weeks.get(monday)
         if bucket is None:
             continue
         entry = bucket.setdefault(

@@ -395,8 +395,20 @@ def test_weekly_totals(signed_in, db_session, member):
         active_kcal=150.0,
     )
 
-    weeks = signed_in.get("/api/workouts/weeks?count=4").json()
-    assert len(weeks) == 4
+    # Two weeks back as well, so there is a rest week in between.
+    stored(
+        db_session,
+        member.id,
+        activity="run",
+        start=f"{(monday - dt.timedelta(weeks=2)).isoformat()}T06:00:00+00:00",
+        duration=1800,
+        miles=1.0,
+        active_kcal=90.0,
+    )
+
+    weeks = signed_in.get("/api/workouts/weeks").json()
+    # This week back to the week the oldest workout is in, and no further.
+    assert len(weeks) == 3
     assert weeks[0]["week_start"] == monday.isoformat()
     # Newest first.
     assert weeks[1]["week_start"] == (monday - dt.timedelta(weeks=1)).isoformat()
@@ -412,20 +424,47 @@ def test_weekly_totals(signed_in, db_session, member):
     # missing from the Almanac.
     assert weeks[1]["activities"] == {}
     assert weeks[1]["total_active_kcal"] == 0.0
+    assert weeks[2]["activities"]["run"] == {
+        "distance_mi": 1.0,
+        "active_kcal": 90.0,
+        "workouts": 1,
+    }
 
 
-def test_weekly_totals_ignore_older_weeks(signed_in, db_session, member):
+def test_weekly_totals_reach_the_oldest_weeks(signed_in, db_session, member):
+    """A week far back gets its totals, not just the recent ones.
+
+    The history is paged twenty rows at a time and walks back as far as somebody
+    keeps asking, so a heading from months ago needs its totals from here: a
+    week half-loaded at a page boundary cannot be added up from the rows on
+    screen.
+    """
     monday = _monday_of_this_week()
-    long_ago = monday - dt.timedelta(weeks=6)
-    stored(db_session, member.id, start=f"{long_ago.isoformat()}T06:00:00+00:00", active_kcal=999.0)
-    weeks = signed_in.get("/api/workouts/weeks?count=2").json()
-    assert len(weeks) == 2
-    assert all(week["activities"] == {} for week in weeks)
+    long_ago = monday - dt.timedelta(weeks=20)
+    stored(
+        db_session,
+        member.id,
+        start=f"{long_ago.isoformat()}T06:00:00+00:00",
+        miles=5.0,
+        active_kcal=999.0,
+    )
+    weeks = signed_in.get("/api/workouts/weeks").json()
+    assert len(weeks) == 21
+    assert weeks[-1]["week_start"] == long_ago.isoformat()
+    assert weeks[-1]["activities"]["run"] == {
+        "distance_mi": 5.0,
+        "active_kcal": 999.0,
+        "workouts": 1,
+    }
+    assert weeks[-1]["total_active_kcal"] == 999.0
 
 
-def test_weekly_totals_reject_a_silly_count(signed_in):
-    assert signed_in.get("/api/workouts/weeks?count=0").status_code == 400
-    assert signed_in.get("/api/workouts/weeks?count=500").status_code == 400
+def test_weekly_totals_of_an_empty_history(signed_in):
+    """This week and nothing else: there is no history behind it to list."""
+    weeks = signed_in.get("/api/workouts/weeks").json()
+    assert len(weeks) == 1
+    assert weeks[0]["week_start"] == _monday_of_this_week().isoformat()
+    assert weeks[0]["activities"] == {}
 
 
 def patch_words(client, workout_id, **fields):

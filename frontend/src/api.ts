@@ -803,8 +803,11 @@ export function getWorkoutNotes(workoutId: number): Promise<WorkoutNote[]> {
   return getJson<WorkoutNote[]>(`/workouts/${workoutId}/notes`)
 }
 
-export function listWeeks(count: number): Promise<Week[]> {
-  return getJson<Week[]>(`/workouts/weeks?count=${count}`)
+// Every week of this account's history, newest first. Not a window: the list
+// these totals label pages back as far as somebody keeps pressing, and a week
+// straddling a page boundary cannot be added up from the rows on screen.
+export function listWeeks(): Promise<Week[]> {
+  return getJson<Week[]>('/workouts/weeks')
 }
 
 // The parts of a workout the person who did it types in themselves. A field

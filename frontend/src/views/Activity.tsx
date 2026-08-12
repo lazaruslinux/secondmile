@@ -41,7 +41,6 @@ import Icon from './Icon.tsx'
 // same card the feed does, and fifty of them at once is a page that keeps
 // drawing long after somebody has stopped reading it.
 const WORKOUT_PAGE = 20
-const WEEK_COUNT = 8
 
 // Which of the two views this browser was last left on. The only thing kept
 // between visits: a sort is asked for on purpose and a sport filter even more
@@ -222,7 +221,10 @@ export default function ActivityView({ userId, units, onOpenPerson }: Props) {
           order,
           ...(sport === null ? {} : { activity: sport }),
         }),
-        listWeeks(WEEK_COUNT),
+        // Every week, not the recent ones: Load more walks back past any
+        // window, and a heading with no totals under it is a week the page
+        // could not add up.
+        listWeeks(),
         listDeletedWorkouts(),
         getProfile(),
       ])
@@ -349,7 +351,7 @@ export default function ActivityView({ userId, units, onOpenPerson }: Props) {
       // the order they were deleted in.
       setDeleted((current) => [...gone, ...current])
       stopSelecting()
-      setWeeks(await listWeeks(WEEK_COUNT))
+      setWeeks(await listWeeks())
     } catch (err) {
       setRemoveError(errorText(err))
     } finally {

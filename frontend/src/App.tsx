@@ -138,6 +138,19 @@ export default function App() {
     setMe((current) => (current ? { ...current, hidden_from_friends: hidden } : current))
   }
 
+  // Every screen scrolls the one document, so a new screen would otherwise open
+  // at whatever depth the last one was left at. A screen starts at its top.
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [view])
+
+  // A tap on the tab already showing changes nothing for the effect above to
+  // react to, and it still means take me back to the top of this.
+  function showTab(next: View) {
+    setView(next)
+    window.scrollTo(0, 0)
+  }
+
   function openFriend(id: number) {
     setFriend({ id, from: view })
     setView('friend')
@@ -198,7 +211,7 @@ export default function App() {
                 type="button"
                 className={current ? 'topnav-item topnav-current' : 'topnav-item'}
                 aria-current={current ? 'page' : undefined}
-                onClick={() => setView(tab.id)}
+                onClick={() => showTab(tab.id)}
               >
                 <Icon name={tab.icon} />
                 <span className="topnav-label">{tab.label}</span>
@@ -279,7 +292,7 @@ export default function App() {
               type="button"
               className={current ? 'tab tab-current' : 'tab'}
               aria-current={current ? 'page' : undefined}
-              onClick={() => setView(tab.id)}
+              onClick={() => showTab(tab.id)}
             >
               <Icon name={tab.icon} />
               <span className="tab-label">{tab.label}</span>
