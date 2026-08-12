@@ -151,6 +151,11 @@ invite_limiter = RateLimiter(10, "invite")
 # Cheering and writing notes. The most generous of the lot, because reading a
 # morning's feed and answering all of it is the behaviour this app is for.
 encourage_limiter = RateLimiter(30, "encourage")
+# Reading the instance totals on the welcome page. Unauthenticated, so counted
+# per address, and as roomy as the signed-in reads below: the answer is a cached
+# pair of integers that guards nothing, so the only thing worth stopping here is
+# a loop, and a page that is opened and reloaded a few times must never hit it.
+stats_limiter = RateLimiter(60, "stats")
 # Opening a welcome page, and fetching the face on it. Unauthenticated, so it
 # is counted per address like the rest of the anonymous endpoints. Twenty is a
 # person opening a link and reloading it a few times; it is nowhere near enough

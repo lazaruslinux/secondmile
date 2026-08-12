@@ -23,6 +23,7 @@ from app.routers import (
     invites,
     profile,
     settings,
+    stats,
     workouts,
 )
 
@@ -182,3 +183,4 @@ app.include_router(chests.router, prefix="/api")
 app.include_router(grove.router, prefix="/api")
 app.include_router(fellowship.router, prefix="/api")
 app.include_router(invites.router, prefix="/api")
+app.include_router(stats.router, prefix="/api")

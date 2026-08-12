@@ -29,6 +29,7 @@ from app import activity as activity_rules  # noqa: E402
 from app import config, grove, mail, models, progress, security, species, throttle  # noqa: E402
 from app.db import Base, get_db  # noqa: E402
 from app.main import app as fastapi_app  # noqa: E402
+from app.routers import stats  # noqa: E402
 
 ADMIN = {"username": "admin", "password": "admin-password-1"}
 MEMBER = {"username": "runner", "password": "runner-password-1"}
@@ -82,6 +83,16 @@ def _reset_rate_limits():
     throttle.reset_limiters()
     yield
     throttle.reset_limiters()
+
+
+@pytest.fixture(autouse=True)
+def _reset_stats_cache():
+    # The instance totals are cached in the module, for ten minutes, and every
+    # test gets a database of its own. Without clearing it, a count taken from
+    # one case's rows would be served to the next one and read as its own.
+    stats.reset_cache()
+    yield
+    stats.reset_cache()
 
 
 @pytest.fixture()

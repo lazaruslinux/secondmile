@@ -4,6 +4,7 @@ import heroImage from '../assets/landing-hero.png'
 import { ACTIVITY_ICONS, ACTIVITY_NAMES, ACTIVITY_ORDER } from '../labels.ts'
 import AvatarFrame from './AvatarFrame.tsx'
 import Icon from './Icon.tsx'
+import LandingStats from './LandingStats.tsx'
 
 interface Props {
   // Straight to the form, already on the tab the button promised.
@@ -92,6 +93,10 @@ export default function Landing({ onEnter, invite }: Props) {
             </li>
           ))}
         </ul>
+
+        {/* What the instance has actually covered, on both variants. It draws
+            itself or it draws nothing: see the component. */}
+        <LandingStats />
 
         {/* Their face in its frame, drawn exactly as it is drawn on every
             screen inside the app. The picture rides on the code rather than on

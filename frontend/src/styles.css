@@ -4352,6 +4352,41 @@ button:disabled {
   align-items: center;
 }
 
+/* The instance totals, directly under the sports. Set like the app's counts
+   rather than like a hero line: a big numeral with the small shouty label under
+   it, in the accent, so the pair reads as two facts and not as a headline. It
+   carries the sports list's own bottom space, because on a page where it hides
+   itself the block below has to sit exactly where it did without it. */
+.landing-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem 2.6rem;
+  list-style: none;
+  margin: 0 0 1.9rem;
+  padding: 0;
+}
+
+.landing-stats li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.landing-stats .label {
+  color: var(--accent);
+}
+
+/* Tabular figures, because every frame of the count-up would otherwise be a
+   different width and the labels under it would twitch for a second. */
+.landing-stat-value {
+  font-size: clamp(1.8rem, 5.4vw, 2.6rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-family: var(--font-nums);
+  font-variant-numeric: tabular-nums;
+}
+
 .landing-actions {
   display: flex;
   flex-direction: column;

@@ -41,6 +41,15 @@ export interface Status {
   timezone?: string
 }
 
+// What the whole instance has covered, for the welcome page's counter. Whole
+// miles and whole workouts, deleted ones left out, counted up to ten minutes
+// ago: the server holds the pair so that watching this endpoint cannot show
+// somebody a member's run landing.
+export interface Stats {
+  miles: number
+  activities: number
+}
+
 // Soft flags: the server imports the workout either way and marks what looked
 // wrong, so a bad sync never silently becomes progress.
 export interface WorkoutFlags {
@@ -691,6 +700,10 @@ export function getMe(): Promise<Me> {
 
 export function getStatus(): Promise<Status> {
   return getJson<Status>('/status')
+}
+
+export function getStats(): Promise<Stats> {
+  return getJson<Stats>('/stats')
 }
 
 export async function login(username: string, password: string): Promise<void> {
