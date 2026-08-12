@@ -142,6 +142,16 @@ export default function Welcome({ code, onJoin, onSignIn }: Props) {
         </p>
       </section>
 
+      {/* The name, explained once, the same way the landing does it. Quiet and
+          at the end on purpose: the masthead of this page belongs to the person
+          who sent the link. */}
+      <section className="landing-section welcome-verse">
+        <p className="welcome-verse-line">
+          &ldquo;And whoever compels you to go one mile, go with him two.&rdquo;
+        </p>
+        <p className="landing-cite">Matthew 5:41 NKJV</p>
+      </section>
+
       <footer className="landing-foot">
         <p>secondmile. Open source, AGPL-3.0.</p>
       </footer>
