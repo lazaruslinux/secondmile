@@ -30,6 +30,7 @@ import {
   lifetimeMiles,
   medalCountsOf,
   ownedMedalIds,
+  weekSteps,
 } from '../profile.ts'
 import AvatarFrame from './AvatarFrame.tsx'
 import BandGrove from './BandGrove.tsx'
@@ -199,6 +200,7 @@ export default function Profile({
   const age = ageOf(profile)
   const ownedMedals = ownedMedalIds(profile.medals)
   const bio = profile.bio?.trim() ?? ''
+  const steps = weekSteps(profile)
 
   return (
     <>
@@ -335,6 +337,12 @@ export default function Profile({
             />
 
             <SportChips stats={profile.lifetime} units={units} />
+
+            {/* One quiet line, on your own screen and nowhere else. The miles
+                those steps earned are already in the count above; this is the
+                raw number behind them, which is flavour. A week with none says
+                nothing rather than printing a zero at somebody. */}
+            {steps > 0 && <p className="hint">Steps this week: {steps.toLocaleString()}</p>}
 
             <div className="profile-edit">
               <div className="choice">

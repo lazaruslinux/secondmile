@@ -326,6 +326,23 @@ MAX_VIDEO_BODY_BYTES = 105 * 1024 * 1024
 # for four activities does not come close to this.
 MAX_INGEST_WORKOUTS = 2000
 
+# And the same ceiling on the samples the export's metrics carry between them,
+# set far higher because a metric is not sent as a day. The real automation
+# sends a bucket every few minutes: a hundred and seventy samples by mid
+# afternoon, a few hundred to a couple of thousand per metric per day, and both
+# metrics at once. This is weeks of catching up at that rate, and the body cap
+# above bites first for anything past it; what this bounds is the arithmetic on
+# a body that got in under the cap by being nothing but tiny samples.
+MAX_INGEST_METRIC_POINTS = 100_000
+
+# What one day's pedometer reading is allowed to claim, before anything is
+# subtracted from it or credited. Neither is a rule about what earns, which is
+# the daily cap's business: they are the bound that keeps a phone with a broken
+# sensor from writing a number the integer column cannot hold. A hundred
+# thousand steps is a very long day out; this is well past one.
+MAX_DAILY_STEPS = 250_000
+MAX_DAILY_STEP_MI = MAX_WORKOUT_DISTANCE_MI
+
 # How long a stored sync payload is kept. The log is a replay net for a parsing
 # bug, and a bug older than a season has either been found or has been lived
 # with, so holding every export forever only grows a table nothing else reads.

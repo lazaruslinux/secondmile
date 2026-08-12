@@ -18,11 +18,11 @@ def test_stats_answers_the_pair_and_nothing_else(client, db_session, member):
     log_workout(db_session, member.id, "run", 3.7)
     response = client.get("/api/stats")
     assert response.status_code == 200
-    assert response.json() == {"miles": 3, "activities": 1}
+    assert response.json() == {"miles": 3, "activities": 1, "steps": 0}
 
 
 def test_an_instance_with_nothing_on_it_counts_zero(client):
-    assert client.get("/api/stats").json() == {"miles": 0, "activities": 0}
+    assert client.get("/api/stats").json() == {"miles": 0, "activities": 0, "steps": 0}
 
 
 def test_a_deleted_workout_leaves_both_totals(client, db_session, member):
@@ -31,14 +31,14 @@ def test_a_deleted_workout_leaves_both_totals(client, db_session, member):
     taken_back.deleted_at = security.now_utc()
     db_session.commit()
     stats.reset_cache()
-    assert client.get("/api/stats").json() == {"miles": 4, "activities": 1}
+    assert client.get("/api/stats").json() == {"miles": 4, "activities": 1, "steps": 0}
     assert kept.deleted_at is None
 
 
 def test_the_count_is_held_rather_than_taken_again(client, db_session, member):
     log_workout(db_session, member.id, "run", 2.0)
     first = client.get("/api/stats").json()
-    assert first == {"miles": 2, "activities": 1}
+    assert first == {"miles": 2, "activities": 1, "steps": 0}
 
     # A workout lands inside the cache's window. Nobody watching the endpoint
     # learns that it did.
@@ -46,17 +46,17 @@ def test_the_count_is_held_rather_than_taken_again(client, db_session, member):
     assert client.get("/api/stats").json() == first
 
     stats.reset_cache()
-    assert client.get("/api/stats").json() == {"miles": 7, "activities": 2}
+    assert client.get("/api/stats").json() == {"miles": 7, "activities": 2, "steps": 0}
 
 
 def test_the_count_is_taken_again_once_it_is_old(client, db_session, member, monkeypatch):
     log_workout(db_session, member.id, "run", 2.0)
-    assert client.get("/api/stats").json() == {"miles": 2, "activities": 1}
+    assert client.get("/api/stats").json() == {"miles": 2, "activities": 1, "steps": 0}
     # Nothing is cached for no time at all, so the next request is past the age
     # whatever the real clock did between the two.
     monkeypatch.setattr(stats, "CACHE_SECONDS", -1)
     log_workout(db_session, member.id, "walk", 5.0, offset_min=180)
-    assert client.get("/api/stats").json() == {"miles": 7, "activities": 2}
+    assert client.get("/api/stats").json() == {"miles": 7, "activities": 2, "steps": 0}
 
 
 def test_hammering_the_counter_is_refused(client):

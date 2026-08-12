@@ -11,9 +11,9 @@ function easeOut(through: number): number {
   return 1 - (1 - through) ** 3
 }
 
-// What the instance has covered, under the sports in the hero. Two numbers and
-// nothing else, and every one of them is a fact: this band draws what the
-// server counted or it draws nothing at all.
+// What the instance has covered, under the sports in the hero. Three numbers at
+// most and nothing else, and every one of them is a fact: this band draws what
+// the server counted or it draws nothing at all.
 //
 // Nothing here is retried and nothing here reports a failure. A counter is a
 // garnish on a page somebody is reading before they have an account, so an
@@ -24,7 +24,7 @@ export default function LandingStats() {
   // What the server said, once. One fetch on mount and no polling: the totals
   // move slowly and the page is read once.
   const [totals, setTotals] = useState<Stats | null>(null)
-  const [shown, setShown] = useState<Stats>({ miles: 0, activities: 0 })
+  const [shown, setShown] = useState<Stats>({ miles: 0, activities: 0, steps: 0 })
   const band = useRef<HTMLUListElement>(null)
 
   useEffect(() => {
@@ -40,6 +40,9 @@ export default function LandingStats() {
         setTotals({
           miles: Math.max(0, Math.trunc(got.miles)),
           activities: Math.max(0, Math.trunc(got.activities)),
+          // A server that predates steps, or one whose instance has never seen
+          // any, both read as none and draw no third number.
+          steps: Number.isFinite(got.steps) ? Math.max(0, Math.trunc(got.steps ?? 0)) : 0,
         })
       })
       .catch(() => {
@@ -75,6 +78,7 @@ export default function LandingStats() {
           setShown({
             miles: Math.round(totals.miles * eased),
             activities: Math.round(totals.activities * eased),
+            steps: Math.round((totals.steps ?? 0) * eased),
           })
           if (through < 1) frame = requestAnimationFrame(step)
         }
@@ -91,7 +95,7 @@ export default function LandingStats() {
 
   // Nothing yet, and nothing on an instance that has covered nothing: a wall of
   // zeros sells emptiness rather than life.
-  if (!totals || (totals.miles === 0 && totals.activities === 0)) return null
+  if (!totals || (totals.miles === 0 && totals.activities === 0 && !totals.steps)) return null
 
   return (
     <ul className="landing-stats" ref={band}>
@@ -103,6 +107,15 @@ export default function LandingStats() {
         <span className="landing-stat-value">{shown.activities.toLocaleString()}</span>
         <span className="label">Activities synced</span>
       </li>
+      {/* Hidden on an instance nobody's phone has sent a pedometer reading
+          from, on the terms the whole band is hidden by: a zero is not a fact
+          worth a third of the hero. */}
+      {(totals.steps ?? 0) > 0 && (
+        <li>
+          <span className="landing-stat-value">{(shown.steps ?? 0).toLocaleString()}</span>
+          <span className="label">Steps counted</span>
+        </li>
+      )}
     </ul>
   )
 }

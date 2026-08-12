@@ -9,7 +9,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app import activity, history, models, progress, routemaps, security, throttle
-from app.config import INGEST_LOG_RETENTION_DAYS, MAX_INGEST_WORKOUTS
+from app.config import (
+    INGEST_LOG_RETENTION_DAYS,
+    MAX_INGEST_METRIC_POINTS,
+    MAX_INGEST_WORKOUTS,
+)
 from app.db import get_db
 
 router = APIRouter(tags=["ingest"])
@@ -76,8 +80,15 @@ async def ingest(request: Request, db: Session = Depends(get_db)) -> dict:
     entries = activity.workout_entries(payload)
     if entries is not None and len(entries) > MAX_INGEST_WORKOUTS:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Too many workouts in one export.")
+    if activity.metric_points(payload) > MAX_INGEST_METRIC_POINTS:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Too many health metrics in one export.")
 
     parsed, ignored = activity.parse_payload(payload)
+    # Read here and credited below, after the workouts are in: the day's step
+    # credit is the remainder over that day's walks and runs, so the workouts
+    # this very export brought have to be stored before it is worked out.
+    metrics, metric_refusals = activity.parse_metrics(payload)
+    ignored += metric_refusals
 
     imported = skipped = flagged = routes = 0
     for item in parsed:
@@ -121,6 +132,12 @@ async def ingest(request: Request, db: Session = Depends(get_db)) -> dict:
         if routemaps.store_route(db, workout.id, item.route):
             routes += 1
 
+    # After the loop above, and in its transaction. Whatever the pedometer
+    # covered beyond the workouts of the same day is written to the step ledger
+    # here; what the ledger is worth is decided in the pipeline, at the bottom
+    # of this function, the same as everything else.
+    credits = progress.record_steps(db, user.id, metrics, security.now_utc())
+
     result = {"imported": imported, "skipped": skipped, "flagged": flagged, "ignored": len(ignored)}
 
     # Stripped here and not earlier: every route above has already been read out
@@ -138,7 +155,16 @@ async def ingest(request: Request, db: Session = Depends(get_db)) -> dict:
             # diagnose after the fact. The route tally rides here rather than in
             # the response because the response shape is a frozen contract and
             # nothing on the phone would do anything with the number.
-            result={**result, "ignored_detail": ignored, "routes_stored": routes},
+            # The log keeps what the response has no room for: why entries were
+            # dropped, how many routes were drawn, and how many days of steps
+            # earned anything. None of the three is in the response, whose
+            # shape is a frozen contract and which the phone does nothing with.
+            result={
+                **result,
+                "ignored_detail": ignored,
+                "routes_stored": routes,
+                "step_credits": credits,
+            },
         )
     )
 

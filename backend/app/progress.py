@@ -15,7 +15,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app import grove, medals, models, species
-from app.activity import converted_miles, week_start
+from app.activity import DayMetrics, converted_miles, day_bounds, week_of, week_start
 from app.config import (
     BORDER_LEVELS,
     CHEST_LADDER,
@@ -25,9 +25,12 @@ from app.config import (
     LEGACY_CHEST_TIER,
     LEVEL_COSTS_MI,
     LEVEL_STEP_MI,
+    MAX_DAILY_STEP_MI,
+    MAX_DAILY_STEPS,
     MAX_DIAMOND_SPORTS,
     MAX_LEVEL,
     SERVER_TZ,
+    daily_cap_mi,
 )
 from app.models import ACTIVITIES
 from app.security import now_utc
@@ -124,6 +127,12 @@ def process_user(db: Session, user_id: int) -> models.UserProgress:
     A deleted workout is not one of them, ever. It has no marker row either, so
     this is the line that keeps it uncredited rather than a marker standing in
     for it, and restoring one is what puts it back through here.
+
+    Then the step ledger, on the same terms and in the same transaction. The
+    workouts go first because that is the order the miles were decided in: a
+    day's step credit is the remainder over that day's workouts, so crediting
+    it before them would climb the ladder in an order the numbers do not
+    describe.
     """
     progress = ensure_progress(db, user_id)
     pending = (
@@ -146,6 +155,11 @@ def process_user(db: Session, user_id: int) -> models.UserProgress:
         if not _claim(db, workout.id):
             continue
         _credit(db, progress, workout)
+        credited += 1
+    for entry in _pending_step_credits(db, user_id):
+        if not _claim_step_credit(db, entry.id):
+            continue
+        _credit_steps(db, progress, entry)
         credited += 1
     if credited:
         progress.updated_at = now_utc()
@@ -182,6 +196,236 @@ def _credit(db: Session, progress: models.UserProgress, workout: models.Workout)
     moment = workout.created_at or workout.start_ts
     _advance_chests(db, progress, miles, moment)
     grove.grow(db, progress.user_id, miles, workout.activity, moment)
+
+
+# --------------------------------------------------------------------------
+# Steps
+# --------------------------------------------------------------------------
+
+
+def _steps_row(db: Session, user_id: int, day: dt.date, moment: dt.datetime) -> models.DailySteps:
+    """One account's row for one local day, created empty if it has none.
+
+    The insert gets its own savepoint and the unique pair settles a race, which
+    is the pattern every other lazily created row here follows: two syncs
+    landing together must not leave one day with two rows to disagree over.
+    """
+    # Locked for the length of the transaction, which is what keeps two syncs
+    # landing together from both reading the same credited_mi and both writing
+    # a ledger row for it. SQLite has no row locks and needs none: the test
+    # suite runs one connection, and this clause is simply not rendered there.
+    found = db.execute(
+        select(models.DailySteps)
+        .where(models.DailySteps.user_id == user_id, models.DailySteps.day == day)
+        .with_for_update()
+    ).scalar_one_or_none()
+    if found is not None:
+        return found
+    row = models.DailySteps(
+        user_id=user_id,
+        day=day,
+        steps=0,
+        distance_mi=0.0,
+        credited_mi=0.0,
+        capped=False,
+        updated_at=moment,
+    )
+    try:
+        with db.begin_nested():
+            db.add(row)
+            db.flush()
+    except IntegrityError:
+        # The other sync inserted it between the read and the write. Read back
+        # what the unique pair settled on, and take the lock this time.
+        row = db.execute(
+            select(models.DailySteps)
+            .where(models.DailySteps.user_id == user_id, models.DailySteps.day == day)
+            .with_for_update()
+        ).scalar_one()
+    return row
+
+
+def _workout_miles(db: Session, user_id: int, day: dt.date, surviving: bool) -> float:
+    """That day's walking and running workout distance, in raw miles.
+
+    Asked twice for two different questions, which is why the deleted rows are
+    a parameter. What the steps have to give way to is every walk and run the
+    day ever recorded, deleted ones included: the pedometer counted those steps
+    whatever their owner later did with the workout, and letting a deletion
+    grow the step credit would make delete-then-sync a way to earn a walk twice.
+    What the daily cap is measured against is only what is still there, exactly
+    as over_daily_cap measures it.
+
+    Cycling and swimming are not in either. A pedometer does not count them, so
+    there is nothing of theirs for the steps to be double counting.
+    """
+    start, end = day_bounds(day)
+    where = [
+        models.Workout.user_id == user_id,
+        models.Workout.activity.in_(("walk", "run")),
+        models.Workout.start_ts >= start,
+        models.Workout.start_ts < end,
+    ]
+    if surviving:
+        where.append(models.Workout.deleted_at.is_(None))
+    return float(
+        db.execute(
+            select(func.coalesce(func.sum(models.Workout.distance_mi), 0.0)).where(*where)
+        ).scalar_one()
+    )
+
+
+def record_steps(
+    db: Session, user_id: int, days: dict[dt.date, DayMetrics], moment: dt.datetime
+) -> int:
+    """Take a sync's pedometer readings and write down whatever they newly earn.
+
+    Called from the ingest transaction after the workouts have been written,
+    which is the whole reason the order matters: the day's remainder is
+    measured over the workouts of that day, and a walk that arrived in this
+    very export has to be one of them or the same miles earn twice.
+
+    Three rules, in this order. The reading is high-water, so a partial export
+    of today cannot take a fuller one back down. The credit is the remainder
+    over that day's walk and run workouts, deleted ones included. And the
+    credit is clamped so the day's surviving walk and run miles plus what the
+    steps earn never pass the walking cap, which is the same ceiling a day of
+    logged walking is measured against; a day that hit it is marked, the way an
+    over-cap workout is marked, and nothing is refused.
+
+    Nothing is credited to the game here. This writes the ledger; process_user
+    is where a ledger row becomes experience, chests and growth, exactly as a
+    workout row becomes them there and not at the moment it is stored.
+
+    Answers with how many ledger rows were written, for the sync's own log.
+    """
+    written = 0
+    for day in sorted(days):
+        reading = days[day]
+        row = _steps_row(db, user_id, day, moment)
+        # Rounded rather than truncated, because the samples are floats: the
+        # phone sends 2080.26 steps for a partial day, and a day summed from
+        # hundreds of those is a whole number of steps only at the end. Bounded
+        # before it is stored as well, the count being an integer column and a
+        # confused sensor being free to send anything. What a day is allowed to
+        # earn is the cap's business below, not this line's.
+        row.steps = max(row.steps, min(round(reading.steps), MAX_DAILY_STEPS))
+        row.distance_mi = max(row.distance_mi, min(reading.distance_mi, MAX_DAILY_STEP_MI))
+        row.updated_at = moment
+
+        remainder = max(0.0, row.distance_mi - _workout_miles(db, user_id, day, surviving=False))
+        room = max(0.0, daily_cap_mi("walk") - _workout_miles(db, user_id, day, surviving=True))
+        credited = min(remainder, room)
+        if credited < remainder - _EPSILON:
+            row.capped = True
+        if credited <= row.credited_mi + _EPSILON:
+            # Nothing new. Either the day has not moved or the ceiling has come
+            # down around miles already earned, and what is credited stays
+            # credited: this number only ever rises.
+            continue
+        db.add(
+            models.StepCredit(
+                user_id=user_id,
+                day=day,
+                delta_mi=credited - row.credited_mi,
+                credited_at=moment,
+            )
+        )
+        row.credited_mi = credited
+        written += 1
+    db.flush()
+    return written
+
+
+def _pending_step_credits(db: Session, user_id: int) -> list[models.StepCredit]:
+    """Ledger rows this account has not been credited for, oldest day first."""
+    return list(
+        db.execute(
+            select(models.StepCredit)
+            .where(
+                models.StepCredit.user_id == user_id,
+                models.StepCredit.id.not_in(select(models.ProcessedStepCredit.step_credit_id)),
+            )
+            # By id within a day so two credits landing together apply in a
+            # stable order, the same tie-break the workouts get.
+            .order_by(models.StepCredit.day, models.StepCredit.credited_at, models.StepCredit.id)
+        )
+        .scalars()
+        .all()
+    )
+
+
+def _claim_step_credit(db: Session, credit_id: int) -> bool:
+    """The marker before the work it stands for, exactly as _claim does it."""
+    try:
+        with db.begin_nested():
+            db.add(models.ProcessedStepCredit(step_credit_id=credit_id))
+            db.flush()
+    except IntegrityError:
+        return False
+    return True
+
+
+def _credit_steps(
+    db: Session, progress: models.UserProgress, entry: models.StepCredit
+) -> None:
+    """What one ledger row is worth: everything a walk of the same length is.
+
+    The delta is already real pedometer miles of walking, and walking converts
+    one for one, so it is experience as it stands rather than through
+    converted_miles. Chests, the plot and the week all take it on the same
+    terms.
+
+    No per-workout medals, because there is no workout: a 5K is a session
+    somebody went out and ran, and an afternoon that happened to add up to
+    three miles of pottering about is not one. The week is another matter, and
+    is re-totalled below with this credit in it.
+    """
+    progress.xp += entry.delta_mi
+    progress.level = level_for_xp(progress.xp)
+    # The week the miles were walked in, never the week they were credited in:
+    # steps synced on Monday for the Sunday before belong to the week that
+    # covered them, which is the week whose medal they may have earned.
+    medals.update_week(db, progress.user_id, week_of(entry.day))
+    # The moment the credit landed rather than the day it is about, which is
+    # the same reading a workout gets: this morning's sync waters what is in
+    # the ground this morning, and a rebuild replays to the same numbers.
+    _advance_chests(db, progress, entry.delta_mi, entry.credited_at)
+    grove.grow(db, progress.user_id, entry.delta_mi, "walk", entry.credited_at)
+
+
+def _step_window(column, user_id: int, week_of_day: dt.date | None):
+    """One account's step rows, either all of them or one week's worth.
+
+    Bounded at both ends when a week is asked for, because a phone with a
+    wandering clock is free to send a day that has not happened yet and a week
+    that quietly swallowed it would disagree with every other weekly number on
+    the screen. The same seven days the medals are counted over.
+    """
+    stmt = select(func.coalesce(func.sum(column), 0)).where(models.DailySteps.user_id == user_id)
+    if week_of_day is None:
+        return stmt
+    return stmt.where(
+        models.DailySteps.day >= week_of_day,
+        models.DailySteps.day < week_of_day + dt.timedelta(days=7),
+    )
+
+
+def step_miles(db: Session, user_id: int, monday: dt.date | None = None) -> float:
+    """Credited step miles, over all of history or over one week.
+
+    Read from daily_steps rather than from the ledger, because this is the
+    arithmetic rather than the story: the two agree by construction, and a test
+    pins that they do.
+    """
+    return float(
+        db.execute(_step_window(models.DailySteps.credited_mi, user_id, monday)).scalar_one()
+    )
+
+
+def step_count(db: Session, user_id: int, monday: dt.date) -> int:
+    """Raw steps over one week. Flavour, and never miles."""
+    return int(db.execute(_step_window(models.DailySteps.steps, user_id, monday)).scalar_one())
 
 
 # --------------------------------------------------------------------------
@@ -438,6 +682,31 @@ def open_chest(
     return item
 
 
+def _clear_markers(db: Session, user_id: int) -> None:
+    """Every processed marker this account owns, on both spines.
+
+    Written once because the two rebuilds below both need the pair, and a
+    rebuild that forgot one of them would replay half an account: the workouts
+    would come back and the step credit would not, or the other way round.
+    Neither table has an owner column of its own, so both are reached through
+    the row they stand for.
+    """
+    db.execute(
+        delete(models.ProcessedWorkout).where(
+            models.ProcessedWorkout.workout_id.in_(
+                select(models.Workout.id).where(models.Workout.user_id == user_id)
+            )
+        )
+    )
+    db.execute(
+        delete(models.ProcessedStepCredit).where(
+            models.ProcessedStepCredit.step_credit_id.in_(
+                select(models.StepCredit.id).where(models.StepCredit.user_id == user_id)
+            )
+        )
+    )
+
+
 def recompute(db: Session, user_id: int) -> models.UserProgress:
     """Throw away one account's derived progress and rebuild it from the
     workouts. Workouts are never touched.
@@ -459,14 +728,7 @@ def recompute(db: Session, user_id: int) -> models.UserProgress:
     db.execute(delete(models.Chest).where(models.Chest.user_id == user_id))
     grove.reset_growth(db, user_id)
     medals.clear_earns(db, user_id)
-    # processed_workouts is keyed by workout; the workout is what has an owner.
-    db.execute(
-        delete(models.ProcessedWorkout).where(
-            models.ProcessedWorkout.workout_id.in_(
-                select(models.Workout.id).where(models.Workout.user_id == user_id)
-            )
-        )
-    )
+    _clear_markers(db, user_id)
     row = db.get(models.UserProgress, user_id)
     if row is not None:
         row.xp = 0.0
@@ -512,15 +774,7 @@ def rebuild_from_surviving(db: Session, user_id: int) -> models.UserProgress:
     """
     progress = ensure_progress(db, user_id)
     medals.clear_earns(db, user_id)
-    # Every marker, including the deleted workout's own, so a restore credits
-    # it again from here rather than needing one kept back for it.
-    db.execute(
-        delete(models.ProcessedWorkout).where(
-            models.ProcessedWorkout.workout_id.in_(
-                select(models.Workout.id).where(models.Workout.user_id == user_id)
-            )
-        )
-    )
+    _clear_markers(db, user_id)
     # What the ladder has already paid out. Counted before anything is credited,
     # because every one of these rows was a crossing once.
     dropped = db.execute(
@@ -548,6 +802,16 @@ def rebuild_from_surviving(db: Session, user_id: int) -> models.UserProgress:
         progress.xp += miles
         medals.award_workout_medals(db, user_id, workout)
         medals.update_week_for(db, user_id, workout)
+    # The step ledger is fuel exactly as a surviving workout is. Nothing in it
+    # is affected by a deletion either way: a deleted walk still subtracts from
+    # its day, so taking one back can never grow the credit, and putting it
+    # back can never shrink what has already been credited.
+    for entry in _pending_step_credits(db, user_id):
+        if not _claim_step_credit(db, entry.id):
+            continue
+        fuel += entry.delta_mi
+        progress.xp += entry.delta_mi
+        medals.update_week(db, user_id, week_of(entry.day))
     progress.level = level_for_xp(progress.xp)
 
     # One walk over the whole ladder rather than one per workout: the chests

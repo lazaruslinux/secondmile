@@ -362,6 +362,69 @@ class ProcessedWorkout(Base):
     )
 
 
+class DailySteps(Base):
+    __tablename__ = "daily_steps"
+    # One row per account per local day. The pair is unique because a day is
+    # upserted on every sync: the phone sends overlapping windows of metrics
+    # exactly as it does of workouts, and the same day arriving again is the
+    # common case rather than the exception.
+    __table_args__ = (UniqueConstraint("user_id", "day", name="uq_daily_steps"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # The local calendar day in the instance timezone, which is the day the
+    # remainder is worked out over and the day a week is counted from.
+    day: Mapped[dt.date] = mapped_column(Date, nullable=False)
+    # What the pedometer claimed, both of it high-water: an export that covers
+    # half a day must never take a fuller reading of the same day back down.
+    # The count is flavour and earns nothing. The distance is what earns.
+    steps: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    distance_mi: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    # How much of that distance has been credited: the remainder over the day's
+    # own walk and run workouts, clamped to the daily cap. It only ever rises,
+    # which is what makes a second export of the same day credit the increase
+    # and nothing else, and what keeps spent miles spent.
+    credited_mi: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    # Set the first time the clamp bit, and never cleared. A soft marker like
+    # the workout flags: nothing is refused, the day is simply not allowed to
+    # earn past what a day of walking can be.
+    capped: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    updated_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
+
+
+class StepCredit(Base):
+    __tablename__ = "step_credits"
+
+    # One row every time a day's credit went up, for the amount it went up by.
+    # The sum of these for a day is that day's credited_mi, which is the
+    # invariant a test pins: daily_steps carries the arithmetic and this
+    # carries the history, so the letter and any audit read this table and the
+    # remainder math reads that one.
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    day: Mapped[dt.date] = mapped_column(Date, nullable=False)
+    delta_mi: Mapped[float] = mapped_column(Float, nullable=False)
+    # When the credit landed, which is the clock rather than the day it is
+    # about: a week of steps synced this morning is news this morning, the same
+    # reading the letter gives a backfilled workout.
+    credited_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
+
+
+class ProcessedStepCredit(Base):
+    __tablename__ = "processed_step_credits"
+
+    # The step ledger's half of the idempotency spine, keyed and claimed
+    # exactly as processed_workouts is: the marker is written before the credit
+    # it stands for, and the primary key settles every race.
+    step_credit_id: Mapped[int] = mapped_column(
+        ForeignKey("step_credits.id", ondelete="CASCADE"), primary_key=True
+    )
+
+
 class BadgeEarn(Base):
     __tablename__ = "badge_earns"
     # One workout may hold one medal from each per-workout family, so the pair
@@ -408,10 +471,15 @@ class WeeklyBadgeEarn(Base):
     # The workout that crossed the line. Kept so the letter can ask when the
     # medal arrived rather than when it was earned: a January week backfilled
     # this morning is news this morning, whatever date is on it.
-    workout_id: Mapped[int] = mapped_column(
-        ForeignKey("workouts.id", ondelete="CASCADE"), nullable=False
+    #
+    # Null where step credit carried the week over the line, which has no
+    # workout to point at: the miles are real and the crossing is real, and
+    # there is simply no session it happened in.
+    workout_id: Mapped[int | None] = mapped_column(
+        ForeignKey("workouts.id", ondelete="CASCADE"), nullable=True
     )
-    # That workout's start time, so a rebuild writes the same row again.
+    # The moment the crossing happened: that workout's start time, or the
+    # moment the step credit landed. Either way a stamp a rebuild writes again.
     earned_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
 
 

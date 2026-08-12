@@ -637,3 +637,48 @@ def test_the_workout_words_and_photos_arrive_empty(migrated):
             sa.text("SELECT distance_mi, title, post FROM workouts")
         ).one()
         assert row == (3.0, None, None)
+
+
+def test_the_step_tables_arrive_empty_and_the_crossing_learns_to_be_null(migrated):
+    """0023: three new tables, nothing in them, and a weekly earn that may now
+    record no workout at all.
+
+    The nullable column is the half worth checking with a statement rather than
+    with PRAGMA: what the release needs is for a row carrying no workout at all
+    to be storable beside one that carries its own. The table itself arrives in
+    0012, well after the revision this database starts at, so both rows are
+    written on the far side of the upgrade.
+    """
+    engine, upgrade = migrated
+    with engine.connect() as connection:
+        _fill(connection)
+        _run(connection, 1, 1, "2026-07-01 06:00:00")
+        connection.commit()
+
+    upgrade()
+
+    with engine.connect() as connection:
+        tables = set(
+            connection.execute(
+                sa.text("SELECT name FROM sqlite_master WHERE type = 'table'")
+            ).scalars()
+        )
+        assert {"daily_steps", "step_credits", "processed_step_credits"} <= tables
+        for table in ("daily_steps", "step_credits", "processed_step_credits"):
+            assert connection.execute(sa.text(f"SELECT COUNT(*) FROM {table}")).scalar_one() == 0
+        _week_earn(connection, 1, "weekly", "weekly_10", 1)
+        connection.execute(
+            sa.text(
+                "INSERT INTO weekly_badge_earns (user_id, week_start, family, badge_id,"
+                " workout_id, earned_at)"
+                " VALUES (1, '2026-06-08', 'weekly', 'weekly_15', NULL,"
+                " '2026-06-10 09:00:00')"
+            )
+        )
+        connection.commit()
+        rows = connection.execute(
+            sa.text("SELECT badge_id, workout_id FROM weekly_badge_earns ORDER BY week_start")
+        ).all()
+        # One week names the run that crossed the line and the other names
+        # nothing, which is what a week the steps carried looks like.
+        assert rows == [("weekly_10", 1), ("weekly_15", None)]

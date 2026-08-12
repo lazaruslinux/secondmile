@@ -8,6 +8,7 @@ and this is where it is decided what counts as suspicious.
 
 import datetime as dt
 import math
+import re
 from dataclasses import dataclass
 
 from sqlalchemy import func, select
@@ -76,6 +77,23 @@ _KCAL_PER = {
     "kilojoules": 1.0 / 4.184,
 }
 
+# The two metrics the pedometer sends that this app has any use for, matched on
+# a name with everything but its letters and digits taken out. Apple writes the
+# same measurement as "walking_running_distance" in an export and "Walking +
+# Running Distance" on a screen, and HealthKit itself calls it
+# distanceWalkingRunning, so the fragments are matched rather than the spelling.
+# Everything else in the metrics array is ignored and logged, exactly as an
+# unmatched workout is.
+_STEP_NAMES = frozenset({"stepcount", "steps"})
+_STEP_DISTANCE_NAMES = frozenset(
+    {
+        "walkingrunningdistance",
+        "walkingandrunningdistance",
+        "walkrundistance",
+        "distancewalkingrunning",
+    }
+)
+
 # Start-time shapes seen in the wild. fromisoformat covers the ISO ones on its
 # own; these are for the export that writes the offset after a space, which is
 # not ISO and which fromisoformat rejects.
@@ -94,6 +112,19 @@ class ParsedWorkout:
     # than parsed here so the pairing of a workout with its own trace is made
     # once, in the one place that reads the export.
     route: object | None = None
+
+
+@dataclass
+class DayMetrics:
+    """One server-timezone day of pedometer readings, as an export claims them.
+
+    Both numbers are what the phone said, before anything is subtracted from
+    them: what a day's reading earns is decided against the workouts of that
+    same day, which this side of the parse knows nothing about.
+    """
+
+    steps: float = 0.0
+    distance_mi: float = 0.0
 
 
 def classify(name: str | None) -> str | None:
@@ -283,6 +314,13 @@ def parse_payload(payload) -> tuple[list[ParsedWorkout], list[dict]]:
         return parsed, [{"index": 0, "reason": "payload is not an object"}]
     workouts = workout_entries(payload)
     if workouts is None:
+        # An export of metrics and nothing else is a whole automation rather
+        # than a broken export: the pedometer is set up as its own, and a
+        # refusal logged on every one of its syncs would be noise about
+        # something that is working. A payload carrying neither list is still
+        # the mistake it always was.
+        if metric_entries(payload) is not None:
+            return parsed, ignored
         return parsed, [{"index": 0, "reason": "no workouts list in payload"}]
 
     for index, entry in enumerate(workouts):
@@ -346,6 +384,111 @@ def parse_payload(payload) -> tuple[list[ParsedWorkout], list[dict]]:
     return parsed, ignored
 
 
+def _metric_key(name: str | None) -> str:
+    """A metric's name with everything but its letters and digits taken out.
+
+    One spelling to match against, so "step_count", "Step Count" and "steps"
+    are the same question rather than three.
+    """
+    return re.sub(r"[^a-z0-9]", "", (name or "").lower())
+
+
+def metric_entries(payload) -> list | None:
+    """The export's list of metrics, or None if it does not carry one.
+
+    Found in both places workout_entries looks, and for the same reason: the
+    export tool has put the arrays under "data" and at the top level over its
+    versions, and accepting both costs nothing.
+    """
+    if not isinstance(payload, dict):
+        return None
+    data = payload.get("data")
+    metrics = data.get("metrics") if isinstance(data, dict) else None
+    if metrics is None:
+        metrics = payload.get("metrics")
+    return metrics if isinstance(metrics, list) else None
+
+
+def metric_points(payload) -> int:
+    """How many samples the export's metrics carry between them.
+
+    Counted before anything is parsed, the way the workout entries are: a
+    metric is allowed to arrive at any resolution the phone likes, and an
+    export of a million samples should cost one length check rather than a
+    million reads.
+    """
+    total = 0
+    for entry in metric_entries(payload) or []:
+        points = entry.get("data") if isinstance(entry, dict) else None
+        if isinstance(points, list):
+            total += len(points)
+    return total
+
+
+def parse_metrics(payload) -> tuple[dict[dt.date, DayMetrics], list[dict]]:
+    """Read the export's metrics into one reading per server-timezone day.
+
+    Two of them are read and the rest are ignored and named, exactly as an
+    unmatched workout is: steps, which are flavour, and walking and running
+    distance, which is the only thing here that earns anything.
+
+    Summed per day rather than taken as they arrive, because the phone sends
+    whatever resolution it feels like: a day may be one sample or twenty-four,
+    and the day is what the crediting is decided over. The date each sample
+    carries is read in the instance timezone for the same reason a workout's
+    day is: a walk at eleven at night belongs to the day whoever took it says
+    it does.
+    """
+    days: dict[dt.date, DayMetrics] = {}
+    ignored: list[dict] = []
+
+    entries = metric_entries(payload)
+    if entries is None:
+        return days, ignored
+
+    for index, entry in enumerate(entries):
+        if not isinstance(entry, dict):
+            ignored.append({"metric": index, "reason": "entry is not an object"})
+            continue
+        name = entry.get("name") or entry.get("identifier")
+        key = _metric_key(name if isinstance(name, str) else None)
+        if key in _STEP_NAMES:
+            counting = True
+        elif key in _STEP_DISTANCE_NAMES:
+            counting = False
+        else:
+            ignored.append({"metric": index, "name": name, "reason": "unsupported metric"})
+            continue
+        points = entry.get("data")
+        if not isinstance(points, list):
+            ignored.append({"metric": index, "name": name, "reason": "no data points"})
+            continue
+        # Declared once per metric and allowed to be said again on a sample,
+        # because the phone follows its owner's locale and this app stores
+        # miles. A count has no units and never reads them.
+        units = _units(entry, "mi")
+        for point in points:
+            if not isinstance(point, dict):
+                ignored.append({"metric": index, "name": name, "reason": "sample is not an object"})
+                continue
+            when = parse_start(point.get("date") or point.get("start") or point.get("startDate"))
+            if when is None:
+                ignored.append({"metric": index, "name": name, "reason": "unreadable date"})
+                continue
+            qty = _quantity(point)
+            if qty is None or qty < 0:
+                # Dropped on its own rather than taking the day with it. The
+                # rest of the samples still describe a day that happened.
+                ignored.append({"metric": index, "name": name, "reason": "value is not a number"})
+                continue
+            reading = days.setdefault(when.astimezone(SERVER_TZ).date(), DayMetrics())
+            if counting:
+                reading.steps += qty
+            else:
+                reading.distance_mi += qty * _MILES_PER.get(_units(point, units), 1.0)
+    return days, ignored
+
+
 def converted_miles(activity: str, distance_mi: float) -> float:
     """What one workout's distance is worth as Miles.
 
@@ -376,17 +519,21 @@ def impossible_pace(activity: str, duration_s: int, distance_mi: float) -> bool:
     return speed_mph > MAX_SWIM_SPEED_MPH
 
 
-def local_day_bounds(moment: dt.datetime) -> tuple[dt.datetime, dt.datetime]:
-    """The UTC instants a workout's local calendar day starts and ends at.
+def day_bounds(day: dt.date) -> tuple[dt.datetime, dt.datetime]:
+    """The instants one local calendar day starts and ends at.
 
     Built from the next calendar date rather than by adding 24 hours, because
     the day a clock change falls on is 23 or 25 hours long and adding a fixed
     day would put an evening workout in the wrong bucket twice a year.
     """
-    local = moment.astimezone(SERVER_TZ)
-    start = dt.datetime.combine(local.date(), dt.time.min, tzinfo=SERVER_TZ)
-    end = dt.datetime.combine(local.date() + dt.timedelta(days=1), dt.time.min, tzinfo=SERVER_TZ)
+    start = dt.datetime.combine(day, dt.time.min, tzinfo=SERVER_TZ)
+    end = dt.datetime.combine(day + dt.timedelta(days=1), dt.time.min, tzinfo=SERVER_TZ)
     return start, end
+
+
+def local_day_bounds(moment: dt.datetime) -> tuple[dt.datetime, dt.datetime]:
+    """The instants a workout's own local calendar day starts and ends at."""
+    return day_bounds(moment.astimezone(SERVER_TZ).date())
 
 
 def over_daily_cap(db: Session, user_id: int, activity: str, start_ts: dt.datetime) -> bool:
@@ -416,7 +563,11 @@ def over_daily_cap(db: Session, user_id: int, activity: str, start_ts: dt.dateti
     return float(total) > daily_cap_mi(activity)
 
 
+def week_of(day: dt.date) -> dt.date:
+    """The Monday of the week a local calendar day falls in."""
+    return day - dt.timedelta(days=day.weekday())
+
+
 def week_start(moment: dt.datetime) -> dt.date:
     """The Monday of the local week a moment falls in."""
-    local = moment.astimezone(SERVER_TZ).date()
-    return local - dt.timedelta(days=local.weekday())
+    return week_of(moment.astimezone(SERVER_TZ).date())

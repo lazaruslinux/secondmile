@@ -26,6 +26,7 @@ import {
   recapMiles,
   recapMilesTotal,
   recapNotes,
+  recapStepMiles,
 } from '../recap.ts'
 import { EditPanel } from './FeedCard.tsx'
 import Icon from './Icon.tsx'
@@ -67,6 +68,7 @@ export default function Recap({ recap, units, onDismiss }: Props) {
   const synced = recap.last_sync_at
   const mileRows = recapMiles(recap.miles)
   const milesTotal = recapMilesTotal(mileRows)
+  const stepMiles = recapStepMiles(recap)
   const chestNames = recapChestNames(recap.chests)
   const gift = recapGiftLine(recap.chests)
 
@@ -154,6 +156,14 @@ export default function Recap({ recap, units, onDismiss }: Props) {
               <span className="recap-ledger-value">{milesTotal.toFixed(1)}</span> miles total
             </li>
           </ul>
+
+          {/* Under the four rows and outside their total, because this is the
+              ground covered between the things somebody set out to do. Said
+              only when there is some: a week without it is not a week that
+              fell short of anything. */}
+          {stepMiles > 0 && (
+            <p className="recap-line">Your steps covered {stepMiles.toFixed(1)} miles.</p>
+          )}
 
           {chestNames !== '' && (
             <section className="recap-section">

@@ -48,6 +48,10 @@ export interface Status {
 export interface Stats {
   miles: number
   activities: number
+  // Every step every pedometer on the instance has reported. Optional, because
+  // a server from before steps existed says nothing, which reads as none and
+  // draws no third number at all.
+  steps?: number
 }
 
 // Soft flags: the server imports the workout either way and marks what looked
@@ -310,6 +314,15 @@ export interface Profile {
   // way the weekly totals behave.
   week: Partial<Record<Activity, ActivityStats>>
   lifetime: Partial<Record<Activity, ActivityStats>>
+  // Credited step miles, this week and altogether. They are not a sport and
+  // are in neither table above; they belong in the one overall miles figure a
+  // screen adds up, which is where profile.ts puts them. Optional, so a server
+  // that predates steps reads as none of them.
+  week_step_mi?: number
+  lifetime_step_mi?: number
+  // The raw count this week, which is flavour and never miles. Your own screen
+  // only: the friend payload does not carry it and must not.
+  week_steps?: number
   // What the plot has come to. seeds_found counts the distinct species owned,
   // out of the twelve a chest can hold; plant_levels is every level on every
   // plant added up. Optional so the app still renders against a server that
@@ -612,6 +625,9 @@ export interface RecapState {
   // key that goes missing reads as none rather than throwing.
   miles: Partial<Record<Activity, number>>
   miles_total?: number
+  // Step miles credited since the last letter was put down. Its own line under
+  // the four, and deliberately not part of the total above them.
+  step_miles?: number
   // The weighted number the game runs on. Never called miles anywhere.
   xp?: number
   // Chests are opened in the inventory now, so the letter names what landed

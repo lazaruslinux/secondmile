@@ -16,7 +16,8 @@ it.
    - URL: `https://your-domain/api/ingest`
    - Method: POST
    - Headers: `Authorization: Bearer <your token>`
-   - Data type: Workouts
+   - Data type: Workouts and Health Metrics, with Step Count and
+     Walking + Running Distance selected
    - Format: JSON
    - Include Route Data: on, if you want the map line on your workout
      cards. It is optional; everything else works the same without it.
@@ -50,6 +51,33 @@ types in the export are counted in the response but ignored.
   you next open the app, so the recap waiting for you was already written.
   Each activity converts at its own rate, which is why a mile swum is worth
   more than a mile cycled.
+
+## Steps
+
+The pedometer is read as well, and only two of its metrics: your step count,
+which is shown as a number and earns nothing, and your walking and running
+distance, which does earn.
+
+What it earns is the remainder. For each day, the server takes the distance
+your pedometer measured and subtracts the walks and runs you already have
+workouts for; whatever is left over is credited as miles. A walk you recorded
+is therefore never counted twice, and a day spent on your feet without
+recording anything still counts for something.
+
+Three things follow from that, and all three are deliberate:
+
+- A day's credit only ever rises. Exports overlap, and a later one covering
+  the same day credits the increase and nothing else. Deleting a walk does not
+  grow it either: a deleted workout still subtracts, or deleting one and
+  syncing again would earn the same miles twice.
+- The daily cap that applies to walking applies to the total. Your recorded
+  walking and running plus your step credit cannot pass it in one day.
+- Step miles are miles. They count toward experience, the chest ladder, growth
+  in your plot, and the week's own medal. They earn no race medal, because
+  those are for a single recorded run, and they make no feed card: steps are
+  ambient, and the recap is where they are mentioned.
+
+Metrics carry no location data of any kind.
 
 ## Route data
 

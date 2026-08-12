@@ -121,6 +121,7 @@ def read_recap(
     row = progress.process_user(db, user.id)
     since = row.last_ack_at
     miles, xp = _miles(db, user.id, since)
+    step_miles = _step_miles(db, user.id, since)
 
     # Ordered as the letter reads: what window it covers, what the body did in
     # it, what landed, what people said, what grew, and the workouts themselves,
@@ -133,7 +134,15 @@ def read_recap(
         # behind them, so the total under the four rows is always the total of
         # the rows the reader can see.
         "miles_total": round(sum(miles.values()), 2),
-        "xp": round(xp, 2),
+        # Its own line rather than a fifth row above, and deliberately outside
+        # the total: the four rows are activities somebody went out and did,
+        # and the total under them has to be the total of the rows the reader
+        # can see. Steps are the ground covered in between.
+        "step_miles": step_miles,
+        # Step credit is XP too, at the walk's weight: the steps line sits
+        # outside the miles total, but the game made something of it and the
+        # XP row is where that is owned up to.
+        "xp": round(xp + step_miles, 2),
         "chests": _delivered(db, user.id, since),
         "medals": _fresh_medals(db, user.id, since),
         "encouragement": _received(db, user.id, since),
@@ -175,6 +184,22 @@ def _miles(
         miles[activity] = round(float(total), 2)
         xp += converted_miles(activity, float(total))
     return miles, xp
+
+
+def _step_miles(db: Session, user_id: int, since: dt.datetime | None) -> float:
+    """Step miles credited since the last acknowledgement, from the ledger.
+
+    The ledger rather than the day rows, because this is a window and the days
+    carry no history of when their credit arrived: one row per credit event is
+    exactly the thing a "since" can be asked of. Zero is an ordinary answer and
+    the letter says nothing at all about it.
+    """
+    stmt = select(func.coalesce(func.sum(models.StepCredit.delta_mi), 0.0)).where(
+        models.StepCredit.user_id == user_id
+    )
+    if since is not None:
+        stmt = stmt.where(models.StepCredit.credited_at > since)
+    return round(float(db.execute(stmt).scalar_one()), 2)
 
 
 def _delivered(db: Session, user_id: int, since: dt.datetime | None) -> list[dict]:
@@ -446,6 +471,22 @@ def _fresh_medals(db: Session, user_id: int, since: dt.datetime | None) -> list[
     """
     found: list[tuple[dt.datetime, int, dict]] = []
     order = {medal.id: index for index, medal in enumerate(medals.CATALOG)}
+
+    def keep(row) -> None:
+        if row.badge_id not in medals.BY_ID:
+            return
+        found.append(
+            (
+                row.earned_at,
+                order[row.badge_id],
+                {
+                    "id": row.badge_id,
+                    "name": medals.BY_ID[row.badge_id].name,
+                    "earned_at": row.earned_at.isoformat(),
+                },
+            )
+        )
+
     for table in (models.BadgeEarn, models.WeeklyBadgeEarn):
         stmt = (
             select(table)
@@ -459,19 +500,20 @@ def _fresh_medals(db: Session, user_id: int, since: dt.datetime | None) -> list[
         if since is not None:
             stmt = stmt.where(models.Workout.created_at > since)
         for row in db.execute(stmt).scalars():
-            if row.badge_id not in medals.BY_ID:
-                continue
-            found.append(
-                (
-                    row.earned_at,
-                    order[row.badge_id],
-                    {
-                        "id": row.badge_id,
-                        "name": medals.BY_ID[row.badge_id].name,
-                        "earned_at": row.earned_at.isoformat(),
-                    },
-                )
-            )
+            keep(row)
+
+    # A week that step credit carried over the line has no workout to be dated
+    # by, and needs none: the credit landed when it landed, so its own stamp is
+    # already the arrival the join above spells out the long way round.
+    weekly = select(models.WeeklyBadgeEarn).where(
+        models.WeeklyBadgeEarn.user_id == user_id,
+        models.WeeklyBadgeEarn.workout_id.is_(None),
+    )
+    if since is not None:
+        weekly = weekly.where(models.WeeklyBadgeEarn.earned_at > since)
+    for row in db.execute(weekly).scalars():
+        keep(row)
+
     # Oldest first, and the catalogue settles two earned on the same run, so the
     # letter reads the same way twice.
     return [entry for _stamp, _rank, entry in sorted(found, key=lambda item: item[:2])]

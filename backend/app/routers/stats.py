@@ -44,19 +44,27 @@ def reset_cache() -> None:
 
 
 def _count(db: Session) -> dict[str, int]:
-    """Miles and workouts across the instance, deleted ones left out.
+    """Miles, workouts and steps across the instance, deleted ones left out.
 
     A deletion is a disappearance from every total at once, exactly as it is
     from every feed: the counter must not go on claiming a workout its owner
     took back. Miles are floored rather than rounded, so the number on the page
     is ground that has certainly been covered.
+
+    The steps are the raw count every pedometer on the instance has reported,
+    which is a different kind of number from the other two and is named as one
+    on the page. Nothing is deleted from it: a day's steps are a reading rather
+    than a thing anybody logged, so there is nothing to take back.
     """
     miles, activities = db.execute(
         select(func.coalesce(func.sum(models.Workout.distance_mi), 0.0), func.count())
         .select_from(models.Workout)
         .where(models.Workout.deleted_at.is_(None))
     ).one()
-    return {"miles": int(miles), "activities": int(activities)}
+    steps = db.execute(
+        select(func.coalesce(func.sum(models.DailySteps.steps), 0))
+    ).scalar_one()
+    return {"miles": int(miles), "activities": int(activities), "steps": int(steps)}
 
 
 @router.get("/stats")
