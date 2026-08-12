@@ -78,8 +78,9 @@ export default function Welcome({ code, onJoin, onSignIn }: Props) {
         </div>
 
         <p className="landing-sub">
-          secondmile is a small, invite-only place to keep your miles. Walk, run, bike, or
-          swim: they all count, and every one of them is yours.
+          secondmile is a small, invite-only place for staying active and encouraging the
+          people you know. Walk, run, bike, or swim: every workout you sync earns XP,
+          opens chests along the way, and grows a grove from your miles.
         </p>
 
         <ul className="landing-sports">
@@ -108,10 +109,11 @@ export default function Welcome({ code, onJoin, onSignIn }: Props) {
         <p className="label landing-eyebrow">How it works</p>
         <h2>Set it up once, then just move.</h2>
         <p>
-          Your activities come from Apple Health. You install Health Auto Export on your
-          iPhone, point it at secondmile, and set it to send Workouts as JSON. After that
-          every walk, run, ride, and swim you record arrives on its own. You never log
-          anything by hand.
+          One companion app exports the workouts your phone and watch already record and
+          sends them to secondmile as JSON. Set it up once and every walk, run, ride, and
+          swim arrives on its own. You never log anything by hand, and you never have to
+          keep the app open to earn: your miles sync themselves, and whatever they earn is
+          waiting whenever you feel like looking.
         </p>
       </section>
 
@@ -119,8 +121,10 @@ export default function Welcome({ code, onJoin, onSignIn }: Props) {
         <p className="label landing-eyebrow">What you need</p>
         <h2>An iPhone, for now.</h2>
         <p>
-          Health Auto Export is an iOS app, and it is the only way in at the moment. On
-          anything else you can make an account and look around, but nothing will arrive.
+          The exporter is Health Auto Export, from the App Store. Apple Health is the only
+          source tested and supported today, so activities need an iPhone or an Apple
+          Watch behind them. On anything else you can make an account and look around, but
+          nothing will arrive.
         </p>
       </section>
 
