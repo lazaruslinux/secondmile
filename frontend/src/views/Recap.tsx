@@ -160,8 +160,8 @@ export default function Recap({ recap, units, onDismiss }: Props) {
               <p className="recap-line">
                 <span className="recap-line-label">Chests found:</span> {chestNames}
               </p>
-              {/* Oil says nothing when it is spent, so this is the only place
-                  the person who gave it is named. */}
+              {/* A potion says nothing when it is spent, so this is the only
+                  place the person who gave it is named. */}
               {gift !== '' && <p className="hint">{gift}</p>}
             </section>
           )}

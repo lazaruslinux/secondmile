@@ -57,7 +57,7 @@ CATALOG: tuple[Medal, ...] = (
     Medal("race_10k", "race", "10K", 6.2),
     Medal("race_half", "race", "Half", 13.1),
     Medal("race_marathon", "race", "Marathon", 26.2),
-    Medal("race_ultra", "race", "Ultra", 31.1),
+    Medal("race_ultra", "race", "50K", 31.1),
     Medal("weekly_10", "weekly", "10-mile week", 10.0),
     Medal("weekly_15", "weekly", "15-mile week", 15.0),
     Medal("weekly_25", "weekly", "25-mile week", 25.0),

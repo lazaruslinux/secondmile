@@ -497,34 +497,40 @@ export default function Settings({
         </div>
       </section>
 
-      <section className="card">
-        <h2>Units</h2>
-        <p className="hint">How distances are shown and entered.</p>
-        <div className="choice">
-          <button
-            type="button"
-            className={units === 'imperial' ? 'choice-option choice-current' : 'choice-option'}
-            aria-pressed={units === 'imperial'}
-            disabled={savingUnits}
-            onClick={() => void chooseUnits('imperial')}
-          >
-            Miles
-          </button>
-          <button
-            type="button"
-            className={units === 'metric' ? 'choice-option choice-current' : 'choice-option'}
-            aria-pressed={units === 'metric'}
-            disabled={savingUnits}
-            onClick={() => void chooseUnits('metric')}
-          >
-            Kilometers
-          </button>
+      {/* The same three parts the four groups above are built from: the group,
+          its title, and the card under it. One card, because one choice is the
+          whole of what this section is. */}
+      <section className="settings-group">
+        <h2 className="label settings-title">Units</h2>
+
+        <div className="card">
+          <p className="hint">How distances are shown and entered.</p>
+          <div className="choice">
+            <button
+              type="button"
+              className={units === 'imperial' ? 'choice-option choice-current' : 'choice-option'}
+              aria-pressed={units === 'imperial'}
+              disabled={savingUnits}
+              onClick={() => void chooseUnits('imperial')}
+            >
+              Miles
+            </button>
+            <button
+              type="button"
+              className={units === 'metric' ? 'choice-option choice-current' : 'choice-option'}
+              aria-pressed={units === 'metric'}
+              disabled={savingUnits}
+              onClick={() => void chooseUnits('metric')}
+            >
+              Kilometers
+            </button>
+          </div>
+          {unitsError && (
+            <p className="error" role="alert">
+              {unitsError}
+            </p>
+          )}
         </div>
-        {unitsError && (
-          <p className="error" role="alert">
-            {unitsError}
-          </p>
-        )}
       </section>
 
       {/* Last on the page and in a group of its own, because the end is where

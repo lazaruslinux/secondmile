@@ -139,6 +139,27 @@ export function plantingName(row: Planting | FriendPlanting): string {
   return speciesName(row.species, row.plant_name ?? row.name)
 }
 
+// Said under anything that has reached the last level, and nowhere else: every
+// other grown plant says which level it is on instead.
+export const FULLY_GROWN = 'Fully grown.'
+
+// Where a plant has got to, in one line, so the same plant reads the same way
+// in the plot, over the fence, and in the row that offers it a drink. A grown
+// plant says which level it is on, the last level is the only one that says it
+// is finished, and anything younger says which of the two early drawings it is
+// at. The stage is passed in because each screen reads it from what it has: a
+// friend's row carries the stage itself, and the own plot works it out from the
+// miles behind it. A row that arrived without a level says its stage rather
+// than inventing a number.
+export function plantStateLine(
+  row: { gilded?: boolean; mature?: boolean; level?: number },
+  stage: number,
+): string {
+  if (row.gilded === true) return FULLY_GROWN
+  if (row.mature === true && typeof row.level === 'number') return `Level ${row.level}`
+  return stage === 1 ? 'Seedling' : 'Growing'
+}
+
 // The species on its own, for the tab under a seed's square. The name in the
 // hand already ends in the word seed and the square is plainly a seed, so the
 // word is dropped and what is left is the one thing the tab is there to say.
@@ -252,6 +273,27 @@ export const PLANTED = 'Planted. It is in your grove.'
 export const POURED = 'Poured. Ten XP of growth.'
 export const ANOINTED = 'Done. Their next chest opens one step rarer.'
 export const OIL_KEPT = 'The potion is still in your inventory.'
+
+// What an empty list says. A person's own screens can promise the sync that
+// fills them in; a friend's page says the shorter half, because their next sync
+// is not the reader's to wait on.
+export const NOTHING_RECORDED = 'Nothing recorded yet. Your next sync fills this in.'
+export const NOTHING_RECORDED_FRIEND = 'Nothing recorded yet.'
+
+// The week's own version, which needs no such split: a week with nothing in it
+// yet is the same sentence on either screen.
+export const NOTHING_THIS_WEEK = 'Nothing recorded this week yet.'
+
+// Said over an empty plot, on the Grove screen and in the card on You.
+export const NOTHING_PLANTED = 'Nothing planted yet. Seeds come out of chests.'
+
+// Where water comes from, said the way the potion lines beside it are said.
+export const NO_WATER = 'No water in your inventory. It comes out of chests.'
+
+// What a refused upload says. The proxy in front of the app answers some of
+// these before the server does, so the sentence is written here rather than
+// read off the response, and it is word for word the server's own.
+export const TOO_MANY_UPLOADS = 'Too many uploads just now. Wait a minute.'
 
 // The step of the ladder a chest dropped on. The names are the server's; a
 // chest from before the ladder simply has none.

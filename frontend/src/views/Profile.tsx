@@ -15,7 +15,14 @@ import {
 } from '../api.ts'
 import { convertedValue, formatDate } from '../format.ts'
 import { plantStage } from '../grove.ts'
-import { chestName, chestTierClass, medalName, plantingName } from '../labels.ts'
+import {
+  chestName,
+  chestTierClass,
+  medalName,
+  NOTHING_RECORDED,
+  NOTHING_THIS_WEEK,
+  plantingName,
+} from '../labels.ts'
 import {
   ageOf,
   chestBar,
@@ -202,6 +209,7 @@ export default function Profile({
             type="button"
             className="icon-button"
             aria-label="Edit profile"
+            title="Edit profile"
             onClick={() => setEditing(true)}
           >
             <Icon name="pencil" />
@@ -211,6 +219,7 @@ export default function Profile({
             type="button"
             className="icon-button"
             aria-label="Settings"
+            title="Settings"
             onClick={onOpenSettings}
           >
             <Icon name="gear" />
@@ -410,29 +419,25 @@ export default function Profile({
           )}
 
           <section className="card">
-            <h2>This week</h2>
-            <Stats stats={profile.week} units={units} empty="Nothing recorded this week yet." />
+            <h2 className="label">This week</h2>
+            <Stats stats={profile.week} units={units} empty={NOTHING_THIS_WEEK} />
           </section>
 
           <section className="card">
-            <h2>Lifetime</h2>
-            <Stats
-              stats={profile.lifetime}
-              units={units}
-              empty="Nothing recorded yet. Your next sync fills this in."
-            />
+            <h2 className="label">Lifetime</h2>
+            <Stats stats={profile.lifetime} units={units} empty={NOTHING_RECORDED} />
           </section>
 
           {/* What the satchel has been spent on and what has come the other
               way. It sits under the two tables and over the chests the items
               came out of, which is the order the things themselves happen in. */}
           <section className="card">
-            <h2>Items</h2>
+            <h2 className="label">Items</h2>
             <ItemTallies tallies={profile.item_tallies} />
           </section>
 
           <section className="card">
-            <h2>Chests</h2>
+            <h2 className="label">Chests</h2>
             {chests.length === 0 && opened.length === 0 && (
               // Not "nothing waiting" any more: a gift can be waiting on this
               // card at the same time, and one word cannot mean both.
@@ -442,7 +447,7 @@ export default function Profile({
             )}
             {/* The whole cycle rather than the one line it replaced: where the
                 next chest sits on the ladder, how far into that step the XP has
-                got, and which chest a friend's oil is waiting on. Only drawn
+                got, and which chest a friend's potion is waiting on. Only drawn
                 when the server has said which chest is coming. */}
             {ladder && <ChestBar bar={ladder} />}
             {chestError && (

@@ -28,7 +28,7 @@ FEED_PAGE_SIZE = 20
 # park a dictionary of usernames. The refusal says the same thing whatever was
 # typed, so it gives nothing away either.
 MAX_OUTBOUND_INVITES = 100
-TOO_MANY_INVITES = "Too many pending invites."
+TOO_MANY_INVITES = "Too many invites are waiting. Cancel one to send another."
 # Answering invites: accepting, declining, cancelling, unfriending. One sentence
 # for the four, because they come out of one allowance.
 TOO_MANY_ACTIONS = "Too many changes just now. Wait a minute."

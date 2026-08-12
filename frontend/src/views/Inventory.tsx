@@ -38,6 +38,7 @@ import {
   personName,
   PLANTED,
   plantingName,
+  plantStateLine,
   POURED,
   rarityWord,
 } from '../labels.ts'
@@ -80,10 +81,6 @@ const LEAST_ROWS = 2
 // choose", and what it answers with water for.
 const NO_SPECIES = ''
 const COMPLETE = 'You have every seed, so it became water.'
-
-// A friend's plot comes back with a stage rather than miles, so the quiet half
-// of the row says how far along it is in words.
-const STAGE_WORDS = ['Seedling', 'Growing', 'Grown']
 
 // Whether a plant can still take water: everything but the ones that have run
 // out of levels to put on.
@@ -576,7 +573,9 @@ export default function Inventory({ onChanged }: Props) {
       ? step.plot.filter(friendGrowing).map((row) => ({
           id: row.id,
           label: plantingName(row),
-          detail: STAGE_WORDS[(row.stage ?? 1) - 1] ?? 'Growing',
+          // The same line their plot says under the same plant: a friend's
+          // row carries its stage rather than the miles behind it.
+          detail: plantStateLine(row, row.stage ?? 1),
         }))
       : []
 

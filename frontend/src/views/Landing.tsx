@@ -78,7 +78,7 @@ export default function Landing({ onEnter }: Props) {
         <div className="landing-actions">
           {openRegistration ? (
             <button type="button" className="primary" onClick={() => onEnter(true)}>
-              Create an account
+              Create account
             </button>
           ) : (
             <button type="button" className="primary" onClick={() => onEnter(false)}>
@@ -138,10 +138,14 @@ export default function Landing({ onEnter }: Props) {
       <section className="landing-section">
         <p className="label landing-eyebrow">Private by design</p>
         <h2>A group of friends, not a stadium.</h2>
+        {/* The first sentence is a setting rather than a fact, read off the
+            same answer the button above is drawn from. The rest of the
+            paragraph is true either way. */}
         <p>
-          secondmile is invite-only. Friends are mutual and invited by name. No follower
-          counts, no leaderboards. Nobody here is a stranger, and nothing here is a
-          competition. You choose what your friends can see.
+          {openRegistration === false && 'secondmile is invite-only. '}
+          Friends are mutual and invited by name. No follower counts, no leaderboards.
+          Nobody here is a stranger, and nothing here is a competition. You choose what
+          your friends can see.
         </p>
       </section>
 
@@ -149,7 +153,7 @@ export default function Landing({ onEnter }: Props) {
         <p className="label landing-eyebrow">Rewards</p>
         <h2>Distance is the only currency.</h2>
         <p>
-          Cover ground and you earn medals, chests, and a garden that grows from your
+          Cover ground and you earn medals, chests, and a grove that grows from your
           miles. Nothing here can be bought or rushed.
         </p>
       </section>
@@ -158,8 +162,8 @@ export default function Landing({ onEnter }: Props) {
         <p className="label landing-eyebrow">Built for busy people</p>
         <h2>Come back when you feel like it.</h2>
         <p>
-          No streaks, no notifications, no reason to open the app just to keep something
-          alive. Whatever you earn is waiting in a recap letter whenever you come back.
+          No notifications, no reason to open the app just to keep something alive.
+          Whatever you earn is waiting in a recap letter whenever you come back.
         </p>
       </section>
 

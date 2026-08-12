@@ -18,6 +18,7 @@ import {
   type WorkoutSort,
 } from '../api.ts'
 import {
+  formatDayKey,
   formatDistance,
   formatClock,
   formatPace,
@@ -26,7 +27,13 @@ import {
   weekStartKey,
   zonedDay,
 } from '../format.ts'
-import { ACTIVITY_ICONS, ACTIVITY_NAMES, ACTIVITY_ORDER, defaultHeadline } from '../labels.ts'
+import {
+  ACTIVITY_ICONS,
+  ACTIVITY_NAMES,
+  ACTIVITY_ORDER,
+  defaultHeadline,
+  NOTHING_RECORDED,
+} from '../labels.ts'
 import FeedCard, { ConfirmDelete } from './FeedCard.tsx'
 import Icon from './Icon.tsx'
 
@@ -98,17 +105,6 @@ const SORT_KEYS = Object.keys(SORT_NAMES) as WorkoutSort[]
 // is the zone the weekly totals below it were added up in.
 function weekKeyOf(iso: string): string {
   return weekStartKey(zonedDay(iso))
-}
-
-// A plain calendar date rather than a moment, so no zone comes into it: the
-// date is built and read in the same one.
-function formatWeekStart(key: string): string {
-  const [year, month, day] = key.split('-').map(Number)
-  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  })
 }
 
 // Flags are machine words in the database; a person reading their own history
@@ -698,7 +694,7 @@ export default function ActivityView({ userId, units, onOpenPerson }: Props) {
                     <Icon name={ACTIVITY_ICONS[gone.activity]} />
                   </span>
                   <span className="deleted-name">
-                    {gone.title?.trim() || ACTIVITY_NAMES[gone.activity]}
+                    {gone.title?.trim() || defaultHeadline(gone.activity, gone.start_ts)}
                   </span>
                   <span className="muted">
                     {formatStart(gone.start_ts)}, {formatDistance(gone.distance_mi, units)}
@@ -711,7 +707,7 @@ export default function ActivityView({ userId, units, onOpenPerson }: Props) {
                   disabled={restoring !== null}
                   onClick={() => void putBack(gone.workout_id)}
                 >
-                  {restoring === gone.workout_id ? 'Restoring' : 'Restore'}
+                  {restoring === gone.workout_id ? 'Restoring.' : 'Restore'}
                 </button>
               </li>
             ))}
@@ -736,7 +732,7 @@ export default function ActivityView({ userId, units, onOpenPerson }: Props) {
         {!loading && !loadError && groups.length === 0 && (
           <p className="notice">
             {sport === null
-              ? 'Nothing recorded yet. Your next sync fills this in.'
+              ? NOTHING_RECORDED
               : 'Nothing recorded in that sport yet.'}
           </p>
         )}
@@ -752,7 +748,7 @@ export default function ActivityView({ userId, units, onOpenPerson }: Props) {
           >
             {grouped && (
               <div className="week">
-                <h3>Week of {formatWeekStart(group.key)}</h3>
+                <h3>Week of {formatDayKey(group.key)}</h3>
 
                 {totalsByWeek.get(group.key) && (
                   <ul className="totals">
@@ -818,7 +814,7 @@ export default function ActivityView({ userId, units, onOpenPerson }: Props) {
             disabled={moreBusy || loading}
             onClick={() => void loadMore()}
           >
-            {moreBusy ? 'Loading' : 'Load more'}
+            {moreBusy ? 'Loading.' : 'Load more'}
           </button>
         )}
       </section>

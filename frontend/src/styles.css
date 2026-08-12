@@ -3172,31 +3172,6 @@ button:disabled {
   margin-bottom: 0;
 }
 
-/* A chest in the letter stacks: who it came from, what it was, then what came
-   out of it. The row rule above it lays the You screen's chests out instead. */
-.chests .recap-chest {
-  display: block;
-}
-
-/* Said with the weight the words in this letter have: oil says nothing at all
-   until the chest it brought is on the mat. */
-.recap-chest-from {
-  margin: 0 0 0.2rem;
-  font-size: 0.95rem;
-  font-weight: 700;
-}
-
-.chest-line {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.reveal {
-  margin-top: 0.5rem;
-}
-
 /* The grove
    Every plant stands on the floor of whatever holds it, so the picture is
    bottom aligned and takes its height from the row rather than its own file. */

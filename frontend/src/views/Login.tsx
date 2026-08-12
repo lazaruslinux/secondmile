@@ -10,6 +10,11 @@ import {
   type Me,
 } from '../api.ts'
 
+// The rule the server enforces, written once and said in both the places this
+// form states it: the browser's own bubble when the pattern refuses, and the
+// hint under the fields. The server's sentence says the same words.
+const USERNAME_RULE = '3 to 32 characters: lowercase letters, numbers, dot, dash, underscore.'
+
 interface Props {
   notice: string
   onSignedIn: (me: Me) => void
@@ -150,7 +155,7 @@ export default function Login({ notice, onSignedIn, startRegistering = false, on
             // Mirrors the server's rule so a typo is caught before a round trip.
             pattern="[a-z0-9_.\-]{3,32}"
             // What the browser's own bubble says when the pattern fails.
-            title="3 to 32 characters: lowercase letters, numbers, dot, dash, underscore."
+            title={USERNAME_RULE}
             required
           />
         </label>
@@ -169,9 +174,8 @@ export default function Login({ notice, onSignedIn, startRegistering = false, on
 
         {registering && (
           <p className="hint">
-            Usernames are 3 to 32 characters: lowercase letters, numbers, dot, dash,
-            underscore. Passwords are at least 10 characters. You will get an email
-            with a link to confirm the address before you can sign in.
+            Usernames are {USERNAME_RULE} Passwords are at least 10 characters. You
+            will get an email with a link to confirm the address before you can sign in.
           </p>
         )}
 

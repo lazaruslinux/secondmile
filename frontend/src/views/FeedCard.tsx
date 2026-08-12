@@ -35,7 +35,13 @@ import {
   formatStart,
   unitName,
 } from '../format.ts'
-import { ACTIVITY_ICONS, ACTIVITY_NAMES, defaultHeadline, personName } from '../labels.ts'
+import {
+  ACTIVITY_ICONS,
+  ACTIVITY_NAMES,
+  defaultHeadline,
+  personName,
+  TOO_MANY_UPLOADS,
+} from '../labels.ts'
 import AvatarFrame from './AvatarFrame.tsx'
 import Icon from './Icon.tsx'
 import { MedalChip } from './Medals.tsx'
@@ -345,7 +351,7 @@ function orNull(value: string): string | null {
 function mediaErrorText(err: unknown, tooLarge: string): string {
   if (err instanceof ApiError) {
     if (err.status === 413) return tooLarge
-    if (err.status === 429) return 'Too many uploads just now. Wait a minute and try again.'
+    if (err.status === 429) return TOO_MANY_UPLOADS
     return err.message
   }
   return 'Something went wrong. Try again.'

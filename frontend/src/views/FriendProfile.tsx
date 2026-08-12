@@ -23,8 +23,12 @@ import {
   ACTIVITY_ICONS,
   ANOINT_HINT,
   ANOINTED,
+  NO_WATER,
+  NOTHING_RECORDED_FRIEND,
+  NOTHING_THIS_WEEK,
   OIL_KEPT,
   plantingName,
+  plantStateLine,
   POURED,
 } from '../labels.ts'
 import { ownedMedalIds } from '../profile.ts'
@@ -43,10 +47,6 @@ import RarityFrame from './RarityFrame.tsx'
 import SportChips from './SportChips.tsx'
 import Stats from './Stats.tsx'
 
-// Said on anything of theirs that has reached the last level, which is the one
-// thing on their plot that cannot be watered.
-const FULLY_GROWN = 'Fully grown.'
-
 // What ending a friendship costs, said before it is done rather than after.
 const REMOVE_WARNING =
   "You will stop seeing each other's activities and cannot water or anoint each " +
@@ -59,16 +59,6 @@ const REMOVE_WARNING =
 function friendStage(row: FriendPlanting): number {
   if (row.stage != null) return Math.min(3, Math.max(1, row.stage))
   return row.mature === true ? 3 : 1
-}
-
-// Where one of their plants has got to, in the one line their owner's own plot
-// says: which level a grown plant is on, the finished word only at the last
-// one, and the stage word before that. A row that arrived without a level says
-// its stage rather than inventing a number.
-function friendState(row: FriendPlanting): string {
-  if (row.gilded === true) return FULLY_GROWN
-  if (row.mature === true && typeof row.level === 'number') return `Level ${row.level}`
-  return friendStage(row) === 1 ? 'Seedling' : 'Growing'
 }
 
 // How full their bar is. The server sends the fraction of the level already
@@ -551,20 +541,20 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
           same table. A figure they have hidden is simply not in the payload,
           so the column it would fill is not drawn. */}
       <section className="card">
-        <h2>This week</h2>
-        <Stats stats={week} units={units} empty="Nothing recorded this week yet." />
+        <h2 className="label">This week</h2>
+        <Stats stats={week} units={units} empty={NOTHING_THIS_WEEK} />
       </section>
 
       <section className="card">
-        <h2>Lifetime</h2>
-        <Stats stats={lifetime} units={units} empty="Nothing recorded yet." />
+        <h2 className="label">Lifetime</h2>
+        <Stats stats={lifetime} units={units} empty={NOTHING_RECORDED_FRIEND} />
       </section>
 
       {/* The same card in the same place the You screen keeps it: under the two
           tables. Counts with nobody named in them, which is why this one of the
           game's cards is on a screen the rest of the game stays off. */}
       <section className="card">
-        <h2>Items</h2>
+        <h2 className="label">Items</h2>
         <ItemTallies tallies={profile.item_tallies} />
       </section>
 
@@ -591,9 +581,7 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
         ) : (
           <>
             <p className="hint">
-              {hasWater
-                ? 'Tap one of their plants to water it.'
-                : 'You have no water. It comes out of chests.'}
+              {hasWater ? 'Tap one of their plants to water it.' : NO_WATER}
             </p>
             <ul className="plot">
               {plot.map((row) => {
@@ -626,7 +614,7 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
                         {Math.round(friendFill(row) * 100)}% of this level
                       </progress>
                     )}
-                    <span className="plant-ready">{friendState(row)}</span>
+                    <span className="plant-ready">{plantStateLine(row, friendStage(row))}</span>
                   </>
                 )
 
@@ -663,7 +651,7 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
       <div className="friend-feed">
         <h2 className="label">Recent activities</h2>
         {rows.length === 0 ? (
-          <p className="hint">Nothing recorded yet.</p>
+          <p className="hint">{NOTHING_RECORDED_FRIEND}</p>
         ) : (
           rows.map((row) => (
             <FeedCard
@@ -691,7 +679,7 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
           hint={`Water for their ${plantingName(step.plant)}.`}
           stacks={waters}
           onto={`their ${plantingName(step.plant)}`}
-          empty="No water in your inventory. It comes out of chests."
+          empty={NO_WATER}
           busy={busy}
           error={actionError}
           onUse={(stack) => pour(stack, step.plant.id)}

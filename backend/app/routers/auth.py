@@ -26,7 +26,9 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 # anyone map out who has an account here, which is the first step of a targeted
 # guessing run.
 BAD_CREDENTIALS = "Invalid username or password."
-TOO_MANY = "Too many attempts. Wait a minute and try again."
+# The one wording for every attempt-shaped limiter, here and in settings, so a
+# person who is asked to wait is asked the same way wherever they were typing.
+TOO_MANY = "Too many attempts just now. Wait a minute."
 # The only answer registration gives, whether an account was made or the name or
 # address was already taken. The wording has to be true in both cases, so it
 # describes what the person should do next rather than what the server did.
@@ -77,8 +79,8 @@ def _validate_credentials(username: str, password: str) -> str:
     if not security.USERNAME_PATTERN.match(cleaned):
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            "Username must be 3 to 32 characters, using lower-case letters, "
-            "digits, dot, dash, or underscore.",
+            "Username must be 3 to 32 characters: lowercase letters, numbers, "
+            "dot, dash, underscore.",
         )
     if len(password) < security.MIN_PASSWORD_LENGTH:
         raise HTTPException(

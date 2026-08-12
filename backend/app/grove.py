@@ -320,8 +320,6 @@ def serialize_planting(row: models.Planting) -> dict:
         "mature": level >= species.MATURE_LEVEL,
         "gilded": level >= species.MAX_LEVEL,
         "matured_at": row.matured_at.isoformat() if row.matured_at is not None else None,
-        # What it will bear when fruit arrives. Nothing bears anything yet.
-        "produce": kind.produce if kind is not None else None,
     }
 
 

@@ -69,6 +69,12 @@ NO_SUCH_WORKOUT = "No such workout."
 NO_SUCH_PHOTO = "No such photo."
 NO_SUCH_VIDEO = "No such video."
 
+# What a request the app's own controls cannot make is answered with. The
+# parameters below are chosen by the interface rather than typed by anybody, so
+# a bad one is a bug on this side and naming the parameter would say nothing to
+# the person reading it.
+GENERIC_BAD_REQUEST = "Something went wrong. Try again."
+
 # What the history can be ordered by, and which way. Date is the default and the
 # one the weekly groups are built on; the other three are the dashboard's, for
 # finding the shortest walk or the hardest run in a year of them.
@@ -199,7 +205,7 @@ def parse_cursor(before: str) -> dt.datetime:
             return activity_rules.ensure_aware(dt.datetime.fromisoformat(candidate))
         except ValueError:
             continue
-    raise HTTPException(status.HTTP_400_BAD_REQUEST, "before must be an ISO timestamp.")
+    raise HTTPException(status.HTTP_400_BAD_REQUEST, GENERIC_BAD_REQUEST)
 
 
 def sort_key(sort: str):
@@ -254,15 +260,11 @@ def list_workouts(
     are in the Deleted section, which is the endpoint under this one.
     """
     if sort not in WORKOUT_SORTS:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, f"sort must be one of {', '.join(WORKOUT_SORTS)}."
-        )
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, GENERIC_BAD_REQUEST)
     if order not in SORT_ORDERS:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "order must be asc or desc.")
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, GENERIC_BAD_REQUEST)
     if activity is not None and activity not in ACTIVITIES:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, f"activity must be one of {', '.join(ACTIVITIES)}."
-        )
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, GENERIC_BAD_REQUEST)
 
     stmt = select(models.Workout).where(
         models.Workout.user_id == user.id, models.Workout.deleted_at.is_(None)
@@ -966,9 +968,9 @@ def encourage(
     sends it. Nothing here suggests either one.
     """
     if throttle.encourage_limiter.hit(throttle.client_address(request)):
-        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many cheers just now. Wait a minute.")
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too much hype just now. Wait a minute.")
     if body.kind not in ("cheer", "note"):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Kind must be cheer or note.")
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, GENERIC_BAD_REQUEST)
 
     workout = db.get(models.Workout, workout_id)
     # A deleted workout takes the same branch as one that never existed: it is
@@ -1001,7 +1003,7 @@ def encourage(
         # The partial unique index. One cheer each, and the second one is told
         # so rather than quietly counted again.
         raise HTTPException(
-            status.HTTP_409_CONFLICT, "You have already cheered that workout."
+            status.HTTP_409_CONFLICT, "You have already hyped that workout."
         ) from None
 
     return {

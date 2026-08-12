@@ -88,7 +88,6 @@ def test_planting_a_seed_puts_it_in_the_ground(signed_in, db_session, member):
     assert planting["stage"] == 1
     assert planting["mature"] is False
     assert planting["gilded"] is False
-    assert planting["produce"] == "figs"
 
     # The seed is spent, and the plot has it.
     assert signed_in.get("/api/satchel").json() == []
@@ -613,7 +612,6 @@ def test_a_planting_says_the_same_things_whatever_it_is(signed_in, db_session, m
         "mature",
         "gilded",
         "matured_at",
-        "produce",
     }
     # Every species levels, so none of them answers with a null here.
     assert (row["level"], row["level_mi"]) == (0, 100.0)

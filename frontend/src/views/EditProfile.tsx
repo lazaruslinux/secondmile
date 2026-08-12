@@ -7,7 +7,7 @@ import {
   uploadAvatar,
   type Profile as ProfileData,
 } from '../api.ts'
-import { GENDERS } from '../labels.ts'
+import { GENDERS, TOO_MANY_UPLOADS } from '../labels.ts'
 import { ageOf } from '../profile.ts'
 import AvatarCrop from './AvatarCrop.tsx'
 
@@ -26,7 +26,7 @@ const MAX_BIO = 200
 function uploadErrorText(err: unknown): string {
   if (err instanceof ApiError) {
     if (err.status === 413) return TOO_LARGE
-    if (err.status === 429) return 'Too many uploads just now. Wait a minute and try again.'
+    if (err.status === 429) return TOO_MANY_UPLOADS
     return err.message
   }
   return 'Something went wrong. Try again.'

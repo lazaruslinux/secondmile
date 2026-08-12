@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from app import fellowship, mail, models, security, throttle
 from app.db import get_db
-from app.routers.auth import validate_email
+from app.routers.auth import TOO_MANY, validate_email
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -101,9 +101,7 @@ def change_email(
     thing registration is careful not to say.
     """
     if throttle.email_change_limiter.hit(throttle.client_address(request)):
-        raise HTTPException(
-            status.HTTP_429_TOO_MANY_REQUESTS, "Too many attempts. Wait a minute and try again."
-        )
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, TOO_MANY)
     if not security.verify_password(body.password, user.password_hash):
         # Said plainly, and it leaks nothing: the caller is already signed in as
         # this account and is being told about their own password.

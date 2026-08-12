@@ -477,7 +477,7 @@ def ack_recap(
     instead of trying to work out where the growth came from.
     """
     if throttle.recap_ack_limiter.hit(throttle.user_key(user)):
-        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many requests just now. Wait a minute.")
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, throttle.TOO_MANY_READS)
     row = progress.ensure_progress(db, user.id)
     row.last_ack_at = security.now_utc()
     for planting in db.execute(

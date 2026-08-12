@@ -13,13 +13,20 @@ import {
 } from '../api.ts'
 import {
   convertedValue,
-  distanceValue,
+  distanceBrief,
   formatShortDate,
   formatStart,
   unitName,
 } from '../format.ts'
 import { plantStage } from '../grove.ts'
-import { ACTIVITY_ICONS, ACTIVITY_NAMES, medalName, plantingName } from '../labels.ts'
+import {
+  ACTIVITY_ICONS,
+  defaultHeadline,
+  medalName,
+  NOTHING_PLANTED,
+  NOTHING_RECORDED,
+  plantingName,
+} from '../labels.ts'
 import {
   displayNameOf,
   lifetimeMiles,
@@ -167,7 +174,7 @@ function Challenge({ distance, counts }: { distance: number; counts: Map<string,
   const target = nextWeeklyTarget(distance)
   return (
     <>
-      <h2 className="label">Challenges</h2>
+      <h2 className="label">Weekly medals</h2>
       {target ? (
         <>
           <div className="challenge">
@@ -218,7 +225,7 @@ function GrovePreview({
     <>
       <h2 className="label">Grove</h2>
       {plantings.length === 0 ? (
-        <p className="hint">Nothing planted yet. Seeds come out of chests.</p>
+        <p className="hint">{NOTHING_PLANTED}</p>
       ) : (
         <>
           {/* The same tiles the You band draws, at the same stage: one plant per
@@ -457,12 +464,15 @@ export default function Home({
             <p className="summary-latest">
               <span className="label">Latest activity</span>
               <span className="summary-latest-line">
-                {/* The same mark every other activity in the app wears. This
-                    line was the last one naming a sport without one. */}
+                {/* The workout's own name where it has one, and the same
+                    fallback the feed and the Activity tab use where it has
+                    not, so one workout is never called two things. The mark
+                    beside it is the one every activity in the app wears. */}
                 <span className="sport-icon sport-icon-small">
                   <Icon name={ACTIVITY_ICONS[mine.activity]} />
                 </span>
-                {ACTIVITY_NAMES[mine.activity]}, {formatStart(mine.start_ts)}
+                {mine.title?.trim() || defaultHeadline(mine.activity, mine.start_ts)},{' '}
+                {formatStart(mine.start_ts)}
               </span>
             </p>
           )}
@@ -481,7 +491,7 @@ export default function Home({
           <ul className="week-totals">
             <li>
               <span className="count-value">
-                {distanceValue(week.distance, units)}
+                {distanceBrief(week.distance, units)}
                 <span className="chip-unit">{unitName(units)}</span>
               </span>
               <span className="count-label">Distance</span>
@@ -543,10 +553,12 @@ export default function Home({
               <span className="streak-band-text">
                 <span className="streak-band-name">{shownName || profile.username}</span>
                 {/* Raw distance, which is what "mi" means everywhere in this
-                    app, and the same figure the rail's This week card leads
-                    with. */}
+                    app, and the same total the rail's This week card leads
+                    with. One decimal, like the counts above it on this band:
+                    two of them in a row of one-decimal figures reads as a
+                    different kind of number than it is. */}
                 <span className="streak-band-week">
-                  This week: {distanceValue(week.distance, units)} {unitName(units)}
+                  This week: {distanceBrief(week.distance, units)} {unitName(units)}
                 </span>
               </span>
             </button>
@@ -612,7 +624,7 @@ export default function Home({
         )}
 
         {feed.length === 0 && !loadError && (
-          <p className="notice">Nothing recorded yet. Your next sync fills this in.</p>
+          <p className="notice">{NOTHING_RECORDED}</p>
         )}
 
         {feed.map((item) => (

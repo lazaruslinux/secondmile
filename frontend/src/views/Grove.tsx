@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { errorText, listGrove, type Planting } from '../api.ts'
 import { convertedValue, fillClass, formatAcquired } from '../format.ts'
 import { levelProgress, plantStage } from '../grove.ts'
-import { plantingName } from '../labels.ts'
+import { NOTHING_PLANTED, plantingName, plantStateLine } from '../labels.ts'
 import Inventory from './Inventory.tsx'
 import PlantArt from './PlantArt.tsx'
 import RarityFrame from './RarityFrame.tsx'
@@ -14,21 +14,6 @@ import RarityFrame from './RarityFrame.tsx'
 const HEADER =
   "Plants grow with your XP. Water one of yours, or a friend's, for a 10 XP boost. " +
   'Level 33 is fully grown.'
-
-// Said under anything that has reached the last level, and nowhere else: every
-// other grown plant says which level it is on instead.
-const FULLY_GROWN = 'Fully grown.'
-
-// Where a plant has got to, in one line. A plot of grown plants used to read as
-// a column of the word Grown with a level number above each one; a grown plant
-// says which level it is on instead, the last level is the only one that says it
-// is finished, and anything younger says which of the two early stages the
-// drawing above it is at.
-function stateLine(row: Planting): string {
-  if (row.gilded) return FULLY_GROWN
-  if (row.mature) return `Level ${row.level}`
-  return plantStage(row) === 1 ? 'Seedling' : 'Growing'
-}
 
 interface Props {
   userId: number
@@ -84,9 +69,7 @@ export default function Grove({ userId }: Props) {
 
       <section className="card">
         <h2 className="label">Your plants</h2>
-        {!loading && plantings.length === 0 && (
-          <p className="hint">Nothing planted yet. Seeds come out of chests.</p>
-        )}
+        {!loading && plantings.length === 0 && <p className="hint">{NOTHING_PLANTED}</p>}
         {plantings.length > 0 && (
           <ul className="plot">
             {plantings.map((row) => {
@@ -126,7 +109,7 @@ export default function Grove({ userId }: Props) {
                     </div>
                   )}
                   <p className="plant-growth">Acquired {formatAcquired(row.planted_at)}</p>
-                  <p className="plant-ready">{stateLine(row)}</p>
+                  <p className="plant-ready">{plantStateLine(row, plantStage(row))}</p>
                 </li>
               )
             })}

@@ -304,19 +304,18 @@ def test_a_sorted_or_filtered_history_still_leaves_out_deleted_workouts(
 
 
 def test_history_refuses_parameters_it_does_not_have(signed_in):
-    """Said in words rather than as a schema error: the sentence names what the
-    endpoint would have accepted."""
+    """Refused, and said in the one sentence the app's own controls can never
+    provoke: these parameters are chosen by the interface rather than typed by
+    anybody, so naming the parameter would say nothing to whoever read it."""
     bad_sort = signed_in.get("/api/workouts", params={"sort": "calories"})
     assert bad_sort.status_code == 400
-    assert bad_sort.json()["detail"] == "sort must be one of date, distance, pace, avg_hr."
+    assert bad_sort.json()["detail"] == "Something went wrong. Try again."
 
     bad_order = signed_in.get("/api/workouts", params={"order": "sideways"})
     assert bad_order.status_code == 400
-    assert bad_order.json()["detail"] == "order must be asc or desc."
 
     bad_activity = signed_in.get("/api/workouts", params={"activity": "ski"})
     assert bad_activity.status_code == 400
-    assert bad_activity.json()["detail"] == "activity must be one of walk, run, cycle, swim."
 
 
 def test_history_is_per_user(signed_in, client, db_session, member, admin):

@@ -30,6 +30,14 @@ export function distanceValue(miles: number, units: Units): string {
   return toDisplayDistance(miles, units).toFixed(2)
 }
 
+// The same figure to one decimal, for a total read at a glance rather than
+// compared: the totals beside it on the identity band are written that way, and
+// two decimals in a line of one-decimal numbers reads as a different kind of
+// figure than it is.
+export function distanceBrief(miles: number, units: Units): string {
+  return toDisplayDistance(miles, units).toFixed(1)
+}
+
 // XP on screen: one decimal, and never converted. XP is distance weighted by
 // how hard the activity is, so a mile swum is one mile and four XP, and it is
 // the same figure in every account whatever unit that account reads distances
@@ -89,6 +97,22 @@ export function instanceTimezone(): string | undefined {
 export function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
     timeZone: zone,
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
+// A calendar date that was worked out rather than measured: the yyyy-mm-dd a
+// week is keyed by, written the long way. The key is already a date in the
+// instance's zone, so it is built and read in one zone rather than converted
+// between two: UTC in and UTC out is the only pairing no offset can move by a
+// day, and a Monday printed as the Sunday before it is the whole of the bug
+// this avoids.
+export function formatDayKey(key: string): string {
+  const [year, month, day] = key.split('-').map(Number)
+  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString(undefined, {
+    timeZone: 'UTC',
     month: 'long',
     day: 'numeric',
     year: 'numeric',
