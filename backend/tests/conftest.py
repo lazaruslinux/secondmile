@@ -350,6 +350,7 @@ def give_planting(db_session, user_id: int, species_id="strawberry", *, growth=0
         # A plant that has been standing there a while, so whatever it has
         # already grown is old news and only what a case does next is news.
         level_at_ack=grove.level_for(species_id, growth),
+        growth_at_ack=growth,
     )
     db_session.add(row)
     db_session.commit()

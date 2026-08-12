@@ -527,6 +527,12 @@ class Planting(Base):
     # trail anything could subtract. Null on a plant that predates the column,
     # and that plant says nothing until the next acknowledgement fills it in.
     level_at_ack: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # The growth it stood at in that same moment, which is what the letter
+    # compares stages against. The level cannot answer that: a seed and a plant
+    # half way to level one are both level zero, and the drawing changes
+    # between them. Backfilled to the growth of the day by 0021, so nothing a
+    # plant did before that release reads as a crossing.
+    growth_at_ack: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
 class Friendship(Base):

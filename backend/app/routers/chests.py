@@ -316,44 +316,58 @@ def _last_sync(db: Session, user_id: int) -> str | None:
 
 
 def _plant_growth(db: Session, user_id: int) -> list[dict]:
-    """The plants that put on at least a whole level since the letter was last
-    cleared, in the shape the plot is read in, with the levels they gained.
+    """The plants that put on a whole level or changed shape since the letter
+    was last cleared, in the shape the plot is read in.
 
     Both ends of the climb travel, because "7 -> 8" needs the number it started
     from and a plant that came up from nothing is a different sentence from one
     that gained a level. Which sentence to write is the client's call: the level
-    it started at is the fact, and maturing is what that fact means.
+    and the stage it started at are the facts, and what they mean is words.
 
-    Read against the level written down when the letter was put down, rather
-    than worked out by taking this letter's growth back off again. Subtraction
-    could only ever see the workouts: nothing records which planting a water
-    item was poured into, so a level that water alone paid for went unsaid. A
-    number written at the time does not care where the growth came from, and
-    survives whatever the next release grows a plant with.
+    Read against the level and the growth written down when the letter was put
+    down, rather than worked out by taking this letter's growth back off again.
+    Subtraction could only ever see the workouts: nothing records which planting
+    a water item was poured into, so a level that water alone paid for went
+    unsaid. A number written at the time does not care where the growth came
+    from, and survives whatever the next release grows a plant with.
+
+    The stage needs the growth rather than the level because the first two of
+    the three drawings are both level zero: a seed in the ground and a plant a
+    third of the way up look different and count the same.
 
     A plant with nothing written down predates the column and says nothing.
     That is the quiet side of being wrong: reading a missing number as zero
-    would congratulate somebody on every plant they have had for weeks. The
-    next acknowledgement writes it and the plant joins in from there.
+    would congratulate somebody on every plant they have had for weeks. The two
+    numbers are missing separately, so a plant can be silent about its level and
+    still say it came up. The next acknowledgement writes both.
 
-    Upward only, so a rebuild part way through emptying and replaying a plot
-    reads as no news rather than as growth running backwards.
+    Upward only on both, so a rebuild part way through emptying and replaying a
+    plot reads as no news rather than as growth running backwards.
     """
     out = []
     for row in db.execute(
         select(models.Planting)
-        .where(models.Planting.user_id == user_id, models.Planting.level_at_ack.is_not(None))
+        .where(models.Planting.user_id == user_id)
         .order_by(models.Planting.id)
     ).scalars():
         level = grove.level_of(row)
-        if level > row.level_at_ack:
-            out.append(
-                {
-                    **grove.serialize_planting(row),
-                    "level_before": row.level_at_ack,
-                    "levels_gained": level - row.level_at_ack,
-                }
-            )
+        levelled = row.level_at_ack is not None and level > row.level_at_ack
+        stage_before = (
+            grove.stage_for(row.species, row.growth_at_ack)
+            if row.growth_at_ack is not None
+            else None
+        )
+        crossed = stage_before is not None and grove.stage(row) > stage_before
+        if not levelled and not crossed:
+            continue
+        entry = grove.serialize_planting(row)
+        # An unrecorded level reads as the one it stands at now, which is the
+        # same silence saying nothing at all would be: no climb to announce.
+        entry["level_before"] = row.level_at_ack if row.level_at_ack is not None else level
+        entry["levels_gained"] = level - entry["level_before"]
+        if stage_before is not None:
+            entry["stage_before"] = stage_before
+        out.append(entry)
     return out
 
 
@@ -475,6 +489,9 @@ def ack_recap(
     moment the answer is known for certain: whatever the letter just said, from
     now on it has been said. The next letter compares against these numbers
     instead of trying to work out where the growth came from.
+
+    Both numbers are written in the same breath, so the level and the stage the
+    next letter compares against belong to the same moment.
     """
     if throttle.recap_ack_limiter.hit(throttle.user_key(user)):
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, throttle.TOO_MANY_READS)
@@ -484,6 +501,7 @@ def ack_recap(
         select(models.Planting).where(models.Planting.user_id == user.id)
     ).scalars():
         planting.level_at_ack = grove.level_of(planting)
+        planting.growth_at_ack = planting.growth_mi
     db.commit()
     response.status_code = status.HTTP_204_NO_CONTENT
     return response

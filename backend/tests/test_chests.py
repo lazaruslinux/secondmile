@@ -3,6 +3,7 @@
 import datetime as dt
 import random
 
+import pytest
 from conftest import (
     LETTER_KEYS,
     give_item,
@@ -836,10 +837,85 @@ def test_a_plant_that_finished_a_level_is_in_the_letter(signed_in, db_session, m
 
 
 def test_a_plant_that_only_grew_a_little_says_nothing(signed_in, db_session, member):
-    """Silence, not a sentence about how far off the next level is. Five Miles
-    into a fifteen Mile level is not news."""
+    """Silence, not a sentence about how far off the next level is. Three Miles
+    into a fifteen Mile level is not news.
+
+    Under five, which is where a strawberry comes up out of the ground: that
+    crossing is news, and everything short of it is not.
+    """
     give_planting(db_session, member.id, "strawberry")
-    log_workout(db_session, member.id, "run", 5.0)
+    log_workout(db_session, member.id, "run", 3.0)
+    assert signed_in.get("/api/recap").json()["plant_growth"] == []
+
+
+def test_a_plant_that_came_up_out_of_the_ground_is_in_the_letter(signed_in, db_session, member):
+    """A strawberry is drawn as a seedling for the first third of its first
+    level, so six of the five Miles that takes is a plant that sprouted, and it
+    is news without a single level to show for it."""
+    give_planting(db_session, member.id, "strawberry")
+    log_workout(db_session, member.id, "run", 6.0)
+
+    grown = signed_in.get("/api/recap").json()["plant_growth"]
+    assert [(row["stage_before"], row["stage"], row["level"]) for row in grown] == [(1, 2, 0)]
+    # Nothing to say about levels, which is what makes this its own line rather
+    # than a version of the level one.
+    assert grown[0]["levels_gained"] == 0
+
+
+def test_a_plant_that_matured_says_so_instead_of_saying_it_is_grown(
+    signed_in, db_session, member
+):
+    """A plant already up out of the ground reaching level one. Both facts the
+    client writes lines from are here, and the crossing is the one it prints:
+    "matured" and "is grown" are the same piece of news said twice."""
+    give_planting(db_session, member.id, "strawberry", growth=6.0)
+    log_workout(db_session, member.id, "run", 10.0, pace_min=9)
+
+    grown = signed_in.get("/api/recap").json()["plant_growth"]
+    assert [(row["stage_before"], row["stage"]) for row in grown] == [(2, 3)]
+    # The is-grown line's own condition, sent as ever: it is the crossing that
+    # takes the line, not the absence of the fact underneath it.
+    assert (grown[0]["level_before"], grown[0]["level"]) == (0, 1)
+
+
+def test_a_fast_week_carries_both_crossings(signed_in, db_session, member):
+    """Bare ground to level one inside one window. Both boundaries are in the
+    same row, which is what lets the letter tell it as a story rather than a
+    jump cut."""
+    give_planting(db_session, member.id, "strawberry")
+    log_workout(db_session, member.id, "run", 16.0, pace_min=9)
+
+    grown = signed_in.get("/api/recap").json()["plant_growth"]
+    assert [(row["stage_before"], row["stage"]) for row in grown] == [(1, 3)]
+
+
+def test_a_plant_that_crossed_nothing_says_nothing(signed_in, db_session, member):
+    """A quiet window on a plant already up: growth, no boundary, no line. The
+    stage it stands at is on every plot row and is never news by itself."""
+    give_planting(db_session, member.id, "strawberry", growth=6.0)
+    log_workout(db_session, member.id, "run", 3.0)
+    assert signed_in.get("/api/recap").json()["plant_growth"] == []
+
+
+def test_growth_recorded_before_the_letter_is_not_a_crossing(signed_in, db_session, member):
+    """What the backfill buys: a plant recorded where it stands has crossed
+    nothing, however far up it already is. The first letter after the release
+    tells no old news."""
+    give_planting(db_session, member.id, "strawberry", growth=6.0)
+    give_planting(db_session, member.id, "mango", growth=200.0)
+    assert signed_in.get("/api/recap").json()["plant_growth"] == []
+
+
+def test_acknowledging_the_letter_records_the_growth_as_well(signed_in, db_session, member):
+    """The stage window is the level window: both numbers are written in the
+    same breath, so a crossing is announced once and never again."""
+    planting = give_planting(db_session, member.id, "strawberry")
+    log_workout(db_session, member.id, "run", 6.0)
+    assert len(signed_in.get("/api/recap").json()["plant_growth"]) == 1
+
+    assert signed_in.post("/api/recap/ack").status_code == 204
+    db_session.refresh(planting)
+    assert planting.growth_at_ack == pytest.approx(6.0)
     assert signed_in.get("/api/recap").json()["plant_growth"] == []
 
 

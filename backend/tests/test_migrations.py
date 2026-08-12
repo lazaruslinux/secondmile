@@ -215,6 +215,27 @@ def test_the_recorded_level_arrives_empty_on_the_plants_already_growing(at_0012)
         ).all() == [(40.0, None)]
 
 
+def test_the_recorded_growth_is_backfilled_where_every_plant_stands(at_0012):
+    """0021 does backfill, which 0014 could not: copying growth across needs no
+    catalogue. A plant recorded where it stands has crossed nothing, so the
+    first letter after the release says nothing about weeks it already had."""
+    engine, upgrade = at_0012
+    with engine.connect() as connection:
+        _account(connection, 1, "runner")
+        _planting(connection, 1, 1, "strawberry", "2026-01-01 00:00:00", 40.0)
+        _planting(connection, 2, 1, "mango", "2026-01-01 00:00:00", 0.0)
+        connection.commit()
+
+    upgrade()
+
+    with engine.connect() as connection:
+        columns = {row[1] for row in connection.execute(sa.text("PRAGMA table_info(plantings)"))}
+        assert "growth_at_ack" in columns
+        assert connection.execute(
+            sa.text("SELECT id, growth_mi, growth_at_ack FROM plantings ORDER BY id")
+        ).all() == [(1, 40.0, 40.0), (2, 0.0, 0.0)]
+
+
 def _run(connection, workout_id: int, user_id: int, start: str) -> None:
     connection.execute(
         sa.text(

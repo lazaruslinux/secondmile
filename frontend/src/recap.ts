@@ -108,11 +108,34 @@ export function recapGiftLine(chests: RecapChest[] | undefined): string {
   return `${givers.length} of them were gifted by ${names}.`
 }
 
+// What one plant changing shape reads as: the crossing told as a story, one
+// verb per boundary it went over. Coming up out of the ground is "sprouted" and
+// reaching level one is "matured", and a week fast enough to do both says the
+// whole of it rather than jumping to the end.
+//
+// Both numbers have to be there and the plant has to have moved forward: a
+// server that sends neither, and a plot rebuilt part way through a replay, both
+// read as nothing to say.
+function stageCrossing(row: RecapGrowth): string {
+  const before = row.stage_before
+  const stage = row.stage
+  if (typeof before !== 'number' || typeof stage !== 'number' || stage <= before) return ''
+  const name = plantingName(row)
+  if (before <= 1 && stage >= 3) return `${name}. Sprouted, grew, matured.`
+  if (stage >= 3) return `${name} matured.`
+  return `${name} sprouted.`
+}
+
 // What one plant's growth reads as. Coming up out of the ground wins over
 // gaining levels when a plant did both, because maturing happens once and
 // growing happens every week. Nothing here mentions fruit: that mechanic is not
 // built, and the letter does not promise what the app cannot do.
 export function growthLine(row: RecapGrowth): string {
+  // The crossing is the whole of the plant's week, so it takes the line. A
+  // plant only ever matures by reaching level one, which is what "is grown"
+  // below says: told twice it would read as two separate pieces of news.
+  const crossing = stageCrossing(row)
+  if (crossing !== '') return crossing
   const name = plantingName(row)
   const level = row.level ?? 0
   // Worked back from the levels gained when the starting level is missing, so

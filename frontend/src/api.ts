@@ -529,7 +529,8 @@ export interface RecapEncouragement {
   cheer_count?: number
 }
 
-// One plant that put a level on since the letter was last read.
+// One plant that put a level on, or changed shape, since the letter was last
+// read.
 export interface RecapGrowth extends Planting {
   levels_gained: number
   // Where the climb started, which is what turns a level into a sentence: a
@@ -537,6 +538,10 @@ export interface RecapGrowth extends Planting {
   // seven simply grew. Optional, since a plant from before the column was
   // written says nothing about where it began.
   level_before?: number
+  // Which of the three drawings it stood at then, against `stage` now. The
+  // level cannot answer this: a seed and a plant a third of the way to level
+  // one are both level zero. Optional on the same terms as level_before.
+  stage_before?: number
 }
 
 // One chest that landed while the app was shut. Named by the step of the ladder

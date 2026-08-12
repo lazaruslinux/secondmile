@@ -72,14 +72,24 @@ def growth_fraction(row: models.Planting) -> float:
     return round((row.growth_mi % step) / step, 4)
 
 
-def stage(row: models.Planting) -> int:
-    """Which of the three drawings a planting is at, from 1 to 3."""
-    if is_mature(row):
+def stage_for(species_id: str, growth_mi: float) -> int:
+    """Which of the three drawings that much growth is at, from 1 to 3.
+
+    Takes the numbers rather than the row, the same way level_for does, because
+    the letter asks this of a growth figure written down weeks ago as well as of
+    the plant standing in the plot today.
+    """
+    if level_for(species_id, growth_mi) >= species.MATURE_LEVEL:
         return 3
-    step = level_step_mi(row.species)
+    step = level_step_mi(species_id)
     if step <= 0:
         return 1
-    return 1 if row.growth_mi < step * _SEEDLING_FRACTION else 2
+    return 1 if growth_mi < step * _SEEDLING_FRACTION else 2
+
+
+def stage(row: models.Planting) -> int:
+    """Which of the three drawings a planting is at, from 1 to 3."""
+    return stage_for(row.species, row.growth_mi)
 
 
 def growth_amount(miles: float, activity: str) -> float:
@@ -157,6 +167,9 @@ def plant(
         # letter announce the first level a new plant reaches without waiting
         # for an acknowledgement to record where it started.
         level_at_ack=0,
+        # Bare ground on the other measure too, so a seed planted today can be
+        # said to have come up when it does.
+        growth_at_ack=0.0,
     )
     item.used_at = moment
     db.add(row)
