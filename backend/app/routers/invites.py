@@ -65,12 +65,13 @@ def _link_row(db: Session, invite: models.Invite) -> dict:
             claimed_by = fellowship.display_name(person.first_name, person.last_name) or (
                 person.username
             )
+    # No revoked state travels: revoking deletes the row, so a listed link is
+    # either waiting or claimed.
     return {
         "id": invite.id,
         "code": invite.code,
         "created_at": invite.created_at.isoformat(),
         "claimed_by": claimed_by,
-        "revoked_at": invite.revoked_at.isoformat() if invite.revoked_at else None,
     }
 
 
@@ -149,6 +150,11 @@ def revoke_invite(
     already done what it was for, and revoking it afterwards would say
     something about the account it let in rather than about the link. Anything
     else is the same 404 an id nobody minted gets.
+
+    The row is deleted outright rather than stamped. An unclaimed link has no
+    history worth keeping, and a dead row lingering in the Settings list reads
+    as clutter; a deleted code answers the welcome page and the claim exactly
+    the way a code nobody minted does, which is the answer it should give.
     """
     if throttle.friend_action_limiter.hit(throttle.user_key(user)):
         raise HTTPException(
@@ -162,7 +168,7 @@ def revoke_invite(
         or invite.revoked_at is not None
     ):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such link.")
-    invite.revoked_at = security.now_utc()
+    db.delete(invite)
     db.commit()
     response.status_code = status.HTTP_204_NO_CONTENT
     return response

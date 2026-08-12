@@ -429,9 +429,10 @@ export default function Settings({
                     >
                       Copy
                     </button>
-                    {/* Nothing to take back once it is spent or already taken
-                        back, so the button is simply not there. */}
-                    {link.claimed_by === null && link.revoked_at === null && (
+                    {/* Nothing to take back once it is spent, so the button is
+                        simply not there. A revoked link is deleted and never
+                        listed at all. */}
+                    {link.claimed_by === null && (
                       <button
                         type="button"
                         className="secondary"
@@ -444,9 +445,6 @@ export default function Settings({
                   </div>
                   {link.claimed_by !== null && (
                     <p className="hint">Claimed by {link.claimed_by}.</p>
-                  )}
-                  {link.claimed_by === null && link.revoked_at !== null && (
-                    <p className="hint">Revoked.</p>
                   )}
                   {copyState?.what === `link-${link.id}` && (
                     <p className={copyState.ok ? 'note note-success' : 'note'} role="status">

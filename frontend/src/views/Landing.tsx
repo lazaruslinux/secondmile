@@ -105,7 +105,8 @@ export default function Landing({ onEnter }: Props) {
             learn that before they make an account rather than after. */}
         <p className="landing-requires">
           <span className="label">Requires</span>
-          Health Auto Export for iOS. Activities only come from Apple Health.
+          Health Auto Export for iOS. Apple Health is the only source tested and supported
+          today.
         </p>
       </section>
 
@@ -116,10 +117,11 @@ export default function Landing({ onEnter }: Props) {
         <p className="label landing-eyebrow">How it works</p>
         <h2>Set it up once, then just move.</h2>
         <p>
-          Install Health Auto Export on your iPhone and point it at secondmile. After
-          that, every walk, run, ride, and swim you record via Workout on your Apple
-          devices flows in on its own. You never log anything by hand, or even open the
-          app. Your miles are here waiting whenever you want to look.
+          One companion app exports the workouts your phone and watch already record and
+          sends them to secondmile as JSON. Set it up once and every walk, run, ride, and
+          swim arrives on its own. You never log anything by hand, and you never have to
+          keep the app open to earn: your miles sync themselves, and whatever they earn is
+          waiting whenever you feel like looking.
         </p>
       </section>
 

@@ -4259,14 +4259,18 @@ button:disabled {
   font-size: 1.5rem;
 }
 
-/* Placeholder art, and the width of the column whatever the column is. The
-   drawing is 4:1, so the height follows and nothing jumps as it loads. */
+/* The drawing is 4:1, so the height follows the width and nothing jumps as it
+   loads. It breaks out of the text column on purpose: the column centres in
+   the viewport, so half-shifting the image off its own centre lands it on the
+   viewport centre, wide on a desktop and the usual full width on a phone.
+   Capped at the art's native 2000px so it never renders soft. */
 .landing-hero-img {
   display: block;
-  width: 100%;
+  width: min(92vw, 2000px);
+  margin: 0 0 1.8rem 50%;
+  transform: translateX(-50%);
   height: auto;
   border-radius: var(--radius);
-  margin: 0 0 1.8rem;
 }
 
 /* The verse carries the page, so the room above and below it is doing as much

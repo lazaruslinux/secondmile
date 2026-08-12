@@ -50,7 +50,9 @@ def test_a_minted_link_never_expires_and_carries_a_friendship(signed_in, db_sess
     assert stored.auto_friend is True
     assert stored.created_by == member.id
     assert row["claimed_by"] is None
-    assert row["revoked_at"] is None
+    # A listed link is waiting or claimed; a revoked one is deleted, so no
+    # revoked state travels at all.
+    assert "revoked_at" not in row
 
 
 def test_the_list_holds_your_own_links_and_nobody_elses(signed_in, db_session, admin):
@@ -83,7 +85,8 @@ def test_a_link_can_be_revoked_while_it_is_waiting_and_not_after(
 ):
     row = mint(signed_in)
     assert signed_in.post(f"/api/invites/{row['id']}/revoke").status_code == 204
-    assert signed_in.get("/api/invites").json()[0]["revoked_at"] is not None
+    # Revoking deletes the row, so the list simply no longer carries it.
+    assert signed_in.get("/api/invites").json() == []
     # Twice is the same 404 an id nobody minted gets: there is nothing left to
     # take back.
     assert signed_in.post(f"/api/invites/{row['id']}/revoke").status_code == 404
