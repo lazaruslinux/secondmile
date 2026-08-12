@@ -593,8 +593,8 @@ export default function Settings({
             posts to a URL you give it. In that app, add a REST API automation pointing at
             the address below, method POST, with the header Authorization: Bearer followed by
             the token above. Set the format to JSON and the data types to Workouts and Health
-            Metrics, with Step Count and Walking + Running Distance selected, then run it on a
-            schedule. Walks, runs, rides, and swims are imported; steps are along for the ride
+            Metrics, then run it on a schedule. Health Metrics is what carries your steps and
+            walking distance. Walks, runs, rides, and swims are imported; steps are along for the ride
             until step rewards arrive; anything else in the export is ignored. Sending the
             same data twice changes nothing, so overlapping exports are safe.
           </p>
