@@ -3497,8 +3497,15 @@ button:disabled {
 
 /* A chest reveal draws a seed at a fixed size. The square is what carries that
    size, because the frame around it is what says how rare the seed is and the
-   picture inside simply fills it. */
+   picture inside simply fills it. A min-width alone lets the square inherit
+   the picture's intrinsic width, which with 512px plant art blows the row
+   past a phone viewport, so the width is pinned both ways. */
+.item-frame {
+  flex-shrink: 0;
+}
+
 .item-frame .rarity-square {
+  width: 5rem;
   min-width: 5rem;
   height: 5rem;
 }
