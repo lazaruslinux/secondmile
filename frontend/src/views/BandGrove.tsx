@@ -51,30 +51,32 @@ export default function BandGrove({ plants }: { plants: BandPlant[] }) {
   const ground = groundArt()
 
   return (
-    <div className="you-band">
+    // An empty plot keeps its soil and gives up its height: bare ground reads
+    // as a plot with nothing in it yet, where a band's worth of empty surface
+    // reads as something that failed to draw. Nothing is said in here either
+    // way; the sentence about an empty grove belongs to the Grove screen.
+    <div className={row.length > 0 ? 'you-band' : 'you-band you-band-bare'}>
       {row.length > 0 && (
-        <>
-          <ul className="band-grove">
-            {row.map((plant) => (
-              <li
-                key={plant.id}
-                className={plant.mature ? 'band-plant band-plant-grown' : 'band-plant'}
-              >
-                <PlantArt
-                  species={plant.species}
-                  name={plant.name}
-                  stage={plant.stage}
-                  gilded={plant.gilded}
-                />
-              </li>
-            ))}
-          </ul>
-          {/* After the row rather than before it, so the soil is painted over
-              the ground line each drawing carries and the row reads as standing
-              on one floor. */}
-          {ground && <img className="band-ground" src={ground} alt="" aria-hidden="true" />}
-        </>
+        <ul className="band-grove">
+          {row.map((plant) => (
+            <li
+              key={plant.id}
+              className={plant.mature ? 'band-plant band-plant-grown' : 'band-plant'}
+            >
+              <PlantArt
+                species={plant.species}
+                name={plant.name}
+                stage={plant.stage}
+                gilded={plant.gilded}
+              />
+            </li>
+          ))}
+        </ul>
       )}
+      {/* After the row rather than before it, so the soil is painted over the
+          ground line each drawing carries and the row reads as standing on one
+          floor. */}
+      {ground && <img className="band-ground" src={ground} alt="" aria-hidden="true" />}
     </div>
   )
 }

@@ -35,6 +35,7 @@ import { ownedMedalIds } from '../profile.ts'
 import { pileItems, type Stack } from '../satchel.ts'
 import AvatarFrame from './AvatarFrame.tsx'
 import BandGrove from './BandGrove.tsx'
+import Confirm from './Confirm.tsx'
 import FeedCard from './FeedCard.tsx'
 import Icon from './Icon.tsx'
 import ItemPicker from './ItemPicker.tsx'
@@ -324,8 +325,9 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
       : ''
 
   // While a popup is up it is the one showing what went wrong, so the card does
-  // not say the same sentence a second time behind it.
-  const choosing = step.at === 'water' || step.at === 'oil'
+  // not say the same sentence a second time behind it. Every step but the one
+  // that is no step at all opens a popup of its own.
+  const choosing = step.at !== 'none'
 
   // What is held that could be spent on them, as the satchel's own squares.
   const waters = pileItems(held.filter((one) => one.kind === 'water'))
@@ -464,44 +466,20 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
             </p>
           )}
 
-          {/* Destructive, on a screen opened casually, so it asks first and the
-              question says what is lost. */}
-          {step.at === 'remove' ? (
-            <>
-              <p className="hint">{REMOVE_WARNING}</p>
-              <div className="choice">
-                <button
-                  type="button"
-                  className="primary"
-                  disabled={busy}
-                  onClick={() => void remove()}
-                >
-                  Remove {who}
-                </button>
-                <button
-                  type="button"
-                  className="secondary"
-                  disabled={busy}
-                  onClick={() => setStep({ at: 'none' })}
-                >
-                  Cancel
-                </button>
-              </div>
-            </>
-          ) : (
-            <button
-              type="button"
-              className="secondary friend-remove"
-              disabled={busy}
-              onClick={() => {
-                setNote('')
-                setActionError('')
-                setStep({ at: 'remove' })
-              }}
-            >
-              Remove friend
-            </button>
-          )}
+          {/* Destructive, on a screen opened casually, so it asks first in the
+              dialog below and the question says what is lost. */}
+          <button
+            type="button"
+            className="secondary friend-remove"
+            disabled={busy}
+            onClick={() => {
+              setNote('')
+              setActionError('')
+              setStep({ at: 'remove' })
+            }}
+          >
+            Remove friend
+          </button>
         </div>
       </section>
 
@@ -707,6 +685,25 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
             setStep({ at: 'none' })
           }}
         />
+      )}
+
+      {/* Ending a friendship, asked in the same dialog every other destructive
+          question in the app is asked in. */}
+      {step.at === 'remove' && (
+        <Confirm
+          heading={`Remove ${who}?`}
+          confirmLabel={`Remove ${who}`}
+          cancelLabel="Cancel"
+          busy={busy}
+          error={actionError}
+          onConfirm={() => void remove()}
+          onCancel={() => {
+            setActionError('')
+            setStep({ at: 'none' })
+          }}
+        >
+          <p>{REMOVE_WARNING}</p>
+        </Confirm>
       )}
     </>
   )

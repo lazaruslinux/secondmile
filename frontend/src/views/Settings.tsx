@@ -13,6 +13,7 @@ import {
   type Units,
 } from '../api.ts'
 import { instanceTimezone } from '../format.ts'
+import Confirm from './Confirm.tsx'
 
 // Said whatever happened. Whether that address belongs to anybody already is
 // not this screen's news to give, so the sentence is the same either way.
@@ -417,40 +418,34 @@ export default function Settings({
             </div>
           )}
 
-          {tokenError && (
+          {/* While the dialog is up it is the one saying what went wrong, so the
+              card does not say the same sentence a second time behind it. */}
+          {tokenError && !confirmingRotate && (
             <p className="error" role="alert">
               {tokenError}
             </p>
           )}
 
-          {confirmingRotate ? (
-            <>
-              <p className="hint">
+          <button type="button" className="primary" onClick={askRotate} disabled={rotating}>
+            {tokenStatus?.exists ? 'Rotate token' : 'Create token'}
+          </button>
+
+          {/* Replacing a working token breaks a phone that is syncing, so it is
+              asked in the same dialog every other destructive question is. */}
+          {confirmingRotate && (
+            <Confirm
+              heading="Replace the token?"
+              confirmLabel="Replace the token"
+              cancelLabel="Cancel"
+              busy={rotating}
+              error={tokenError}
+              onConfirm={() => void rotate()}
+              onCancel={() => setConfirmingRotate(false)}
+            >
+              <p>
                 Your phone stops syncing until the new token is pasted into your export app.
               </p>
-              <div className="choice">
-                <button
-                  type="button"
-                  className="primary"
-                  onClick={() => void rotate()}
-                  disabled={rotating}
-                >
-                  Replace the token
-                </button>
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => setConfirmingRotate(false)}
-                  disabled={rotating}
-                >
-                  Cancel
-                </button>
-              </div>
-            </>
-          ) : (
-            <button type="button" className="primary" onClick={askRotate} disabled={rotating}>
-              {tokenStatus?.exists ? 'Rotate token' : 'Create token'}
-            </button>
+            </Confirm>
           )}
         </div>
 

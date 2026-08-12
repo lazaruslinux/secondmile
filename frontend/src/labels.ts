@@ -287,6 +287,10 @@ export const NOTHING_THIS_WEEK = 'Nothing recorded this week yet.'
 // Said over an empty plot, on the Grove screen and in the card on You.
 export const NOTHING_PLANTED = 'Nothing planted yet. Seeds come out of chests.'
 
+// The same over an empty inventory, where the grid stands down rather than
+// showing rows of squares with an instruction to tap them.
+export const NOTHING_HELD = 'Nothing found yet. Items come out of chests.'
+
 // Where water comes from, said the way the potion lines beside it are said.
 export const NO_WATER = 'No water in your inventory. It comes out of chests.'
 

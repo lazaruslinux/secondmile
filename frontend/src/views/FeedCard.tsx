@@ -1,5 +1,4 @@
 import {
-  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -43,6 +42,7 @@ import {
   TOO_MANY_UPLOADS,
 } from '../labels.ts'
 import AvatarFrame from './AvatarFrame.tsx'
+import Confirm from './Confirm.tsx'
 import Icon from './Icon.tsx'
 import { MedalChip } from './Medals.tsx'
 import RouteLine from './RouteLine.tsx'
@@ -523,10 +523,8 @@ export interface EditableWorkout {
 // state it plainly and a number nobody can read is not a promise.
 const DELETED_DAYS = 30
 
-// The last thing before a workout goes. Its own modal, in the same native
-// dialog every other question in this app is asked in: the focus trap, the page
-// held still behind it, and Esc come with the element rather than being built
-// here. Nothing is deleted until the button in it is pressed.
+// The last thing before a workout goes: what deleting one costs, in the shared
+// confirm every destructive question in this app is asked in.
 //
 // One dialog for one workout and for a batch of them, because the consequences
 // are the same ones and saying them twice in two places is how the two drift
@@ -545,72 +543,35 @@ export function ConfirmDelete({
   onConfirm: () => void
   onCancel: () => void
 }) {
-  const dialog = useRef<HTMLDialogElement>(null)
   const many = count > 1
 
-  useEffect(() => {
-    dialog.current?.showModal()
-  }, [])
-
   return (
-    <dialog
-      className="overlay overlay-middle"
-      ref={dialog}
-      aria-labelledby="delete-title"
-      onCancel={(event) => {
-        // Esc. Closing is the caller's business, so the browser's own close is
-        // left undone and the caller takes this off the screen.
-        event.preventDefault()
-        onCancel()
-      }}
+    <Confirm
+      heading={many ? `Delete ${count} activities?` : 'Delete this activity?'}
+      confirmLabel={many ? `Delete ${count}` : 'Delete'}
+      cancelLabel={many ? 'Keep them' : 'Keep it'}
+      busy={busy}
+      error={error}
+      onConfirm={onConfirm}
+      onCancel={onCancel}
     >
-      <section className="overlay-panel">
-        <header className="overlay-head">
-          <h2 id="delete-title">
-            {many ? `Delete ${count} activities?` : 'Delete this activity?'}
-          </h2>
-        </header>
-
-        <div className="item-detail">
-          {/* Said plainly and in full, because every one of these is a
-              consequence somebody would rather hear now than find out. */}
-          <p>
-            {many
-              ? "They go out of your feed and your friends' feeds."
-              : "It goes out of your feed and your friends' feeds."}
-          </p>
-          <p>
-            The miles come back off your totals, your level, your streak and the
-            medals they earned. What those miles already grew in your grove
-            stays, and chests you have already found stay.
-          </p>
-          <p>
-            {many ? 'They wait' : 'It waits'} under Deleted on your Activity tab
-            for {DELETED_DAYS} days, and you can put{' '}
-            {many ? 'any of them' : 'it'} back any time until then. After that{' '}
-            {many ? 'they are' : 'it is'} gone for good.
-          </p>
-
-          <div className="item-verbs">
-            <button type="button" className="primary" disabled={busy} onClick={onConfirm}>
-              {many ? `Delete ${count}` : 'Delete'}
-            </button>
-          </div>
-
-          {error && (
-            <p className="error" role="alert">
-              {error}
-            </p>
-          )}
-        </div>
-
-        <footer className="overlay-foot">
-          <button type="button" className="secondary" disabled={busy} onClick={onCancel}>
-            {many ? 'Keep them' : 'Keep it'}
-          </button>
-        </footer>
-      </section>
-    </dialog>
+      <p>
+        {many
+          ? "They go out of your feed and your friends' feeds."
+          : "It goes out of your feed and your friends' feeds."}
+      </p>
+      <p>
+        The miles come back off your totals, your level, your streak and the
+        medals they earned. What those miles already grew in your grove
+        stays, and chests you have already found stay.
+      </p>
+      <p>
+        {many ? 'They wait' : 'It waits'} under Deleted on your Activity tab
+        for {DELETED_DAYS} days, and you can put{' '}
+        {many ? 'any of them' : 'it'} back any time until then. After that{' '}
+        {many ? 'they are' : 'it is'} gone for good.
+      </p>
+    </Confirm>
   )
 }
 

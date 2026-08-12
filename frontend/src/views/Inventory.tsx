@@ -34,6 +34,7 @@ import {
   itemName,
   itemRarity,
   itemTabLabel,
+  NOTHING_HELD,
   OIL_KEPT,
   personName,
   PLANTED,
@@ -604,9 +605,16 @@ export default function Inventory({ onChanged }: Props) {
     (_, index) => index,
   )
 
+  // Nothing held at all is an empty state rather than a grid: rows of hollow
+  // squares under an instruction to tap them say there is something to do here
+  // when there is not. The line is the same one the empty plot beside it says.
+  const bare = stacks.length === 0
+
   return (
     <>
-      <p className="hint">Tap a square to use it.</p>
+      {/* Held back until the first load has answered, so an inventory that has
+          things in it never says for a moment that it has none. */}
+      {!loading && <p className="hint">{bare ? NOTHING_HELD : 'Tap a square to use it.'}</p>}
 
       {loading && <p className="notice">Loading.</p>}
       {loadError && (
@@ -620,16 +628,18 @@ export default function Inventory({ onChanged }: Props) {
         </p>
       )}
 
-      <ul className="inv-grid">
-        {stacks.map((stack) => (
-          <Square key={stack.key} stack={stack} onOpen={() => tap(stack)} />
-        ))}
-        {empties.map((index) => (
-          <li key={`empty-${index}`} className="inv-slot">
-            <span className="inv-cell inv-empty" />
-          </li>
-        ))}
-      </ul>
+      {!bare && (
+        <ul className="inv-grid">
+          {stacks.map((stack) => (
+            <Square key={stack.key} stack={stack} onOpen={() => tap(stack)} />
+          ))}
+          {empties.map((index) => (
+            <li key={`empty-${index}`} className="inv-slot">
+              <span className="inv-cell inv-empty" />
+            </li>
+          ))}
+        </ul>
+      )}
 
       {/* The item itself, and whatever came out of a chest opened from it. */}
       {shown !== null && step.at === 'verbs' && (

@@ -10,6 +10,7 @@ import {
 import { GENDERS, TOO_MANY_UPLOADS } from '../labels.ts'
 import { ageOf } from '../profile.ts'
 import AvatarCrop from './AvatarCrop.tsx'
+import Confirm from './Confirm.tsx'
 
 // What the server accepts, checked here as well so an oversized picture is
 // answered at once instead of after a whole upload.
@@ -69,6 +70,9 @@ export default function EditProfile({ profile, onAvatarChanged, onSaved, onClose
   // A chosen picture waiting to be framed. Nothing is uploaded until the square
   // is settled, because the square is what the account becomes.
   const [chosen, setChosen] = useState<File | null>(null)
+  // Whether the question about taking the picture off is up. The picture is not
+  // kept anywhere once it is gone, so it is asked before rather than after.
+  const [asking, setAsking] = useState(false)
 
   // Opened as a modal rather than with the open attribute, because only the
   // modal form brings the focus trap, the page behind held still, and Esc.
@@ -116,6 +120,7 @@ export default function EditProfile({ profile, onAvatarChanged, onSaved, onClose
       await deleteAvatar()
       setHasAvatar(false)
       onAvatarChanged(false, null)
+      setAsking(false)
     } catch (err) {
       setAvatarError(uploadErrorText(err))
     } finally {
@@ -189,7 +194,10 @@ export default function EditProfile({ profile, onAvatarChanged, onSaved, onClose
                   type="button"
                   className="secondary"
                   disabled={avatarBusy !== ''}
-                  onClick={() => void removeAvatar()}
+                  onClick={() => {
+                    setAvatarError('')
+                    setAsking(true)
+                  }}
                 >
                   Remove picture
                 </button>
@@ -204,7 +212,9 @@ export default function EditProfile({ profile, onAvatarChanged, onSaved, onClose
                   Removing.
                 </p>
               )}
-              {avatarError && (
+              {/* While the question is up it is the one saying what went wrong,
+                  so the field does not say the same sentence behind it. */}
+              {avatarError && !asking && (
                 <p className="error" role="alert">
                   {avatarError}
                 </p>
@@ -300,6 +310,28 @@ export default function EditProfile({ profile, onAvatarChanged, onSaved, onClose
           </form>
         </section>
       </dialog>
+
+      {/* The picture is not kept anywhere once it is taken off, and it goes on a
+          single press, so it is asked about first. */}
+      {asking && (
+        <Confirm
+          heading="Remove your picture?"
+          confirmLabel="Remove"
+          cancelLabel="Keep it"
+          busy={avatarBusy !== ''}
+          error={avatarError}
+          onConfirm={() => void removeAvatar()}
+          onCancel={() => {
+            setAsking(false)
+            setAvatarError('')
+          }}
+        >
+          <p>
+            It comes off your profile and off your workouts everywhere, and the first letter
+            of your name stands in for it. You can upload another any time.
+          </p>
+        </Confirm>
+      )}
 
       {/* Chosen, not yet sent: the square is settled here first, so what is
           framed is what the picture becomes everywhere. */}

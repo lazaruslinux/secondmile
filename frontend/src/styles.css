@@ -1953,6 +1953,14 @@ button:disabled {
   border-radius: var(--radius);
 }
 
+/* A plot with nothing in it yet: the soil stays, and the band shrinks to a
+   shallow strip so the name and picture are not sitting under a void. Kept a
+   little deeper than the distance the picture rides up by, so the band still
+   shows above it rather than being covered whole. */
+.you-band-bare {
+  height: 4.25rem;
+}
+
 /* The picture rides up over the band's lower edge, with the name beside it. */
 .you-ident {
   display: flex;
@@ -4101,6 +4109,12 @@ button:disabled {
     --soil: 1.15rem;
 
     height: 140px;
+  }
+
+  /* The empty band grows with the full one, and by the same reasoning: the
+     picture rides up by more here, so the strip left under it is deeper. */
+  .you-band-bare {
+    height: 5.25rem;
   }
 
   .band-grove {
