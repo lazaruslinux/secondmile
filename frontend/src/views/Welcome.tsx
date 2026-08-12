@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import heroImage from '../assets/landing-hero.png'
 import { errorText, getWelcome, welcomeAvatarUrl, type Welcome as WelcomeData } from '../api.ts'
 import { ACTIVITY_ICONS, ACTIVITY_NAMES, ACTIVITY_ORDER } from '../labels.ts'
 import AvatarFrame from './AvatarFrame.tsx'
@@ -57,6 +58,7 @@ export default function Welcome({ code, onJoin, onSignIn }: Props) {
     <div className="landing">
       <header className="landing-bar">
         <span className="wordmark">secondmile</span>
+        <img className="welcome-hero-mini" src={heroImage} alt="" />
         <button type="button" className="link" onClick={onSignIn}>
           Sign in
         </button>
@@ -79,8 +81,9 @@ export default function Welcome({ code, onJoin, onSignIn }: Props) {
 
         <p className="landing-sub">
           secondmile is a small, invite-only place for staying active and encouraging the
-          people you know. Walk, run, bike, or swim: every workout you sync earns XP,
-          opens chests along the way, and grows a grove from your miles.
+          people you know. Think of a private, self-hosted Strava that earns XP: walk,
+          run, bike, or swim, and every synced workout opens chests along the way and
+          grows a grove from your miles.
         </p>
 
         <ul className="landing-sports">
@@ -123,8 +126,9 @@ export default function Welcome({ code, onJoin, onSignIn }: Props) {
         <p>
           The exporter is Health Auto Export, from the App Store. Apple Health is the only
           source tested and supported today, so activities need an iPhone or an Apple
-          Watch behind them. On anything else you can make an account and look around, but
-          nothing will arrive.
+          Watch behind them. No iPhone yet? Create your account anyway and look around:
+          you will still be friends with {who} from day one, and your miles start arriving
+          whenever an iPhone does.
         </p>
       </section>
 

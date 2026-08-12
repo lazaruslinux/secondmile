@@ -4243,6 +4243,15 @@ button:disabled {
   min-height: 54px;
 }
 
+/* The welcome page carries a small copy of the hero strip beside the wordmark,
+   sized by height so the 4:1 drawing settles its own width. */
+.welcome-hero-mini {
+  display: block;
+  height: 1.6rem;
+  width: auto;
+  opacity: 0.9;
+}
+
 /* The name is the masthead here rather than a label in the chrome, so it is
    set larger than the signed-in topbar wears it. Not .wordmark-large, which
    centres itself for the sign-in gate: this one stays at the left. */
