@@ -1,13 +1,19 @@
-"""Steps: what a pedometer sends, what of it earns, and what it never touches.
+"""Steps: what a pedometer sends, where it is stored, and that it earns nothing.
 
-The law this file pins, in one sentence: walking and running distance earns
-whatever the workouts of that day left over, once, and everything the game does
-with a mile it does with that one too.
+The law this file pins, in one sentence: steps are stored and shown, and miles
+are the work put into a recorded activity, so a step is worth no experience, no
+level, no chest, no growth, no medal and no place in any miles total.
+
+The round before this one credited the day's remainder over its walks and runs.
+That was reversed. What it left behind stays in the schema and is dormant:
+step_credits, its processed markers, daily_steps.credited_mi, and the nullable
+workout_id on a weekly earn. Cases below pin that nothing writes to any of them
+and that a rebuild reads none of them.
 
 The clock is frozen at a Wednesday, so 2026-04-15 is today in the instance
 timezone and 2026-04-13 is the Monday its week starts on. Every export here is
-dated against those two on purpose: a case about a remainder must not also be a
-case about which day a sample landed in.
+dated against those on purpose: a case about a reading must not also be a case
+about which day a sample landed in.
 """
 
 import datetime as dt
@@ -17,7 +23,7 @@ from test_ingest import post, workout as entry
 
 from app import models, progress, security
 from app.activity import parse_metrics
-from app.config import daily_cap_mi
+from app.config import MAX_DAILY_STEP_MI, MAX_DAILY_STEPS
 
 TODAY = dt.date(2026, 4, 15)
 YESTERDAY = dt.date(2026, 4, 14)
@@ -55,11 +61,12 @@ def day_row(db_session, user_id: int, day: dt.date = TODAY) -> models.DailySteps
     )
 
 
-def ledger(db_session, user_id: int, day: dt.date = TODAY) -> list[models.StepCredit]:
+def ledger(db_session, user_id: int) -> list[models.StepCredit]:
+    """The dormant ledger. Every case that reads it expects it empty."""
     db_session.expire_all()
     return (
         db_session.query(models.StepCredit)
-        .filter(models.StepCredit.user_id == user_id, models.StepCredit.day == day)
+        .filter(models.StepCredit.user_id == user_id)
         .order_by(models.StepCredit.id)
         .all()
     )
@@ -174,67 +181,52 @@ def test_an_export_carrying_too_many_samples_is_refused(signed_in, ingest_token,
 
 
 # --------------------------------------------------------------------------
-# The remainder
+# Storing a day
 # --------------------------------------------------------------------------
 
 
-def test_steps_beyond_the_days_walking_are_what_earns(signed_in, ingest_token, db_session, member):
-    sync(
-        signed_in,
-        ingest_token,
-        workouts=[entry("Outdoor Walk", f"{TODAY.isoformat()}T09:00:00+00:00", 3600, 2.0, 180)],
-        metrics=reading(steps=12000, miles=5.0),
-    )
+def test_a_days_reading_is_stored_as_it_arrived(signed_in, ingest_token, db_session, member):
+    sync(signed_in, ingest_token, metrics=reading(steps=12000, miles=5.0))
     row = day_row(db_session, member.id)
     assert (row.steps, row.distance_mi) == (12000, 5.0)
-    # Five miles walked, two of them logged as a workout: the workout earns
-    # first and the steps fill the three miles it did not cover.
-    assert round(row.credited_mi, 2) == 3.0
     assert row.capped is False
-
-
-def test_a_workout_in_the_same_export_is_subtracted(signed_in, ingest_token, db_session, member):
-    """The order inside one sync: the walk has to be stored before the
-    remainder is worked out, or the same miles earn twice."""
-    sync(
-        signed_in,
-        ingest_token,
-        workouts=[entry("Outdoor Run", f"{TODAY.isoformat()}T07:00:00+00:00", 3600, 4.0, 400)],
-        metrics=reading(miles=4.0),
-    )
-    assert day_row(db_session, member.id).credited_mi == 0.0
+    # The dormant half of the row, and the dormant table beside it. Nothing
+    # writes to either any more, so a fresh day is credited with nothing.
+    assert row.credited_mi == 0.0
     assert ledger(db_session, member.id) == []
 
 
-def test_cycling_that_day_subtracts_nothing(signed_in, ingest_token, db_session, member):
+def test_a_walk_the_same_day_changes_nothing(signed_in, ingest_token, db_session, member):
+    """The old law subtracted the day's walks and ran the remainder. There is
+    no remainder now: the reading is stored as the pedometer sent it, and the
+    walk is a workout, which is the only thing that earns."""
     sync(
         signed_in,
         ingest_token,
-        workouts=[entry("Indoor Cycle", f"{TODAY.isoformat()}T07:00:00+00:00", 3600, 12.0, 400)],
-        metrics=reading(miles=3.0),
+        workouts=[entry("Outdoor Walk", f"{TODAY.isoformat()}T09:00:00+00:00", 3600, 4.0, 300)],
+        metrics=reading(miles=5.0),
     )
-    assert day_row(db_session, member.id).credited_mi == 3.0
+    row = day_row(db_session, member.id)
+    assert row.distance_mi == 5.0
+    assert row.credited_mi == 0.0
+    # Four miles walked and four miles of experience: the workout's, and only
+    # the workout's.
+    assert round(progress_of(db_session, member.id).xp, 2) == 4.0
 
 
-def test_each_day_is_settled_on_its_own(signed_in, ingest_token, db_session, member):
-    sync(
-        signed_in,
-        ingest_token,
-        workouts=[entry("Outdoor Walk", f"{TODAY.isoformat()}T09:00:00+00:00", 3600, 3.0, 200)],
-        metrics=reading(TODAY, miles=4.0) + reading(YESTERDAY, miles=2.0),
-    )
-    assert day_row(db_session, member.id, TODAY).credited_mi == 1.0
-    assert day_row(db_session, member.id, YESTERDAY).credited_mi == 2.0
+def test_each_day_is_stored_on_its_own(signed_in, ingest_token, db_session, member):
+    sync(signed_in, ingest_token, metrics=reading(TODAY, miles=4.0) + reading(YESTERDAY, miles=2.0))
+    assert day_row(db_session, member.id, TODAY).distance_mi == 4.0
+    assert day_row(db_session, member.id, YESTERDAY).distance_mi == 2.0
 
 
-def test_a_second_export_of_the_same_day_credits_only_the_increase(
+def test_a_second_export_of_the_same_day_keeps_the_higher_reading(
     signed_in, ingest_token, db_session, member
 ):
     sync(signed_in, ingest_token, metrics=reading(steps=6000, miles=3.0))
     sync(signed_in, ingest_token, metrics=reading(steps=9000, miles=5.0))
     row = day_row(db_session, member.id)
-    assert (row.steps, row.distance_mi, row.credited_mi) == (9000, 5.0, 5.0)
-    assert [round(entry.delta_mi, 2) for entry in ledger(db_session, member.id)] == [3.0, 2.0]
+    assert (row.steps, row.distance_mi) == (9000, 5.0)
 
 
 def test_a_partial_export_never_takes_a_fuller_reading_back_down(
@@ -245,101 +237,68 @@ def test_a_partial_export_never_takes_a_fuller_reading_back_down(
     # not a correction.
     sync(signed_in, ingest_token, metrics=reading(steps=2000, miles=1.0))
     row = day_row(db_session, member.id)
-    assert (row.steps, row.distance_mi, row.credited_mi) == (9000, 5.0, 5.0)
-    assert len(ledger(db_session, member.id)) == 1
+    assert (row.steps, row.distance_mi) == (9000, 5.0)
 
 
-def test_a_walk_arriving_late_cannot_take_credit_back(
+def test_a_reading_past_the_bounds_is_clamped_and_marked(
     signed_in, ingest_token, db_session, member
 ):
-    sync(signed_in, ingest_token, metrics=reading(miles=5.0))
+    """A confused sensor is free to send anything, and the count is an integer
+    column. The day is stored at the ceiling and marked; nothing is refused."""
     sync(
         signed_in,
         ingest_token,
-        workouts=[entry("Outdoor Walk", f"{TODAY.isoformat()}T09:00:00+00:00", 3600, 4.0, 300)],
-        metrics=reading(miles=5.0),
+        metrics=reading(steps=MAX_DAILY_STEPS + 50_000, miles=MAX_DAILY_STEP_MI + 40.0),
     )
-    # The remainder is one mile now, but five were already credited and spent.
-    # Credit only ever rises, so nothing is withdrawn and nothing is added.
-    assert day_row(db_session, member.id).credited_mi == 5.0
-    assert len(ledger(db_session, member.id)) == 1
-
-
-def test_the_day_is_clamped_to_the_walking_cap(signed_in, ingest_token, db_session, member):
-    sync(signed_in, ingest_token, metrics=reading(miles=daily_cap_mi("walk") + 15.0))
     row = day_row(db_session, member.id)
-    assert row.credited_mi == daily_cap_mi("walk")
+    assert row.steps == MAX_DAILY_STEPS
+    assert row.distance_mi == MAX_DAILY_STEP_MI
     assert row.capped is True
 
 
-def test_the_cap_counts_the_days_own_walking_first(
-    signed_in, ingest_token, db_session, member
-):
-    sync(
-        signed_in,
-        ingest_token,
-        workouts=[entry("Outdoor Walk", f"{TODAY.isoformat()}T09:00:00+00:00", 36000, 10.0, 900)],
-        metrics=reading(miles=daily_cap_mi("walk") + 5.0),
-    )
-    row = day_row(db_session, member.id)
-    # Ten logged plus thirty credited is the cap exactly.
-    assert round(row.credited_mi, 2) == daily_cap_mi("walk") - 10.0
-    assert row.capped is True
-
-
-def test_the_ledger_adds_up_to_the_day(signed_in, ingest_token, db_session, member):
-    for miles in (1.5, 2.25, 4.0, 4.0):
-        sync(signed_in, ingest_token, metrics=reading(miles=miles))
-    row = day_row(db_session, member.id)
-    entries = ledger(db_session, member.id)
-    assert round(sum(one.delta_mi for one in entries), 6) == round(row.credited_mi, 6)
-    assert [round(one.delta_mi, 2) for one in entries] == [1.5, 0.75, 1.75]
+def test_a_sync_says_how_many_days_it_wrote(signed_in, ingest_token, db_session, member):
+    sync(signed_in, ingest_token, metrics=reading(TODAY, steps=800) + reading(YESTERDAY, steps=900))
+    logged = db_session.query(models.IngestLog).one()
+    assert logged.result["step_days"] == 2
 
 
 # --------------------------------------------------------------------------
-# What the credit is worth
+# What steps are worth: nothing
 # --------------------------------------------------------------------------
 
 
-def test_step_miles_are_experience_chests_and_growth(
+def test_steps_earn_no_experience_no_chest_and_no_growth(
     signed_in, ingest_token, db_session, member
 ):
     from conftest import give_planting
 
     planted = give_planting(db_session, member.id)
-    sync(signed_in, ingest_token, metrics=reading(miles=8.0))
+    sync(signed_in, ingest_token, metrics=reading(steps=40000, miles=18.0))
     row = progress_of(db_session, member.id)
-    # Walking converts one for one, so eight pedometer miles are eight XP.
-    assert round(row.xp, 2) == 8.0
-    # Level one is a 5K and level two is another 10K on top of it, so eight
-    # miles stands one level up with the next in sight.
-    assert row.level == 1
-    # The ladder's first step, a 5K, has been paid for and dropped.
-    assert db_session.query(models.Chest).filter_by(user_id=member.id).count() == 1
+    assert row.xp == 0.0
+    assert row.level == 0
+    assert row.chest_progress_mi == 0.0
+    assert db_session.query(models.Chest).filter_by(user_id=member.id).count() == 0
     db_session.expire_all()
-    assert db_session.get(models.Planting, planted.id).growth_mi == 8.0
+    assert db_session.get(models.Planting, planted.id).growth_mi == 0.0
 
 
-def test_a_ledger_row_is_credited_once(signed_in, ingest_token, db_session, member):
-    sync(signed_in, ingest_token, metrics=reading(miles=4.0))
-    progress.process_user(db_session, member.id)
-    progress.process_user(db_session, member.id)
-    assert round(progress_of(db_session, member.id).xp, 2) == 4.0
-    assert (
-        db_session.query(models.ProcessedStepCredit).count()
-        == db_session.query(models.StepCredit).count()
-    )
-
-
-def test_steps_earn_no_race_medal_and_no_calories(
+def test_steps_write_no_ledger_row_and_claim_no_marker(
     signed_in, ingest_token, db_session, member
 ):
+    sync(signed_in, ingest_token, metrics=reading(miles=9.0))
+    progress.process_user(db_session, member.id)
+    assert ledger(db_session, member.id) == []
+    assert db_session.query(models.ProcessedStepCredit).count() == 0
+
+
+def test_steps_earn_no_medal_and_make_no_workout(signed_in, ingest_token, db_session, member):
     sync(signed_in, ingest_token, metrics=reading(miles=30.0))
-    # Thirty miles in a day, and not one of the five race medals: those are
-    # sessions somebody ran, and this is a day of walking about.
+    # Thirty miles of walking about is no race medal and no weekly one either.
     assert db_session.query(models.BadgeEarn).filter_by(user_id=member.id).count() == 0
-    # No workout row either, so there is nothing to appear in a feed and no
-    # energy to become manna.
+    assert db_session.query(models.WeeklyBadgeEarn).filter_by(user_id=member.id).count() == 0
+    # No workout row, so there is nothing to appear in a feed and no energy to
+    # become manna.
     assert db_session.query(models.Workout).filter_by(user_id=member.id).count() == 0
 
 
@@ -363,56 +322,48 @@ def weekly_row(db_session, user_id: int) -> models.WeeklyBadgeEarn:
     )
 
 
-def test_a_week_carried_over_the_line_by_steps_names_no_workout(
-    signed_in, ingest_token, db_session, member
-):
+def test_a_week_of_steps_alone_earns_nothing(signed_in, ingest_token, db_session, member):
+    sync(signed_in, ingest_token, metrics=reading(miles=26.0))
+    assert weekly_row(db_session, member.id) is None
+
+
+def test_steps_never_carry_a_week_over_the_line(signed_in, ingest_token, db_session, member):
     log_workout(db_session, member.id, "run", 9.0)
-    # The pedometer counted the run as well as the wandering about, so eleven
-    # miles of walking and running distance leaves two of remainder.
+    # Eleven miles of pedometer distance on a nine mile week. The week is nine
+    # miles: a pedometer reading is not a week's miles.
     sync(signed_in, ingest_token, metrics=reading(miles=11.0))
-    row = weekly_row(db_session, member.id)
-    assert row.badge_id == "weekly_10"
-    assert row.week_start == MONDAY
-    # There is no session it happened in, so the row says so rather than
-    # blaming the nine mile run that was already behind the line.
-    assert row.workout_id is None
-    assert row.earned_at == security.now_utc()
+    assert weekly_row(db_session, member.id) is None
 
 
-def test_a_week_the_workouts_carry_still_names_the_workout(
+def test_a_week_the_workouts_carry_names_the_workout(
     signed_in, ingest_token, db_session, member
 ):
     sync(signed_in, ingest_token, metrics=reading(miles=2.0))
     crossing = log_workout(db_session, member.id, "run", 11.0)
     row = weekly_row(db_session, member.id)
     assert row.badge_id == "weekly_10"
+    assert row.week_start == MONDAY
     assert row.workout_id == crossing.id
+    assert row.earned_at == crossing.start_ts
 
 
-def test_the_week_upgrades_in_place_over_the_same_total(
-    signed_in, ingest_token, db_session, member
-):
-    log_workout(db_session, member.id, "run", 9.0)
-    sync(signed_in, ingest_token, metrics=reading(miles=11.0))
-    assert weekly_row(db_session, member.id).badge_id == "weekly_10"
-    # More steps on the same week, over the same running total: one row still,
-    # holding the better medal.
-    sync(signed_in, ingest_token, metrics=reading(miles=19.0))
-    row = weekly_row(db_session, member.id)
-    assert row.badge_id == "weekly_15"
-    assert row.workout_id is None
-
-
-def test_steps_dated_last_week_land_on_last_weeks_medal(
-    signed_in, ingest_token, db_session, member
-):
-    last_week = MONDAY - dt.timedelta(days=2)
-    sync(signed_in, ingest_token, metrics=reading(last_week, miles=12.0))
-    row = weekly_row(db_session, member.id)
-    # Credited today, walked the week before: the medal belongs to the week
-    # that covered the ground.
-    assert row.week_start == last_week - dt.timedelta(days=last_week.weekday())
-    assert row.badge_id == "weekly_10"
+def test_a_weekly_row_with_no_workout_still_reads_back(signed_in, db_session, member):
+    """workout_id stays nullable and nothing writes a null there any more. The
+    rows the credited round left behind are still read: the letter dates them
+    by their own stamp rather than by a workout they never had."""
+    db_session.add(
+        models.WeeklyBadgeEarn(
+            user_id=member.id,
+            week_start=MONDAY,
+            family="weekly",
+            badge_id="weekly_10",
+            workout_id=None,
+            earned_at=security.now_utc(),
+        )
+    )
+    db_session.commit()
+    letter = signed_in.get("/api/recap").json()
+    assert [row["id"] for row in letter["medals"]] == ["weekly_10"]
 
 
 # --------------------------------------------------------------------------
@@ -420,58 +371,56 @@ def test_steps_dated_last_week_land_on_last_weeks_medal(
 # --------------------------------------------------------------------------
 
 
-def test_deleting_a_walk_never_grows_the_step_credit(
+def test_deleting_a_walk_leaves_the_step_rows_alone(
     signed_in, ingest_token, db_session, member
 ):
     walk = log_workout(db_session, member.id, "walk", 4.0)
-    sync(signed_in, ingest_token, metrics=reading(miles=6.0))
-    assert day_row(db_session, member.id).credited_mi == 2.0
-
+    sync(signed_in, ingest_token, metrics=reading(steps=9000, miles=6.0))
     assert signed_in.delete(f"/api/workouts/{walk.id}").status_code == 204
-    sync(signed_in, ingest_token, metrics=reading(miles=6.0))
-    # The walk is gone from every total on the screen and is still subtracted
-    # here: otherwise deleting it and syncing again would earn it twice.
-    assert day_row(db_session, member.id).credited_mi == 2.0
-    assert len(ledger(db_session, member.id)) == 1
 
-    assert signed_in.post(f"/api/workouts/{walk.id}/restore").status_code == 200
-    sync(signed_in, ingest_token, metrics=reading(miles=6.0))
-    assert day_row(db_session, member.id).credited_mi == 2.0
+    row = day_row(db_session, member.id)
+    assert (row.steps, row.distance_mi) == (9000, 6.0)
+    # The walk's miles are gone and the day's reading is untouched, because the
+    # two have nothing to do with each other any more.
+    assert progress_of(db_session, member.id).xp == 0.0
 
 
-def test_a_rebuild_counts_the_ledger_as_fuel(signed_in, ingest_token, db_session, member):
-    run = log_workout(db_session, member.id, "run", 5.0)
-    # Eleven miles of pedometer distance over a five mile run: six of credit.
-    sync(signed_in, ingest_token, metrics=reading(miles=11.0))
-    assert round(progress_of(db_session, member.id).xp, 2) == 11.0
-
-    assert signed_in.delete(f"/api/workouts/{run.id}").status_code == 204
-    # The run's miles are gone and the step miles are still there, because
-    # nothing about a deletion touches what the pedometer counted.
-    assert round(progress_of(db_session, member.id).xp, 2) == 6.0
-    assert len(ledger(db_session, member.id)) == 1
+def stale_credit(db_session, user_id: int, miles: float) -> models.StepCredit:
+    """A ledger row from before the retreat, written straight in. Nothing in
+    the app writes one any more, and a rebuild has to ignore what it finds."""
+    row = models.StepCredit(
+        user_id=user_id, day=TODAY, delta_mi=miles, credited_at=security.now_utc()
+    )
+    db_session.add(row)
+    db_session.commit()
+    return row
 
 
-def test_a_rebuild_never_re_drops_a_chest_the_steps_paid_for(
+def test_a_rebuild_takes_no_fuel_from_the_dormant_ledger(
     signed_in, ingest_token, db_session, member
 ):
-    run = log_workout(db_session, member.id, "run", 4.0)
-    sync(signed_in, ingest_token, metrics=reading(miles=24.0))
-    before = db_session.query(models.Chest).filter_by(user_id=member.id).count()
-    assert before > 0
+    run = log_workout(db_session, member.id, "run", 5.0)
+    log_workout(db_session, member.id, "run", 3.0, offset_min=120)
+    stale_credit(db_session, member.id, 16.0)
 
     assert signed_in.delete(f"/api/workouts/{run.id}").status_code == 204
-    assert db_session.query(models.Chest).filter_by(user_id=member.id).count() == before
+    # The surviving run and nothing else. This is the line that unwinds an
+    # account credited under the old law.
+    assert round(progress_of(db_session, member.id).xp, 2) == 3.0
+    assert db_session.query(models.ProcessedStepCredit).count() == 0
 
 
-def test_recompute_replays_the_ledger_and_nothing_twice(db_session, member, ingest_token, signed_in):
+def test_recompute_ignores_the_dormant_ledger(db_session, member, ingest_token, signed_in):
+    log_workout(db_session, member.id, "run", 4.0)
     sync(signed_in, ingest_token, metrics=reading(miles=7.0))
+    stale_credit(db_session, member.id, 7.0)
+
     progress.recompute(db_session, member.id)
-    assert round(progress_of(db_session, member.id).xp, 2) == 7.0
-    assert (
-        db_session.query(models.ProcessedStepCredit).count()
-        == db_session.query(models.StepCredit).count()
-    )
+    assert round(progress_of(db_session, member.id).xp, 2) == 4.0
+    assert db_session.query(models.ProcessedStepCredit).count() == 0
+    # Untouched by the rebuild either way: the day rows are a record of what a
+    # pedometer saw, not a derivation of anything.
+    assert day_row(db_session, member.id).distance_mi == 7.0
 
 
 # --------------------------------------------------------------------------
@@ -479,38 +428,57 @@ def test_recompute_replays_the_ledger_and_nothing_twice(db_session, member, inge
 # --------------------------------------------------------------------------
 
 
-def test_the_letter_says_what_the_steps_covered(signed_in, ingest_token, db_session, member):
-    sync(signed_in, ingest_token, metrics=reading(miles=3.42))
+def test_the_letter_counts_whole_days_and_never_today(
+    signed_in, ingest_token, db_session, member
+):
+    sync(
+        signed_in,
+        ingest_token,
+        metrics=reading(YESTERDAY, steps=9000) + reading(TODAY, steps=4000),
+    )
     letter = signed_in.get("/api/recap").json()
-    assert letter["step_miles"] == 3.42
-    # Outside the four rows and outside their total: the total under them has
-    # to be the total of the rows a reader can see.
+    # Yesterday is over and today is half lived. Counting today would print a
+    # number that grows while the same letter is being read.
+    assert letter["steps"] == 9000
+    # In no total and in no experience: a count of steps earns nothing.
     assert letter["miles_total"] == 0.0
-    # But inside the XP: step credit is experience at the walk's weight, and
-    # the letter's XP row owns everything the window earned.
-    assert letter["xp"] == 3.42
+    assert letter["xp"] == 0.0
+
+
+def test_the_letter_leaves_out_the_day_it_was_last_read(
+    signed_in, ingest_token, db_session, member
+):
+    sync(signed_in, ingest_token, metrics=reading(YESTERDAY, steps=9000))
+    assert signed_in.get("/api/recap").json()["steps"] == 9000
 
     assert signed_in.post("/api/recap/ack").status_code == 204
     let_a_moment_pass(db_session)
-    assert signed_in.get("/api/recap").json()["step_miles"] == 0.0
+    # The acknowledgement landed today, so today and everything before it is
+    # already read. Whole days only, so the day of the ack goes whole.
+    assert signed_in.get("/api/recap").json()["steps"] == 0
 
 
-def test_the_profile_carries_the_week_and_the_lifetime_step_miles(
+def test_the_letter_says_nothing_about_a_day_with_no_steps(signed_in, ingest_token):
+    assert signed_in.get("/api/recap").json()["steps"] == 0
+
+
+def test_the_profile_carries_the_week_steps_and_no_step_miles(
     signed_in, ingest_token, db_session, member
 ):
     sync(
         signed_in,
         ingest_token,
         metrics=reading(TODAY, steps=11000, miles=4.0)
-        + reading(MONDAY - dt.timedelta(days=7), miles=6.0),
+        + reading(MONDAY - dt.timedelta(days=7), steps=8000, miles=6.0),
     )
     profile = signed_in.get("/api/profile").json()
-    assert profile["week_step_mi"] == 4.0
-    assert profile["lifetime_step_mi"] == 10.0
+    # This week's count, and the week before is not in it.
     assert profile["week_steps"] == 11000
-    # Not a sport: no tile, no chip, nothing in either table.
+    # Not a sport, not a mile: no tile, no chip, and no figure of their own.
     assert profile["week"] == {}
     assert profile["lifetime"] == {}
+    assert "week_step_mi" not in profile
+    assert "lifetime_step_mi" not in profile
 
 
 def test_a_friend_reads_the_miles_and_never_the_steps(
@@ -520,12 +488,13 @@ def test_a_friend_reads_the_miles_and_never_the_steps(
 
     friend, mate = sign_in(db_session, "mate")
     befriend(db_session, member, friend)
+    log_workout(db_session, member.id, "run", 3.0)
     sync(signed_in, ingest_token, metrics=reading(steps=15000, miles=5.0))
 
     seen = mate.get(f"/api/profile/{member.id}").json()
-    assert seen["miles"] == 5.0
+    # The run and nothing else. Five miles of pedometer distance are not miles.
+    assert seen["miles"] == 3.0
     assert "week_steps" not in seen
-    assert "week_step_mi" not in seen
 
 
 def test_the_public_counter_carries_the_steps(client, signed_in, ingest_token):
@@ -578,13 +547,12 @@ def test_the_real_export_reads_as_one_day(signed_in, ingest_token, db_session, m
     # 2080.26 steps, rounded once at the end rather than truncated per sample.
     assert row.steps == 2080
     assert round(row.distance_mi, 4) == 0.9856
-    assert round(row.credited_mi, 4) == 0.9856
 
 
 def test_an_export_of_metrics_alone_is_not_a_refusal(signed_in, ingest_token, db_session, member):
     """His pedometer automation posts metrics with no workouts key at all. It
-    is a whole sync: nothing is ignored, the ledger is written, the credit is
-    applied, and the log keeps the payload like any other."""
+    is a whole sync: nothing is ignored, the day is written, the log keeps the
+    payload like any other, and not one of those steps earns anything."""
     assert post(signed_in, ingest_token, REAL_METRICS).json() == {
         "imported": 0,
         "skipped": 0,
@@ -593,10 +561,10 @@ def test_an_export_of_metrics_alone_is_not_a_refusal(signed_in, ingest_token, db
     }
     logged = db_session.query(models.IngestLog).one()
     assert logged.result["ignored_detail"] == []
-    assert logged.result["step_credits"] == 1
+    assert logged.result["step_days"] == 1
     assert logged.payload == REAL_METRICS
-    assert len(ledger(db_session, member.id)) == 1
-    assert round(progress_of(db_session, member.id).xp, 4) == 0.9856
+    assert ledger(db_session, member.id) == []
+    assert progress_of(db_session, member.id).xp == 0.0
 
 
 def test_a_payload_with_neither_list_is_still_logged_as_a_refusal(

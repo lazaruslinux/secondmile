@@ -26,7 +26,7 @@ import {
   recapMiles,
   recapMilesTotal,
   recapNotes,
-  recapStepMiles,
+  recapSteps,
 } from '../recap.ts'
 import { EditPanel } from './FeedCard.tsx'
 import Icon from './Icon.tsx'
@@ -68,7 +68,7 @@ export default function Recap({ recap, units, onDismiss }: Props) {
   const synced = recap.last_sync_at
   const mileRows = recapMiles(recap.miles)
   const milesTotal = recapMilesTotal(mileRows)
-  const stepMiles = recapStepMiles(recap)
+  const steps = recapSteps(recap)
   const chestNames = recapChestNames(recap.chests)
   const gift = recapGiftLine(recap.chests)
 
@@ -157,12 +157,13 @@ export default function Recap({ recap, units, onDismiss }: Props) {
             </li>
           </ul>
 
-          {/* Under the four rows and outside their total, because this is the
-              ground covered between the things somebody set out to do. Said
-              only when there is some: a week without it is not a week that
-              fell short of anything. */}
-          {stepMiles > 0 && (
-            <p className="recap-line">Your steps covered {stepMiles.toFixed(1)} miles.</p>
+          {/* Under the four rows and in no total anywhere: a count of steps is
+              something the phone saw rather than something earned. Whole days
+              only, which is the server's boundary and not this line's. Said
+              only when there are some, because a zero is a sensor that was off
+              rather than news. */}
+          {steps > 0 && (
+            <p className="recap-line">Your phone counted {steps.toLocaleString()} steps.</p>
           )}
 
           {chestNames !== '' && (

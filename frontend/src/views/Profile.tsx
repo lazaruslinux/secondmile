@@ -338,10 +338,11 @@ export default function Profile({
 
             <SportChips stats={profile.lifetime} units={units} />
 
-            {/* One quiet line, on your own screen and nowhere else. The miles
-                those steps earned are already in the count above; this is the
-                raw number behind them, which is flavour. A week with none says
-                nothing rather than printing a zero at somebody. */}
+            {/* One quiet line, on your own screen and nowhere else. Nothing
+                above it counts these steps: they are in no miles total and
+                earn nothing, and this line is the whole of what the app makes
+                of them. A week with none says nothing rather than printing a
+                zero at somebody. */}
             {steps > 0 && <p className="hint">Steps this week: {steps.toLocaleString()}</p>}
 
             <div className="profile-edit">

@@ -47,7 +47,7 @@ LETTER_KEYS = [
     "last_sync_at",
     "miles",
     "miles_total",
-    "step_miles",
+    "steps",
     "xp",
     "chests",
     "medals",

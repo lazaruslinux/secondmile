@@ -118,9 +118,9 @@ class ParsedWorkout:
 class DayMetrics:
     """One server-timezone day of pedometer readings, as an export claims them.
 
-    Both numbers are what the phone said, before anything is subtracted from
-    them: what a day's reading earns is decided against the workouts of that
-    same day, which this side of the parse knows nothing about.
+    Both numbers are what the phone said, and neither of them earns anything:
+    steps are stored and shown. What is done with a day is progress.record_steps'
+    business, which this side of the parse knows nothing about.
     """
 
     steps: float = 0.0
@@ -429,12 +429,13 @@ def parse_metrics(payload) -> tuple[dict[dt.date, DayMetrics], list[dict]]:
     """Read the export's metrics into one reading per server-timezone day.
 
     Two of them are read and the rest are ignored and named, exactly as an
-    unmatched workout is: steps, which are flavour, and walking and running
-    distance, which is the only thing here that earns anything.
+    unmatched workout is: the step count and the walking and running distance.
+    Both are flavour; nothing in this file or downstream of it earns anything
+    from either.
 
     Summed per day rather than taken as they arrive, because the phone sends
     whatever resolution it feels like: a day may be one sample or twenty-four,
-    and the day is what the crediting is decided over. The date each sample
+    and the day is what is stored. The date each sample
     carries is read in the instance timezone for the same reason a workout's
     day is: a walk at eleven at night belongs to the day whoever took it says
     it does.

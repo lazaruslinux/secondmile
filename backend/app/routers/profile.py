@@ -179,15 +179,12 @@ def serialize_profile(db: Session, user: models.User, row: models.UserProgress) 
         "week_days": progress.week_days(db, user.id),
         "week": progress.week_totals(db, user.id, monday),
         "lifetime": progress.lifetime_totals(db, user.id),
-        # Credited step miles, week and lifetime. Beside the two tables rather
-        # than inside them, because steps are not a sport and no tile or chip
-        # is theirs; what they belong in is the one overall miles figure each
-        # screen adds up, and that is where the client puts them.
-        "week_step_mi": round(progress.step_miles(db, user.id, monday), 2),
-        "lifetime_step_mi": round(progress.step_miles(db, user.id), 2),
-        # The raw count, this week, and only ever on your own profile: what a
-        # pedometer saw is ambient life rather than something done, and a
-        # friend has no business reading it.
+        # The raw count, this week. Beside the two tables and in neither of
+        # them, and in no miles figure anywhere: steps are not a sport and not
+        # a mile, and this line is the whole of what the app makes of them.
+        # Only ever on your own profile, because what a pedometer saw is
+        # ambient life rather than something done, and a friend has no business
+        # reading it.
         "week_steps": progress.step_count(db, user.id, monday),
         # How much is in the plot and how much of it is grown. Not a
         # collection: there is no total to fill, only what somebody planted.
@@ -573,18 +570,9 @@ def serialize_friend_profile(db: Session, user: models.User, viewer_id: int) -> 
         # Raw distance and never the converted number the ladder is climbed on:
         # a swim of half a mile is half a mile of somebody's body moving, and
         # this line is the one that says how far. One decimal, which is what
-        # the screen prints.
-        #
-        # Their credited step miles are in it, because those are ground their
-        # body covered too and this is the line that says how much. The count
-        # of steps behind it is not here and never will be: the number of miles
-        # somebody has walked is the same kind of fact as the rest of this
-        # payload, and how many steps they took yesterday is not.
-        "miles": round(
-            sum(total["distance_mi"] for total in totals.values())
-            + progress.step_miles(db, user.id),
-            1,
-        ),
+        # the screen prints. Workouts only, here as everywhere: a mile is the
+        # work put into a recorded activity, and no pedometer reading is in it.
+        "miles": round(sum(total["distance_mi"] for total in totals.values()), 1),
         "medals": medals.medal_summary(db, user.id),
         # The summary only. The plot itself is GET /api/grove/{user_id}, which
         # the same screen already calls, and serving it twice would mean two

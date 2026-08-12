@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app import fellowship, grove, medals, models, progress, security, throttle
 from app.activity import converted_miles
+from app.config import SERVER_TZ
 from app.db import get_db
 from app.routers.workouts import photos_for, videos_for
 
@@ -121,7 +122,6 @@ def read_recap(
     row = progress.process_user(db, user.id)
     since = row.last_ack_at
     miles, xp = _miles(db, user.id, since)
-    step_miles = _step_miles(db, user.id, since)
 
     # Ordered as the letter reads: what window it covers, what the body did in
     # it, what landed, what people said, what grew, and the workouts themselves,
@@ -134,15 +134,12 @@ def read_recap(
         # behind them, so the total under the four rows is always the total of
         # the rows the reader can see.
         "miles_total": round(sum(miles.values()), 2),
-        # Its own line rather than a fifth row above, and deliberately outside
-        # the total: the four rows are activities somebody went out and did,
-        # and the total under them has to be the total of the rows the reader
-        # can see. Steps are the ground covered in between.
-        "step_miles": step_miles,
-        # Step credit is XP too, at the walk's weight: the steps line sits
-        # outside the miles total, but the game made something of it and the
-        # XP row is where that is owned up to.
-        "xp": round(xp + step_miles, 2),
+        # Steps counted, and only counted. Its own line rather than a fifth row
+        # above, and in neither the total nor the XP: the rows are activities
+        # somebody went out and did, and a pedometer's tally is not one of them
+        # and earns nothing.
+        "steps": _step_count(db, user.id, since),
+        "xp": round(xp, 2),
         "chests": _delivered(db, user.id, since),
         "medals": _fresh_medals(db, user.id, since),
         "encouragement": _received(db, user.id, since),
@@ -186,20 +183,32 @@ def _miles(
     return miles, xp
 
 
-def _step_miles(db: Session, user_id: int, since: dt.datetime | None) -> float:
-    """Step miles credited since the last acknowledgement, from the ledger.
+def _step_count(db: Session, user_id: int, since: dt.datetime | None) -> int:
+    """Steps counted over the whole local days this letter covers.
 
-    The ledger rather than the day rows, because this is a window and the days
-    carry no history of when their credit arrived: one row per credit event is
-    exactly the thing a "since" can be asked of. Zero is an ordinary answer and
-    the letter says nothing at all about it.
+    Whole days, which is the whole of the boundary. A step row is a running
+    total of a local day and is upserted all through it, so it carries no
+    record of when within the day a step was taken: a window measured to the
+    minute cannot be asked of it. The window is therefore the local days
+    strictly after the day of the last acknowledgement, up to but never
+    including the day being lived now.
+
+    Both ends are chosen so the number can only be honest. Today is left out
+    because it is half over, and a letter that counted it would say a smaller
+    number than the same letter read an hour later. The ack's own day is left
+    out whole because part of it was already in the letter that was put down,
+    and counting it again would say those steps twice. What that costs is the
+    morning-of steps of the day somebody last read their letter, which is the
+    cheaper of the two errors: the letter says less than the truth rather than
+    more.
     """
-    stmt = select(func.coalesce(func.sum(models.StepCredit.delta_mi), 0.0)).where(
-        models.StepCredit.user_id == user_id
+    today = security.now_utc().astimezone(SERVER_TZ).date()
+    stmt = select(func.coalesce(func.sum(models.DailySteps.steps), 0)).where(
+        models.DailySteps.user_id == user_id, models.DailySteps.day < today
     )
     if since is not None:
-        stmt = stmt.where(models.StepCredit.credited_at > since)
-    return round(float(db.execute(stmt).scalar_one()), 2)
+        stmt = stmt.where(models.DailySteps.day > since.astimezone(SERVER_TZ).date())
+    return int(db.execute(stmt).scalar_one())
 
 
 def _delivered(db: Session, user_id: int, since: dt.datetime | None) -> list[dict]:
@@ -502,9 +511,10 @@ def _fresh_medals(db: Session, user_id: int, since: dt.datetime | None) -> list[
         for row in db.execute(stmt).scalars():
             keep(row)
 
-    # A week that step credit carried over the line has no workout to be dated
-    # by, and needs none: the credit landed when it landed, so its own stamp is
-    # already the arrival the join above spells out the long way round.
+    # A weekly row with no workout on it is from the round that let step credit
+    # cross a line. Nothing writes another, and this reads the ones already
+    # written rather than dropping them on the floor: the join above needs a
+    # workout to date a row by, and these carry their own stamp.
     weekly = select(models.WeeklyBadgeEarn).where(
         models.WeeklyBadgeEarn.user_id == user_id,
         models.WeeklyBadgeEarn.workout_id.is_(None),

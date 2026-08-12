@@ -210,124 +210,44 @@ def _week_workouts(db: Session, user_id: int, monday: dt.date) -> list[models.Wo
     )
 
 
-@dataclass(frozen=True)
-class _Contribution:
-    """One piece of a week's miles, and what a crossing on it would be pinned to.
-
-    A workout or a day's step credit. Both are raw miles somebody covered, and
-    the week cannot tell them apart; what differs is what the crossing has to
-    point at, which is a workout row or nothing at all.
-    """
-
-    day: dt.date
-    # Workouts before step credit within a day, because that is the order the
-    # miles were decided in: a day's credit is the remainder left over its own
-    # walks and runs, so it lands after them or it is not a remainder.
-    rank: int
-    at: dt.datetime
-    row_id: int
-    miles: float
-    workout_id: int | None
-
-
-def _week_step_credits(db: Session, user_id: int, monday: dt.date) -> list[models.StepCredit]:
-    """One week's credited step ledger rows, by the day they were walked.
-
-    Joined to the processed markers for the reason the workouts are: a week's
-    total is what has been credited, so a rebuild part way through sees the
-    week as far as it has replayed it rather than as it will end up.
-    """
-    return list(
-        db.execute(
-            select(models.StepCredit)
-            .join(
-                models.ProcessedStepCredit,
-                models.ProcessedStepCredit.step_credit_id == models.StepCredit.id,
-            )
-            .where(
-                models.StepCredit.user_id == user_id,
-                models.StepCredit.day >= monday,
-                models.StepCredit.day < monday + dt.timedelta(days=7),
-            )
-        ).scalars()
-    )
-
-
-def _week_pieces(db: Session, user_id: int, monday: dt.date) -> list[_Contribution]:
-    """Everything one week's total is made of, in the order it was covered.
-
-    Sorted by the local day first, so a day's workouts and the steps that day
-    left over stay together whatever clock each carries: a workout is placed by
-    when it started and a credit by the day it is about, and comparing those
-    two stamps directly would put a Sunday walk synced on Tuesday in the wrong
-    place. Within a day the workouts come first and then the credits, each by
-    its own stamp and then its id, which is what makes the walk deterministic
-    and a rebuild land on the same crossing twice.
-    """
-    pieces = [
-        _Contribution(
-            day=row.start_ts.astimezone(SERVER_TZ).date(),
-            rank=0,
-            at=row.start_ts,
-            row_id=row.id,
-            miles=row.distance_mi,
-            workout_id=row.id,
-        )
-        for row in _week_workouts(db, user_id, monday)
-    ]
-    pieces += [
-        _Contribution(
-            day=row.day,
-            rank=1,
-            at=row.credited_at,
-            row_id=row.id,
-            miles=row.delta_mi,
-            # The line this whole shape exists for: step credit has no session
-            # to name, so a crossing carried by it records no workout.
-            workout_id=None,
-        )
-        for row in _week_step_credits(db, user_id, monday)
-    ]
-    pieces.sort(key=lambda piece: (piece.day, piece.rank, piece.at, piece.row_id))
-    return pieces
-
-
 def _crossings(
     db: Session, user_id: int, monday: dt.date
-) -> dict[str, tuple[Medal, _Contribution]]:
-    """The medal each week family has reached, and what carried it over.
+) -> dict[str, tuple[Medal, models.Workout]]:
+    """The medal each week family has reached, and the workout that crossed it.
 
     Walked over the whole week every time rather than added to a running total,
     which is what makes the answer the same whichever order the week's workouts
     arrived in. A history backfilled out of order converges on exactly the rows
     a clean replay would write.
+
+    Workouts and nothing else. Steps are not miles the week counts: they earn
+    nothing anywhere, and a week is the work put in on recorded activities.
     """
     total = 0.0
     reached = 0
-    found: dict[str, tuple[Medal, _Contribution]] = {}
-    for piece in _week_pieces(db, user_id, monday):
-        total += piece.miles
+    found: dict[str, tuple[Medal, models.Workout]] = {}
+    for workout in _week_workouts(db, user_id, monday):
+        total += workout.distance_mi
         while (
             reached < len(WEEKLY_MEDALS)
             and total + _EPSILON >= WEEKLY_MEDALS[reached].distance_mi
         ):
-            found["weekly"] = (WEEKLY_MEDALS[reached], piece)
+            found["weekly"] = (WEEKLY_MEDALS[reached], workout)
             reached += 1
     return found
 
 
 def update_week(db: Session, user_id: int, monday: dt.date) -> None:
-    """Bring one week's medals up to what it has been credited for.
-
-    Its workouts and its step credit both, because a week is a total and the
-    miles a pedometer counted are miles somebody covered. What crossed the line
-    may therefore be a workout or the day's leftover steps, and the row records
-    a null workout where it was the steps: see _week_pieces.
+    """Bring one week's medals up to what its credited workouts have earned.
 
     One row per family per week, upgraded in place: a week that reaches 25
     miles keeps the row it earned at 10 and changes what it holds, rather than
     wearing three medals for the same seven days. Nothing is ever taken back
     here, because a week's total only ever grows.
+
+    workout_id is nullable in the schema and is never written null here. Rows
+    that carry a null are from the round that let step credit cross a line;
+    they are read like any other, and nothing writes another.
     """
     for family, (medal, crossing) in _crossings(db, user_id, monday).items():
         row = db.execute(
@@ -346,8 +266,8 @@ def update_week(db: Session, user_id: int, monday: dt.date) -> None:
                             week_start=monday,
                             family=family,
                             badge_id=medal.id,
-                            workout_id=crossing.workout_id,
-                            earned_at=crossing.at,
+                            workout_id=crossing.id,
+                            earned_at=crossing.start_ts,
                         )
                     )
                     db.flush()
@@ -366,8 +286,8 @@ def update_week(db: Session, user_id: int, monday: dt.date) -> None:
                 if row is None:
                     continue
         row.badge_id = medal.id
-        row.workout_id = crossing.workout_id
-        row.earned_at = crossing.at
+        row.workout_id = crossing.id
+        row.earned_at = crossing.start_ts
 
 
 def update_week_for(db: Session, user_id: int, workout: models.Workout) -> None:

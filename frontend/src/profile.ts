@@ -172,18 +172,10 @@ export function weekTotals(profile: Profile) {
     kcal += row.active_kcal ?? 0
     workouts += row.workouts
   }
-  // Steps are miles a body covered, so they are in the distance and in nothing
-  // else here: they burn no calories anybody counted and they are not a
-  // workout. The weekly medals are measured against this same number on the
-  // server, which is why the challenge line has to see them too.
-  return { distance: distance + stepMiles(profile.week_step_mi), kcal, workouts }
-}
-
-// A step figure as sent, or none of it. Anything that is not a real number at
-// or above zero is read as no steps rather than carried into a total, which is
-// the same defence every optional field crossing this seam gets.
-function stepMiles(sent: number | undefined): number {
-  return typeof sent === 'number' && isFinite(sent) && sent > 0 ? sent : 0
+  // Workouts only. Steps are no part of any miles figure: a mile is the work
+  // put in on a recorded activity, and the weekly medals are measured on the
+  // server against this same number.
+  return { distance, kcal, workouts }
 }
 
 // Everything an account has ever covered, in raw miles. This is the distance a
@@ -192,10 +184,7 @@ function stepMiles(sent: number | undefined): number {
 export function lifetimeMiles(profile: Profile): number {
   let distance = 0
   for (const row of Object.values(profile.lifetime)) distance += row.distance_mi
-  // The credited step miles are ground covered as much as a walk is, and this
-  // is the line that says how much ground. The per-sport tiles and chips stay
-  // as they are: steps are not a sport and have no tile of their own.
-  return distance + stepMiles(profile.lifetime_step_mi)
+  return distance
 }
 
 // This week's raw step count, or none. Flavour, never miles, and never on

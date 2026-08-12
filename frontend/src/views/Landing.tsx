@@ -29,8 +29,12 @@ interface Props {
 // The page describes some things the app cannot do yet: Android, for one. That
 // is deliberate and his call. The Alpha notice covers the gap, and the app is
 // being built toward the page rather than the page trimmed back to the app.
-// Steps and the bug report were two of these and are neither of them now: both
-// shipped, so the notice's line about reporting a bug is a true one.
+// The bug report was one of these and is not now: it shipped, so the notice's
+// line about reporting a bug is a true one.
+//
+// Nothing on this page may say a step earns anything. Steps are counted and
+// shown and are worth no XP, no chest and no medal; what they will become is
+// an open question, and the copy here says only what is true today.
 export default function Landing({ onEnter, invite }: Props) {
   // Null until the server says which way it is set, so the page does not offer
   // an account and then take the offer back a moment later.
@@ -147,10 +151,10 @@ export default function Landing({ onEnter, invite }: Props) {
         <p className="landing-sub landing-intro">
           secondmile is a small, invite-only place for staying active and encouraging the
           people you know. Think of that orange running app, but privately hosted and free.
-          Walk, run, bike, or swim; every step and synced workout opens treasure chests
-          along the way and grows a personal grove of plants and trees that get boosted
-          with your miles. They also do other things, but you'll have to start earning to
-          find out.
+          Walk, run, bike, or swim; every synced workout opens treasure chests along the
+          way and grows a personal grove of plants and trees that get boosted with your
+          miles. Your steps come along too, counted and shown but not earning. They also
+          do other things, but you'll have to start earning to find out.
         </p>
 
         {/* Said before the account rather than found afterwards: this is what
@@ -169,9 +173,9 @@ export default function Landing({ onEnter, invite }: Props) {
         <h2>One-time setup, then just move!</h2>
         <p>
           After you set up one of the recommended companion apps to export your activity
-          and steps data to secondmile, every step on your phone's pedometer and every
-          walk, run, bicycle and swim workout you record with your phone or smart watch
-          earns XP. You never need to log anything by hand, and you never have to keep the
+          and steps data to secondmile, every walk, run, bicycle and swim workout you
+          record with your phone or smart watch earns XP. You never need to log anything
+          by hand, and you never have to keep the
           app open to earn: secondmile is designed to encourage you to stay active while
           reducing screentime. Everything you earn will be waiting for you in a recap
           letter the next time you log in and refresh.
@@ -183,14 +187,13 @@ export default function Landing({ onEnter, invite }: Props) {
         <h2>Every mile counts for something.</h2>
         {/* The two modifiers are stated rather than discovered. Cycling is the
             only one that earns less than its distance, and somebody who finds
-            that out by riding trusts the rest of this page less. The last
-            sentence is the promise the unbuilt steps lane has to keep: a walk
-            is a workout and a pile of steps, and it can only earn once. */}
+            that out by riding trusts the rest of this page less. Steps are not
+            named here at all: a mile is the work put in on a recorded
+            activity, and this section is only about those. */}
         <p>
-          Each mile earns XP the moment your steps or workout syncs. Swimming counts 4x,
-          cycling counts 0.33x. XP opens treasure chests that go up in rarity at each tier,
-          then loop back around. Your steps and your recorded workouts never double count:
-          workouts earn first, and your steps cover whatever ground is left that day.
+          Each mile earns XP the moment your workout syncs. Swimming counts 4x, cycling
+          counts 0.33x. XP opens treasure chests that go up in rarity at each tier, then
+          loop back around.
         </p>
       </section>
 

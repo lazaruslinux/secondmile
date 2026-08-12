@@ -619,19 +619,23 @@ export default function Settings({
             with a sync, is in the repository's own documentation. */}
         <div className="card">
           <h3>Setting up your phone</h3>
-          {/* Steps are named before they earn anything, deliberately: the
-              automation set up today is the one step rewards will read when
-              they land, and the sentence is honest about the wait. */}
+          {/* The workouts automation is the whole game and the metrics one is
+              a number on a screen, so the card says which is which. Health Auto
+              Export takes one data type per automation, which is why there are
+              two of them at all; the second is worth setting up or skipping,
+              and nothing is lost either way. */}
           <p className="hint">
             Workouts arrive from Health Auto Export, an iPhone app that reads Apple Health and
-            posts to a URL you give it. In that app, add two REST API automations pointing at
-            the address below, method POST, with the header Authorization: Bearer followed by
-            the token above, format JSON. Give the first the data type Workouts. Give the
-            second Health Metrics, and under Select Health Metrics turn everything off, then
-            pick Step Count and Walking + Running Distance. Run both on a schedule. Walks,
-            runs, rides, and swims are imported; steps are along for the ride until step
-            rewards arrive; anything else in the export is ignored. Sending the same data
-            twice changes nothing, so overlapping exports are safe.
+            posts to a URL you give it. In that app, add a REST API automation pointing at the
+            address below, method POST, with the header Authorization: Bearer followed by the
+            token above, format JSON, and the data type Workouts. Run it on a schedule. That
+            one automation is the whole game: walks, runs, rides, and swims are imported, and
+            everything you earn comes through it. A second automation is optional and earns
+            nothing. Give it the same settings with the data type Health Metrics, and under
+            Select Health Metrics turn everything off, then pick Step Count and Walking +
+            Running Distance; all it does is feed the step counts on your screens. Anything
+            else in an export is ignored, and sending the same data twice changes nothing, so
+            overlapping exports are safe.
           </p>
 
           {/* Built from the address this page was opened on, so it is right for

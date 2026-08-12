@@ -82,14 +82,14 @@ export function recapMilesTotal(rows: RecapMileRow[]): number {
   return rows.reduce((sum, row) => sum + Number(row.miles.toFixed(1)), 0)
 }
 
-// Step miles credited since the last letter, as the line prints them. Rounded
-// here rather than where it is drawn, so the sentence and the decision to say
-// it at all are the same number: a hundredth of a mile of pottering about
-// would otherwise announce itself as "0.0 miles".
-export function recapStepMiles(recap: RecapState): number {
-  const sent = recap.step_miles
+// Steps counted over the days this letter covers, as the line prints them. A
+// whole number or none of it: anything that is not a real count above zero is
+// read as no steps rather than drawn, which is the defence every optional
+// field crossing this seam gets.
+export function recapSteps(recap: RecapState): number {
+  const sent = recap.steps
   if (typeof sent !== 'number' || !isFinite(sent) || sent <= 0) return 0
-  return Number(sent.toFixed(1))
+  return Math.trunc(sent)
 }
 
 // The chests that landed, named by their step: "10K chest, Marathon chest".
@@ -175,13 +175,14 @@ export function flourishLine(recap: RecapState): string {
 
 // Whether the letter says anything at all. Nothing to read is not worth
 // interrupting anybody for.
+//
+// Steps are not in it, deliberately. Everybody takes some every day, so a
+// letter that opened for them would open forever and mean nothing by it. They
+// are a line a letter already worth reading carries, never the reason it opens.
 export function recapHasNews(recap: RecapState): boolean {
   return (
     (recap.miles_total ?? 0) > 0 ||
     recapMilesTotal(recapMiles(recap.miles)) > 0 ||
-    // Miles earned are miles earned, and the letter is the only place they are
-    // ever mentioned: steps make no feed card and never will.
-    recapStepMiles(recap) > 0 ||
     (recap.chests?.length ?? 0) > 0 ||
     (recap.workouts?.length ?? 0) > 0 ||
     recapGrowthLines(recap).length > 0 ||

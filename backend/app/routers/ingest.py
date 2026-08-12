@@ -84,9 +84,8 @@ async def ingest(request: Request, db: Session = Depends(get_db)) -> dict:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Too many health metrics in one export.")
 
     parsed, ignored = activity.parse_payload(payload)
-    # Read here and credited below, after the workouts are in: the day's step
-    # credit is the remainder over that day's walks and runs, so the workouts
-    # this very export brought have to be stored before it is worked out.
+    # The pedometer's own readings, read here and stored below with the rest of
+    # the sync. They earn nothing: steps are stored and shown, and that is all.
     metrics, metric_refusals = activity.parse_metrics(payload)
     ignored += metric_refusals
 
@@ -132,11 +131,9 @@ async def ingest(request: Request, db: Session = Depends(get_db)) -> dict:
         if routemaps.store_route(db, workout.id, item.route):
             routes += 1
 
-    # After the loop above, and in its transaction. Whatever the pedometer
-    # covered beyond the workouts of the same day is written to the step ledger
-    # here; what the ledger is worth is decided in the pipeline, at the bottom
-    # of this function, the same as everything else.
-    credits = progress.record_steps(db, user.id, metrics, security.now_utc())
+    # In the same transaction as the workouts above, and worth nothing beside
+    # them: the day rows are written for the screens that print them.
+    step_days = progress.record_steps(db, user.id, metrics, security.now_utc())
 
     result = {"imported": imported, "skipped": skipped, "flagged": flagged, "ignored": len(ignored)}
 
@@ -150,20 +147,17 @@ async def ingest(request: Request, db: Session = Depends(get_db)) -> dict:
             user_id=user.id,
             received_at=security.now_utc(),
             payload=payload,
-            # The log keeps the reasons; the response keeps the count. A sync
-            # that quietly drops half an export is otherwise impossible to
-            # diagnose after the fact. The route tally rides here rather than in
-            # the response because the response shape is a frozen contract and
-            # nothing on the phone would do anything with the number.
             # The log keeps what the response has no room for: why entries were
             # dropped, how many routes were drawn, and how many days of steps
-            # earned anything. None of the three is in the response, whose
-            # shape is a frozen contract and which the phone does nothing with.
+            # were written. None of the three is in the response, whose shape
+            # is a frozen contract and which the phone does nothing with. A
+            # sync that quietly drops half an export is otherwise impossible to
+            # diagnose after the fact.
             result={
                 **result,
                 "ignored_detail": ignored,
                 "routes_stored": routes,
-                "step_credits": credits,
+                "step_days": step_days,
             },
         )
     )

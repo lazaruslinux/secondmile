@@ -314,14 +314,10 @@ export interface Profile {
   // way the weekly totals behave.
   week: Partial<Record<Activity, ActivityStats>>
   lifetime: Partial<Record<Activity, ActivityStats>>
-  // Credited step miles, this week and altogether. They are not a sport and
-  // are in neither table above; they belong in the one overall miles figure a
-  // screen adds up, which is where profile.ts puts them. Optional, so a server
-  // that predates steps reads as none of them.
-  week_step_mi?: number
-  lifetime_step_mi?: number
-  // The raw count this week, which is flavour and never miles. Your own screen
-  // only: the friend payload does not carry it and must not.
+  // The raw step count this week, which is flavour and never miles: steps are
+  // in no total on this payload and earn nothing. Your own screen only, the
+  // friend payload does not carry it and must not. Optional, so a server that
+  // predates steps reads as none.
   week_steps?: number
   // What the plot has come to. seeds_found counts the distinct species owned,
   // out of the twelve a chest can hold; plant_levels is every level on every
@@ -625,9 +621,10 @@ export interface RecapState {
   // key that goes missing reads as none rather than throwing.
   miles: Partial<Record<Activity, number>>
   miles_total?: number
-  // Step miles credited since the last letter was put down. Its own line under
-  // the four, and deliberately not part of the total above them.
-  step_miles?: number
+  // Steps counted over the whole days this letter covers. Its own line under
+  // the four, in neither the total above them nor the XP below: it is a number
+  // the letter reports and nothing the account earned.
+  steps?: number
   // The weighted number the game runs on. Never called miles anywhere.
   xp?: number
   // Chests are opened in the inventory now, so the letter names what landed

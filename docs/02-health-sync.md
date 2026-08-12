@@ -16,14 +16,21 @@ it.
    - URL: `https://your-domain/api/ingest`
    - Method: POST
    - Headers: `Authorization: Bearer <your token>`
-   - Data type: Workouts and Health Metrics, with Step Count and
-     Walking + Running Distance selected
+   - Data type: Workouts
    - Format: JSON
    - Include Route Data: on, if you want the map line on your workout
      cards. It is optional; everything else works the same without it.
 
 3. Set the automation to run on a schedule (daily is plenty) or trigger it
    manually after a workout.
+
+4. Optionally, add a second automation with the same URL, method, headers and
+   format, and the data type Health Metrics; under Select Health Metrics turn
+   everything off and pick Step Count and Walking + Running Distance. Health
+   Auto Export takes one data type per automation, which is the only reason
+   there are two. This one earns nothing and only feeds the step counts on the
+   screens: see Steps below. Everything the app rewards arrives through the
+   workouts automation alone.
 
 Only walking, running, cycling, and swimming workouts are imported; other
 types in the export are counted in the response but ignored.
@@ -54,28 +61,28 @@ types in the export are counted in the response but ignored.
 
 ## Steps
 
-The pedometer is read as well, and only two of its metrics: your step count,
-which is shown as a number and earns nothing, and your walking and running
-distance, which does earn.
+If the optional metrics automation is set up, the pedometer is read as well,
+and only two of its metrics: your step count and your walking and running
+distance.
 
-What it earns is the remainder. For each day, the server takes the distance
-your pedometer measured and subtracts the walks and runs you already have
-workouts for; whatever is left over is credited as miles. A walk you recorded
-is therefore never counted twice, and a day spent on your feet without
-recording anything still counts for something.
+Neither of them earns anything. Miles are the work put into a recorded
+activity, so steps are worth no experience, no level, no chest, no growth in
+your plot and no medal, and they are in no miles total on any screen. They are
+stored and shown: your step count for the week on your own profile, a count in
+the recap letter, and the instance-wide tally on the landing page. What steps
+should become is an open question, and nothing is built toward an answer.
 
-Three things follow from that, and all three are deliberate:
+Two things follow, and both are deliberate:
 
-- A day's credit only ever rises. Exports overlap, and a later one covering
-  the same day credits the increase and nothing else. Deleting a walk does not
-  grow it either: a deleted workout still subtracts, or deleting one and
-  syncing again would earn the same miles twice.
-- The daily cap that applies to walking applies to the total. Your recorded
-  walking and running plus your step credit cannot pass it in one day.
-- Step miles are miles. They count toward experience, the chest ladder, growth
-  in your plot, and the week's own medal. They earn no race medal, because
-  those are for a single recorded run, and they make no feed card: steps are
-  ambient, and the recap is where they are mentioned.
+- A day's reading only ever rises. Exports overlap, and a later one covering
+  the same day keeps the higher number rather than replacing it, so a partial
+  export of today cannot undo a fuller one.
+- A day's reading is bounded before it is stored, because a confused sensor is
+  free to send anything. A day that hit a bound is marked and nothing is
+  refused.
+
+Steps make no feed card and never will: they are ambient, and a card is
+something somebody did.
 
 Metrics carry no location data of any kind.
 
