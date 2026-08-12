@@ -694,3 +694,26 @@ class Encouragement(Base):
     # deleted or replayed row can never pay twice.
     earned_renown: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
+
+
+class BugReport(Base):
+    __tablename__ = "bug_reports"
+
+    # A dropbox, and nothing more. There is no status, no read flag and no
+    # reply: the app tells whoever sent one that it arrived, and the answer to
+    # it is a release rather than a row. manage.py bug-reports is the only
+    # thing that reads this table.
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    created_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
+    # What they typed, and the only part of the row a person authored.
+    text: Mapped[str] = mapped_column(String(2000), nullable=False)
+    # Which screen they were on, sent by the client. A short word rather than a
+    # route, because the app's navigation is which view is on screen.
+    view: Mapped[str] = mapped_column(String(32), nullable=False)
+    # The browser string off the request, so a report about something that only
+    # happens on one phone says which phone. Null when the request carried no
+    # such header, which is honest about a client that sent none.
+    user_agent: Mapped[str | None] = mapped_column(String(300), nullable=True)

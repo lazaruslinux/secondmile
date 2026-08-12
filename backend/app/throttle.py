@@ -206,6 +206,12 @@ member_search_limiter = RateLimiter(20, "member-search")
 # plenty, and this window is a minute: five is a person making links for a
 # family in one sitting and nothing is looping.
 invite_link_limiter = RateLimiter(5, "invite-link")
+# Reporting a bug. As tight as anything a signed-in account can do, because a
+# report is written by hand and three in one minute is already somebody sending
+# the same one three times. The window here is a minute rather than the hour
+# the rest of this app's writing is paced in: every limiter shares one window,
+# and three a minute is well inside the handful an hour this is meant to be.
+bug_report_limiter = RateLimiter(3, "bug-report")
 # The three screens the app reads on every visit. Sixty a minute is well past
 # anything a person does and well under what a stuck poll would do.
 profile_read_limiter = RateLimiter(60, "profile-read")

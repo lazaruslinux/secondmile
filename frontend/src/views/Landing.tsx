@@ -26,10 +26,11 @@ interface Props {
 // is nothing to load from anywhere else. The one picture is the four sports
 // drawn in the app's own line, which no redesign can date either.
 //
-// The page describes some things the app cannot do yet: steps, Android, the
-// bug report. That is deliberate and his call. The Alpha notice covers the
-// gap, and the app is being built toward the page rather than the page trimmed
-// back to the app.
+// The page describes some things the app cannot do yet: Android, for one. That
+// is deliberate and his call. The Alpha notice covers the gap, and the app is
+// being built toward the page rather than the page trimmed back to the app.
+// Steps and the bug report were two of these and are neither of them now: both
+// shipped, so the notice's line about reporting a bug is a true one.
 export default function Landing({ onEnter, invite }: Props) {
   // Null until the server says which way it is set, so the page does not offer
   // an account and then take the offer back a moment later.

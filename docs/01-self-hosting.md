@@ -151,6 +151,19 @@ docker compose exec backend python manage.py strip-ingest-log
 It strips the route arrays from every stored payload, deletes rows past the
 retention window, and prints what it did. Safe to run twice.
 
+Members can report a bug from the bottom of their Settings screen. There is no
+web page for what they send: the reports are read from the command line, newest
+first, and nothing marks one as seen.
+
+```
+docker compose exec backend python manage.py bug-reports --limit 20
+```
+
+Each one prints when it arrived, who sent it, which screen they were on, the
+front of their browser string, and what they typed. The account, the moment and
+the browser string are taken from the request rather than typed, and the
+Settings card says exactly that before anybody sends anything.
+
 A deleted workout keeps the same kind of window. Deleting one hides it
 everywhere and takes its miles back out of the totals; it waits under Deleted
 on the owner's Activity tab for 30 days and can be restored whole until then.

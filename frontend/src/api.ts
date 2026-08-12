@@ -1008,6 +1008,14 @@ export async function setHiddenFromFriends(hidden: HiddenField[]): Promise<Hidde
   return body.hidden_from_friends ?? []
 }
 
+// A bug report: the words, and the name of the screen they were written on.
+// Everything else on the stored row is stamped by the server, which is what the
+// Settings card says it does. Nothing comes back to read: there is no history
+// and no status, so this answers with nothing the app draws.
+export async function reportBug(text: string, view: string): Promise<void> {
+  await sendJson('/bugreport', 'POST', { text, view })
+}
+
 // Reading the profile is what makes the server credit any workout that arrived
 // while the app was closed, so this is never just a read.
 export function getProfile(): Promise<Profile> {

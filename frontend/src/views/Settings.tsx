@@ -7,6 +7,7 @@ import {
   listInviteLinks,
   logout,
   mintInviteLink,
+  reportBug,
   revokeInviteLink,
   rotateIngestToken,
   setHiddenFromFriends,
@@ -23,6 +24,14 @@ import Confirm from './Confirm.tsx'
 // not this screen's news to give, so the sentence is the same either way.
 const EMAIL_SENT =
   'Check that inbox. If the address can be used, a confirmation link is on its way.'
+
+// As much as the server will store of one report, so the box stops where the
+// refusal would have been.
+const MAX_REPORT = 2000
+
+// Said once a report is stored. There is no history and no status to send
+// anybody back to, so this line is the whole of what a reporter gets.
+const REPORT_SENT = 'Thank you. That arrived, and there is no reply to wait for.'
 
 // The three switches, in the order the server keeps them. Pace is not among
 // them on purpose: it is distance over time, both of which stay on every card,
@@ -92,6 +101,11 @@ export default function Settings({
   const [passwordError, setPasswordError] = useState('')
   const [passwordNote, setPasswordNote] = useState('')
   const [savingPassword, setSavingPassword] = useState(false)
+
+  const [reportText, setReportText] = useState('')
+  const [reportError, setReportError] = useState('')
+  const [reportNote, setReportNote] = useState('')
+  const [sendingReport, setSendingReport] = useState(false)
 
   const [emailPassword, setEmailPassword] = useState('')
   const [wantedEmail, setWantedEmail] = useState('')
@@ -224,6 +238,26 @@ export default function Settings({
       setPasswordError(errorText(err))
     } finally {
       setSavingPassword(false)
+    }
+  }
+
+  async function submitReport(event: FormEvent) {
+    event.preventDefault()
+    setSendingReport(true)
+    setReportError('')
+    setReportNote('')
+    try {
+      // The screen is named as 'settings' rather than threaded down from the
+      // app: this card is only ever on the Settings screen, and the app's view
+      // state reads 'settings' the whole time it is open, so a prop for it
+      // would carry the same constant one level down.
+      await reportBug(reportText, 'settings')
+      setReportText('')
+      setReportNote(REPORT_SENT)
+    } catch (err) {
+      setReportError(errorText(err))
+    } finally {
+      setSendingReport(false)
     }
   }
 
@@ -666,6 +700,46 @@ export default function Settings({
               {unitsError}
             </p>
           )}
+        </div>
+      </section>
+
+      {/* Second to last, right above sign out: near the end where somebody
+          scrolls when something has gone wrong, and not in the way of anything
+          they came here to change. */}
+      <section className="settings-group">
+        <div className="card">
+          <h3>Report a bug</h3>
+          <form onSubmit={submitReport}>
+            <textarea
+              value={reportText}
+              maxLength={MAX_REPORT}
+              rows={4}
+              placeholder="What went wrong, and what you were doing"
+              onChange={(event) => setReportText(event.target.value)}
+              required
+            />
+            {/* The whole of what is stamped on a report, said before it is
+                sent rather than after: nothing about one is collected quietly. */}
+            <p className="hint">
+              Your account name, the screen you were on, and your browser are sent along
+              with this, and nothing else is.
+            </p>
+
+            {reportError && (
+              <p className="error" role="alert">
+                {reportError}
+              </p>
+            )}
+            {reportNote && (
+              <p className="note note-success" role="status">
+                {reportNote}
+              </p>
+            )}
+
+            <button type="submit" className="primary" disabled={sendingReport}>
+              Send report
+            </button>
+          </form>
         </div>
       </section>
 

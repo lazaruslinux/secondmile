@@ -256,6 +256,15 @@ FLOURISH_RENOWN = (10, 40, 120)
 # the feed stays a dinner table rather than a message board.
 NOTE_MAX_CHARS = 500
 
+# What one bug report may carry. The text is as long as a workout post, because
+# a useful report is a paragraph or two of what happened. The other two are
+# stamped by the server rather than typed: the screen name is one of a handful
+# of short words, and the browser string is trimmed to a length no real one
+# exceeds, so a client sending a kilobyte of either stores neither.
+BUG_REPORT_MAX_CHARS = 2000
+BUG_REPORT_VIEW_MAX_CHARS = 32
+BUG_REPORT_UA_MAX_CHARS = 300
+
 # Avatar upload limits. The byte cap is checked against Content-Length and then
 # again while reading, because a client is free to lie in the header. The pixel
 # cap is the decompression-bomb guard: a small file can declare an enormous

@@ -8,6 +8,7 @@
     python manage.py backfill-badges <username>
     python manage.py backfill-routes <username>
     python manage.py strip-ingest-log
+    python manage.py bug-reports [--limit N]
     python manage.py seed-demo
 
 The first account has to be made here: registration needs either an invite or
@@ -353,6 +354,54 @@ def cmd_strip_ingest_log(args: argparse.Namespace) -> None:
         db.close()
 
 
+# How much of a browser string is printed above each report.
+_UA_PRINT_CHARS = 60
+
+
+def _short_ua(agent: str | None) -> str:
+    """The browser string, cut to something that fits on a line.
+
+    Whole user agent strings are long enough to bury the report under them, and
+    the useful part is at the front: it names the engine and the platform.
+    """
+    if not agent:
+        return "no user agent"
+    return agent if len(agent) <= _UA_PRINT_CHARS else agent[:_UA_PRINT_CHARS] + "..."
+
+
+def cmd_bug_reports(args: argparse.Namespace) -> None:
+    """Print what people have reported, newest first.
+
+    The only reader of the bug_reports table. There is no web page for this and
+    no status to set: a report is a paragraph somebody typed, and the answer to
+    it is a release. Nothing is written or deleted here.
+    """
+    db = _session()
+    try:
+        rows = db.execute(
+            select(models.BugReport, models.User.username)
+            .join(models.User, models.User.id == models.BugReport.user_id)
+            .order_by(models.BugReport.created_at.desc(), models.BugReport.id.desc())
+            .limit(args.limit)
+        ).all()
+        if not rows:
+            print("No bug reports.")
+            return
+        print(f"{len(rows)} bug report(s), newest first.")
+        for report, username in rows:
+            print()
+            print(
+                f"{report.created_at.isoformat()}  {username}  "
+                f"on {report.view}  [{_short_ua(report.user_agent)}]"
+            )
+            # Indented, and line by line, so a report written in paragraphs
+            # still reads as the paragraphs it was written in.
+            for line in report.text.splitlines() or [""]:
+                print(f"  {line}")
+    finally:
+        db.close()
+
+
 def cmd_create_invite(args: argparse.Namespace) -> None:
     db = _session()
     try:
@@ -611,6 +660,10 @@ def main() -> None:
         "strip-ingest-log", help="remove stored GPS traces and drop syncs past retention"
     )
     strip.set_defaults(func=cmd_strip_ingest_log)
+
+    reports = sub.add_parser("bug-reports", help="print what people have reported, newest first")
+    reports.add_argument("--limit", type=int, default=20)
+    reports.set_defaults(func=cmd_bug_reports)
 
     demo = sub.add_parser("seed-demo", help="fill an empty database with a fictional account")
     demo.set_defaults(func=cmd_seed_demo)

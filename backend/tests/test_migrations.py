@@ -682,3 +682,67 @@ def test_the_step_tables_arrive_empty_and_the_crossing_learns_to_be_null(migrate
         # One week names the run that crossed the line and the other names
         # nothing, which is what a week the steps carried looks like.
         assert rows == [("weekly_10", 1), ("weekly_15", None)]
+
+
+def test_the_bug_report_table_arrives_empty_and_touches_nothing(migrated):
+    """0024 is purely additive: one table, nothing in it, and every row that was
+    already there exactly as it was.
+
+    The stamped columns are checked by writing a row rather than by PRAGMA,
+    because what the release needs is for a report with no browser string to be
+    storable beside one that has one.
+    """
+    engine, upgrade = migrated
+    with engine.connect() as connection:
+        _fill(connection)
+        _run(connection, 1, 1, "2026-07-01 06:00:00")
+        connection.commit()
+
+    upgrade()
+
+    with engine.connect() as connection:
+        tables = set(
+            connection.execute(
+                sa.text("SELECT name FROM sqlite_master WHERE type = 'table'")
+            ).scalars()
+        )
+        assert "bug_reports" in tables
+        assert connection.execute(sa.text("SELECT COUNT(*) FROM bug_reports")).scalar_one() == 0
+        # The account and its workout are untouched by an additive revision.
+        assert connection.execute(sa.text("SELECT username FROM users")).scalar_one() == "runner"
+        assert connection.execute(sa.text("SELECT distance_mi FROM workouts")).scalar_one() == 9.0
+
+        connection.execute(
+            sa.text(
+                "INSERT INTO bug_reports (user_id, created_at, text, view, user_agent)"
+                " VALUES (1, '2026-08-12 09:00:00', 'the grove drew nothing', 'grove',"
+                " 'Mozilla/5.0'), (1, '2026-08-12 09:05:00', 'and again', 'home', NULL)"
+            )
+        )
+        connection.commit()
+        assert connection.execute(
+            sa.text("SELECT view, user_agent FROM bug_reports ORDER BY id")
+        ).all() == [("grove", "Mozilla/5.0"), ("home", None)]
+
+
+def test_the_bug_report_table_steps_back_down_again(migrated):
+    """The whole revision is one table, so stepping back takes it away and
+    leaves the release before it intact."""
+    engine, upgrade = migrated
+    with engine.connect() as connection:
+        _fill(connection)
+    upgrade()
+
+    cfg = Config(str(BACKEND / "alembic.ini"))
+    cfg.set_main_option("script_location", str(BACKEND / "migrations"))
+    command.downgrade(cfg, "0023")
+
+    with engine.connect() as connection:
+        tables = set(
+            connection.execute(
+                sa.text("SELECT name FROM sqlite_master WHERE type = 'table'")
+            ).scalars()
+        )
+        assert "bug_reports" not in tables
+        # The revision before it is still whole.
+        assert {"daily_steps", "step_credits"} <= tables
