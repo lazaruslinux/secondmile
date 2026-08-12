@@ -4243,15 +4243,6 @@ button:disabled {
   min-height: 54px;
 }
 
-/* The welcome page carries a small copy of the hero strip beside the wordmark,
-   sized by height so the 4:1 drawing settles its own width. */
-.welcome-hero-mini {
-  display: block;
-  height: 1.6rem;
-  width: auto;
-  opacity: 0.9;
-}
-
 /* The name is the masthead here rather than a label in the chrome, so it is
    set larger than the signed-in topbar wears it. Not .wordmark-large, which
    centres itself for the sign-in gate: this one stays at the left. */
@@ -4281,9 +4272,9 @@ button:disabled {
   border-bottom: 1px solid var(--line);
 }
 
-/* The welcome page borrows the landing page whole and puts one thing at the
-   top of it: the person who sent the link, drawn the way they are drawn
-   everywhere inside the app. */
+/* The one thing an invite link adds to this page: the person who sent it,
+   drawn the way they are drawn everywhere inside the app. Centred against a
+   left-set page on purpose, because it is a face rather than a paragraph. */
 .welcome-who {
   display: flex;
   flex-direction: column;
@@ -4320,23 +4311,25 @@ button:disabled {
   opacity: 0.65;
 }
 
-/* The welcome page says the verse once at the foot, far smaller than the
-   landing masthead: a signature, not a headline. */
-.welcome-verse-line {
-  margin: 0 0 0.35rem;
-  font-size: 1.05rem;
-  font-weight: 700;
-  line-height: 1.3;
-}
-
-.welcome-verse .landing-cite {
-  margin-bottom: 0;
+/* What the app is, in five words, directly under the verse. A heading rather
+   than one of the crimson eyebrows: it names the whole page, and the eyebrows
+   name a section each. */
+.landing-tagline {
+  font-size: clamp(1.1rem, 3vw, 1.45rem);
+  line-height: 1.2;
+  margin: 0 0 0.7rem;
 }
 
 .landing-sub {
   font-size: clamp(1rem, 2.6vw, 1.2rem);
   color: var(--muted);
   margin: 0 0 1.5rem;
+}
+
+/* The second hero paragraph, which sits under the buttons rather than above
+   them, so it carries the space the action block does not. */
+.landing-intro {
+  margin-top: 1.7rem;
 }
 
 /* The same marks the app wears beside a sport, which is the one visual thing
@@ -4384,20 +4377,14 @@ button:disabled {
   min-height: 0;
 }
 
-/* What somebody needs before an account is worth making, said beside the way
-   in rather than discovered afterwards. Ruled off above so it reads as a
-   condition on the buttons rather than as more of the pitch. */
-.landing-requires {
+/* The Alpha notice, which is what makes the rest of the page honest: some of
+   what it describes is not built yet. Mustard, which is a warning and reads
+   yellow on black. Not crimson, which means an error or a flag here, and never
+   orange, which is a rarity. */
+.landing-alpha {
   margin: 1.6rem 0 0;
-  padding-top: 1rem;
-  border-top: 1px solid var(--line);
-  font-size: 0.85rem;
-  color: var(--muted);
-}
-
-.landing-requires .label {
-  display: block;
-  margin-bottom: 0.2rem;
+  color: #e0b542;
+  font-weight: 700;
 }
 
 .landing-section {
@@ -4409,9 +4396,11 @@ button:disabled {
    about in one word before the sentence says it properly. Scoped to the
    section rather than left bare: it is a paragraph inside .landing-section,
    so the muted body colour below outranks a lone class and the accent would
-   never show. */
+   never show. One step up from the app's label size, which is set for chrome
+   rather than for the only thing dividing a long page. */
 .landing-section .landing-eyebrow {
   color: var(--accent);
+  font-size: 0.8rem;
   margin: 0 0 0.45rem;
 }
 

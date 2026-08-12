@@ -21,8 +21,9 @@ interface Props {
   // Which of the two the landing page's button promised, so the form opens on
   // the one that was clicked rather than making it the first thing to fix.
   startRegistering?: boolean
-  // Carried out of a welcome link's address. Empty for everybody who reached
-  // this form any other way, which leaves the field to be typed into.
+  // Carried out of a welcome link's address and submitted without ever being
+  // shown: a code is sixty characters nobody reads, and there is no longer a
+  // field to type one into. Empty for everybody who arrived any other way.
   inviteCode?: string
   // Back to the landing page. Absent when there is nothing behind this screen,
   // which is the case for a session that expired mid-use.
@@ -37,10 +38,9 @@ export default function Login({
   onBack,
 }: Props) {
   const [registering, setRegistering] = useState(startRegistering)
-  // Null until the server says which mode it is in, so the invite field is not
-  // shown and then yanked away half a second later on an open instance.
+  // Null until the server says which mode it is in, so a way into registering
+  // is not offered and then taken back half a second later.
   const [inviteRequired, setInviteRequired] = useState<boolean | null>(null)
-  const [inviteCode, setInviteCode] = useState(carried)
   const [email, setEmail] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -55,10 +55,16 @@ export default function Login({
     getStatus()
       .then((status) => setInviteRequired(!status.registration_open))
       // An unreachable status endpoint means the whole app is unreachable, so
-      // there is nothing useful to say here; asking for an invite is the safe
-      // guess because an open instance accepts the field and ignores it.
+      // there is nothing useful to say here; closed is the safe guess, because
+      // it offers a sign in rather than a form that would be refused.
       .catch(() => setInviteRequired(true))
   }, [])
+
+  // Registering is reachable two ways and no others: an instance that is open
+  // to anybody, or a code carried out of an invite link. A closed instance
+  // with no code offers a sign in and nothing else, because there is no longer
+  // a code to type and a form that cannot succeed is worse than no form.
+  const canRegister = inviteRequired === false || carried !== ''
 
   async function submit(event: FormEvent) {
     event.preventDefault()
@@ -70,7 +76,7 @@ export default function Login({
       if (registering) {
         // No session comes back from registering, so this stays on the sign-in
         // screen with the server's answer rather than trying to continue.
-        setNote(await register(email, username, password, inviteCode))
+        setNote(await register(email, username, password, carried))
         setRegistering(false)
         setPassword('')
       } else {
@@ -124,18 +130,6 @@ export default function Login({
 
       <form className="card" onSubmit={submit}>
         <h2>{registering ? 'Create an account' : 'Sign in'}</h2>
-
-        {registering && inviteRequired && (
-          <label>
-            Invite code
-            <input
-              value={inviteCode}
-              onChange={(event) => setInviteCode(event.target.value)}
-              autoComplete="off"
-              required
-            />
-          </label>
-        )}
 
         {registering && (
           <label>
@@ -221,13 +215,11 @@ export default function Login({
           {registering ? 'Create account' : 'Sign in'}
         </button>
 
-        <button type="button" className="link" onClick={switchMode}>
-          {registering
-            ? 'I already have an account'
-            : inviteRequired === false
-              ? 'Create an account'
-              : 'I have an invite code'}
-        </button>
+        {(registering || canRegister) && (
+          <button type="button" className="link" onClick={switchMode}>
+            {registering ? 'I already have an account' : 'Create an account'}
+          </button>
+        )}
 
         {!registering && (
           <p className="hint">
