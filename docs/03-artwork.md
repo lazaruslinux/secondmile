@@ -130,33 +130,21 @@ screen readers wherever they are drawn.
 
 ## The landing hero
 
-`frontend/src/assets/landing-hero.svg`
+`frontend/src/assets/landing-hero.png`
 
 The one picture on the landing page, drawn above the verse and before anybody
 has an account. It is the only file that sits at the top of `assets` rather than
 in a folder, because it is the only one of its kind: one drawing, read by the
 page by name.
 
-A wide rectangle, roughly four to one, cut into four equal vertical strips. Left
-to right they are walk, run, cycle, and swim, in the app's own order, each a
-simple figure in the line the interface icons are drawn in. The strips are
-divided by a one pixel rule in `--line` on the `--surface` card colour, and the
-crimson appears once per strip as a short mark under the figure.
-
-Each strip is a group with a stable id, and **these four ids are the swap
-contract**:
-
-| Id | Strip |
-| --- | --- |
-| `hero-walk` | First from the left |
-| `hero-run` | Second |
-| `hero-cycle` | Third |
-| `hero-swim` | Fourth |
-
-Keep the four ids and the shape of the file, and the rest is yours. The
-placeholder is drawn on a `0 0 800 200` viewBox, which makes each strip a 200 by
-200 square, and it carries a `width` and a `height` so the browser knows the
-proportion before the file arrives and the page below it does not jump.
+REAL ART since 2026-08-11: his finished piece, the second after the mustard.
+A 2000 by 500 transparent PNG, four to one, cut into four equal 500 by 500
+strips. Left to right they are walk, run, cycle, and swim, in the app's own
+order, each a white silhouette on transparency so it sits on whatever the page
+colour is. The strips are divided by near-black hairlines drawn into the file.
+The old SVG swap contract (the four `hero-*` group ids) retired with the
+placeholder; a future replacement only has to keep the four-to-one shape and
+the four-strip order.
 
 Unlike the interface icons, this one is loaded as a picture rather than placed
 into the page, so it carries its own colours instead of `currentColor`. The

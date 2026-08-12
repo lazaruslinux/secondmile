@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getStatus } from '../api.ts'
-import heroImage from '../assets/landing-hero.svg'
+import heroImage from '../assets/landing-hero.png'
 import { ACTIVITY_ICONS, ACTIVITY_NAMES, ACTIVITY_ORDER } from '../labels.ts'
 import Icon from './Icon.tsx'
 
