@@ -111,40 +111,32 @@ export default function Landing({ onEnter, invite }: Props) {
           </div>
         )}
 
-        <div className="landing-actions">
-          {invite ? (
-            <>
+        {/* The invite variant has no button up here: the one it gets is at the
+            foot of the page, past everything the page has to say, so reading
+            it is the path of least resistance rather than a thing skipped. */}
+        {!invite && (
+          <div className="landing-actions">
+            {openRegistration ? (
               <button type="button" className="primary" onClick={() => onEnter(true)}>
-                Create your account
+                Create account
               </button>
+            ) : (
+              <button type="button" className="primary" onClick={() => onEnter(false)}>
+                Sign in
+              </button>
+            )}
+            {/* Said only once the server has actually said so, and said
+                plainly: somebody with no way in should learn that before
+                they have typed an email address into a form that was always
+                going to refuse. There is nothing to type any more, so this
+                points at the only way in there is. */}
+            {openRegistration === false && (
               <p className="hint landing-invite">
-                You will be friends with {who} once you are in.
+                secondmile is invite-only. Ask a friend for an invite link.
               </p>
-            </>
-          ) : (
-            <>
-              {openRegistration ? (
-                <button type="button" className="primary" onClick={() => onEnter(true)}>
-                  Create account
-                </button>
-              ) : (
-                <button type="button" className="primary" onClick={() => onEnter(false)}>
-                  Sign in
-                </button>
-              )}
-              {/* Said only once the server has actually said so, and said
-                  plainly: somebody with no way in should learn that before
-                  they have typed an email address into a form that was always
-                  going to refuse. There is nothing to type any more, so this
-                  points at the only way in there is. */}
-              {openRegistration === false && (
-                <p className="hint landing-invite">
-                  secondmile is invite-only. Ask a friend for an invite link.
-                </p>
-              )}
-            </>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
         <p className="landing-sub landing-intro">
           secondmile is a small, invite-only place for staying active and encouraging the
@@ -244,6 +236,20 @@ export default function Landing({ onEnter, invite }: Props) {
           or get deleted.
         </p>
       </section>
+
+      {/* The way in, after everything the page had to say. His call: the top
+          button invited people to join before they had read what they were
+          joining, and moving it is honester than locking it. */}
+      {invite && (
+        <section className="landing-section landing-actions">
+          <button type="button" className="primary" onClick={() => onEnter(true)}>
+            Create your account
+          </button>
+          <p className="hint landing-invite">
+            You will be friends with {who} once you are in.
+          </p>
+        </section>
+      )}
 
       <footer className="landing-foot">
         {/* No repository link while the repository is private: a link to a page

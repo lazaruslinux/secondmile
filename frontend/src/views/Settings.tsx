@@ -585,14 +585,18 @@ export default function Settings({
             with a sync, is in the repository's own documentation. */}
         <div className="card">
           <h3>Setting up your phone</h3>
+          {/* Steps are named before they earn anything, deliberately: the
+              automation set up today is the one step rewards will read when
+              they land, and the sentence is honest about the wait. */}
           <p className="hint">
             Workouts arrive from Health Auto Export, an iPhone app that reads Apple Health and
             posts to a URL you give it. In that app, add a REST API automation pointing at
             the address below, method POST, with the header Authorization: Bearer followed by
-            the token above. Set the data type to Workouts and the format to JSON, then run it
-            on a schedule. Walks, runs, rides, and swims are imported; anything else in the
-            export is ignored. Sending the same workouts twice changes nothing, so overlapping
-            exports are safe.
+            the token above. Set the format to JSON and the data types to Workouts and Health
+            Metrics, with Step Count and Walking + Running Distance selected, then run it on a
+            schedule. Walks, runs, rides, and swims are imported; steps are along for the ride
+            until step rewards arrive; anything else in the export is ignored. Sending the
+            same data twice changes nothing, so overlapping exports are safe.
           </p>
 
           {/* Built from the address this page was opened on, so it is right for
@@ -620,6 +624,10 @@ export default function Settings({
           <p className="hint">
             Turn on Include Route Data to draw the route on your cards. No maps are fetched,
             and the start and end of each route are trimmed before storing.
+          </p>
+          <p className="hint">
+            On Android, any app that can post Health Connect data as JSON to the same address
+            can try; none is tested and supported yet.
           </p>
         </div>
       </section>
