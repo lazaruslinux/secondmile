@@ -16,7 +16,7 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app import fellowship, gear, medals, models, progress, security, throttle
+from app import fellowship, medals, models, progress, security, throttle
 from app.db import get_db
 from app.routers.profile import serialize_member_card
 from app.routers.workouts import parse_cursor, photos_for, routes_for, videos_for
@@ -392,7 +392,6 @@ def read_feed(
     routed = routes_for(db, rows)
     pictures = photos_for(db, rows)
     clips = videos_for(db, rows)
-    worn = gear.display_for(db, rows)
     people = fellowship.people(db, {row.user_id for row in rows})
     counts = fellowship.counts(db, [row.id for row in rows], user.id)
     # Asked of the owners on this page, not of the reader: what a row shows is
@@ -409,7 +408,6 @@ def read_feed(
             clips.get(row.id, []),
             counts[row.id],
             kept_back.get(row.user_id, ()),
-            worn.get(row.id),
         )
         for row in rows
         if row.user_id in people

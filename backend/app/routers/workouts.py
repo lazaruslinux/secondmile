@@ -93,7 +93,6 @@ def _serialize(
     has_route: bool = False,
     photo_ids: list[int] | None = None,
     video_ids: list[int] | None = None,
-    worn: str | None = None,
 ) -> dict:
     """One row of your own history, in the shape the feed sends a workout in.
 
@@ -120,7 +119,6 @@ def _serialize(
             photo_ids or [],
             video_ids or [],
             encouragement,
-            gear=worn,
         ),
         "flags": workout.flags or {},
     }
@@ -292,7 +290,6 @@ def list_workouts(
     routed = routes_for(db, rows)
     pictures = photos_for(db, rows)
     clips = videos_for(db, rows)
-    worn = gear.display_for(db, rows)
     # One card for the whole page: every row here is this account's own.
     person = fellowship.people(db, {user.id})[user.id]
     given = fellowship.counts(db, [row.id for row in rows], user.id)
@@ -305,7 +302,6 @@ def list_workouts(
             row.id in routed,
             pictures.get(row.id),
             clips.get(row.id),
-            worn.get(row.id),
         )
         for row in rows
     ]
@@ -581,7 +577,6 @@ def restore_workout(
         workout.id in routes_for(db, [workout]),
         photos_for(db, [workout]).get(workout.id),
         videos_for(db, [workout]).get(workout.id),
-        gear.display_for(db, [workout]).get(workout.id),
     )
 
 
@@ -677,7 +672,6 @@ def update_workout(
         workout.id in routes_for(db, [workout]),
         photos_for(db, [workout]).get(workout.id),
         videos_for(db, [workout]).get(workout.id),
-        gear.display_for(db, [workout]).get(workout.id),
     )
 
 

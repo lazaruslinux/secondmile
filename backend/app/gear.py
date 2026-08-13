@@ -188,19 +188,3 @@ def retire(row: models.Gear, moment: dt.datetime) -> None:
     walk."""
     row.retired_at = moment
     row.is_default = False
-
-
-def display_for(db: Session, workouts: Sequence[models.Workout]) -> dict[int, str]:
-    """The gear line for each of these workouts, keyed by workout id. One query
-    for the page, the way the medals and the photos on it are read."""
-    ids = [row.id for row in workouts if row.gear_id is not None]
-    if not ids:
-        return {}
-    return {
-        workout_id: display_name(row)
-        for workout_id, row in db.execute(
-            select(models.Workout.id, models.Gear)
-            .join(models.Gear, models.Gear.id == models.Workout.gear_id)
-            .where(models.Workout.id.in_(ids))
-        ).all()
-    }

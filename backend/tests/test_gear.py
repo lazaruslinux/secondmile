@@ -324,7 +324,7 @@ def test_the_scope_gates_the_sync_and_never_a_choice_made_by_hand(
 
     row = wear(signed_in, walk.id, pair)
     assert row.status_code == 200, row.text
-    assert row.json()["gear"] == "Testbrand Trail 3"
+    assert row.json()["gear_id"] == pair
 
 
 def test_the_scope_is_changed_on_the_pair_itself(signed_in):
@@ -349,11 +349,10 @@ def test_any_walk_or_run_can_be_put_in_another_pair(signed_in, db_session, membe
 
     row = wear(signed_in, old.id, first).json()
     assert row["gear_id"] == first
-    assert row["gear"] == "Testbrand Trail 3"
     row = wear(signed_in, old.id, second).json()
-    assert row["gear"] == "Testbrand Road 5"
+    assert row["gear_id"] == second
     # And off again, which is the None the picker offers.
-    assert wear(signed_in, old.id, None).json()["gear"] is None
+    assert wear(signed_in, old.id, None).json()["gear_id"] is None
 
 
 def test_a_ride_and_a_swim_refuse_shoes(signed_in, db_session, member):
@@ -383,7 +382,7 @@ def test_a_retired_pair_takes_nothing_new_and_keeps_what_it_has(signed_in, db_se
 
     # Still on the workout it was already on, miles and all.
     row = signed_in.get("/api/workouts").json()[0]
-    assert row["gear"] == "Testbrand Trail 3"
+    assert row["gear_id"] == pair
     assert only(gear_rows(signed_in))["miles"] == 4.0
 
     fresh = log_workout(db_session, member.id, "walk", 1.0, offset_min=60)
@@ -508,16 +507,17 @@ def test_a_member_who_is_not_a_friend_reads_no_gear_at_all(signed_in, db_session
     assert "Trainers" not in signed_in.get(f"/api/profile/{other.id}").text
 
 
-def test_a_friends_workout_card_says_what_it_was_done_in(signed_in, db_session, member):
+def test_a_friends_workout_card_says_nothing_about_gear(signed_in, db_session, member):
     other, other_client = sign_in(db_session, "mate")
     befriend(db_session, member, other)
     pair = only(add(other_client, nickname="Trainers"))["id"]
     run = log_workout(db_session, other.id, "run", 5.0)
     assert wear(other_client, run.id, pair).status_code == 200
 
+    # Cards carry no gear at all; a friend reads the Shoes card instead.
     row = signed_in.get("/api/feed").json()[0]
-    assert row["gear"] == "Trainers"
-    # The id is the owner's alone: it only ever fills the owner's own picker.
+    assert "gear" not in row
+    # And the id is the owner's alone: it only ever fills the owner's picker.
     assert "gear_id" not in row
 
 
@@ -573,7 +573,8 @@ def test_a_workout_outlives_the_pair_it_was_done_in(signed_in, db_session, membe
     db_session.commit()
     db_session.expire_all()
 
+    # The workout is whole. gear_id is not asserted: Postgres nulls it via
+    # ON DELETE SET NULL, and the FK-less test database keeps the dead id.
     row = only(signed_in.get("/api/workouts").json())
     assert row["workout_id"] == run.id
     assert row["distance_mi"] == 4.0
-    assert row["gear"] is None

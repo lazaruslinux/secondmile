@@ -149,15 +149,11 @@ export interface FeedItem {
   // is drawn and nothing is asked for.
   has_route: boolean
   source: Source
-  // What it was done in, as the line the card prints, or null. Never hidden: a
-  // shoe is a fact about the kit rather than a number about a body. Absent from
-  // a server that predates gear, which reads the same as none.
-  gear?: string | null
   own: boolean
   // Own rows only. What the workout was worth, in converted miles.
   xp?: number
-  // Own rows only as well: the id behind the line above, read by the edit
-  // panel's picker and by nothing else.
+  // Own rows only as well: the assigned pair, read by the edit panel's picker
+  // and by nothing else. Cards print nothing about gear.
   gear_id?: number | null
   // What the person wrote on it and the pictures and video they put with it.
   // Friends' rows carry them too: a post is something deliberately shared. All

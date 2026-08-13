@@ -528,7 +528,6 @@ def _friend_workouts(db: Session, user: models.User, viewer_id: int) -> list[dic
     routed = routes_for(db, rows)
     pictures = photos_for(db, rows)
     clips = videos_for(db, rows)
-    worn = gear.display_for(db, rows)
     card = fellowship.people(db, [user.id])[user.id]
     encouragement = fellowship.counts(db, [row.id for row in rows], viewer_id)
     return [
@@ -544,7 +543,6 @@ def _friend_workouts(db: Session, user: models.User, viewer_id: int) -> list[dic
             clips.get(row.id, []),
             encouragement[row.id],
             hidden,
-            worn.get(row.id),
         )
         for row in rows
     ]

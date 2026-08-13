@@ -47,10 +47,6 @@ FRIEND_ROW_KEYS = {
     "photos",
     "videos",
     "source",
-    # What it was done in, or null. Never kept back: shoes are a fact about the
-    # kit rather than a number about a body, and the size behind them is on the
-    # gear card either way.
-    "gear",
     "own",
     "encouragement",
 }

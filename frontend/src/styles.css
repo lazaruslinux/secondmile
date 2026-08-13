@@ -4748,35 +4748,5 @@ button:disabled {
    something, and the pair's name only once somebody has asked for it. The flag
    note's colour and size, because both are a word about the row rather than a
    figure in it. */
-.gear-line {
-  display: flex;
-  align-items: center;
-  gap: 0.15rem;
-  margin: 0.2rem 0 0;
-  font-size: 0.82rem;
-  color: var(--muted);
-}
-
 /* The mark is small and the button around it is not: this is tapped with a
    thumb. Pulled back by its own padding so the mark lines up with the card. */
-.gear-mark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  width: 2.75rem;
-  margin-left: -0.85rem;
-  padding: 0;
-  background: transparent;
-  border: none;
-  color: var(--muted);
-}
-
-.gear-mark[aria-expanded='true'] {
-  color: var(--text);
-}
-
-.gear-mark .icon {
-  width: 1.15rem;
-  height: 1.15rem;
-}
