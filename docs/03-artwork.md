@@ -351,6 +351,21 @@ missing file costs a picture rather than a screen.
   more than colour: a vine on a wire, an arching bramble, a flat olive crown, a
   round pomegranate crown, banana paddles, a date palm's bare trunk and fronds.
 
+### Work in progress: the custom layer
+
+`frontend/src/assets/grove-custom/` is a git-ignored folder the build reads
+FIRST: a file there, named exactly like its committed namesake (hyphens,
+`coffee-s1.png`), replaces it at the next build without touching the
+repository. This is where hand-made art lives while it is being worked on,
+one species at a time, so the instance can wear it before any of it is
+final. The committed files under `assets/grove/` stay as the fallback every
+fresh clone and CI build uses. When a species' art is declared FINISHED it
+moves into `assets/grove/` and gets committed, and its row below changes
+from placeholder to real.
+
+Living there now: `coffee-s1/s2/s3.png` (2026-08-12, three style studies;
+not final, not committed).
+
 ### The ground
 
 `frontend/src/assets/grove/ground.svg`

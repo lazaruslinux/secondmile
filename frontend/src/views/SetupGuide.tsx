@@ -124,23 +124,23 @@ export default function SetupGuide({ onBack }: Props) {
       </div>
 
       <div className="card">
-        <p className="hint">
+        <p className="guide-note">
           Workouts arrive from Health Auto Export, an iPhone app you install from the App
           Store. It reads Apple Health and posts what it finds to an address you give it.
           Setting it up takes about five minutes, and it is done once.
         </p>
-        <p className="hint">
+        <p className="guide-note">
           Two automations are described below, each field named the way Health Auto Export
           names it. The first one is the whole game. The second one is optional.
         </p>
       </div>
 
       <section className="settings-group">
-        <h2 className="label settings-title">Before you start</h2>
+        <h2 className="label settings-title guide-title">Before you start</h2>
 
         <div className="card">
           <h3>Your address and your token</h3>
-          <p className="hint">Both automations post to this address:</p>
+          <p className="guide-note">Both automations post to this address:</p>
 
           {/* Built from the address this page was opened on rather than written
               down, so a copy of the app on another domain is still right. */}
@@ -161,7 +161,7 @@ export default function SetupGuide({ onBack }: Props) {
             )}
           </div>
 
-          <p className="hint">
+          <p className="guide-note">
             They also need your sync token, which is on the Settings screen under Health
             sync. Create it there and copy it while it is on the screen: the server keeps
             only a hash of it, so it is shown once and never printed here. If you lose it,
@@ -171,27 +171,29 @@ export default function SetupGuide({ onBack }: Props) {
       </section>
 
       <section className="settings-group">
-        <h2 className="label settings-title">Automation 1: Secondmile_Workouts</h2>
+        <h2 className="label settings-title guide-title">
+          Automation 1: Secondmile_Workouts <span className="guide-chip">Required</span>
+        </h2>
 
         <div className="card">
           <h3>What it does</h3>
-          <p className="hint">
+          <p className="guide-note">
             Walks, runs, rides, and swims arrive through this one, and everything you earn
             is earned here: experience, levels, chests, growth in your plot, and medals.
           </p>
-          <p className="hint">
+          <p className="guide-note">
             In Health Auto Export, open Automations, add an automation, and name it
             Secondmile_Workouts. Then set the fields below, top to bottom, and tap Update.
           </p>
 
           <FieldList fields={WORKOUT_FIELDS} />
 
-          <p className="hint">
+          <p className="guide-note">
             Include Route Data is what draws the line on your workout cards. No map tiles
             are fetched, and the beginning and end of every route are trimmed away before
             anything is stored, so a route never starts at your door.
           </p>
-          <p className="hint">
+          <p className="guide-note">
             Time Grouping does nothing to a workouts export. Leave it wherever it sits.
           </p>
 
@@ -203,18 +205,21 @@ export default function SetupGuide({ onBack }: Props) {
       </section>
 
       <section className="settings-group">
-        <h2 className="label settings-title">Automation 2: Secondmile_Steps</h2>
+        <h2 className="label settings-title guide-title">
+          Automation 2: Secondmile_Steps{' '}
+          <span className="guide-chip guide-chip-optional">Optional</span>
+        </h2>
 
         <div className="card">
           <h3>Entirely optional</h3>
-          <p className="hint">
+          <p className="guide-note">
             This one is entirely optional, and it earns nothing. All it does is feed the
             step counts on your screens: the line on your own profile, the count in your
             weekly letter, and the tally on the landing page. Set up only
             Secondmile_Workouts and you have the complete earning experience, with nothing
             missing and nothing to catch up on later.
           </p>
-          <p className="hint">
+          <p className="guide-note">
             Health Auto Export sends one data type per automation, which is the only reason
             there are two. Duplicate the first automation or add a new one, name it
             Secondmile_Steps, and set the fields below.
@@ -222,18 +227,18 @@ export default function SetupGuide({ onBack }: Props) {
 
           <FieldList fields={STEP_FIELDS} />
 
-          <p className="hint">
+          <p className="guide-note">
             Time Grouping has to be Day. On Minutes the app sends every raw sample, and a
             phone and a watch that both counted the same walk both land, which reads several
             per cent high. On Day it sends one figure per day, which is the figure Apple
             Health itself shows you.
           </p>
-          <p className="hint">
+          <p className="guide-note">
             Include Route Data and Include Workout Metrics are not on this screen. They
             belong to the Workouts data type, and this one has no use for them. Steps carry
             no location data of any kind.
           </p>
-          <p className="hint">
+          <p className="guide-note">
             Previous 7 Days stops at yesterday, so today's final count arrives tomorrow
             morning. Nothing is lost by waiting for it.
           </p>
@@ -246,18 +251,22 @@ export default function SetupGuide({ onBack }: Props) {
       </section>
 
       <section className="settings-group">
-        <h2 className="label settings-title">Once it is running</h2>
+        <h2 className="label settings-title guide-title">Once it is running</h2>
 
         <div className="card">
-          <p className="hint">
+          <p className="guide-note">
             Every export covers the last seven days, so exports overlap on purpose and
             overlapping exports are safe. A workout is known by who you are, when it
             started, and how long it lasted, so the same one arriving twice changes nothing,
             and a day's step count only ever rises. Anything else in an export is ignored.
           </p>
-          <p className="hint">
+          <p className="guide-note">
             The first sync can take a minute to appear. After that your workouts show up on
             their own, a few minutes behind the watch.
+          </p>
+          <p className="guide-note">
+            On Android, any app that can post Health Connect data as JSON to the same
+            address can try; none is tested and supported yet.
           </p>
         </div>
       </section>

@@ -4531,3 +4531,37 @@ button:disabled {
   align-self: flex-start;
   padding-left: 0;
 }
+
+/* The guide's own hierarchy: section titles in the accent so the eye can jump
+   between the parts, body copy a step larger than a hint because this is the
+   one page meant to be read start to finish, and a chip on each automation
+   saying whether it is the game or a garnish. */
+.guide-title {
+  color: var(--accent);
+  font-size: 0.8rem;
+  margin-top: 2.2rem;
+}
+
+.guide-note {
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.55;
+  margin: 0.6rem 0 0;
+}
+
+.guide-chip {
+  display: inline-block;
+  margin-left: 0.55rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  vertical-align: middle;
+}
+
+.guide-chip-optional {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--muted);
+}

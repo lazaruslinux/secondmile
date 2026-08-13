@@ -621,23 +621,13 @@ export default function Settings({
             with a sync, is in the repository's own documentation. */}
         <div className="card">
           <h3>Setting up your phone</h3>
-          {/* The workouts automation is the whole game and the metrics one is
-              a number on a screen, so the card says which is which. Health Auto
-              Export takes one data type per automation, which is why there are
-              two of them at all; the second is worth setting up or skipping,
-              and nothing is lost either way. */}
+          {/* One breath and a pointer. The guide owns the walkthrough now; this
+              card owns the two things the phone needs, the address below and
+              the token above. */}
           <p className="hint">
-            Workouts arrive from Health Auto Export, an iPhone app that reads Apple Health and
-            posts to a URL you give it. In that app, add a REST API automation pointing at the
-            address below, method POST, with the header Authorization: Bearer followed by the
-            token above, format JSON, and the data type Workouts. Run it on a schedule. That
-            one automation is the whole game: walks, runs, rides, and swims are imported, and
-            everything you earn comes through it. A second automation is optional and earns
-            nothing. Give it the same settings with the data type Health Metrics, and under
-            Select Health Metrics turn everything off, then pick Step Count and Walking +
-            Running Distance; all it does is feed the step counts on your screens. Anything
-            else in an export is ignored, and sending the same data twice changes nothing, so
-            overlapping exports are safe.
+            Workouts arrive from Health Auto Export, an iPhone app that reads Apple Health
+            and posts it to the address below. The setup guide walks through it field by
+            field with screenshots.
           </p>
 
           {/* Built from the address this page was opened on, so it is right for
@@ -669,14 +659,6 @@ export default function Settings({
             <button type="button" className="link" onClick={onOpenGuide}>
               View the setup guide
             </button>
-          </p>
-          <p className="hint">
-            Turn on Include Route Data to draw the route on your cards. No maps are fetched,
-            and the start and end of each route are trimmed before storing.
-          </p>
-          <p className="hint">
-            On Android, any app that can post Health Connect data as JSON to the same address
-            can try; none is tested and supported yet.
           </p>
         </div>
       </section>

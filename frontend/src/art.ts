@@ -21,6 +21,23 @@ const grove = byName(
   }) as Record<string, string>,
 )
 
+// The owner's own paintings, tried before the committed set. The folder is
+// git-ignored on purpose: art in progress lives on this instance without
+// riding into the repository, and a file here beats its committed namesake at
+// the next build. Same names, same rules as assets/grove.
+const groveCustom = byName(
+  import.meta.glob('./assets/grove-custom/*.{png,webp,svg}', {
+    eager: true,
+    query: '?url',
+    import: 'default',
+  }) as Record<string, string>,
+)
+
+// One grove picture by name, the owner's version first.
+function groveFile(name: string): string | null {
+  return groveCustom.get(name) ?? grove.get(name) ?? null
+}
+
 const borders = byName(
   import.meta.glob('./assets/borders/*.svg', {
     eager: true,
@@ -56,26 +73,26 @@ const icons = byName(
 export function groveArt(species: string, stage: number): string | null {
   const name = species.toLowerCase().replace(/_/g, '-')
   const step = `-s${Math.min(3, Math.max(1, Math.round(stage)))}`
-  return grove.get(name + step) ?? grove.get(name.split('-')[0] + step) ?? null
+  return groveFile(name + step) ?? groveFile(name.split('-')[0] + step)
 }
 
 // The one gild treatment, laid over anything fully grown. Every species shares
 // it until each gets artwork of its own.
 export function gildArt(): string | null {
-  return grove.get('gild') ?? null
+  return groveFile('gild')
 }
 
 // The soil the band on a profile stands its plot on. One file for the whole
 // strip, stretched to the width of the band.
 export function groundArt(): string | null {
-  return grove.get('ground') ?? null
+  return groveFile('ground')
 }
 
 // Everything on the inventory grid that is not a plant: water, oil, the
 // unmarked seed, and an unopened chest. Each reads one file named after its
 // kind, and a kind with no file of its own draws nothing.
 export function itemArt(kind: string): string | null {
-  return grove.get(kind) ?? null
+  return groveFile(kind)
 }
 
 export function borderArt(tier: number): string | null {
