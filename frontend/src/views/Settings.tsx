@@ -54,6 +54,7 @@ interface Props {
   hidden: HiddenField[]
   onHiddenChanged: (hidden: HiddenField[]) => void
   onSignedOut: () => void
+  onOpenGuide: () => void
   onBack: () => void
 }
 
@@ -67,6 +68,7 @@ export default function Settings({
   hidden,
   onHiddenChanged,
   onSignedOut,
+  onOpenGuide,
   onBack,
 }: Props) {
   const [tokenStatus, setTokenStatus] = useState<IngestTokenStatus | null>(null)
@@ -660,6 +662,14 @@ export default function Settings({
               </p>
             )}
           </div>
+          {/* Under the address, because the address is what somebody came to
+              this card for and the guide is the long way round of the same
+              paragraph: every field, named as the app names it, with pictures. */}
+          <p className="hint">
+            <button type="button" className="link" onClick={onOpenGuide}>
+              View the setup guide
+            </button>
+          </p>
           <p className="hint">
             Turn on Include Route Data to draw the route on your cards. No maps are fetched,
             and the start and end of each route are trimmed before storing.

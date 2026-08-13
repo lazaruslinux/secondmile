@@ -663,6 +663,70 @@ button:disabled {
   margin: 0.75rem 0 0;
 }
 
+/* The setup guide borrows the settings groups and cards, and adds two things:
+   a list of fields to copy off, and the phone screenshots beside them. */
+
+.guide-fields {
+  margin: 0.75rem 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The field's name on the left and what to set it to on the right, the way the
+   phone screen itself reads. The value wins the room when one of them is long. */
+.guide-field {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.45rem 0;
+  border-top: 1px solid var(--line);
+  font-size: 0.85rem;
+}
+
+.guide-field:first-child {
+  border-top: 0;
+}
+
+.guide-field-name {
+  color: var(--muted);
+  flex: none;
+}
+
+.guide-field-value {
+  font-weight: 700;
+  text-align: right;
+}
+
+/* Two portrait screenshots, side by side once there is room for both. */
+.guide-shots {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.guide-shot {
+  margin: 0;
+}
+
+/* Capped well below the art's own width: it is a phone screen read at a glance,
+   not something to study, and the border is the frame every code block and card
+   already uses. */
+.guide-shot-img {
+  display: block;
+  width: 100%;
+  max-width: 16rem;
+  height: auto;
+  margin: 0 auto 0.4rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.guide-shot .hint {
+  margin: 0;
+  text-align: center;
+}
+
 /* The columns of Home and You
    Both screens are written as wrappers around the blocks they already had. On a
    phone each wrapper is just a column of cards with the same gutter as the page

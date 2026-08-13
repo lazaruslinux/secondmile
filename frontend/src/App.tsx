@@ -24,6 +24,7 @@ import Icon from './views/Icon.tsx'
 import Profile from './views/Profile.tsx'
 import Recap from './views/Recap.tsx'
 import Settings from './views/Settings.tsx'
+import SetupGuide from './views/SetupGuide.tsx'
 import Welcome from './views/Welcome.tsx'
 
 // The one address this app reads: /welcome/<code>, where a link somebody was
@@ -37,8 +38,9 @@ function welcomeCode(): string {
 // A handful of screens still do not earn a router: the whole navigation model is
 // which of them is on screen, and the URL has nothing to say about it yet.
 // Settings is not a tab; it is reached from the You screen. Neither is a
-// friend's profile, which is reached from the feed and from the friends list.
-type View = 'home' | 'activity' | 'grove' | 'you' | 'settings' | 'friend'
+// friend's profile, which is reached from the feed and from the friends list,
+// nor the phone setup guide, which is reached from Settings.
+type View = 'home' | 'activity' | 'grove' | 'you' | 'settings' | 'guide' | 'friend'
 
 const TABS: { id: View; label: string; icon: string }[] = [
   { id: 'home', label: 'Home', icon: 'tab-home' },
@@ -177,11 +179,16 @@ export default function App() {
     setView(from)
   }
 
-  // Which of the four sections the navigation points at. Two screens hang off a
-  // tab rather than being one: Settings sits under You, and a friend's profile
-  // sits under whichever screen opened it, so neither leaves the bar blank.
+  // Which of the four sections the navigation points at. Three screens hang off
+  // a tab rather than being one: Settings and the setup guide behind it sit
+  // under You, and a friend's profile sits under whichever screen opened it, so
+  // none of them leaves the bar blank.
   const section: View =
-    view === 'settings' ? 'you' : view === 'friend' ? (friend?.from ?? 'home') : view
+    view === 'settings' || view === 'guide'
+      ? 'you'
+      : view === 'friend'
+        ? (friend?.from ?? 'home')
+        : view
 
   if (checkingSession) return <p className="notice">Loading.</p>
 
@@ -309,9 +316,13 @@ export default function App() {
             hidden={me.hidden_from_friends ?? []}
             onHiddenChanged={changeHidden}
             onSignedOut={() => setMe(null)}
+            onOpenGuide={() => setView('guide')}
             onBack={() => setView('you')}
           />
         )}
+        {/* Back goes to Settings rather than to You: the card with the token on
+            it is what somebody is reading this alongside. */}
+        {view === 'guide' && <SetupGuide onBack={() => setView('settings')} />}
       </main>
 
       <nav className="tabbar" aria-label="Sections">
