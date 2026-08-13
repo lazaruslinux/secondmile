@@ -90,13 +90,14 @@ async def ingest(request: Request, db: Session = Depends(get_db)) -> dict:
     ignored += metric_refusals
 
     # The default pair, read once for the export. New walks and runs are
-    # recorded in it; a ride, a swim and a step reading never are.
+    # recorded in it, as far as the pair itself says they are; a ride, a swim and
+    # a step reading never are.
     #
     # Here rather than in the crediting pipeline on purpose. This is the only
     # place a workout is born, so "new" means exactly what it says: a rebuild or
     # a recompute walks the same history again and must never write a shoe over
     # a choice somebody made on an old activity.
-    default_gear_id = gear.default_gear_id(db, user.id)
+    default_pair = gear.default_pair(db, user.id)
 
     imported = skipped = flagged = routes = 0
     for item in parsed:
@@ -113,7 +114,9 @@ async def ingest(request: Request, db: Session = Depends(get_db)) -> dict:
             avg_hr=item.avg_hr,
             indoor=item.indoor,
             gear_id=(
-                default_gear_id if item.activity in gear.GEAR_ACTIVITIES else None
+                default_pair.id
+                if default_pair is not None and gear.takes(default_pair, item.activity)
+                else None
             ),
             source="sync",
             flags=flags,

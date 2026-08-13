@@ -76,6 +76,9 @@ def test_a_recorded_pair_comes_back_with_everything_it_was_given(signed_in):
     assert pair["replace_around_mi"] == 400
     assert pair["is_default"] is False
     assert pair["retired"] is False
+    # Said nothing about, so they are for both, which is what every pair
+    # recorded before the choice existed is.
+    assert pair["applies_to"] == "both"
 
 
 def test_a_pair_with_no_starting_miles_starts_at_nothing(signed_in):
@@ -110,6 +113,10 @@ def test_the_width_defaults_to_the_standard_one_for_the_style(signed_in, db_sess
         {"model": ""},
         {"starting_mi": -1},
         {"replace_around_mi": -400},
+        # A scope the three buttons cannot produce.
+        {"applies_to": "runs"},
+        {"applies_to": "cycle"},
+        {"applies_to": ""},
     ],
 )
 def test_a_pair_the_pickers_could_not_have_produced_is_refused(signed_in, bad):
@@ -193,7 +200,7 @@ def test_retiring_a_pair_takes_the_default_with_it(signed_in, db_session, member
 
     row = only(gear_rows(signed_in))
     assert (row["retired"], row["is_default"]) == (True, False)
-    assert gear.default_gear_id(db_session, member.id) is None
+    assert gear.default_pair(db_session, member.id) is None
 
     # Coming back out of retirement is not the same as being chosen again.
     assert only(signed_in.post(f"/api/gear/{pair}/unretire").json())["is_default"] is False
@@ -271,6 +278,63 @@ def test_a_rebuild_never_writes_a_shoe_over_a_choice(signed_in, ingest_token, db
     assert worn(db_session, member.id)["run"] is None
     # And the walk that was never touched still has them on.
     assert worn(db_session, member.id)["walk"] == pair
+
+
+# --------------------------------------------------------------------------
+# What a pair is put on by itself
+# --------------------------------------------------------------------------
+
+
+def default_pair_for(client, scope: str) -> int:
+    """One default pair, recorded for runs, walks, or both."""
+    pair = only(add(client, applies_to=scope))["id"]
+    client.post(f"/api/gear/{pair}/default")
+    return pair
+
+
+@pytest.mark.parametrize(
+    ("scope", "expected"),
+    [
+        ("both", {"walk": True, "run": True}),
+        ("run", {"walk": False, "run": True}),
+        ("walk", {"walk": True, "run": False}),
+    ],
+)
+def test_the_scope_decides_which_new_activities_are_stamped(
+    signed_in, ingest_token, db_session, member, scope, expected
+):
+    """His pair is for runs: a walk in something else must not arrive wearing
+    them. A ride and a swim are out of it either way."""
+    pair = default_pair_for(signed_in, scope)
+
+    assert sync_four(signed_in, ingest_token).status_code == 200
+    carried = worn(db_session, member.id)
+    assert carried["walk"] == (pair if expected["walk"] else None)
+    assert carried["run"] == (pair if expected["run"] else None)
+    assert (carried["cycle"], carried["swim"]) == (None, None)
+
+
+def test_the_scope_gates_the_sync_and_never_a_choice_made_by_hand(
+    signed_in, db_session, member
+):
+    """The setting says where a pair goes on its own, not where it may go. A
+    run-only pair still goes on any walk somebody puts it on."""
+    pair = default_pair_for(signed_in, "run")
+    walk = log_workout(db_session, member.id, "walk", 2.0)
+
+    row = wear(signed_in, walk.id, pair)
+    assert row.status_code == 200, row.text
+    assert row.json()["gear"] == "Testbrand Trail 3"
+
+
+def test_the_scope_is_changed_on_the_pair_itself(signed_in):
+    pair = only(add(signed_in))["id"]
+    changed = only(signed_in.patch(f"/api/gear/{pair}", json={"applies_to": "walk"}).json())
+    assert changed["applies_to"] == "walk"
+    # And an edit that says nothing about it leaves it where it was.
+    assert only(signed_in.patch(f"/api/gear/{pair}", json={"model": "Road 5"}).json())[
+        "applies_to"
+    ] == "walk"
 
 
 # --------------------------------------------------------------------------
@@ -429,7 +493,10 @@ def test_a_friend_reads_the_pair_and_its_size(signed_in, db_session, member):
     assert theirs["retired"] is False
     # What is only the owner's business does not cross: what the pair started
     # at, when they mean to replace it, and which pair is their default.
-    assert set(theirs) & {"starting_mi", "replace_around_mi", "is_default"} == set()
+    assert (
+        set(theirs) & {"starting_mi", "replace_around_mi", "is_default", "applies_to"}
+        == set()
+    )
 
 
 def test_a_member_who_is_not_a_friend_reads_no_gear_at_all(signed_in, db_session):

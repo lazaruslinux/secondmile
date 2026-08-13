@@ -41,6 +41,7 @@ class GearBody(BaseModel):
     width: str | None = None
     starting_mi: float | None = None
     replace_around_mi: float | None = None
+    applies_to: str | None = None
 
 
 def _writing(user: models.User) -> None:
@@ -111,6 +112,19 @@ def _width(style: str, sent: str | None) -> str:
     return sent
 
 
+def _applies(sent: str | None) -> str:
+    """What a pair is put on by itself. Nothing sent is both, which is what a
+    pair nobody has said anything about is."""
+    if sent is None:
+        return gear.DEFAULT_APPLIES
+    if sent not in gear.APPLIES:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Choose runs and walks, runs only, or walks only.",
+        )
+    return sent
+
+
 def _listed(db: Session, user_id: int) -> list[dict]:
     return gear.gear_list(db, user_id, own=True)
 
@@ -142,6 +156,7 @@ def add_gear(
             else _miles(body.replace_around_mi, "A replacement mileage")
         ),
         is_default=False,
+        applies_to=_applies(body.applies_to),
         created_at=security.now_utc(),
     )
     db.add(row)
@@ -186,6 +201,8 @@ def edit_gear(
             if body.replace_around_mi is None
             else _miles(body.replace_around_mi, "A replacement mileage")
         )
+    if "applies_to" in body.model_fields_set:
+        row.applies_to = _applies(body.applies_to)
     row.style = style
     row.size = size
     row.width = width

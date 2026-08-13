@@ -28,6 +28,11 @@ SHOES = "shoes"
 
 STYLES = ("mens", "womens")
 
+# What a pair is stamped on automatically. The last two are the activity names
+# themselves, which is what lets `takes` compare one against the other.
+APPLIES = ("both", "run", "walk")
+DEFAULT_APPLIES = "both"
+
 # US sizes in half steps, and the widths sold against each style. The default
 # width is the standard one, because almost nobody knows their width and a form
 # that insists on one asks a question most people cannot answer.
@@ -127,6 +132,7 @@ def serialize(row: models.Gear, miles: float, *, own: bool) -> dict:
         shown["starting_mi"] = round(row.starting_mi, 1)
         shown["replace_around_mi"] = row.replace_around_mi
         shown["is_default"] = row.is_default
+        shown["applies_to"] = row.applies_to
     return shown
 
 
@@ -137,20 +143,31 @@ def gear_list(db: Session, user_id: int, *, own: bool) -> list[dict]:
     return [serialize(row, miles.get(row.id, row.starting_mi), own=own) for row in rows]
 
 
-def default_gear_id(db: Session, user_id: int) -> int | None:
+def default_pair(db: Session, user_id: int) -> models.Gear | None:
     """The pair new walks and runs are assigned to, or None.
 
-    A retired pair is never it: retiring clears the flag, and this reads the
-    flag and the retirement both so a row written any other way cannot put a put
-    away shoe back on tomorrow's run.
+    The row rather than its id, because what it is stamped on is the row's own
+    business now. A retired pair is never it: retiring clears the flag, and this
+    reads the flag and the retirement both so a row written any other way cannot
+    put a put away shoe back on tomorrow's run.
     """
     return db.execute(
-        select(models.Gear.id).where(
+        select(models.Gear).where(
             models.Gear.user_id == user_id,
             models.Gear.is_default.is_(True),
             models.Gear.retired_at.is_(None),
         )
     ).scalar_one_or_none()
+
+
+def takes(row: models.Gear, activity: str) -> bool:
+    """Whether a new activity of this kind is stamped with this pair.
+
+    Automatic assignment only. Anybody can put any pair on any walk or run
+    themselves, and that choice never reads this: somebody who says a pair is
+    for runs is saying where it goes by default, not where it may go.
+    """
+    return activity in GEAR_ACTIVITIES and row.applies_to in (DEFAULT_APPLIES, activity)
 
 
 def in_use(db: Session, gear_id: int) -> bool:

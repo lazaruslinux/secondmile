@@ -773,7 +773,12 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
           rather than as a shelf they have not filled. */}
       {shoes.length > 0 && (
         <section className="card">
-          <h2 className="label">Shoes</h2>
+          <h2 className="label">
+            <span className="sport-icon sport-icon-small">
+              <Icon name="shoe" />
+            </span>
+            Shoes
+          </h2>
           <ul className="gear-list">
             {shoes.map((pair) => {
               const subline = gearSubline(pair)

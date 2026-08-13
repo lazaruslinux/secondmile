@@ -279,6 +279,10 @@ export interface ItemTallies {
 // statement about who is wearing them.
 export type GearStyle = 'mens' | 'womens'
 
+// What a default pair is put on by itself. It gates the stamping at sync and
+// nothing else: any pair can still be put on any walk or run by hand.
+export type GearApplies = 'both' | 'run' | 'walk'
+
 // One pair of shoes, with the miles on them. Maintenance and never game:
 // nothing here is earned, nothing here earns, and no total anywhere counts it.
 //
@@ -302,6 +306,7 @@ export interface Gear {
   // set one on. It draws one quiet line and never a warning.
   replace_around_mi?: number | null
   is_default?: boolean
+  applies_to?: GearApplies
 }
 
 // What the form sends. Every field is optional so one panel saves a whole pair
@@ -316,6 +321,7 @@ export interface GearEdit {
   width?: string
   starting_mi?: number
   replace_around_mi?: number | null
+  applies_to?: GearApplies
 }
 
 export interface Profile {

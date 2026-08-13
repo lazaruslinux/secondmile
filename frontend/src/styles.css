@@ -4744,11 +4744,39 @@ button:disabled {
   border-top: 1px solid var(--line);
 }
 
-/* On a card, under the numbers: what the workout was done in, said once and
-   quietly. The flag note's clothes, because both are a line about the row
-   rather than a figure in it. */
+/* On a card, by the numbers: a small mark saying the workout was done in
+   something, and the pair's name only once somebody has asked for it. The flag
+   note's colour and size, because both are a word about the row rather than a
+   figure in it. */
 .gear-line {
-  margin: 0.7rem 0 0;
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  margin: 0.2rem 0 0;
   font-size: 0.82rem;
   color: var(--muted);
+}
+
+/* The mark is small and the button around it is not: this is tapped with a
+   thumb. Pulled back by its own padding so the mark lines up with the card. */
+.gear-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 2.75rem;
+  margin-left: -0.85rem;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+}
+
+.gear-mark[aria-expanded='true'] {
+  color: var(--text);
+}
+
+.gear-mark .icon {
+  width: 1.15rem;
+  height: 1.15rem;
 }

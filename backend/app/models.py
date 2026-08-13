@@ -242,6 +242,12 @@ class Gear(Base):
     is_default: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=text("false")
     )
+    # What the default pair is put on by itself: "both", "run" or "walk". It
+    # gates the stamping at sync and nothing else, so any pair can still be put
+    # on any walk or run by hand.
+    applies_to: Mapped[str] = mapped_column(
+        String(4), nullable=False, default="both", server_default="both"
+    )
     # Set when a pair is put away. It keeps its miles and its history and stays
     # on the workouts it is already on; it leaves the pickers, so nothing new is
     # assigned to it.

@@ -1293,3 +1293,100 @@ def test_the_gear_release_steps_back_down_again(at_0027):
         assert connection.execute(
             sa.text("SELECT gear_id FROM workouts")
         ).scalar_one() is None
+
+
+@pytest.fixture()
+def at_0028(tmp_path, monkeypatch):
+    """A database at revision 0028, which is the shape the gear scope meets.
+
+    Its own fixture because the column lands on the gear table, and 0028 is the
+    revision that brings the table into being.
+    """
+    url = f"sqlite:///{tmp_path}/scope.db"
+    monkeypatch.setattr(config.settings, "database_url", url)
+    cfg = Config(str(BACKEND / "alembic.ini"))
+    cfg.set_main_option("script_location", str(BACKEND / "migrations"))
+    command.upgrade(cfg, "0028")
+    engine = sa.create_engine(url)
+    try:
+        yield engine, (lambda: command.upgrade(cfg, "head"))
+    finally:
+        engine.dispose()
+
+
+def _pair(connection, gear_id: int, user_id: int, model: str = "Trail 3") -> None:
+    """One recorded pair in the shape 0028 leaves it, which is the row the scope
+    column lands on."""
+    connection.execute(
+        sa.text(
+            "INSERT INTO gear (id, user_id, kind, style, brand, model, size, width,"
+            " starting_mi, is_default, created_at)"
+            " VALUES (:id, :user_id, 'shoes', 'mens', 'Testbrand', :model, 10.0, 'D',"
+            " 0, 1, '2026-08-13 09:00:00')"
+        ),
+        {"id": gear_id, "user_id": user_id, "model": model},
+    )
+
+
+def test_the_gear_scope_lands_on_every_pair_as_both(at_0028):
+    """0029: one additive column, and every pair already recorded arrives saying
+    what it has been doing all along.
+
+    Both rather than nothing, because a pair nobody has said anything about is
+    put on new walks and new runs alike, which is exactly how it behaved before
+    the column existed.
+    """
+    engine, upgrade = at_0028
+    with engine.connect() as connection:
+        _account(connection, 1, "runner")
+        _run(connection, 1, 1, "2026-07-20 13:12:00")
+        _pair(connection, 1, 1)
+        connection.execute(sa.text("UPDATE workouts SET gear_id = 1"))
+        connection.commit()
+
+    upgrade()
+
+    with engine.connect() as connection:
+        assert connection.execute(
+            sa.text("SELECT model, applies_to FROM gear")
+        ).one() == ("Trail 3", "both")
+        # The three the form offers are storable, and the assignment already
+        # made is untouched by any of it: the column gates new activities only.
+        connection.execute(sa.text("UPDATE gear SET applies_to = 'run' WHERE id = 1"))
+        connection.commit()
+        assert connection.execute(
+            sa.text("SELECT applies_to, gear_id FROM gear JOIN workouts ON gear.id = gear_id")
+        ).one() == ("run", 1)
+
+
+def test_the_gear_scope_steps_back_down_again(at_0028):
+    """Stepping back takes the column away and leaves the pair and its miles
+    exactly as they were, so the same upgrade run again lands on both."""
+    engine, upgrade = at_0028
+    with engine.connect() as connection:
+        _account(connection, 1, "runner")
+        _run(connection, 1, 1, "2026-07-20 13:12:00")
+        _pair(connection, 1, 1)
+        connection.commit()
+    upgrade()
+
+    with engine.connect() as connection:
+        connection.execute(sa.text("UPDATE gear SET applies_to = 'walk'"))
+        connection.commit()
+
+    cfg = Config(str(BACKEND / "alembic.ini"))
+    cfg.set_main_option("script_location", str(BACKEND / "migrations"))
+    command.downgrade(cfg, "0028")
+
+    with engine.connect() as connection:
+        assert "applies_to" not in {
+            row[1] for row in connection.execute(sa.text("PRAGMA table_info(gear)"))
+        }
+        assert connection.execute(sa.text("SELECT model FROM gear")).scalar_one() == "Trail 3"
+        assert connection.execute(
+            sa.text("SELECT distance_mi FROM workouts")
+        ).scalar_one() == 9.0
+
+    command.upgrade(cfg, "head")
+    with engine.connect() as connection:
+        assert connection.execute(sa.text("SELECT applies_to FROM gear")).scalar_one() == "both"

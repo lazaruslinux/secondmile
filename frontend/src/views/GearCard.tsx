@@ -8,11 +8,13 @@ import {
   unretireGear,
   updateGear,
   type Gear,
+  type GearApplies,
   type GearStyle,
 } from '../api.ts'
 import {
   DEFAULT_WIDTH,
   fitLine,
+  GEAR_APPLIES,
   GEAR_STYLES,
   gearName,
   gearSizes,
@@ -23,6 +25,7 @@ import {
   wearLine,
 } from '../gear.ts'
 import Confirm from './Confirm.tsx'
+import Icon from './Icon.tsx'
 
 // The server's own limits, held to here as well so a box stops taking letters
 // where the server would have refused them.
@@ -72,6 +75,7 @@ function GearForm({
     width: string
     starting_mi: number
     replace_around_mi: number | null
+    applies_to: GearApplies
   }) => void
   onClose: () => void
 }) {
@@ -88,6 +92,7 @@ function GearForm({
   const [replaceMi, setReplaceMi] = useState(
     pair?.replace_around_mi ? String(pair.replace_around_mi) : '',
   )
+  const [appliesTo, setAppliesTo] = useState<GearApplies>(pair?.applies_to ?? 'both')
 
   // Opened as a modal rather than with the open attribute, because only the
   // modal form brings the focus trap, the page behind held still, and Esc.
@@ -122,6 +127,7 @@ function GearForm({
       width,
       starting_mi: Number(orNullNumber(startingMi) ?? 0),
       replace_around_mi: orNullNumber(replaceMi),
+      applies_to: appliesTo,
     })
   }
 
@@ -256,6 +262,25 @@ function GearForm({
           <p className="hint">
             Both optional. A replacement mileage adds one line to the card and nothing else:
             nothing here reminds you.
+          </p>
+
+          <label>
+            Used for
+            <select
+              value={appliesTo}
+              disabled={busy}
+              onChange={(event) => setAppliesTo(event.target.value as GearApplies)}
+            >
+              {GEAR_APPLIES.map((row) => (
+                <option key={row.id} value={row.id}>
+                  {row.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="hint">
+            Where your default pair goes on its own when a new activity arrives. You can put
+            any pair on any walk or run yourself.
           </p>
 
           {error && (
@@ -398,7 +423,12 @@ export default function GearCard({
 
   return (
     <section className="card">
-      <h2 className="label">Shoes</h2>
+      <h2 className="label">
+        <span className="sport-icon sport-icon-small">
+          <Icon name="shoe" />
+        </span>
+        Shoes
+      </h2>
 
       {gear.length === 0 && (
         <p className="hint">

@@ -4,11 +4,18 @@
 // both places or in neither: a size this file offers and the server refuses is
 // a form that cannot be saved.
 
-import type { Gear, GearStyle } from './api.ts'
+import type { Gear, GearApplies, GearStyle } from './api.ts'
 
 export const GEAR_STYLES: { id: GearStyle; label: string }[] = [
   { id: 'mens', label: "Men's" },
   { id: 'womens', label: "Women's" },
+]
+
+// What a default pair is put on by itself, in the order the form offers it.
+export const GEAR_APPLIES: { id: GearApplies; label: string }[] = [
+  { id: 'both', label: 'Runs and walks' },
+  { id: 'run', label: 'Runs only' },
+  { id: 'walk', label: 'Walks only' },
 ]
 
 // US sizing in half steps, and the widths each style is sold in. The standard

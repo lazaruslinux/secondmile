@@ -537,6 +537,31 @@ function StatRow({ item, units }: { item: FeedItem; units: Units }) {
   )
 }
 
+// What a workout was done in, beside the numbers and quiet about it: a small
+// mark, and the pair's name only once somebody asks for it. Tapping shows it and
+// tapping again puts it away, which is the whole of it; the full account of a
+// pair is on the Shoes card of whoever owns it.
+//
+// A button rather than a title, because a title is a thing a mouse hovers over
+// and this app is used on a phone.
+function GearMark({ name }: { name: string }) {
+  const [showing, setShowing] = useState(false)
+  return (
+    <p className="gear-line">
+      <button
+        type="button"
+        className="gear-mark"
+        aria-label="Shoes"
+        aria-expanded={showing}
+        onClick={() => setShowing((open) => !open)}
+      >
+        <Icon name="shoe" />
+      </button>
+      {showing && <span>{name}</span>}
+    </p>
+  )
+}
+
 // The parts of a workout the panel below actually touches, which is all it ever
 // needed to know about one. A feed row satisfies it and so does a row in the
 // letter, so both open the same panel rather than growing a second one.
@@ -814,7 +839,14 @@ export function EditPanel<T extends EditableWorkout>({
 
       {picker.length > 0 && (
         <label className="label">
-          Shoes
+          {/* The mark and the word are one item, because the captions in this
+              panel are stacked and a bare mark would take a line of its own. */}
+          <span>
+            <span className="sport-icon sport-icon-small">
+              <Icon name="shoe" />
+            </span>
+            Shoes
+          </span>
           <select
             value={gearId === null ? '' : String(gearId)}
             disabled={busy}
@@ -1093,9 +1125,7 @@ export default function FeedCard({
 
         <StatRow item={item} units={units} />
 
-        {/* What it was done in, under the numbers rather than beside them: it
-            is maintenance, not a figure, and it is only ever a line. */}
-        {item.gear && <p className="gear-line">{item.gear}</p>}
+        {item.gear && <GearMark name={item.gear} />}
 
         {/* Under the numbers it is about, and worded as the sentence it is: a
             flagged workout still counts, and the card says so rather than
@@ -1190,7 +1220,7 @@ export default function FeedCard({
 
       <StatRow item={item} units={units} />
 
-      {item.gear && <p className="gear-line">{item.gear}</p>}
+      {item.gear && <GearMark name={item.gear} />}
 
       {item.has_route && <RouteLine workoutId={item.workout_id} />}
 
