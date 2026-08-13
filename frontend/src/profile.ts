@@ -62,6 +62,14 @@ export function ownedMedalIds(medals: Medal[] | undefined): string[] {
   return MEDAL_ORDER.filter((id) => (counts.get(id) ?? 0) > 0)
 }
 
+// Every earn, repeats included: 35 Second Miles count 35. The chip's number;
+// the catalogue keeps the per-medal breakdown.
+export function totalMedalEarns(medals: Medal[] | undefined): number {
+  let total = 0
+  for (const count of medalCountsOf(medals).values()) total += count
+  return total
+}
+
 // How many workouts are behind an account, across every activity. The profile
 // counts them per activity and never totals them.
 export function lifetimeWorkouts(profile: Profile): number {

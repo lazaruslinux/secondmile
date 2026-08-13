@@ -3590,12 +3590,30 @@ button:disabled {
    His palette picks: manna bread gold, season leaf green, basket woven tan;
    the profile chips run blue, teal, purple, gold. Facts, never flags:
    crimson stays the alert colour and orange stays banned. */
+.grove-areas {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.6rem;
+  margin-top: 0.9rem;
+}
+
+/* Side by side once there is room: the two numbers share a row and the
+   basket, which holds a list, keeps the full width under them. */
+@media (min-width: 900px) {
+  .grove-areas {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .grove-area-basket {
+    grid-column: 1 / -1;
+  }
+}
+
 .grove-area {
   border: 1px solid var(--line);
   border-left: 3px solid var(--line);
   border-radius: var(--radius);
   padding: 0.7rem 0.8rem;
-  margin-top: 0.9rem;
 }
 
 .grove-area-head {
@@ -3674,6 +3692,12 @@ button:disabled {
 
 /* The four stat chips both profiles carry: miles, activities, level, medals
    earned. Each keeps its own colour on the label and the left edge. */
+/* Sized by the card the chips sit in, not by the screen: the You column and
+   a friend's full-width card are different rooms on the same viewport. */
+.stat-chips-box {
+  container-type: inline-size;
+}
+
 .stat-chips {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3681,6 +3705,12 @@ button:disabled {
   list-style: none;
   margin: 0.9rem 0 0;
   padding: 0;
+}
+
+@container (min-width: 560px) {
+  .stat-chips {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 .stat-chip {
@@ -3730,6 +3760,16 @@ button:disabled {
   margin: 0.35rem 0 0;
   font-size: 0.8rem;
   color: var(--muted);
+}
+
+/* Three buttons share the edit row now; they wrap as whole buttons rather
+   than breaking their own words. */
+.profile-edit .choice {
+  flex-wrap: wrap;
+}
+
+.profile-edit .choice button {
+  white-space: nowrap;
 }
 
 /* The self-preview: the eye button on You and the one line the preview leads

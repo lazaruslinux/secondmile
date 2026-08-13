@@ -216,6 +216,7 @@ export default function Grove({ userId }: Props) {
             </p>
           )}
 
+          <div className="grove-areas">
           <div className="grove-area grove-area-manna">
             <div className="grove-area-head">
               <span className="grove-area-label">Manna</span>
@@ -269,6 +270,7 @@ export default function Grove({ userId }: Props) {
                 ))}
               </ul>
             )}
+          </div>
           </div>
         </section>
       )}

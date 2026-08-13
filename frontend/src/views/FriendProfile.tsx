@@ -53,7 +53,7 @@ import {
   POURED,
 } from '../labels.ts'
 import { fitLine, gearName, gearSubline, milesLine } from '../gear.ts'
-import { ownedMedalIds } from '../profile.ts'
+import { totalMedalEarns } from '../profile.ts'
 import { pileItems, type Stack } from '../satchel.ts'
 import AvatarFrame from './AvatarFrame.tsx'
 import BandGrove from './BandGrove.tsx'
@@ -625,7 +625,7 @@ export default function FriendProfile({
           miles={miles ?? 0}
           activities={Object.values(lifetime).reduce((sum, row) => sum + row.workouts, 0)}
           level={level ?? 0}
-          medalsEarned={ownedMedalIds(medals).length}
+          medalsEarned={totalMedalEarns(medals)}
         />
 
         <SportChips stats={lifetime} units={units} />

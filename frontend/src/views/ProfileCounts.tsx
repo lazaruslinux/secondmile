@@ -1,4 +1,3 @@
-import { MEDAL_ORDER } from '../labels.ts'
 import { SEEDS_TO_FIND } from '../profile.ts'
 
 interface Props {
@@ -17,6 +16,7 @@ interface Props {
 // own and deliberately not crimson: these are facts, never flags.
 export default function ProfileCounts({ miles, activities, level, medalsEarned }: Props) {
   return (
+    <div className="stat-chips-box">
     <ul className="stat-chips">
       <li className="stat-chip chip-miles">
         <span className="count-value">{miles.toFixed(1)}</span>
@@ -31,12 +31,11 @@ export default function ProfileCounts({ miles, activities, level, medalsEarned }
         <span className="count-label">Level</span>
       </li>
       <li className="stat-chip chip-medals">
-        <span className="count-value">
-          {medalsEarned} / {MEDAL_ORDER.length}
-        </span>
+        <span className="count-value">{medalsEarned.toLocaleString()}</span>
         <span className="count-label">Medals earned</span>
       </li>
     </ul>
+    </div>
   )
 }
 

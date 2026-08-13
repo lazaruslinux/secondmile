@@ -34,6 +34,7 @@ import {
   mannaLine,
   medalCountsOf,
   ownedMedalIds,
+  totalMedalEarns,
   weekSteps,
 } from '../profile.ts'
 import AvatarFrame from './AvatarFrame.tsx'
@@ -354,7 +355,7 @@ export default function Profile({
               miles={lifetimeMiles(profile)}
               activities={lifetimeActivities(profile)}
               level={profile.level}
-              medalsEarned={ownedMedals.length}
+              medalsEarned={totalMedalEarns(profile.medals)}
             />
 
             <SportChips stats={profile.lifetime} units={units} />
