@@ -46,9 +46,8 @@ interface Props {
   onDismiss: () => void
 }
 
-// The letter waiting on the mat. Everything in it already happened: the miles
-// were covered, the chests were dropped, the badges were earned. Opening the
-// app is how you read about it, never how you cause it.
+// The letter: a read-only view of what already happened. Opening the app never
+// causes any of it.
 export default function Recap({ recap, units, onDismiss }: Props) {
   const dialog = useRef<HTMLDialogElement>(null)
   // The workouts as this letter now knows them: a title written here is on the

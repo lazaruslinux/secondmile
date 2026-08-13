@@ -98,8 +98,7 @@ class User(Base):
     # A date, never an age. The age is worked out from this whenever it is
     # shown, so the two can never drift apart.
     birthdate: Mapped[dt.date | None] = mapped_column(Date, nullable=True)
-    # Free text on purpose. This is a private instance and a fixed list of
-    # options would be a decision the app has no business making for anybody.
+    # Free text on purpose: no fixed option list.
     gender: Mapped[str | None] = mapped_column(String(32), nullable=True)
     # A line or two somebody writes about themselves, or null for none. Short
     # enough to sit under a name on both profile screens rather than to be an
@@ -482,11 +481,10 @@ class DailySteps(Base):
 class StepCredit(Base):
     __tablename__ = "step_credits"
 
-    # DORMANT, and kept because a retreat is not an amputation. One row for
-    # every time a day's step credit went up, back when step distance earned;
-    # the sum of them for a day is that day's credited_mi. Nothing writes a new
-    # one and nothing reads them: steps earn nothing, and a rebuild takes no
-    # fuel from this table. Pinned by test.
+    # DORMANT. Nothing writes or reads these; kept so a rebuild has the old
+    # step-credit history. Pinned by test. One row for every time a day's step
+    # credit went up, back when step distance earned; the sum of them for a day
+    # is that day's credited_mi.
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
@@ -746,8 +744,7 @@ class FruitBatch(Base):
     # Null while it is still on the plant, which is safe forever. Set at the
     # gather, which is also where the seven days start.
     gathered_at: Mapped[dt.datetime | None] = mapped_column(UtcDateTime, nullable=True)
-    # Set when it quietly went back to the soil. Nothing counts down to it and
-    # nothing on screen mentions it before it happens.
+    # Set when composted.
     composted_at: Mapped[dt.datetime | None] = mapped_column(UtcDateTime, nullable=True)
     # Set when it was given away, with who it went to. The row stays: giving is
     # a thing that happened, and the keepsake on the other side is its own row.
@@ -766,7 +763,7 @@ class FruitKeepsake(Base):
 
     # Fruit somebody was given, on the receiving side. A record and nothing
     # else: it has no count that is spent, no verb, and no mechanic anywhere in
-    # the game reads it. It is kept forever, which is the whole of what it is.
+    # the game reads it.
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True

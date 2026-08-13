@@ -121,8 +121,8 @@ export default function App() {
     void boot()
   }, [])
 
-  // Everything that happened while the app was shut, shown once. Opening the
-  // app is never required, so this is a letter waiting rather than a reward.
+  // Everything that happened while the app was shut, shown once. The letter is
+  // never required reading; nothing is awarded by viewing it.
   const userId = me?.id
   useEffect(() => {
     if (userId === undefined) {

@@ -1339,8 +1339,7 @@ export function getRecap(): Promise<RecapState> {
   return getJson<RecapState>('/recap')
 }
 
-// Marks the letter read. Chests are untouched by this: they wait in the
-// profile until they are opened.
+// Marks the letter read. Does not open or consume chests.
 export async function ackRecap(): Promise<void> {
   await send('/recap/ack', { method: 'POST' })
 }

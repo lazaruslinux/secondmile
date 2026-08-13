@@ -16,25 +16,7 @@ interface Props {
   invite?: { data: WelcomeData; code: string }
 }
 
-// What the app says for itself, to somebody who has never seen it, and the
-// same page a sent link lands on. Every section is the truth about a decision
-// made inside the app rather than a feature list: the miles arrive on their
-// own, the feed is small on purpose, and nothing here asks to be opened.
-//
-// Deliberately no screenshots. The app is dark type on black and so is this,
-// which means the page cannot go out of date when a screen changes, and there
-// is nothing to load from anywhere else. The one picture is the four sports
-// drawn in the app's own line, which no redesign can date either.
-//
-// The page describes some things the app cannot do yet: Android, for one. That
-// is deliberate and his call. The Alpha notice covers the gap, and the app is
-// being built toward the page rather than the page trimmed back to the app.
-// The bug report was one of these and is not now: it shipped, so the notice's
-// line about reporting a bug is a true one.
-//
-// Nothing on this page may say a step earns anything. Steps are counted and
-// shown and are worth no XP, no chest and no medal; what they will become is
-// an open question, and the copy here says only what is true today.
+// Nothing here may say a step earns anything: steps earn no XP, chest or medal.
 export default function Landing({ onEnter, invite }: Props) {
   // Null until the server says which way it is set, so the page does not offer
   // an account and then take the offer back a moment later.

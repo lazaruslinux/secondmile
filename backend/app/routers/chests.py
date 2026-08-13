@@ -16,9 +16,8 @@ router = APIRouter(tags=["chests"])
 
 ALREADY_OPEN = "That chest is already open."
 
-# The recap is a story, not a feed. A letter is read in one sitting, and
-# somebody who comes back to more than this many notes has a very good week's
-# worth either way; the rest are still on the workouts they were written on.
+# Cap on notes in one letter. Past this, the rest stay on the workouts they
+# were written on.
 MAX_RECAP = 200
 
 # How many of the new workouts the letter lists. A season of history imported in

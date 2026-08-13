@@ -35,10 +35,7 @@ import Inventory from './Inventory.tsx'
 import PlantArt from './PlantArt.tsx'
 import RarityFrame from './RarityFrame.tsx'
 
-// What the grove is, in three sentences, said once at the top and nowhere else.
-// XP rather than miles: growth was always the weighted number, and the grove was
-// the one place in the app wearing the word miles for it. Miles are raw distance
-// everywhere else and stay that way.
+// Says XP, not miles: growth is the weighted number.
 const HEADER =
   "Plants grow with your XP. Water one of yours, or a friend's, for a 10 XP boost. " +
   'Level 33 is fully grown.'

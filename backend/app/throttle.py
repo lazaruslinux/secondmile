@@ -166,10 +166,7 @@ welcome_limiter = RateLimiter(20, "welcome")
 # --------------------------------------------------------------------------
 # Keyed per account
 # --------------------------------------------------------------------------
-# Everything below is spent by a signed-in account, so it is counted per
-# account rather than per address. None of these guards a secret; they are
-# there so one session cannot make the server do an unbounded amount of work,
-# and so a loop left running by mistake stops being free.
+# Per-account, not per-address. Work limits, not secrets.
 
 # Saving the edit form. Roomy for somebody filling in every field one save at a
 # time, tight enough that nothing is hammering the write path.

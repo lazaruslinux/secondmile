@@ -201,12 +201,8 @@ def serialize_profile(db: Session, user: models.User, row: models.UserProgress) 
         # What the calories have come to, in the two states manna has. The
         # first is gathered and spendable and is the only one anything can be
         # bought with; the second is still waiting on the pile and is safe
-        # forever until it is gathered. A currency rather than a stat, which is
-        # why neither appears in any total, on any card, or anywhere near the
-        # experience above: calories still print as calories everywhere they
-        # always did. Your own screen only, like the steps above them. The
-        # friend payload carries neither and must not; what somebody has to give
-        # away is theirs to know.
+        # forever until it is gathered. Own screen only. The friend payload
+        # carries neither field.
         "manna": harvest.gathered_manna(db, user.id),
         "manna_pending": row.manna_pending,
         # How much is in the plot and how much of it is grown. Not a

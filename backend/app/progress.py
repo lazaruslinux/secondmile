@@ -218,7 +218,6 @@ def _credit(
     bear: bool = True,
 ) -> None:
     miles = converted_miles(workout.activity, workout.distance_mi)
-    # Experience is the distance itself. One converted Mile, one XP.
     lifetime_before = progress.xp
     progress.xp += miles
     progress.level = level_for_xp(progress.xp)

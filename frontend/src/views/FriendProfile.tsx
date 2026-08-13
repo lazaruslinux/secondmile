@@ -258,18 +258,8 @@ interface Props {
   onRemoved: () => void
 }
 
-// One friend, reached by a deliberate tap on their picture, their name, or
-// their row in the friends list. It reads as the You screen does: the same
-// banner, the same level and meter, the same four counts, the same sport chips,
-// the same two tables and the same items grid, plus the pictures off their
-// recent workouts.
-//
-// What is not here is deliberate. No chests and no ladder, no pending gifts, no
-// medal picker, no sport picker and no pencil: those are the game and the
-// editing, and both are theirs. No birthdate, no age and no gender either;
-// those stay self-only. What is here beside all that is the three things one
-// person may do to another: water something of theirs, anoint them, or stop
-// being friends.
+// Deliberately absent: chests, ladder, pending gifts, medal picker, editing,
+// birthdate, age, gender.
 export default function FriendProfile({ userId, units, onBack, onRemoved }: Props) {
   const [profile, setProfile] = useState<FriendProfileData | MemberCard | null>(null)
   const [plot, setPlot] = useState<FriendPlanting[]>([])

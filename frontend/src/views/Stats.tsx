@@ -21,14 +21,8 @@ interface Props {
   empty: string
 }
 
-// The week and the lifetime tables, on the You screen and on a friend's profile
-// both. Distance is what the body covered, in whichever unit the account reads
-// in. XP is the game's own number, that distance weighted per activity, and it
-// reads the same on every account whatever unit is set.
-//
-// The calories column is drawn only where there are calories to draw. A friend
-// who has hidden theirs sends rows without the figure, and a column of blanks
-// would be a place on the screen asking what is missing.
+// Calories column drawn only where present: a friend hiding theirs sends rows
+// without the figure, and a column of blanks reads as missing data.
 export default function Stats({ stats, units, empty }: Props) {
   const rows = ACTIVITY_ORDER.filter((name) => stats[name])
   if (rows.length === 0) return <p className="hint">{empty}</p>

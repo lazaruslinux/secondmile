@@ -463,9 +463,8 @@ export default function ActivityView({ userId, units, onOpenPerson }: Props) {
 
   // One row of the list: what it was, when, and its figures, and nothing that
   // has to be fetched. Pressing it unfolds the whole card underneath, pencil
-  // and all; pressing it again folds it away. In Select mode the same press
-  // ticks the row instead, because a row is a big honest target and a tick box
-  // on its own is a small one.
+  // and all; pressing it again folds it away. Whole row is the hit target in
+  // Select mode; the tick box alone is too small.
   function row(workout: Workout) {
     const open = opened === workout.workout_id
     const ticked = picked.has(workout.workout_id)

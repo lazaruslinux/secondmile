@@ -14,14 +14,9 @@ interface Props {
   slots?: number
 }
 
-// The medals nestled under a picture: overlapping circles centred on the bottom
-// edge of the avatar frame, half of each hanging off it, the ends of the row
-// sitting a little higher than the middle. Three of them rather than four, so
-// each is drawn larger than it was: the arc is the same width and the medal
-// inside it is easier to tell apart. The stars a medal has earned are
-// deliberately not drawn here: at this size the ring of marks is smaller than a
-// pixel apiece and the medals overlap each other besides, so the stars are left
-// to the strip on You and the rail on Home where they can be read.
+// Three slots, not four, so each medal is large enough to tell apart. Stars
+// omitted: at this size the ring is sub-pixel; they are drawn on You and Home
+// instead.
 export default function MedalNest({ ids, slots = 0 }: Props) {
   const shown = ids.slice(0, MAX_MEDAL_SLOTS)
   const positions = Math.max(shown.length, Math.min(slots, MAX_MEDAL_SLOTS))

@@ -1,14 +1,7 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react'
 
-// The last thing before something destructive is done, in the one shape every
-// such question in this app is asked in: a native modal dialog, which brings
-// the focus trap, the page held still behind it, and Esc with the element
-// rather than having them built by hand.
-//
-// The container is all this is. What each question says is the caller's, so a
-// flow that moves onto this keeps its own heading, its own sentences, and its
-// own words on the two buttons. Nothing is done until the button is pressed:
-// closing is the caller's business either way.
+// Native dialog for the focus trap, inert background and Esc. Copy and close
+// behaviour are the caller's.
 export default function Confirm({
   heading,
   confirmLabel,

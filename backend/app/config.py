@@ -134,10 +134,9 @@ MAX_WORKOUT_HR = 300.0
 MILES_PER_RAW = {"walk": 1.0, "run": 1.0, "cycle": 1.0 / 3.0, "swim": 4.0}
 
 # The chest ladder: what each step of the cycle costs in converted Miles, and
-# what the chest at the top of it is called. Fixed rather than rolled, so the
-# next one is always countable, and repeating, so the reset to a 5K is the
-# wheel turning rather than a demotion. Fuel is converted Miles from every
-# activity, the same distance experience is measured in.
+# what the chest at the top of it is called. Fixed costs, not rolled, so the
+# next chest is always countable. Wraps to the 5K step. Fuel is converted Miles
+# from every activity, the same distance experience is measured in.
 CHEST_LADDER: tuple[tuple[str, str, float], ...] = (
     ("5k", "5K", 3.1),
     ("10k", "10K", 6.2),
@@ -177,12 +176,8 @@ LEGACY_CHEST_TIER = "5k"
 # whichever seed you are missing. The two top slots are the tools alone: an
 # epic is the wish and oil in even halves, and a legendary is oil.
 #
-# The epic slot was once the wish and nothing else. A wish falls to water the
-# moment there is nothing left to wish for, so a plot with all twelve in it
-# turned every epic chest it ever earned into water, permanently. Splitting the
-# slot ends that, and it buys the same trade twice over: oil is the item that
-# is spent on somebody else, so the fuller a plot gets the more of it there is
-# to give away.
+# Epic is wish+oil in halves, not wish alone: a full plot degrades every wish
+# to water, so an all-twelve plot would turn every epic into water.
 CHEST_SLOT_ITEMS: dict[str, tuple[tuple[str, float], ...]] = {
     "common": (("seed", 0.85), ("water", 0.15)),
     "uncommon": (("seed", 0.70), ("water", 0.30)),
@@ -211,10 +206,8 @@ WATER_POUR_MI = 10.0
 # workout should never be worth less than the calories it cost.
 MANNA_STEP_KCAL = 5
 
-# What one gathered pile of anything lives for before it quietly goes back to
-# the soil. It starts at the gather and never before it, so time away costs
-# nothing: what is on the plant and what is waiting in the pending pile are both
-# safe forever. Nothing counts this down anywhere on screen.
+# Days a gathered pile keeps before composting. Clock starts at the gather, not
+# before: what is unharvested never expires.
 GATHERED_LIFE_DAYS = 7
 
 # What feeding a mature plant costs, in gathered manna, for one more fruit on
@@ -313,8 +306,8 @@ RENOWN_WINDOW_DAYS = 7
 # highest stage they have passed, so stage 0 is where everybody starts.
 FLOURISH_RENOWN = (10, 40, 120)
 
-# How long a note may be. Long enough for something meant, short enough that
-# the feed stays a dinner table rather than a message board.
+# How long a note may be. Long enough for a real remark, short enough that
+# notes stay short.
 NOTE_MAX_CHARS = 500
 
 # What one bug report may carry. The text is as long as a workout post, because

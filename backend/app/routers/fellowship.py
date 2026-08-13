@@ -23,12 +23,10 @@ from app.routers.workouts import parse_cursor, photos_for, routes_for, videos_fo
 
 router = APIRouter(tags=["fellowship"])
 
-# The shortest thing worth looking up. One letter is not a search, it is the
-# roster read a page at a time, and this instance does not serve the roster.
+# 2 chars minimum and no total: a 1-char query or a result count would
+# enumerate the roster.
 MIN_QUERY = 2
-# How many names come back. No paging and no total: a search that finds more
-# than this wants a longer query, and a count of how many members share a
-# letter is a number this game does not keep.
+# How many names come back. No paging.
 MAX_MATCHES = 20
 
 # One page of the feed. Fixed rather than asked for: the home screen is the

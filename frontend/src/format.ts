@@ -46,13 +46,10 @@ export function convertedValue(miles: number): string {
   return miles.toFixed(1)
 }
 
-// How long it has been, in the largest unit that fits whole: "2 days", "1 day",
-// "3 hours", "22 minutes", or "a moment" for anything under a minute. Rounded
-// down, so the gap is never overstated. Days do not roll up into weeks or
-// months, because "it has been 40 days" is a truer sentence than "a month" and
-// this line is read as a fact rather than as a headline. A stamp that will not
-// parse answers with nothing, so the sentence around it can be dropped whole
-// rather than printed half built.
+// How long it has been: "2 days", "1 day", "3 hours", "22 minutes", or "a
+// moment" for anything under a minute. Largest whole unit, rounded down; days
+// never roll into weeks or months. Unparseable stamp returns '' so the caller
+// can drop the sentence whole.
 export function formatElapsed(iso: string): string {
   const at = Date.parse(iso)
   if (isNaN(at)) return ''

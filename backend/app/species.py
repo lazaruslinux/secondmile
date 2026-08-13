@@ -30,8 +30,7 @@ RARITIES = ("common", "uncommon", "rare")
 # is nothing rarer to grow than a rare and the ladder still has to climb past it.
 RARITY_LADDER = (*RARITIES, "epic", "legendary")
 
-# What a wish is called wherever it is shown. It is not a species, so it has no
-# catalogue row; it is the promise of whichever one you name.
+# What a wish is called wherever it is shown. Not a species; no catalogue row.
 WISH_NAME = "Unmarked seed"
 
 # Converted Miles one level costs, by rarity. What each species once needed to

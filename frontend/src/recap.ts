@@ -230,19 +230,8 @@ export function flourishLine(recap: RecapState): string {
 // Whether the letter says anything at all. Nothing to read is not worth
 // interrupting anybody for.
 //
-// Steps are not in it, deliberately. Everybody takes some every day, so a
-// letter that opened for them would open forever and mean nothing by it. They
-// are a line a letter already worth reading carries, never the reason it opens.
-//
-// Manna is not in it either, for a plainer reason: it only ever arrives with
-// workouts, and the workouts are already news. A letter that opened for manna
-// would be opening twice for one thing.
-//
-// The harvest IS in it, and for the opposite reason: fruit is earned by miles,
-// so a grove that bore is the same kind of event as a chest that dropped. Gifts
-// are in it because somebody did something for this account and nothing else
-// would ever say so. What composted is not: it is an aside on a letter already
-// worth reading, never a reason to interrupt anybody.
+// Steps and manna are excluded: steps happen daily, manna only arrives with
+// workouts that already count. Harvest and gifts are included.
 export function recapHasNews(recap: RecapState): boolean {
   return (
     (recap.miles_total ?? 0) > 0 ||

@@ -15,11 +15,8 @@ function easeOut(through: number): number {
 // most and nothing else, and every one of them is a fact: this band draws what
 // the server counted or it draws nothing at all.
 //
-// Nothing here is retried and nothing here reports a failure. A counter is a
-// garnish on a page somebody is reading before they have an account, so an
-// unreachable server, an answer that is not a pair of numbers, and an instance
-// with no workouts on it all end the same way, with an empty hero paragraph
-// gap and no explanation asked of the reader.
+// Pre-auth and best-effort: any failure or malformed answer renders nothing,
+// no retry, no error shown.
 export default function LandingStats() {
   // What the server said, once. One fetch on mount and no polling: the totals
   // move slowly and the page is read once.

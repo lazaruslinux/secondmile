@@ -160,9 +160,8 @@ function stacksOf(
   ]
 }
 
-// The picture on a square: the thing itself, and the count in the corner the way
-// every inventory anyone has ever seen puts it. A single of anything carries no
-// number, because the square is the one.
+// The picture on a square: the thing itself, and the count in the corner.
+// Count badge omitted at 1.
 function StackArt({ stack }: { stack: Stack }) {
   const count = stack.items.length + stack.chests.length
   const first = stack.items[0]
@@ -213,8 +212,6 @@ export function StackSquare({ stack, frameClass }: { stack: Stack; frameClass: s
   )
 }
 
-// One square of the grid, which is a button and nothing else: the whole picture
-// is the target.
 export function Square({ stack, onOpen }: { stack: Stack; onOpen: () => void }) {
   const count = stack.items.length + stack.chests.length
 
