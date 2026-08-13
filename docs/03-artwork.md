@@ -13,16 +13,16 @@ whole of what a commission would cover.
 
 | Group | Files | What they are | Where they appear |
 | --- | --- | --- | --- |
-| Medals | 11 | One face per medal in the catalogue | You screen, Home rail, feed and Activity chips, avatar slots |
+| Medals | 24 | One face per medal in the catalogue | You screen, Home rail, feed and Activity chips, avatar slots |
 | Avatar borders | 6 | One per level tier, `border-t1` to `border-t6` | Around every avatar, every screen |
 | Flourishes | 3 | The growth earned by encouraging people, `f1` to `f3` | Over the border, on every avatar |
-| Interface icons | 10 | Tab bar, cheer, gear, pencil, play, sport diamond, chest ladder marker | Chrome, everywhere |
+| Interface icons | 15 | Tab bar, cheer, gear, pencil, play, chest ladder marker, week diamond, and the five sport marks | Chrome, everywhere |
 | Plants | 39 | Thirteen species at three growth stages each | The plot, and the reveal when a seed is found |
 | Ground | 1 | The strip of soil a grove stands on, `ground` | The floor of the band across the top of both profiles |
 | Loose pieces | 5 | Chest, gilding overlay, boost potion, water, unmarked seed | Inventory squares, chest reveals, finished plants |
 | Landing hero | 1 | The four sports in four strips, `landing-hero` | The top of the landing page |
 
-Seventy-six files in total, all under `frontend/src/assets/`.
+Ninety-four files in total, all under `frontend/src/assets/`.
 
 There are two chest drawings on purpose. `grove/chest.svg` is a picture loaded
 by URL with its own colours, used for an inventory square. `icons/chest.svg` is
@@ -103,6 +103,7 @@ both.
 | `sport-run.svg` | Beside the word Run, wherever a run is named |
 | `sport-cycle.svg` | Beside the word Cycle, wherever a ride is named |
 | `sport-swim.svg` | Beside the word Swim, wherever a swim is named |
+| `sport-treadmill.svg` | Instead of the walk or run mark, wherever an indoor one is drawn |
 
 Three rules on top of the two above, because these files are placed straight
 into the page:
@@ -122,11 +123,18 @@ drawn as you drew it, and a day without has its fill removed by the stylesheet,
 leaving the outline. Give the shape both a `fill="currentColor"` and a
 `stroke="currentColor"` so both states have something to show.
 
-The four `sport-*.svg` files are one set and are read as one, so they want the
+The five `sport-*.svg` files are one set and are read as one, so they want the
 same weight of line and the same amount of the square filled: they are drawn
 side by side on You and one under the next under Activity. Each goes beside the
 word for its sport and never instead of it, which is also why they are hidden from
 screen readers wherever they are drawn.
+
+`sport-treadmill.svg` is the fifth of that set and the odd one out: it is not a
+sport but a place, drawn instead of the walk or run mark when the export named
+the session indoors. It is only ever swapped in for those two, because a
+stationary bike and a pool are neither a treadmill nor each other, and the
+totals and filters that name an activity in the abstract always draw that
+activity's own mark. The placeholder is a belt with an upright and a console.
 
 ## The landing hero
 
@@ -213,7 +221,7 @@ as 40 pixels across in the feed, so keep the shapes bold enough to read there.
 
 `frontend/src/assets/badges/*.svg`
 
-The whole reward system is eleven medals, drawn on the You screen as one list,
+The whole reward system is twenty-four medals, drawn on the You screen as one list,
 again down the rail on Home as the few earned most recently, and again as a chip
 on every feed card and Activity row for the medals that workout earned. Every one of
 them is
@@ -228,32 +236,56 @@ the file names are the mapping's, and it lives in `frontend/src/art.ts`.
 
 | Id | File | Earned by |
 | --- | --- | --- |
-| `race_5k` | `race-5k.svg` | One run of 3.1 miles or more |
-| `race_10k` | `race-10k.svg` | One run of 6.2 miles or more |
-| `race_half` | `race-half.svg` | One run of 13.1 miles or more |
-| `race_marathon` | `race-marathon.svg` | One run of 26.2 miles or more |
-| `race_ultra` | `race-ultra.svg` | One run of 31.1 miles or more |
+| `race_1mi` | `race-1mi.svg` | One walk or run of 1 mile or more |
+| `race_2mi` | `race-2mi.svg` | One walk or run of 2 miles or more |
+| `race_5k` | `race-5k.svg` | One walk or run of 3.1 miles or more |
+| `race_10k` | `race-10k.svg` | One walk or run of 6.2 miles or more |
+| `race_half` | `race-half.svg` | One walk or run of 13.1 miles or more |
+| `race_marathon` | `race-marathon.svg` | One walk or run of 26.2 miles or more |
+| `race_ultra` | `race-ultra.svg` | One walk or run of 31.1 miles or more |
 | `weekly_10` | `weekly-10.svg` | Ten miles inside one week, any activity |
 | `weekly_15` | `weekly-15.svg` | Fifteen miles inside one week |
 | `weekly_25` | `weekly-25.svg` | Twenty-five miles inside one week |
 | `weekly_40` | `weekly-40.svg` | Forty miles inside one week |
-| `early_riser` | `time-early-riser.svg` | A run of 5K or more started between four and six in the morning |
-| `night_owl` | `time-night-owl.svg` | A run of 5K or more started between eight at night and four in the morning |
+| `early_riser` | `time-early-riser.svg` | A walk or run of a mile or more started between four and six in the morning |
+| `night_owl` | `time-night-owl.svg` | A walk or run of a mile or more started between eight at night and four in the morning |
+| `cycle_10` | `cycle-10.svg` | One ride of 10 miles or more |
+| `cycle_25` | `cycle-25.svg` | One ride of 25 miles or more |
+| `cycle_50` | `cycle-50.svg` | One ride of 50 miles or more |
+| `cycle_100` | `cycle-100.svg` | One ride of 100 miles or more |
+| `swim_half` | `swim-half.svg` | One swim of half a mile or more |
+| `swim_1` | `swim-1.svg` | One swim of a mile or more |
+| `swim_2` | `swim-2.svg` | One swim of 2 miles or more |
+| `lifetime_100` | `lifetime-100.svg` | 100 lifetime converted Miles, earned once |
+| `lifetime_250` | `lifetime-250.svg` | 250 lifetime converted Miles, earned once |
+| `lifetime_500` | `lifetime-500.svg` | 500 lifetime converted Miles, earned once |
+| `lifetime_1000` | `lifetime-1000.svg` | 1000 lifetime converted Miles, earned once |
 
 The medal ids are in `backend/app/medals.py`, in the catalogue near the top of
-the file. The catalogue is eleven and fixed: it gains a medal by gaining a row
-there and a file here, and the mapping in `art.ts` gaining a line.
+the file. The catalogue is twenty-four and fixed: it gains a medal by gaining a
+row there and a file here, and the mapping in `art.ts` gaining a line.
 
-Medals are still drawn in three shapes, so a screen of eleven does not read as
-eleven versions of the same object:
+Medals are drawn in six shapes, one per family, so a screen of twenty-four does
+not read as twenty-four versions of the same object:
 
-- **Distance**, the five races: a struck plate with the distance in a band
-  across the middle, and the step of the ladder counted in marks above it.
+- **Distance**, the seven races: a struck plate with the distance in a band
+  across the middle, and the step of the ladder counted in marks above it. The
+  marks start at the 5K, which was the smallest medal there was when they were
+  drawn; the mile and the two miles sit below the ladder and carry none, and the
+  Second Mile takes a crimson underline instead because the app is named for it.
 - **Weeks**, the four mileage weeks: a calendar rather than a plate, the week
   along its head and the mileage large in the middle.
 - **Hours**, the two times of day: a plate again, with a picture on it and no
   lettering. Early Riser is a steaming coffee cup in front of a sunrise. Night
   Owl is an owl, with a crescent moon behind it.
+- **Rides**, the four cycling medals: a wheel, with spokes to the rim and the
+  distance on the hub.
+- **Swims**, the three swimming medals: a plate with the distance above two
+  waves rather than in a band.
+- **Lifetime**, the four odometer medals: not a plate at all but an odometer
+  window, wide and rounded, with a gauge arc over it. These four are the only
+  medals earned once each and the only ones counted in converted Miles rather
+  than in miles on the ground.
 
 Draw them as a set: the same size and weight, readable at a glance, because five
 of them share the width of a phone screen. Medals are drawn small, roughly 56

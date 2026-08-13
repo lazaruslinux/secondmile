@@ -289,10 +289,17 @@ def test_each_race_distance_earns_its_own_medal(signed_in, db_session, member):
         assert earned[row.id] == expected, miles
 
 
-def test_a_run_short_of_the_threshold_earns_nothing(signed_in, db_session, member):
-    stored_run(db_session, member.id, 3.09)
+def test_a_run_short_of_the_smallest_rung_earns_nothing(signed_in, db_session, member):
+    """A mile is the bottom of the ladder now, so anything under one earns
+    nothing at all, and anything over it takes the highest rung it has paid
+    for rather than the one it fell short of."""
+    stored_run(db_session, member.id, 0.9)
     progress.process_user(db_session, member.id)
     assert medal_rows(db_session, member.id) == []
+
+    stored_run(db_session, member.id, 3.09, days_ago=3)
+    progress.process_user(db_session, member.id)
+    assert [row.badge_id for row in medal_rows(db_session, member.id)] == ["race_2mi"]
 
 
 def test_race_medals_repeat_and_carry_the_day_of_the_run(signed_in, db_session, member):
@@ -308,13 +315,17 @@ def test_race_medals_repeat_and_carry_the_day_of_the_run(signed_in, db_session, 
     }
 
 
-def test_only_running_earns_a_race_medal(signed_in, db_session, member):
-    for offset, activity in enumerate(("walk", "cycle", "swim")):
-        stored_run(
-            db_session, member.id, 30.0, activity=activity, duration_s=6 * 3600, days_ago=offset + 1
-        )
+def test_a_ride_and_a_swim_never_earn_a_race_medal(signed_in, db_session, member):
+    """Feet are feet, and wheels and water are not. Each of those two has a
+    family of its own at its own distances, and neither reaches into the race
+    family however far it goes."""
+    stored_run(db_session, member.id, 30.0, activity="cycle", duration_s=3 * 3600, days_ago=2)
+    stored_run(db_session, member.id, 3.0, activity="swim", duration_s=2 * 3600, days_ago=1)
     progress.process_user(db_session, member.id)
-    assert medal_rows(db_session, member.id) == []
+    assert [row.badge_id for row in medal_rows(db_session, member.id)] == [
+        "cycle_25",
+        "swim_2",
+    ]
 
 
 def test_a_run_flagged_impossible_earns_nothing(signed_in, db_session, member):

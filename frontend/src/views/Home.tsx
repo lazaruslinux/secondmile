@@ -20,7 +20,7 @@ import {
 } from '../format.ts'
 import { plantStage } from '../grove.ts'
 import {
-  ACTIVITY_ICONS,
+  activityIcon,
   defaultHeadline,
   medalName,
   NOTHING_PLANTED,
@@ -469,7 +469,7 @@ export default function Home({
                     not, so one workout is never called two things. The mark
                     beside it is the one every activity in the app wears. */}
                 <span className="sport-icon sport-icon-small">
-                  <Icon name={ACTIVITY_ICONS[mine.activity]} />
+                  <Icon name={activityIcon(mine.activity, mine.indoor)} />
                 </span>
                 {mine.title?.trim() || defaultHeadline(mine.activity, mine.start_ts)},{' '}
                 {formatStart(mine.start_ts)}

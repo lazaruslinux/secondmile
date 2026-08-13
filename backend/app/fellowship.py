@@ -621,6 +621,11 @@ def feed_row(
         "workout_id": workout.id,
         "user": person,
         "activity": workout.activity,
+        # Beside the activity because it only ever qualifies it: an indoor walk
+        # is a walk, drawn with a treadmill instead of a pavement. Never held
+        # back, because it is part of what the activity was rather than a
+        # number about a body.
+        "indoor": workout.indoor,
         "start_ts": workout.start_ts.isoformat(),
         "distance_mi": round(workout.distance_mi, 3),
         "duration_s": workout.duration_s,

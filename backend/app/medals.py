@@ -1,19 +1,24 @@
 """The medals: the catalogue, the rules that earn them, and their awarding.
 
-Eleven medals in three families, and every one of them repeatable. That is the
-whole system: there is no second kind of thing earned once and ticked off, so
-nothing here has to say whether a medal can come again. A marathon next month
-is another Marathon, a big week in October is another 25-mile week.
+Twenty-four medals in six families. Five of the six repeat: a marathon next
+month is another Marathon, a big week in October is another 25-mile week. The
+sixth is the lifetime odometer, and it is the one thing here earned once and
+ticked off, because a hundredth Mile only ever happens once. Every rule that
+follows says which of the two it is.
 
 Two tables hold the earns, split by what earns them rather than by family.
-badge_earns is one row per workout per medal, for the families a single session
-earns (race and time). weekly_badge_earns is one row per week per family, for
-the family a week earns, which is what lets a week upgrade its medal in place
-as the miles add up.
+badge_earns is one row per workout per medal: the four families a single session
+earns (race, cycle, swim and time), and the odometer, whose row hangs on the
+workout whose credit carried the total over the line. weekly_badge_earns is one
+row per week per family, for the family a week earns, which is what lets a week
+upgrade its medal in place as the miles add up.
 
-Every threshold is raw miles, never converted Miles: a 5K is a distance on the
-ground and a 25-mile week is twenty-five miles walked, run, ridden, or swum. No
-conversion rate has any business changing what either of them is.
+Every threshold is raw miles, never converted Miles, with one deliberate
+exception: a 5K is a distance on the ground and a 25-mile week is twenty-five
+miles walked, run, ridden, or swum, and no conversion rate has any business
+changing what either of them is. The odometer is the exception because it is not
+a distance on the ground at all: it is the lifetime total the game itself is
+scored in, so it is the only family read in converted Miles.
 """
 
 import datetime as dt
@@ -41,16 +46,23 @@ class Medal:
     # The label the API serves. Ids are the stable part: they are in the
     # database and in the badge slots, and a name is only ever printed.
     name: str
-    # Raw miles the medal is earned at: one workout's distance for the race
-    # family, one week's total for the weekly family, and nothing at all for
-    # the time family, which is earned by a clock.
+    # Miles the medal is earned at: one workout's distance for the race, cycle
+    # and swim families, one week's total for the weekly family, and the
+    # account's lifetime converted Miles for the odometer, which is the one
+    # family here not measured on the ground. Nothing at all for the time
+    # family, which is earned by a clock.
     distance_mi: float | None = None
 
 
-# Catalogue order, which is the order the profile serves them in. Within the
-# race and weekly families the thresholds ascend, which is what makes "the
-# highest one this qualifies for" a single pass.
+# Catalogue order, which is the order the profile serves them in. Within every
+# family that has thresholds they ascend, which is what makes "the highest one
+# this qualifies for" a single pass.
 CATALOG: tuple[Medal, ...] = (
+    # The two the app is named for, and the humblest medals there are: one mile
+    # covered, and the second one gone with it (Matthew 5:41). The names are the
+    # owner's own and never change.
+    Medal("race_1mi", "race", "First Mile", 1.0),
+    Medal("race_2mi", "race", "Second Mile", 2.0),
     # Every race threshold sits a hair under the metric truth on purpose,
     # because a GPS trace of a measured 5K rarely reads 3.107.
     Medal("race_5k", "race", "5K", 3.1),
@@ -64,20 +76,52 @@ CATALOG: tuple[Medal, ...] = (
     Medal("weekly_40", "weekly", "40-mile week", 40.0),
     Medal("early_riser", "time", "Early Riser"),
     Medal("night_owl", "time", "Night Owl"),
+    # DRAFT NAMES, awaiting the owner's word: the four rides and the three
+    # swims below are named to hold the shape, and only the two race medals
+    # above and the eleven that predate them are settled.
+    Medal("cycle_10", "cycle", "10 Mile Ride", 10.0),
+    Medal("cycle_25", "cycle", "25 Mile Ride", 25.0),
+    Medal("cycle_50", "cycle", "50 Mile Ride", 50.0),
+    Medal("cycle_100", "cycle", "Century", 100.0),
+    Medal("swim_half", "swim", "Half Mile Swim", 0.5),
+    Medal("swim_1", "swim", "Mile Swim", 1.0),
+    Medal("swim_2", "swim", "2 Mile Swim", 2.0),
+    # DRAFT NAMES as well. Converted Miles rather than ground, and earned once
+    # each: see the odometer section below.
+    Medal("lifetime_100", "lifetime", "100 Miles", 100.0),
+    Medal("lifetime_250", "lifetime", "250 Miles", 250.0),
+    Medal("lifetime_500", "lifetime", "500 Miles", 500.0),
+    Medal("lifetime_1000", "lifetime", "1000 Miles", 1000.0),
 )
 
 BY_ID: dict[str, Medal] = {row.id: row for row in CATALOG}
 
-RACE_MEDALS: tuple[Medal, ...] = tuple(row for row in CATALOG if row.family == "race")
-WEEKLY_MEDALS: tuple[Medal, ...] = tuple(row for row in CATALOG if row.family == "weekly")
+
+def _family(name: str) -> tuple[Medal, ...]:
+    """One family in catalogue order, which is ascending by threshold."""
+    return tuple(row for row in CATALOG if row.family == name)
+
+
+RACE_MEDALS: tuple[Medal, ...] = _family("race")
+WEEKLY_MEDALS: tuple[Medal, ...] = _family("weekly")
+CYCLE_MEDALS: tuple[Medal, ...] = _family("cycle")
+SWIM_MEDALS: tuple[Medal, ...] = _family("swim")
+LIFETIME_MEDALS: tuple[Medal, ...] = _family("lifetime")
 
 # Which table a family's earns live in. The split is the one thing about a
 # family that is not data: a week cannot be keyed by a workout.
-WORKOUT_FAMILIES = ("race", "time")
+WORKOUT_FAMILIES = ("race", "time", "cycle", "swim", "lifetime")
 WEEK_FAMILIES = ("weekly",)
 
-# A time medal wants a 5K on the ground, the same distance the smallest race
-# medal is measured at. Anything shorter is a stroll at an odd hour.
+# Feet are feet. A mile covered on foot is a mile, so the race family and the
+# time family are earned by a walk exactly as by a run: one rule for both, and
+# the pace flag still blocks either. The single-sport families below each read
+# their own activity and nothing else.
+FEET_ACTIVITIES = ("walk", "run")
+
+# A time medal wants the smallest race medal's distance on the ground. Anything
+# shorter is a stroll at an odd hour, and the line follows the race family down
+# rather than being written out again.
 MIN_TIME_MEDAL_MI = RACE_MEDALS[0].distance_mi
 
 # Local hours, read in the instance timezone. Early Riser is the two hours
@@ -92,27 +136,56 @@ NIGHT_OWL_FROM = 20
 # --------------------------------------------------------------------------
 
 
-def _eligible(workout: models.Workout) -> bool:
-    """Whether a workout can earn a per-workout medal at all.
+def _believable(workout: models.Workout) -> bool:
+    """Whether the numbers on a workout are worth a medal at all.
 
-    Running only, and never a workout the pace flag has already called
-    impossible: a distance nobody covered is not a distance worth a medal.
+    Never a workout the pace flag has already called impossible: a distance
+    nobody covered is not a distance worth a medal.
     """
-    if workout.activity != "run":
-        return False
     return not (workout.flags or {}).get("impossible_pace")
 
 
-def _race_medal_for(workout: models.Workout) -> Medal | None:
-    """The race medal one workout earns, or None. The highest one only: a
-    marathon is a marathon, not also a 5K and a 10K and a half."""
-    if not _eligible(workout):
+def _eligible(workout: models.Workout) -> bool:
+    """Whether a workout can earn one of the two on-foot families.
+
+    On foot, walked or run, and believable. A ride and a swim are neither: each
+    has a family of its own, at its own distances.
+    """
+    return workout.activity in FEET_ACTIVITIES and _believable(workout)
+
+
+def _highest(
+    workout: models.Workout, family: tuple[Medal, ...], activities: tuple[str, ...]
+) -> Medal | None:
+    """The highest medal of one family this workout's distance qualifies for.
+
+    The highest one only, which is every distance family's rule: a marathon is a
+    marathon, not also a 5K and a 10K and a half. Raw miles, one session's worth.
+    """
+    if workout.activity not in activities or not _believable(workout):
         return None
     best = None
-    for medal in RACE_MEDALS:
+    for medal in family:
         if workout.distance_mi + _EPSILON >= medal.distance_mi:
             best = medal
     return best
+
+
+def _race_medal_for(workout: models.Workout) -> Medal | None:
+    """The race medal one workout earns, or None. Walked or run, either way."""
+    return _highest(workout, RACE_MEDALS, FEET_ACTIVITIES)
+
+
+def _cycle_medal_for(workout: models.Workout) -> Medal | None:
+    """The cycling medal one ride earns, or None. Rides only: the distances are
+    a bike's, and nothing covered on foot reaches them the same way."""
+    return _highest(workout, CYCLE_MEDALS, ("cycle",))
+
+
+def _swim_medal_for(workout: models.Workout) -> Medal | None:
+    """The swimming medal one swim earns, or None. Swims only, for the reason
+    the cycling family is rides only, turned the other way up."""
+    return _highest(workout, SWIM_MEDALS, ("swim",))
 
 
 def _time_medal_for(workout: models.Workout) -> Medal | None:
@@ -120,7 +193,8 @@ def _time_medal_for(workout: models.Workout) -> Medal | None:
 
     Read in the instance timezone, because the hour of the day is the whole
     point: a run stored at 12:44 UTC was a quarter to six in the morning to
-    whoever ran it, and that is the only reading that means anything.
+    whoever ran it, and that is the only reading that means anything. Walked or
+    run, either way: being out before six is the thing being marked.
     """
     if not _eligible(workout) or workout.distance_mi + _EPSILON < MIN_TIME_MEDAL_MI:
         return None
@@ -132,9 +206,11 @@ def _time_medal_for(workout: models.Workout) -> Medal | None:
     return None
 
 
-# One rule per per-workout family, each returning at most one medal. A workout
-# can hold one from each, so a 5K before six earns the 5K and Early Riser both.
-_WORKOUT_RULES = (_race_medal_for, _time_medal_for)
+# One rule per per-workout family, in catalogue order, each returning at most
+# one medal. A workout can hold one from each, so a 5K before six earns the 5K
+# and Early Riser both. The three distance families are gated to their own
+# activities, so no workout ever comes away with two of them.
+_WORKOUT_RULES = (_race_medal_for, _time_medal_for, _cycle_medal_for, _swim_medal_for)
 
 
 def medals_for_workout(workout: models.Workout) -> list[Medal]:
@@ -154,6 +230,89 @@ def award_workout_medals(
     """
     written = []
     for medal in medals_for_workout(workout):
+        try:
+            with db.begin_nested():
+                db.add(
+                    models.BadgeEarn(
+                        user_id=user_id,
+                        badge_id=medal.id,
+                        workout_id=workout.id,
+                        earned_at=workout.start_ts,
+                    )
+                )
+                db.flush()
+        except IntegrityError:
+            continue
+        written.append(medal)
+    return written
+
+
+# --------------------------------------------------------------------------
+# What the odometer earns
+# --------------------------------------------------------------------------
+
+
+def odometer_medals(total_before: float, total_after: float) -> list[Medal]:
+    """The odometer medals one credit carries the lifetime total past.
+
+    Two totals rather than one, because the medal belongs to the crossing: a
+    credit that takes an account from 98 Miles to 260 earns both the hundred and
+    the two hundred and fifty, and a credit that starts past a line earns
+    nothing from it. Converted Miles, the number the account is scored in.
+    """
+    return [
+        medal
+        for medal in LIFETIME_MEDALS
+        if total_before + _EPSILON < medal.distance_mi <= total_after + _EPSILON
+    ]
+
+
+def _held_odometer_ids(db: Session, user_id: int) -> set[str]:
+    """Which odometer medals this account already has. One query, because the
+    family is earned once each and the check is what enforces it."""
+    ids = [medal.id for medal in LIFETIME_MEDALS]
+    return set(
+        db.execute(
+            select(models.BadgeEarn.badge_id).where(
+                models.BadgeEarn.user_id == user_id,
+                models.BadgeEarn.badge_id.in_(ids),
+            )
+        ).scalars()
+    )
+
+
+def award_odometer_medals(
+    db: Session,
+    user_id: int,
+    workout: models.Workout,
+    total_before: float,
+    total_after: float,
+) -> list[Medal]:
+    """Record the lifetime lines this credit crossed. Returns the rows written.
+
+    Earned once each, which is the one place this file departs from everything
+    around it: a second hundredth Mile is not a thing that happens. The held
+    check is what says so, since the unique key next door only refuses the same
+    medal on the same workout.
+
+    The row hangs on the workout whose credit crossed the line and carries that
+    workout's start time, so a rebuild writes the same row: the replay walks the
+    history oldest first from a total of nothing, which is the same walk in the
+    same order, so the same workout crosses the same threshold.
+
+    The pace flag does not block this one, and deliberately. The odometer counts
+    a total rather than a claim about one session, and a flagged workout's miles
+    are in that total either way; refusing the crossing would lose the medal
+    outright rather than move it, because a line is only ever crossed once.
+    """
+    crossed = odometer_medals(total_before, total_after)
+    if not crossed:
+        return []
+    held = _held_odometer_ids(db, user_id)
+    written = []
+    for medal in crossed:
+        if medal.id in held:
+            continue
         try:
             with db.begin_nested():
                 db.add(

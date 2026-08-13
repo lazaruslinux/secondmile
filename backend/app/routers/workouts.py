@@ -319,6 +319,9 @@ def _deleted_row(workout: models.Workout) -> dict:
     return {
         "workout_id": workout.id,
         "activity": workout.activity,
+        # The row draws the same sport mark the card does, so it needs the same
+        # qualifier: a deleted treadmill run is still recognisable as one.
+        "indoor": workout.indoor,
         "start_ts": workout.start_ts.isoformat(),
         "distance_mi": round(workout.distance_mi, 3),
         "duration_s": workout.duration_s,

@@ -219,6 +219,7 @@ def _credit(
 ) -> None:
     miles = converted_miles(workout.activity, workout.distance_mi)
     # Experience is the distance itself. One converted Mile, one XP.
+    lifetime_before = progress.xp
     progress.xp += miles
     progress.level = level_for_xp(progress.xp)
     # The other lane, out of the same workout and out of nothing it shares: the
@@ -226,6 +227,11 @@ def _credit(
     # nothing counts down, so this is the only line that moves it.
     progress.manna_pending += manna_for(workout.active_kcal)
     medals.award_workout_medals(db, progress.user_id, workout)
+    # The lifetime lines this credit crossed, read either side of the addition
+    # above: the odometer belongs to the crossing rather than to the workout.
+    medals.award_odometer_medals(
+        db, progress.user_id, workout, lifetime_before, progress.xp
+    )
     # After the workout is credited, so the week it falls in is totalled with
     # this one in it. The whole week is walked again rather than added to, which
     # is what makes a backfill arriving out of order land on the same rows.
@@ -827,9 +833,13 @@ def rebuild_from_surviving(db: Session, user_id: int) -> models.UserProgress:
             continue
         miles = converted_miles(workout.activity, workout.distance_mi)
         fuel += miles
+        lifetime_before = progress.xp
         progress.xp += miles
         progress.manna_pending += manna_for(workout.active_kcal)
         medals.award_workout_medals(db, user_id, workout)
+        # The same walk the pipeline does, from a total of nothing and oldest
+        # first, so the workout that crossed a lifetime line crosses it again.
+        medals.award_odometer_medals(db, user_id, workout, lifetime_before, progress.xp)
         medals.update_week_for(db, user_id, workout)
     # The workouts are the whole of it. Steps are no fuel: the dormant ledger
     # is not read here, so a rebuild lands on what the recorded activities pay

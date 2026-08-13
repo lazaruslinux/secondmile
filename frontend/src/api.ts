@@ -76,6 +76,7 @@ export interface Workout extends FeedItem {
 export interface DeletedWorkout {
   workout_id: number
   activity: Activity
+  indoor: boolean
   start_ts: string
   distance_mi: number
   duration_s: number
@@ -130,6 +131,11 @@ export interface FeedItem {
   workout_id: number
   user: Person
   activity: Activity
+  // Whether the export called this an indoor session. It qualifies the
+  // activity and nothing else: an indoor walk or run wears the treadmill mark
+  // instead of its sport's own, and nothing about the numbers changes. Never
+  // hidden, and false for everything synced before the field existed.
+  indoor: boolean
   start_ts: string
   distance_mi: number
   duration_s: number
@@ -208,15 +214,16 @@ export interface ActivityStats {
   workouts: number
 }
 
-// The three kinds of medal. Every medal in the catalogue belongs to exactly
-// one. Nothing on screen groups by them any more; the server still says which.
-export type MedalFamily = 'race' | 'weekly' | 'time'
+// The six kinds of medal. Every medal in the catalogue belongs to exactly one.
+// Nothing on screen groups by them any more; the server still says which.
+export type MedalFamily = 'race' | 'weekly' | 'time' | 'cycle' | 'swim' | 'lifetime'
 
-// One medal and how many times it has been earned. The server sends all eleven
-// whether they have been earned or not, so a count of zero is a medal still to
-// come rather than a missing row. Medals repeat: the count is the whole of what
-// an account holds, and the stars around the artwork are worked out from it
-// here rather than sent.
+// One medal and how many times it has been earned. The server sends the whole
+// catalogue whether each has been earned or not, so a count of zero is a medal
+// still to come rather than a missing row. All but the lifetime family repeat:
+// the count is the whole of what an account holds, and the stars around the
+// artwork are worked out from it here rather than sent. A lifetime medal is
+// earned once, so its count is only ever nought or one.
 export interface Medal {
   id: string
   family: MedalFamily
@@ -437,6 +444,7 @@ export interface RecentPhoto {
   photo_id: number
   workout_id: number
   activity: Activity
+  indoor: boolean
   distance_mi: number
   duration_s: number
 }
@@ -681,6 +689,7 @@ export interface RecapChest {
 export interface RecapWorkout {
   workout_id: number
   activity: Activity
+  indoor: boolean
   start_ts: string
   duration_s: number
   distance_mi: number

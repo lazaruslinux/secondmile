@@ -116,6 +116,8 @@ export function iconArt(name: string): string | null {
 // with nothing else to edit. Ids come from the server with underscores; files
 // are named with hyphens, and the time family carries its family in its name.
 const MEDAL_FILES: Record<string, string> = {
+  race_1mi: 'race-1mi',
+  race_2mi: 'race-2mi',
   race_5k: 'race-5k',
   race_10k: 'race-10k',
   race_half: 'race-half',
@@ -127,6 +129,17 @@ const MEDAL_FILES: Record<string, string> = {
   weekly_40: 'weekly-40',
   early_riser: 'time-early-riser',
   night_owl: 'time-night-owl',
+  cycle_10: 'cycle-10',
+  cycle_25: 'cycle-25',
+  cycle_50: 'cycle-50',
+  cycle_100: 'cycle-100',
+  swim_half: 'swim-half',
+  swim_1: 'swim-1',
+  swim_2: 'swim-2',
+  lifetime_100: 'lifetime-100',
+  lifetime_250: 'lifetime-250',
+  lifetime_500: 'lifetime-500',
+  lifetime_1000: 'lifetime-1000',
 }
 
 // A medal id this build has never heard of falls back to its id read as a file

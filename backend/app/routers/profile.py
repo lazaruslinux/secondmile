@@ -473,6 +473,7 @@ def _recent_photos(db: Session, user_id: int) -> list[dict]:
             models.WorkoutPhoto.id,
             models.Workout.id,
             models.Workout.activity,
+            models.Workout.indoor,
             models.Workout.distance_mi,
             models.Workout.duration_s,
         )
@@ -490,10 +491,13 @@ def _recent_photos(db: Session, user_id: int) -> list[dict]:
             "photo_id": photo_id,
             "workout_id": workout_id,
             "activity": activity,
+            # The tag under the picture wears the sport mark, so it needs the
+            # same qualifier every other row that draws one carries.
+            "indoor": indoor,
             "distance_mi": round(distance_mi, 3),
             "duration_s": duration_s,
         }
-        for photo_id, workout_id, activity, distance_mi, duration_s in rows
+        for photo_id, workout_id, activity, indoor, distance_mi, duration_s in rows
     ]
 
 

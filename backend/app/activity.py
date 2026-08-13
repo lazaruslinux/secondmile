@@ -49,6 +49,14 @@ _NAME_KEYWORDS = (
     ("bik", "cycle"),
 )
 
+# The one word that says a session happened indoors, matched against the same
+# lower-cased name the table above reads. Apple writes "Indoor Run" and "Indoor
+# Walk", and matching on the fragment is what makes a name nobody has written
+# down yet still readable. Nothing is inferred from a missing GPS trace or a
+# flat elevation: a name that does not say indoors reads as outdoors, which is
+# what the whole history before this release reads as anyway.
+_INDOOR_KEYWORD = "indoor"
+
 # Everything is stored in miles. The export declares its own units because the
 # phone follows the owner's locale, not ours.
 _MILES_PER = {
@@ -108,6 +116,10 @@ class ParsedWorkout:
     distance_mi: float
     active_kcal: float
     avg_hr: float | None
+    # Whether the export named this an indoor session. Read from the name and
+    # nothing else, and it changes only which mark the card wears: nothing is
+    # scored, gated or converted differently for a treadmill mile.
+    indoor: bool = False
     # The export's GPS trace, exactly as it arrived, or None. Carried rather
     # than parsed here so the pairing of a workout with its own trace is made
     # once, in the one place that reads the export.
@@ -134,6 +146,15 @@ def classify(name: str | None) -> str | None:
         if keyword in lowered:
             return activity
     return None
+
+
+def is_indoor(name: str | None) -> bool:
+    """Whether an export name says the session happened indoors.
+
+    Its own function beside classify because the migration's backfill asks the
+    same question of a stored payload, and two spellings of one rule would drift.
+    """
+    return _INDOOR_KEYWORD in (name or "").lower()
 
 
 def _raw_quantity(value) -> float | None:
@@ -245,6 +266,19 @@ def parse_start(raw) -> dt.datetime | None:
     return None
 
 
+def duration_seconds(entry: dict) -> int:
+    """One export entry's duration in whole seconds.
+
+    Duration arrives in seconds and is often fractional. Rounding to whole
+    seconds is what makes it usable as part of the dedupe key: the same workout
+    re-exported has to produce the same integer every time, and the migration
+    that matches a stored payload back to its workout row asks the same question
+    of the same entry.
+    """
+    duration = _quantity(entry.get("duration"))
+    return max(0, round(duration)) if duration is not None else 0
+
+
 def workout_entries(payload) -> list | None:
     """The export's list of workout entries, or None if it does not have one.
 
@@ -336,11 +370,7 @@ def parse_payload(payload) -> tuple[list[ParsedWorkout], list[dict]]:
         if start is None:
             ignored.append({"index": index, "name": name, "reason": "unreadable start time"})
             continue
-        # Duration arrives in seconds and is often fractional. Rounding to whole
-        # seconds is what makes it usable as part of the dedupe key: the same
-        # workout re-exported has to produce the same integer every time.
-        duration = _quantity(entry.get("duration"))
-        duration_s = max(0, round(duration)) if duration is not None else 0
+        duration_s = duration_seconds(entry)
         heart = entry.get("avgHeartRate")
         if heart is None:
             heart = entry.get("heartRate")
@@ -378,6 +408,7 @@ def parse_payload(payload) -> tuple[list[ParsedWorkout], list[dict]]:
                 # rather than taking the workout with it: nothing is scored from
                 # it, and the session still happened.
                 avg_hr=avg_hr if avg_hr and MIN_WORKOUT_HR <= avg_hr <= MAX_WORKOUT_HR else None,
+                indoor=is_indoor(name if isinstance(name, str) else None),
                 route=entry.get(ROUTE_KEY),
             )
         )

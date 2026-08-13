@@ -636,6 +636,7 @@ def test_the_recap_carries_chests_medals_and_miles_then_clears(signed_in, db_ses
     assert set(recap["workouts"][0]) == {
         "workout_id",
         "activity",
+        "indoor",
         "start_ts",
         "duration_s",
         "distance_mi",

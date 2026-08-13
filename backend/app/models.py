@@ -220,6 +220,13 @@ class Workout(Base):
     distance_mi: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     active_kcal: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     avg_hr: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Whether the export called this an indoor session. It changes the mark the
+    # card wears and nothing else: no medal, no conversion and no flag reads it.
+    # False for everything synced before the column existed, which is honest
+    # rather than complete; see migration 0027.
+    indoor: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
     source: Mapped[str] = mapped_column(SourceEnum, nullable=False)
     # Soft flags only, never a reason to reject. JSON rather than JSONB so the
     # same migration runs on SQLite in the tests.

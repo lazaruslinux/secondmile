@@ -32,6 +32,23 @@ export const ACTIVITY_ICONS: Record<Activity, string> = {
   swim: 'sport-swim',
 }
 
+// The mark an indoor session wears instead of its sport's own. Walks and runs
+// only: a treadmill is what those two happen on indoors, and a stationary bike
+// and a pool are neither this drawing nor each other.
+const TREADMILL_ICON = 'sport-treadmill'
+const TREADMILL_ACTIVITIES: Activity[] = ['walk', 'run']
+
+// Which mark one row wears. Every place that draws a workout's own activity
+// goes through here, so a treadmill run is drawn the same way on the feed, in
+// the Activity tab, in the letter and in the Deleted list. The lists that draw
+// an activity in the abstract, such as the sport chips and the filters, read
+// ACTIVITY_ICONS directly: there is no such thing as an indoor total.
+export function activityIcon(activity: Activity, indoor?: boolean): string {
+  return indoor && TREADMILL_ACTIVITIES.includes(activity)
+    ? TREADMILL_ICON
+    : ACTIVITY_ICONS[activity]
+}
+
 // What a workout is called when nobody has named it: the part of the day it
 // started in, then the activity. Read on the instance's clock, which is the
 // clock the card's own date line is read on, so a run started at 05:44 is a
@@ -48,12 +65,15 @@ export function defaultHeadline(activity: Activity, startTs: string): string {
 // changed in both places or in neither.
 export const GENDERS = ['Male', 'Female']
 
-// The medal catalogue: eleven medals in the order every screen draws them. No
-// screen groups them by family any more, so the order is the whole of the
-// arrangement. Every one of them repeats, so a medal is a count rather than a
-// yes or a no, and the catalogue is fixed rather than grown: nothing here is
-// added to without the art and the server being changed together.
+// The medal catalogue: twenty-four medals in the order every screen draws
+// them, which is the server's own catalogue order. No screen groups them by
+// family, so the order is the whole of the arrangement. All but the last four
+// repeat, so a medal is a count rather than a yes or a no; the odometer at the
+// end is earned once each. The catalogue is fixed rather than grown: nothing
+// here is added to without the art and the server being changed together.
 export const MEDAL_ORDER = [
+  'race_1mi',
+  'race_2mi',
   'race_5k',
   'race_10k',
   'race_half',
@@ -65,11 +85,27 @@ export const MEDAL_ORDER = [
   'weekly_40',
   'early_riser',
   'night_owl',
+  'cycle_10',
+  'cycle_25',
+  'cycle_50',
+  'cycle_100',
+  'swim_half',
+  'swim_1',
+  'swim_2',
+  'lifetime_100',
+  'lifetime_250',
+  'lifetime_500',
+  'lifetime_1000',
 ]
 
-// The names are the interface's own, not the server's, so eleven medals read as
-// one set wherever they are drawn. The stylesheet is what puts them in capitals.
+// The names are the interface's own, not the server's, so the whole set reads
+// as one wherever it is drawn. The stylesheet is what puts them in capitals.
+// The eleven that reach 40-mile week are settled; First Mile and Second Mile
+// are the owner's own and never change; the eleven below them are DRAFT NAMES
+// waiting on his word.
 export const MEDAL_NAMES: Record<string, string> = {
+  race_1mi: 'First Mile',
+  race_2mi: 'Second Mile',
   race_5k: '5K',
   race_10k: '10K',
   race_half: 'Half',
@@ -81,27 +117,53 @@ export const MEDAL_NAMES: Record<string, string> = {
   weekly_40: '40-mile week',
   early_riser: 'Early Riser',
   night_owl: 'Night Owl',
+  cycle_10: '10 Mile Ride',
+  cycle_25: '25 Mile Ride',
+  cycle_50: '50 Mile Ride',
+  cycle_100: 'Century',
+  swim_half: 'Half Mile Swim',
+  swim_1: 'Mile Swim',
+  swim_2: '2 Mile Swim',
+  lifetime_100: '100 Miles',
+  lifetime_250: '250 Miles',
+  lifetime_500: '500 Miles',
+  lifetime_1000: '1000 Miles',
 }
 
 // How to earn each one, written as the instruction it is rather than as a
-// description of it. The thresholds are the server's, in raw miles and never in
-// XP, and they are written out in docs/03-artwork.md as well. The five race
-// medals and the two time medals are running only; a week counts every activity,
-// which is why only those four say so. The clock times are the instance's
-// timezone, which is every account's local time only while one instance serves
-// one place. No line takes a trailing period: they read as one catalogue.
+// description of it. The thresholds are the server's and they are written out
+// in docs/03-artwork.md as well. All of them are raw miles on the ground except
+// the last four, which are the converted Miles the level bar counts in and say
+// so. The race medals and the two time medals are earned on foot, walked or
+// run; a week counts every activity; the rides and the swims are each their own
+// sport only. The clock times are the instance's timezone, which is every
+// account's local time only while one instance serves one place. No line takes
+// a trailing period: they read as one catalogue.
 export const MEDAL_DETAILS: Record<string, string> = {
-  race_5k: 'Complete a 5K (3.1mi) run',
-  race_10k: 'Complete a 10K (6.2mi) run',
-  race_half: 'Complete a half-marathon (13.1mi)',
-  race_marathon: 'Complete a marathon (26.2mi)',
-  race_ultra: 'Complete a 50K (31.1mi)',
+  race_1mi: 'Walk or run 1 mile',
+  race_2mi: 'Walk or run 2 miles',
+  race_5k: 'Walk or run a 5K (3.1mi)',
+  race_10k: 'Walk or run a 10K (6.2mi)',
+  race_half: 'Walk or run a half-marathon (13.1mi)',
+  race_marathon: 'Walk or run a marathon (26.2mi)',
+  race_ultra: 'Walk or run a 50K (31.1mi)',
   weekly_10: 'Cover 10 or more miles in one week, in any activity',
   weekly_15: 'Cover 15 or more miles in one week, in any activity',
   weekly_25: 'Cover 25 or more miles in one week, in any activity',
   weekly_40: 'Cover 40 or more miles in one week, in any activity',
-  early_riser: 'Start a run of 5K or more between 4am and 5:59am',
-  night_owl: 'Start a run of 5K or more between 8pm and 3:59am',
+  early_riser: 'Start a walk or run of a mile or more between 4am and 5:59am',
+  night_owl: 'Start a walk or run of a mile or more between 8pm and 3:59am',
+  cycle_10: 'Ride 10 miles or more in one ride',
+  cycle_25: 'Ride 25 miles or more in one ride',
+  cycle_50: 'Ride 50 miles or more in one ride',
+  cycle_100: 'Ride 100 miles or more in one ride',
+  swim_half: 'Swim half a mile or more in one swim',
+  swim_1: 'Swim a mile or more in one swim',
+  swim_2: 'Swim 2 miles or more in one swim',
+  lifetime_100: 'Reach 100 lifetime Miles, the total the level bar counts',
+  lifetime_250: 'Reach 250 lifetime Miles',
+  lifetime_500: 'Reach 500 lifetime Miles',
+  lifetime_1000: 'Reach 1000 lifetime Miles',
 }
 
 // A medal id the server sent that this build has no name for still has to read

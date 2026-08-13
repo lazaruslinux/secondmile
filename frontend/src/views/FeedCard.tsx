@@ -35,7 +35,7 @@ import {
   unitName,
 } from '../format.ts'
 import {
-  ACTIVITY_ICONS,
+  activityIcon,
   ACTIVITY_NAMES,
   defaultHeadline,
   personName,
@@ -971,7 +971,7 @@ export default function FeedCard({
   // follow it.
   const mark = (
     <span className="sport-icon">
-      <Icon name={ACTIVITY_ICONS[item.activity]} />
+      <Icon name={activityIcon(item.activity, item.indoor)} />
     </span>
   )
   const post = (item.post ?? '').trim()

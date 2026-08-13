@@ -102,6 +102,7 @@ async def ingest(request: Request, db: Session = Depends(get_db)) -> dict:
             distance_mi=item.distance_mi,
             active_kcal=item.active_kcal,
             avg_hr=item.avg_hr,
+            indoor=item.indoor,
             source="sync",
             flags=flags,
             created_at=security.now_utc(),

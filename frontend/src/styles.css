@@ -2706,11 +2706,10 @@ button:disabled {
 }
 
 /* Medals
-   The catalogue on You: one grid of eleven, no headings, with the count under
-   the artwork and the name under that. Four columns rather than five, because
-   eleven over five leaves a last row of one; over four it leaves three, which
-   reads as a row. A medal never earned keeps its column and its nought rather
-   than leaving a hole. */
+   The catalogue on You: one grid of twenty-four, no headings, with the count
+   under the artwork and the name under that. Four columns, which divides the
+   catalogue into six full rows and leaves no orphan. A medal never earned keeps
+   its column and its nought rather than leaving a hole. */
 .medal-strip {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

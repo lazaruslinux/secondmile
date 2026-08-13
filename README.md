@@ -29,12 +29,14 @@ Current version: **0.1.1**. Releases are tagged in git.
   medals you have chosen sit in fixed slots around it. Weekly and lifetime
   totals are worn on the profile. There are no leaderboards of raw miles and
   there never will be: profiles celebrate, they do not rank.
-- **Keeps an endless list of things to earn.** Twelve medals, and every one of
-  them repeatable: five for a single run that covers 5K, 10K, half marathon,
-  marathon, or ultra distance, four for a big week, two for running before six
-  in the morning or after eight at night, and the Second Mile for voluntarily
-  doubling a weekly target inside the same week. Each is counted on the
-  profile, so a medal earned five times says so.
+- **Keeps an endless list of things to earn.** Twenty-four medals: seven for a
+  single walk or run that covers a mile, two miles, 5K, 10K, half marathon,
+  marathon, or ultra distance, four for a big week, two for setting out before
+  six in the morning or after eight at night, four for a long ride, three for a
+  long swim, and four lifetime milestones at 100, 250, 500, and 1000 converted
+  Miles. Feet are feet, so a walk earns at every distance a run does. All but
+  the four lifetime medals repeat, and each is counted on the profile, so a
+  medal earned five times says so.
 - **Drops chests on a ladder you can count.** Chests cost 5K, then 10K, then a
   half, a marathon, an ultra, and then the ladder starts again. Converted miles
   from every activity are the fuel, a long run climbs several steps at once,

@@ -35,7 +35,7 @@ import {
   unitName,
 } from '../format.ts'
 import {
-  ACTIVITY_ICONS,
+  activityIcon,
   ANOINT_HINT,
   ANOINTED,
   EMPTY_BASKET,
@@ -738,7 +738,7 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
                 </span>
                 <span className="media-tag">
                   <span className="sport-icon sport-icon-small">
-                    <Icon name={ACTIVITY_ICONS[row.activity] ?? ''} />
+                    <Icon name={activityIcon(row.activity, row.indoor)} />
                   </span>
                   <span className="media-figure">
                     {distanceValue(row.distance_mi, units)} {unitName(units)}

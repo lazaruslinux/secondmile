@@ -4,7 +4,7 @@ import argparse
 import datetime as dt
 
 from app import config, models, security
-from app.activity import classify, parse_start, to_kcal, to_miles, without_routes
+from app.activity import classify, is_indoor, parse_start, to_kcal, to_miles, without_routes
 from conftest import make_user
 # The same synthetic trace the route cases are built from, rather than a second
 # generator here that could drift from it.
@@ -112,6 +112,33 @@ def test_activity_name_matching_is_contains_based():
     assert classify("Open Water Swimming") == "swim"
     assert classify("Traditional Strength Training") is None
     assert classify(None) is None
+
+
+def test_the_indoor_reading_is_the_name_and_nothing_else():
+    assert is_indoor("Indoor Run") is True
+    assert is_indoor("INDOOR WALK") is True
+    assert is_indoor("indoor treadmill run") is True
+    assert is_indoor("Outdoor Walk") is False
+    assert is_indoor("Running") is False
+    # Nothing is inferred from anywhere else, so an unnamed session is outdoors.
+    assert is_indoor(None) is False
+    assert is_indoor("") is False
+
+
+def test_an_indoor_name_is_stored_on_the_workout(signed_in, ingest_token, db_session):
+    """Both halves of the name are read at once: the activity from its keyword
+    and the indoor mark from its own, so an indoor walk is a walk that was
+    indoors rather than a fifth activity."""
+    payload = export(
+        workout("Indoor Run", "2026-07-20T06:12:00-07:00", 1800, 3.0, 300),
+        workout("Outdoor Walk", "2026-07-20T09:00:00-07:00", 2400, 2.1, 190),
+    )
+    assert post(signed_in, ingest_token, payload).status_code == 200
+    stored = {
+        row.activity: row.indoor
+        for row in db_session.query(models.Workout).order_by(models.Workout.id)
+    }
+    assert stored == {"run": True, "walk": False}
 
 
 def test_start_time_dialects():

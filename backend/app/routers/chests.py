@@ -419,6 +419,9 @@ def _arrived(db: Session, user_id: int, since: dt.datetime | None) -> dict:
                 # already read that key and one of them was not going to change.
                 "workout_id": row.id,
                 "activity": row.activity,
+                # The letter's rows wear the sport mark too, so they carry what
+                # decides which one it is.
+                "indoor": row.indoor,
                 "start_ts": row.start_ts.isoformat(),
                 "duration_s": row.duration_s,
                 "distance_mi": round(row.distance_mi, 3),

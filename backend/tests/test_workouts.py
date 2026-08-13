@@ -35,6 +35,7 @@ def stored(
     active_kcal=0.0,
     avg_hr=None,
     source="sync",
+    indoor=False,
 ) -> models.Workout:
     """One workout written straight in and credited, the way a sync would.
 
@@ -51,6 +52,7 @@ def stored(
         distance_mi=miles,
         active_kcal=active_kcal,
         avg_hr=avg_hr,
+        indoor=indoor,
         source=source,
         flags={},
         created_at=security.now_utc(),
@@ -352,8 +354,29 @@ def test_history_rows_name_the_medals_a_run_earned(signed_in, db_session, member
     stored(db_session, member.id, start="2026-07-22T05:30:00+00:00", duration=2700, miles=4.0)
     rows = {row["distance_mi"]: row["medals"] for row in signed_in.get("/api/workouts").json()}
     assert rows[6.4] == ["race_10k"]
-    assert rows[2.0] == []
+    # Two miles is the Second Mile now, and at a quarter past six in the
+    # morning it is nothing else.
+    assert rows[2.0] == ["race_2mi"]
     assert rows[4.0] == ["race_5k", "early_riser"]
+
+
+def test_every_row_that_draws_a_sport_mark_says_whether_it_was_indoors(
+    signed_in, db_session, member
+):
+    """The history row, the letter's row and the deleted row all draw the same
+    mark, so all three carry the same qualifier."""
+    treadmill = stored(db_session, member.id, miles=3.0, indoor=True)
+    stored(db_session, member.id, start="2026-07-21T06:12:00+00:00", miles=3.0)
+
+    rows = {row["workout_id"]: row["indoor"] for row in signed_in.get("/api/workouts").json()}
+    assert rows[treadmill.id] is True
+    assert set(rows.values()) == {True, False}
+
+    letter = signed_in.get("/api/recap").json()["workouts"]
+    assert {row["workout_id"]: row["indoor"] for row in letter}[treadmill.id] is True
+
+    signed_in.delete(f"/api/workouts/{treadmill.id}")
+    assert signed_in.get("/api/workouts/deleted").json()[0]["indoor"] is True
 
 
 def test_history_needs_a_session(client):

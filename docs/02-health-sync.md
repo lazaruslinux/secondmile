@@ -35,6 +35,12 @@ it.
 Only walking, running, cycling, and swimming workouts are imported; other
 types in the export are counted in the response but ignored.
 
+The name the export gives a workout is also where "indoor" is read from: a walk
+or a run whose name says Indoor wears a treadmill mark instead of its sport's
+own, wherever the app draws one. It changes nothing else, and a session whose
+name says nothing reads as outdoors. Workouts synced before this was added stay
+unmarked unless their sync is still inside the ingest log's 90 day window.
+
 ## What the server does with it
 
 - Imports are idempotent. A workout is identified by who you are, when it
@@ -52,8 +58,10 @@ types in the export are counted in the response but ignored.
 - Every imported workout is credited to your profile straight away: experience
   toward your level, converted miles toward the next chest on the ladder,
   growth for everything planted in your plot, and whatever medals it has just
-  earned: the race distance if the run covered one, the hour of the day if it
-  was early or late, and the week's own medal once the miles add up. That
+  earned: the race distance if the walk or run covered one, the ride or swim
+  distance if it was one of those, the hour of the day if it was early or late,
+  the week's own medal once the miles add up, and a lifetime milestone the
+  first time the total passes one. That
   happens at sync time rather than when
   you next open the app, so the recap waiting for you was already written.
   Each activity converts at its own rate, which is why a mile swum is worth

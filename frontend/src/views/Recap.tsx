@@ -10,7 +10,7 @@ import {
   formatTimeOfDay,
 } from '../format.ts'
 import {
-  ACTIVITY_ICONS,
+  activityIcon,
   ACTIVITY_NAMES,
   defaultHeadline,
   MEDAL_DETAILS,
@@ -297,7 +297,7 @@ export default function Recap({ recap, units, onDismiss }: Props) {
                         <div className="recap-activity-body">
                           <p className="recap-activity-name">
                             <span className="sport-icon">
-                              <Icon name={ACTIVITY_ICONS[row.activity]} />
+                              <Icon name={activityIcon(row.activity, row.indoor)} />
                             </span>
                             {heading}
                           </p>

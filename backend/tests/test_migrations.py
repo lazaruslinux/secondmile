@@ -910,6 +910,145 @@ def at_0025(tmp_path, monkeypatch):
         engine.dispose()
 
 
+@pytest.fixture()
+def at_0026(tmp_path, monkeypatch):
+    """A database at revision 0026, which is the shape the indoor column meets.
+
+    Its own fixture because the backfill reads ingest_log payloads against
+    workout rows, and it is the last revision before the column exists.
+    """
+    url = f"sqlite:///{tmp_path}/indoor.db"
+    monkeypatch.setattr(config.settings, "database_url", url)
+    cfg = Config(str(BACKEND / "alembic.ini"))
+    cfg.set_main_option("script_location", str(BACKEND / "migrations"))
+    command.upgrade(cfg, "0026")
+    engine = sa.create_engine(url)
+    try:
+        yield engine, (lambda: command.upgrade(cfg, "head"))
+    finally:
+        engine.dispose()
+
+
+def _session_row(connection, workout_id: int, user_id: int, start: str, duration: int) -> None:
+    """One stored workout, keyed the way the sync keys them: the account, the
+    start in UTC, and the duration in whole seconds."""
+    connection.execute(
+        sa.text(
+            "INSERT INTO workouts (id, user_id, activity, start_ts, duration_s,"
+            " distance_mi, active_kcal, source, flags, created_at)"
+            " VALUES (:id, :user_id, 'run', :start, :duration, 3.0, 300.0, 'sync', '{}',"
+            " :start)"
+        ),
+        {"id": workout_id, "user_id": user_id, "start": start, "duration": duration},
+    )
+
+
+def _sync(connection, log_id: int, user_id: int, *entries) -> None:
+    """One surviving ingest log row, carrying the export as it arrived."""
+    connection.execute(
+        sa.text(
+            "INSERT INTO ingest_log (id, user_id, received_at, payload, result)"
+            " VALUES (:id, :user_id, '2026-07-20 20:00:00', :payload, '{}')"
+        ),
+        {
+            "id": log_id,
+            "user_id": user_id,
+            "payload": json.dumps({"data": {"workouts": list(entries)}}),
+        },
+    )
+
+
+def _entry(name: str, start: str, duration) -> dict:
+    return {"name": name, "start": start, "duration": duration}
+
+
+def test_the_indoor_column_is_backfilled_from_the_surviving_ingest_log(at_0026):
+    """0027: the column arrives false for everybody and is then filled in for
+    exactly the workouts a surviving payload can still name.
+
+    Matched on the dedupe key and nothing looser: the same account, the same
+    start once the offset is read, and the same whole-second duration.
+    """
+    engine, upgrade = at_0026
+    with engine.connect() as connection:
+        _account(connection, 1, "runner")
+        _account(connection, 2, "mate")
+        # Named indoors, and the export wrote the start with an offset on it.
+        _session_row(connection, 1, 1, "2026-07-20 13:12:00", 1800)
+        # Named outdoors, same account, same sync.
+        _session_row(connection, 2, 1, "2026-07-20 15:00:00", 2400)
+        # Named indoors in the log, but the stored duration is a different
+        # session: no match, so it stays false rather than being guessed at.
+        _session_row(connection, 3, 1, "2026-07-20 17:00:00", 3600)
+        # Somebody else's workout at the same moment as the indoor one. The
+        # account is part of the key, so this is untouched.
+        _session_row(connection, 4, 2, "2026-07-20 13:12:00", 1800)
+        # Older than the log's window, which is the honest limit: nothing left
+        # anywhere says what this one was called.
+        _session_row(connection, 5, 1, "2026-01-04 14:00:00", 1800)
+        _sync(
+            connection,
+            1,
+            1,
+            _entry("Indoor Run", "2026-07-20T06:12:00-07:00", 1800.4),
+            _entry("Outdoor Walk", "2026-07-20T08:00:00-07:00", 2400),
+            _entry("Indoor Walk", "2026-07-20T10:00:00-07:00", 900),
+        )
+        connection.commit()
+
+    upgrade()
+
+    with engine.connect() as connection:
+        assert connection.execute(
+            sa.text("SELECT id, indoor FROM workouts ORDER BY id")
+        ).all() == [(1, 1), (2, 0), (3, 0), (4, 0), (5, 0)]
+
+
+def test_the_indoor_column_lands_false_on_a_history_with_no_log_left(at_0026):
+    """The common case on a long-lived install: the log has been pruned, so the
+    column is simply false everywhere and nothing else moves."""
+    engine, upgrade = at_0026
+    with engine.connect() as connection:
+        _account(connection, 1, "runner")
+        _session_row(connection, 1, 1, "2026-02-01 14:00:00", 1800)
+        connection.commit()
+
+    upgrade()
+
+    with engine.connect() as connection:
+        assert connection.execute(
+            sa.text("SELECT indoor, distance_mi FROM workouts")
+        ).one() == (0, 3.0)
+
+
+def test_the_indoor_column_steps_back_down_again(at_0026):
+    """Stepping back takes the column away and leaves every workout it was
+    written from untouched, so the same upgrade run again lands on the same
+    answer out of the same log rows."""
+    engine, upgrade = at_0026
+    with engine.connect() as connection:
+        _account(connection, 1, "runner")
+        _session_row(connection, 1, 1, "2026-07-20 13:12:00", 1800)
+        _sync(connection, 1, 1, _entry("Indoor Run", "2026-07-20T06:12:00-07:00", 1800))
+        connection.commit()
+    upgrade()
+
+    cfg = Config(str(BACKEND / "alembic.ini"))
+    cfg.set_main_option("script_location", str(BACKEND / "migrations"))
+    command.downgrade(cfg, "0026")
+
+    with engine.connect() as connection:
+        columns = {row[1] for row in connection.execute(sa.text("PRAGMA table_info(workouts)"))}
+        assert "indoor" not in columns
+        assert connection.execute(
+            sa.text("SELECT duration_s FROM workouts")
+        ).scalar_one() == 1800
+
+    command.upgrade(cfg, "head")
+    with engine.connect() as connection:
+        assert connection.execute(sa.text("SELECT indoor FROM workouts")).scalar_one() == 1
+
+
 def _progress_with_manna(connection, user_id: int, pending: int, xp: float = 0.0) -> None:
     """One progress row in the shape 0025 leaves it, which is the row the fruit
     meter lands on."""

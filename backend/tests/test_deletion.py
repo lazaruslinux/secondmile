@@ -105,6 +105,7 @@ def test_a_deleted_workout_is_in_the_deleted_section_with_its_days(
     assert set(rows[0]) == {
         "workout_id",
         "activity",
+        "indoor",
         "start_ts",
         "distance_mi",
         "duration_s",
@@ -163,18 +164,19 @@ def test_a_medal_the_deleted_run_earned_goes_with_it_and_comes_back(
 ):
     """A race medal belongs to the run. The week's medal is a total, so it
     recomputes down to whatever the surviving days add up to."""
-    # A walk, so the only race medal in this case is the one on the run below.
+    # Feet are feet: the eight-mile walk earns a race medal of its own, and it
+    # is the one thing here that survives the run being taken back.
     log_workout(db_session, member.id, activity="walk", miles=8.0)
     race = log_workout(db_session, member.id, miles=13.5, offset_min=300)
-    assert medal_ids(db_session, member.id) == {"race_half", "weekly_15"}
+    assert medal_ids(db_session, member.id) == {"race_10k", "race_half", "weekly_15"}
 
     signed_in.delete(f"/api/workouts/{race.id}")
     # The half went with the run; the week is back down to eight miles, which
-    # earns nothing, so the weekly row is gone too.
-    assert medal_ids(db_session, member.id) == set()
+    # earns nothing, so the weekly row is gone too. The walk keeps its own.
+    assert medal_ids(db_session, member.id) == {"race_10k"}
 
     signed_in.post(f"/api/workouts/{race.id}/restore")
-    assert medal_ids(db_session, member.id) == {"race_half", "weekly_15"}
+    assert medal_ids(db_session, member.id) == {"race_10k", "race_half", "weekly_15"}
 
 
 def test_the_weekly_medal_falls_back_to_the_rung_the_week_still_reaches(
@@ -183,11 +185,11 @@ def test_the_weekly_medal_falls_back_to_the_rung_the_week_still_reaches(
     log_workout(db_session, member.id, activity="walk", miles=11.0)
     extra = log_workout(db_session, member.id, activity="walk", miles=9.0, offset_min=200)
     # One row per family per week, upgraded in place, so twenty miles wears the
-    # fifteen rather than both.
-    assert medal_ids(db_session, member.id) == {"weekly_15"}
+    # fifteen rather than both. Both walks are past 10K on their own feet.
+    assert medal_ids(db_session, member.id) == {"race_10k", "weekly_15"}
 
     signed_in.delete(f"/api/workouts/{extra.id}")
-    assert medal_ids(db_session, member.id) == {"weekly_10"}
+    assert medal_ids(db_session, member.id) == {"race_10k", "weekly_10"}
 
 
 # --------------------------------------------------------------------------
@@ -532,9 +534,10 @@ def test_a_batch_rebuilds_the_totals_once_and_correctly(
     after = signed_in.get("/api/profile").json()
     assert after["xp"] == 8.0
     assert after["level"] < before["level"]
-    # The race medal went with its run and the week fell back to what the walk
-    # still reaches, exactly as the single delete leaves it.
-    assert medal_ids(db_session, member.id) == set()
+    # The race medals went with their runs and the week fell back to what the
+    # walk still reaches, exactly as the single delete leaves it. The walk's own
+    # 10K is not one of the deleted rows and stays.
+    assert medal_ids(db_session, member.id) == {"race_10k"}
 
     # And every one of them is still restorable on its own.
     assert signed_in.post(f"/api/workouts/{race.id}/restore").status_code == 200

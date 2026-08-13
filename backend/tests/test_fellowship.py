@@ -27,6 +27,9 @@ FRIEND_ROW_KEYS = {
     "workout_id",
     "user",
     "activity",
+    # Never kept back: it qualifies the activity rather than saying anything
+    # about a body, and the card draws a treadmill from it.
+    "indoor",
     "start_ts",
     "distance_mi",
     "duration_s",

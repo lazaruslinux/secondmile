@@ -29,6 +29,7 @@ import {
 } from '../format.ts'
 import {
   ACTIVITY_ICONS,
+  activityIcon,
   ACTIVITY_NAMES,
   ACTIVITY_ORDER,
   defaultHeadline,
@@ -484,7 +485,7 @@ export default function ActivityView({ userId, units, onOpenPerson }: Props) {
               />
             )}
             <span className="sport-icon sport-icon-small">
-              <Icon name={ACTIVITY_ICONS[workout.activity]} />
+              <Icon name={activityIcon(workout.activity, workout.indoor)} />
             </span>
             <span className="list-name">{headline}</span>
             {/* The server's own doubt about the numbers, marked rather than
@@ -693,7 +694,7 @@ export default function ActivityView({ userId, units, onOpenPerson }: Props) {
               <li key={gone.workout_id} className="deleted-row">
                 <span className="deleted-what">
                   <span className="sport-icon sport-icon-small">
-                    <Icon name={ACTIVITY_ICONS[gone.activity]} />
+                    <Icon name={activityIcon(gone.activity, gone.indoor)} />
                   </span>
                   <span className="deleted-name">
                     {gone.title?.trim() || defaultHeadline(gone.activity, gone.start_ts)}

@@ -1161,6 +1161,8 @@ def test_the_media_strip_is_the_last_six_pictures_newest_first(
         "photo_id": newer[-1],
         "workout_id": swum.id,
         "activity": "swim",
+        # The tag draws the sport mark, so it carries what decides which one.
+        "indoor": False,
         "distance_mi": 1.0,
         "duration_s": swum.duration_s,
     }
