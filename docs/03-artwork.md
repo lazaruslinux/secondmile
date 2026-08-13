@@ -322,11 +322,13 @@ The species and the file each one reads:
 | Dates | Rare | `dates-s1.svg`, `-s2`, `-s3` |
 | Coffee | Rare | `coffee-s1.svg`, `-s2`, `-s3` |
 | Pomegranate | Rare | `pomegranate-s1.svg`, `-s2`, `-s3` |
-| Mustard | Rare | `mustard-s1.png`, `-s2`, `-s3` |
+| Mustard | Rare | `mustard-s1.svg`, `-s2`, `-s3` |
 
-The mustard is real artwork now, the first species done (2026-08-11); the other
-twelve remain placeholders, and its three files are the reference for what a
-finished species looks like: 512 by 512, transparent, the ground at 464.
+The mustard was the first species finished (2026-08-11) and its three
+paintings are the reference for what a finished species looks like: 512 by
+512, transparent, the ground at 464. Like every hand-made piece they live in
+the custom layer above rather than in the repository, and the committed files
+here are the placeholders every fresh build falls back to.
 
 The species ids are in `backend/app/species.py`. An id written with an
 underscore reads as a hyphen here, so `fig_bush` is `fig-bush-s1.svg`. A species
@@ -363,8 +365,9 @@ fresh clone and CI build uses. When a species' art is declared FINISHED it
 moves into `assets/grove/` and gets committed, and its row below changes
 from placeholder to real.
 
-Living there now: `coffee-s1/s2/s3.png` (2026-08-12, three style studies;
-not final, not committed).
+Living there now: `mustard-s1/s2/s3.png` (finished 2026-08-11, the
+reference set) and `coffee-s1/s2/s3.png` (2026-08-12, three style studies;
+not final). None of it is committed; that is the point.
 
 ### The ground
 
