@@ -187,6 +187,13 @@ export function lifetimeMiles(profile: Profile): number {
   return distance
 }
 
+// Workouts across the four activities, for the Activities chip.
+export function lifetimeActivities(profile: Profile): number {
+  let count = 0
+  for (const row of Object.values(profile.lifetime)) count += row.workouts
+  return count
+}
+
 // This week's raw step count, or none. Flavour, never miles, and never on
 // anybody else's screen.
 export function weekSteps(profile: Profile): number {

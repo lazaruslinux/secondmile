@@ -29,6 +29,7 @@ import {
   ageOf,
   chestBar,
   displayNameOf,
+  lifetimeActivities,
   lifetimeMiles,
   mannaLine,
   medalCountsOf,
@@ -46,7 +47,7 @@ import Icon from './Icon.tsx'
 import ItemTallies from './ItemTallies.tsx'
 import MedalNest, { MAX_MEDAL_SLOTS } from './MedalNest.tsx'
 import Medals, { MedalMark } from './Medals.tsx'
-import ProfileCounts from './ProfileCounts.tsx'
+import ProfileCounts, { GroveTallies } from './ProfileCounts.tsx'
 import SportChips from './SportChips.tsx'
 import Stats from './Stats.tsx'
 
@@ -302,6 +303,10 @@ export default function Profile({
             {bio !== '' && <p className="profile-bio">{bio}</p>}
           </div>
         </div>
+        <GroveTallies
+          seeds={profile.grove?.seeds_found ?? 0}
+          plantLevels={profile.grove?.plant_levels ?? 0}
+        />
       </div>
 
       {/* Two columns from 900px up and one below it: the picture and its card on
@@ -347,31 +352,27 @@ export default function Profile({
 
             <ProfileCounts
               miles={lifetimeMiles(profile)}
-              seeds={profile.grove?.seeds_found ?? 0}
-              plantLevels={profile.grove?.plant_levels ?? 0}
-              medalsOwned={ownedMedals.length}
+              activities={lifetimeActivities(profile)}
+              level={profile.level}
+              medalsEarned={ownedMedals.length}
             />
 
             <SportChips stats={profile.lifetime} units={units} />
 
-            {/* The pedometer's tally and what the calories have come to, worn
-                like the counts above rather than whispered: his call, zeros
-                included, because a wallet that hides its zero reads as a
-                missing feature. Own screen only, as ever. Neither is a stat:
-                the steps are in no miles total and earn nothing, and manna is
-                a currency that sits nowhere near the XP.
+            {/* Manna worn as the currency it is, not as a statistic: one gold
+                band, own screen only, zero included because a wallet that hides
+                its zero reads as a missing feature. */}
+            <div className="manna-band">
+              <span className="grove-area-label">Manna</span>
+              <span className="manna-band-value">{manna}</span>
+            </div>
 
-                One manna number, because there is one: it is a bank, earned
-                from calories and spent on people, and none of it is waiting for
-                anything. */}
+            {/* The pedometer's tally, zeros included. Own screen only; steps
+                are in no miles total and earn nothing. */}
             <ul className="profile-counts own-tallies">
               <li>
                 <span className="count-value">{steps.toLocaleString()}</span>
                 <span className="count-label">Steps this week</span>
-              </li>
-              <li>
-                <span className="count-value manna-value">{manna}</span>
-                <span className="count-label">Manna</span>
               </li>
             </ul>
 
@@ -387,6 +388,15 @@ export default function Profile({
                   onClick={() => (picking ? setPicking(false) : startPicking())}
                 >
                   {picking ? 'Close medals' : 'Choose medals'}
+                </button>
+                {/* Yourself through the friend lens, served by the same
+                    endpoint a friend reads. What it hides, it hides for real. */}
+                <button
+                  type="button"
+                  className="secondary preview-button"
+                  onClick={() => onOpenPerson(userId)}
+                >
+                  <Icon name="eye" /> View public profile
                 </button>
               </div>
               {ownedMedals.length === 0 && (

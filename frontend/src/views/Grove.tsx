@@ -21,9 +21,9 @@ import {
   fedLine,
   FRUIT_GIVEN,
   GATHER_HINT,
+  harvestHint,
   NOTHING_BORNE,
   NOTHING_PLANTED,
-  HARVEST_HINT,
   personName,
   plantingName,
   plantStateLine,
@@ -62,9 +62,9 @@ type Step =
   | { at: 'feed'; plant: Planting }
   | { at: 'give'; fruit: FruitBatch }
 
-// What one gather brought in, said in the plainest words there are.
+// What one harvest brought in, said in the plainest words there are.
 function gatheredLine(fruit: number): string {
-  return fruit === 0 ? 'Nothing was ready.' : `Gathered ${fruit} fruit.`
+  return fruit === 0 ? 'Nothing was ready.' : `Harvested ${fruit} fruit.`
 }
 
 export default function Grove({ userId }: Props) {
@@ -203,18 +203,12 @@ export default function Grove({ userId }: Props) {
 
       {/* The harvest: what is ready, what is in the basket, and the one button
           that brings it in. It sits above the plot because it is the thing to
-          do here, and the plot is the thing to look at. */}
+          do here, and the plot is the thing to look at. Three colored areas,
+          his pick: manna gold, season green, basket tan. */}
       {harvest && (
         <section className="card">
           <h2 className="label">Harvest</h2>
-          <p className="hint">{HARVEST_HINT}</p>
-
-          <ul className="profile-counts harvest-counts">
-            <li>
-              <span className="count-value">{manna.toLocaleString()}</span>
-              <span className="count-label">Manna</span>
-            </li>
-          </ul>
+          <p className="hint">{harvestHint(harvest.season_mi)}</p>
 
           {note && (
             <p className="note note-success" role="status">
@@ -222,40 +216,60 @@ export default function Grove({ userId }: Props) {
             </p>
           )}
 
-          {harvest.ready ? (
-            <div className="choice">
-              <button type="button" className="primary" disabled={busy} onClick={openGather}>
-                Gather
-              </button>
+          <div className="grove-area grove-area-manna">
+            <div className="grove-area-head">
+              <span className="grove-area-label">Manna</span>
+              <span className="grove-area-value">{manna.toLocaleString()}</span>
             </div>
-          ) : (
-            <p className="hint">{NOTHING_BORNE}</p>
-          )}
+          </div>
 
-          <h3 className="label harvest-sub">Basket</h3>
-          {basket.length === 0 ? (
-            <p className="hint">{EMPTY_BASKET}</p>
-          ) : (
-            <ul className="basket">
-              {basket.map((row) => (
-                <li key={row.id} className="basket-row">
-                  <div className="basket-body">
-                    <p className="basket-name">{row.label}</p>
-                    <p className="hint">{row.provenance}</p>
-                  </div>
-                  <button
-                    type="button"
-                    className="secondary"
-                    disabled={busy}
-                    aria-label={`Give ${row.label}`}
-                    onClick={() => void toFriends(row)}
-                  >
-                    Give
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+          <div className="grove-area grove-area-season">
+            <div className="grove-area-head">
+              <span className="grove-area-label">Season</span>
+              <span className="grove-area-value">
+                {convertedValue(harvest.season_progress_mi)} / {harvest.season_mi} XP
+              </span>
+            </div>
+            {harvest.ready ? (
+              <div className="choice">
+                <button type="button" className="primary" disabled={busy} onClick={openGather}>
+                  Harvest
+                </button>
+              </div>
+            ) : (
+              <p className="hint">{NOTHING_BORNE}</p>
+            )}
+          </div>
+
+          <div className="grove-area grove-area-basket">
+            <div className="grove-area-head">
+              <span className="grove-area-label">Basket</span>
+              <span className="grove-area-value">{basket.length}</span>
+            </div>
+            {basket.length === 0 ? (
+              <p className="hint">{EMPTY_BASKET}</p>
+            ) : (
+              <ul className="basket">
+                {basket.map((row) => (
+                  <li key={row.id} className="basket-row">
+                    <div className="basket-body">
+                      <p className="basket-name">{row.label}</p>
+                      <p className="hint">{row.provenance}</p>
+                    </div>
+                    <button
+                      type="button"
+                      className="secondary"
+                      disabled={busy}
+                      aria-label={`Give ${row.label}`}
+                      onClick={() => void toFriends(row)}
+                    >
+                      Give
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </section>
       )}
 
@@ -341,12 +355,12 @@ export default function Grove({ userId }: Props) {
         <Inventory onChanged={() => void load()} />
       </section>
 
-      {/* Asked rather than done on the press, because gathering starts the
+      {/* Asked rather than done on the press, because harvesting starts the
           seven days on everything it brings in. */}
       {step.at === 'gather' && (
         <Confirm
-          heading="Gather"
-          confirmLabel="Gather"
+          heading="Harvest"
+          confirmLabel="Harvest"
           cancelLabel="Cancel"
           busy={busy}
           error={stepError}
@@ -367,7 +381,7 @@ export default function Grove({ userId }: Props) {
           onConfirm={() => feed(step.plant)}
           onCancel={() => setStep({ at: 'none' })}
         >
-          <p className="hint">{feedHint(feedCost)}</p>
+          <p className="hint">{feedHint(feedCost, feedCap)}</p>
         </Confirm>
       )}
 

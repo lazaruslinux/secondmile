@@ -303,6 +303,7 @@ export default function App() {
             units={me.units}
             onBack={() => setView(friend.from)}
             onRemoved={() => friendRemoved(friend.from)}
+            selfPreview={friend.id === me.id}
           />
         )}
         {view === 'settings' && (

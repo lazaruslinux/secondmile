@@ -256,11 +256,21 @@ interface Props {
   // Ending a friendship takes the screen with it: what is behind this one is a
   // feed and a list that no longer hold this person.
   onRemoved: () => void
+  // The owner looking at themselves through the friend lens. The payload is
+  // the same one a friend gets; this only hides the verbs, because nothing
+  // here may be done to yourself.
+  selfPreview?: boolean
 }
 
 // Deliberately absent: chests, ladder, pending gifts, medal picker, editing,
 // birthdate, age, gender.
-export default function FriendProfile({ userId, units, onBack, onRemoved }: Props) {
+export default function FriendProfile({
+  userId,
+  units,
+  onBack,
+  onRemoved,
+  selfPreview = false,
+}: Props) {
   const [profile, setProfile] = useState<FriendProfileData | MemberCard | null>(null)
   const [plot, setPlot] = useState<FriendPlanting[]>([])
   const [held, setHeld] = useState<SatchelItem[]>([])
@@ -473,8 +483,6 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
     (id) => words(id) !== '',
   )
   const medals = Array.isArray(profile.medals) ? profile.medals : undefined
-  const seeds = figure(profile.grove?.seeds_found) ?? 0
-  const plantLevels = figure(profile.grove?.plant_levels) ?? 0
   const rows = feedRows(profile.workouts)
   const media = mediaRows(profile.recent_photos)
   // Read defensively like everything else on this screen: a server that
@@ -524,6 +532,10 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
   return (
     <>
       {head}
+
+      {selfPreview && (
+        <p className="hint preview-note">This is your public profile, as friends see it.</p>
+      )}
 
       {/* The band across the top, exactly as the You screen draws one: their
           plot stands on the soil along its floor and their picture rides up
@@ -607,13 +619,13 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
           </progress>
         )}
 
-        {/* The same four counts the You screen carries. Raw miles: the distance
+        {/* The same four chips the You screen carries. Raw miles: the distance
             they covered, never the weighted number the ladder is climbed on. */}
         <ProfileCounts
           miles={miles ?? 0}
-          seeds={seeds}
-          plantLevels={plantLevels}
-          medalsOwned={ownedMedalIds(medals).length}
+          activities={Object.values(lifetime).reduce((sum, row) => sum + row.workouts, 0)}
+          level={level ?? 0}
+          medalsEarned={ownedMedalIds(medals).length}
         />
 
         <SportChips stats={lifetime} units={units} />
@@ -622,6 +634,7 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
             and ending the friendship. Watering is not here any more: it is done
             to a plant rather than to a person, so it starts from the plant, in
             their plot below. */}
+        {!selfPreview && (
         <div className="friend-actions">
           <div className="choice">
             <button
@@ -711,6 +724,7 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
             Remove friend
           </button>
         </div>
+        )}
       </section>
 
       {/* The strip: their last few pictures, newest first, one row across the
@@ -827,9 +841,11 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
           <p className="hint">Nothing planted yet.</p>
         ) : (
           <>
-            <p className="hint">
-              {hasWater ? 'Tap one of their plants to water it.' : NO_WATER}
-            </p>
+            {!selfPreview && (
+              <p className="hint">
+                {hasWater ? 'Tap one of their plants to water it.' : NO_WATER}
+              </p>
+            )}
             <ul className="plot">
               {plot.map((row) => {
                 const grown = row.gilded === true
@@ -837,7 +853,7 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
                 // there is. Everything else is pressable whether there is water
                 // to pour or not, because the popup saying the satchel is empty
                 // is a better answer than a tile that quietly does nothing.
-                const waterable = !grown
+                const waterable = !grown && !selfPreview
                 const name = plantingName(row)
                 const tile = (
                   <>
@@ -990,7 +1006,7 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
             setStep({ at: 'pick-plant' })
           }}
         >
-          <p className="hint">{feedHint(feedCost)}</p>
+          <p className="hint">{feedHint(feedCost, feedCap)}</p>
         </Confirm>
       )}
 

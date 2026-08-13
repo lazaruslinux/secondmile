@@ -6,37 +6,46 @@ interface Props {
   // actually covered. The weighted total is XP and is named as such wherever
   // it is shown.
   miles: number
-  seeds: number
-  plantLevels: number
-  medalsOwned: number
+  activities: number
+  level: number
+  medalsEarned: number
 }
 
-// The four counts under the level, shared because the You screen and a friend's
-// profile show the same four in the same order. Written once so the two cannot
-// drift into counting different things.
-export default function ProfileCounts({ miles, seeds, plantLevels, medalsOwned }: Props) {
+// The four color-coded chips under the level, shared because the You screen
+// and a friend's profile show the same four in the same order. Written once so
+// the two cannot drift into counting different things. Colors are the chips'
+// own and deliberately not crimson: these are facts, never flags.
+export default function ProfileCounts({ miles, activities, level, medalsEarned }: Props) {
   return (
-    <ul className="profile-counts">
-      <li>
+    <ul className="stat-chips">
+      <li className="stat-chip chip-miles">
         <span className="count-value">{miles.toFixed(1)}</span>
         <span className="count-label">Miles</span>
       </li>
-      <li>
-        <span className="count-value">
-          {seeds} / {SEEDS_TO_FIND}
-        </span>
-        <span className="count-label">Seeds found</span>
+      <li className="stat-chip chip-activities">
+        <span className="count-value">{activities}</span>
+        <span className="count-label">Activities</span>
       </li>
-      <li>
-        <span className="count-value">{plantLevels}</span>
-        <span className="count-label">Plant levels</span>
+      <li className="stat-chip chip-level">
+        <span className="count-value">{level}</span>
+        <span className="count-label">Level</span>
       </li>
-      <li>
+      <li className="stat-chip chip-medals">
         <span className="count-value">
-          {medalsOwned} / {MEDAL_ORDER.length}
+          {medalsEarned} / {MEDAL_ORDER.length}
         </span>
-        <span className="count-label">Medals</span>
+        <span className="count-label">Medals earned</span>
       </li>
     </ul>
+  )
+}
+
+// The two grove counts that used to sit with the chips. They live beside the
+// grove band now: they are facts about the plants, not about the person.
+export function GroveTallies({ seeds, plantLevels }: { seeds: number; plantLevels: number }) {
+  return (
+    <p className="grove-tallies">
+      Seeds found {seeds} / {SEEDS_TO_FIND} &middot; Plant levels {plantLevels}
+    </p>
   )
 }

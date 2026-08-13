@@ -386,14 +386,18 @@ export const NO_WATER = 'No water in your inventory. It comes out of chests.'
 // The harvest, and the four things manna is spent on. Every line here says what
 // is true and nothing more: manna buys fruit, never growth, and only gathered
 // fruit is ever at risk.
-export const HARVEST_HINT =
-  'Your plants bear fruit every 33 XP, all at once. Gather brings the fruit in ' +
-  'whole. Manna is banked from your calories and keeps for good.'
-export const NOTHING_BORNE = 'Nothing to gather yet.'
-export const EMPTY_BASKET = 'Nothing gathered. Fruit lands here when you gather it.'
+// His copy verbatim, numbers interpolated so tuning never stales the sentence.
+export function harvestHint(seasonXp: number): string {
+  return (
+    `Your plants generate fruit every ${seasonXp} XP. The Harvest button brings ` +
+    'all fruit in at once from every plant and places them in your basket.'
+  )
+}
+export const NOTHING_BORNE = 'Nothing to harvest yet.'
+export const EMPTY_BASKET = 'Nothing harvested. Fruit lands here when you harvest it.'
 export const NO_MANNA = 'No manna yet. Your calories earn it.'
 export const GATHER_HINT =
-  'The fruit comes in whole. Gathered fruit keeps for a week; what stays on the ' +
+  'The fruit comes in whole. Harvested fruit keeps for a week; what stays on the ' +
   'plant keeps for good.'
 export const FED = 'Fed. Its next harvest is bigger.'
 export const MANNA_SENT = 'Sent. It is in their manna.'
@@ -402,8 +406,10 @@ export const FRUIT_GIVEN = 'Given. It is in their basket.'
 // What feeding buys, said wherever a plant is picked for it. The second
 // sentence is the two-lane law in the app's own voice, and it is here because
 // this is the one screen where somebody might expect otherwise.
-export function feedHint(cost: number): string {
-  return `${cost.toLocaleString()} manna for one more fruit next time it bears. It never makes anything grow faster.`
+// His copy verbatim; cost and cap come from the server so tuning never
+// stales the sentence.
+export function feedHint(cost: number, cap: number): string {
+  return `Spend ${cost.toLocaleString()} manna for +1 fruit next harvest? (Max +${cap} per plant)`
 }
 
 // What one plant is carrying, said under it. Both numbers come from the server

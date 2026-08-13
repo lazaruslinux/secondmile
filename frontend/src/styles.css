@@ -3586,15 +3586,167 @@ button:disabled {
   align-self: flex-start;
 }
 
-/* The harvest card. The two manna figures wear the profile's own count tiles,
-   because they are the same kind of number in the same kind of block. */
-.harvest-counts {
-  margin-bottom: 0.9rem;
+/* The harvest card's three colored areas and the profile's currency band.
+   His palette picks: manna bread gold, season leaf green, basket woven tan;
+   the profile chips run blue, teal, purple, gold. Facts, never flags:
+   crimson stays the alert colour and orange stays banned. */
+.grove-area {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.7rem 0.8rem;
+  margin-top: 0.9rem;
 }
 
-.harvest-sub {
-  display: block;
-  margin-top: 1.1rem;
+.grove-area-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.6rem;
+}
+
+.grove-area-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.grove-area-value {
+  font-size: 1rem;
+  font-weight: 700;
+  font-family: var(--font-nums);
+  font-variant-numeric: tabular-nums;
+}
+
+.grove-area-manna {
+  border-left-color: #d9a441;
+  background: rgba(217, 164, 65, 0.07);
+}
+
+.grove-area-manna .grove-area-label {
+  color: #d9a441;
+}
+
+.grove-area-season {
+  border-left-color: #4caf7d;
+  background: rgba(76, 175, 125, 0.07);
+}
+
+.grove-area-season .grove-area-label {
+  color: #4caf7d;
+}
+
+.grove-area-basket {
+  border-left-color: #b08d57;
+  background: rgba(176, 141, 87, 0.07);
+}
+
+.grove-area-basket .grove-area-label {
+  color: #b08d57;
+}
+
+/* Manna worn as a currency on the You screen: the grove's gold, one number,
+   set apart from the stat chips so it never reads as one of them. */
+.manna-band {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.6rem;
+  border: 1px solid rgba(217, 164, 65, 0.45);
+  border-left: 3px solid #d9a441;
+  border-radius: var(--radius);
+  background: rgba(217, 164, 65, 0.07);
+  padding: 0.7rem 0.8rem;
+  margin-top: 0.9rem;
+}
+
+.manna-band .grove-area-label {
+  color: #d9a441;
+}
+
+.manna-band-value {
+  font-size: 1.15rem;
+  font-weight: 700;
+  font-family: var(--font-nums);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The four stat chips both profiles carry: miles, activities, level, medals
+   earned. Each keeps its own colour on the label and the left edge. */
+.stat-chips {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+  list-style: none;
+  margin: 0.9rem 0 0;
+  padding: 0;
+}
+
+.stat-chip {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.55rem 0.7rem;
+}
+
+.chip-miles {
+  border-left-color: #4a9eda;
+}
+
+.chip-miles .count-label {
+  color: #4a9eda;
+}
+
+.chip-activities {
+  border-left-color: #3fbfb0;
+}
+
+.chip-activities .count-label {
+  color: #3fbfb0;
+}
+
+.chip-level {
+  border-left-color: #a855f7;
+}
+
+.chip-level .count-label {
+  color: #a855f7;
+}
+
+.chip-medals {
+  border-left-color: #e0b542;
+}
+
+.chip-medals .count-label {
+  color: #e0b542;
+}
+
+/* The grove's own two counts, a quiet line at the band's foot. Own screen
+   only: the plants are for friends to see, the bookkeeping is not. */
+.grove-tallies {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+/* The self-preview: the eye button on You and the one line the preview leads
+   with, so the screen can never be mistaken for somebody else's. */
+.preview-button .icon {
+  display: inline-flex;
+  vertical-align: -0.15em;
+  margin-right: 0.35rem;
+}
+
+.preview-button .icon svg {
+  width: 1em;
+  height: 1em;
+}
+
+.preview-note {
+  margin: 0.6rem 0 0;
 }
 
 /* The basket: what has been gathered and is there to be given away. One row per
@@ -3646,13 +3798,6 @@ button:disabled {
   margin: 0.15rem 0 0;
   font-size: 0.85rem;
   color: var(--text);
-}
-
-/* The manna tile carries two numbers in one line, so it is allowed to wrap
-   rather than pushing the tile beside it off a phone. */
-.manna-value {
-  font-size: 0.95rem;
-  line-height: 1.3;
 }
 
 /* The inventory */
