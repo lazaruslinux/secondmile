@@ -32,7 +32,11 @@ const WORKOUT_FIELDS: Field[] = [
   { name: 'Time Grouping', value: 'Minutes' },
   { name: 'Export Format', value: 'JSON' },
   { name: 'Export Version', value: 'v2' },
-  { name: 'Date Range', value: 'Previous 7 Days' },
+  // Default sends whatever appeared since the last sync, today included.
+  // Workouts dedupe exactly, so this is safe; a ranged window that excludes
+  // today holds every workout back until tomorrow. Steps stay on Previous 7
+  // Days deliberately: their daily statistics need finished days.
+  { name: 'Date Range', value: 'Default' },
   { name: 'Batch Requests', value: 'Off' },
   { name: 'Sync Cadence Quantity', value: '5' },
   { name: 'Sync Cadence Interval', value: 'Minutes' },
