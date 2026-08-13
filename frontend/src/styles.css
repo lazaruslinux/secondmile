@@ -2706,10 +2706,18 @@ button:disabled {
 }
 
 /* Medals
-   The catalogue on You: one grid of twenty-four, no headings, with the count
+   The catalogue on You: one grid of thirty-two, no headings, with the count
    under the artwork and the name under that. Four columns, which divides the
-   catalogue into six full rows and leaves no orphan. A medal never earned keeps
-   its column and its nought rather than leaving a hole. */
+   catalogue into eight full rows and leaves no orphan. A medal never earned
+   keeps its column and its nought rather than leaving a hole, unless the filter
+   below has been asked to hide it. */
+
+/* The same quiet chip the Activity filters wear, on a line of its own above the
+   grid. */
+.medal-filter {
+  margin-top: 0.5rem;
+}
+
 .medal-strip {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

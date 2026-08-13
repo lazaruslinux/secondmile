@@ -227,13 +227,12 @@ as 40 pixels across in the feed, so keep the shapes bold enough to read there.
 
 `frontend/src/assets/badges/*.svg`
 
-The whole reward system is twenty-four medals, drawn on the You screen as one list,
+The whole reward system is thirty-two medals, drawn on the You screen as one list,
 again down the rail on Home as the few earned most recently, and again as a chip
-on every feed card and Activity row for the medals that workout earned. Every one of
-them is
-repeatable, so a medal is a count rather than a yes or a no: each is drawn once
-with its number under it rather than once per earning, and one not yet earned is
-the same file drawn dim.
+on every feed card and Activity row for the medals that workout earned. All but
+the twelve lifetime medals are repeatable, so a medal is a count rather than a
+yes or a no: each is drawn once with its number under it rather than once per
+earning, and one not yet earned is the same file drawn dim.
 
 Each medal reads exactly one file, and **this mapping is the swap contract**:
 put a different drawing in the named file and that medal changes everywhere it
@@ -262,17 +261,25 @@ the file names are the mapping's, and it lives in `frontend/src/art.ts`.
 | `swim_half` | `swim-half.svg` | One swim of half a mile or more |
 | `swim_1` | `swim-1.svg` | One swim of a mile or more |
 | `swim_2` | `swim-2.svg` | One swim of 2 miles or more |
-| `lifetime_100` | `lifetime-100.svg` | 100 lifetime converted Miles, earned once |
-| `lifetime_250` | `lifetime-250.svg` | 250 lifetime converted Miles, earned once |
-| `lifetime_500` | `lifetime-500.svg` | 500 lifetime converted Miles, earned once |
-| `lifetime_1000` | `lifetime-1000.svg` | 1000 lifetime converted Miles, earned once |
+| `lifetime_100` | `lifetime-100.svg` | 100 miles covered in total, any activity, earned once |
+| `lifetime_250` | `lifetime-250.svg` | 250 miles covered in total, earned once |
+| `lifetime_500` | `lifetime-500.svg` | 500 miles covered in total, earned once |
+| `lifetime_1000` | `lifetime-1000.svg` | 1000 miles covered in total, earned once |
+| `cycle_lifetime_100` | `cycle-lifetime-100.svg` | 100 miles ridden in total, earned once |
+| `cycle_lifetime_250` | `cycle-lifetime-250.svg` | 250 miles ridden in total, earned once |
+| `cycle_lifetime_500` | `cycle-lifetime-500.svg` | 500 miles ridden in total, earned once |
+| `cycle_lifetime_1000` | `cycle-lifetime-1000.svg` | 1000 miles ridden in total, earned once |
+| `swim_lifetime_10` | `swim-lifetime-10.svg` | 10 miles swum in total, earned once |
+| `swim_lifetime_25` | `swim-lifetime-25.svg` | 25 miles swum in total, earned once |
+| `swim_lifetime_50` | `swim-lifetime-50.svg` | 50 miles swum in total, earned once |
+| `swim_lifetime_100` | `swim-lifetime-100.svg` | 100 miles swum in total, earned once |
 
 The medal ids are in `backend/app/medals.py`, in the catalogue near the top of
-the file. The catalogue is twenty-four and fixed: it gains a medal by gaining a
+the file. The catalogue is thirty-two and fixed: it gains a medal by gaining a
 row there and a file here, and the mapping in `art.ts` gaining a line.
 
-Medals are drawn in six shapes, one per family, so a screen of twenty-four does
-not read as twenty-four versions of the same object:
+Medals are drawn in eight shapes, one per family, so a screen of thirty-two does
+not read as thirty-two versions of the same object:
 
 - **Distance**, the seven races: a struck plate with the distance in a band
   across the middle, and the step of the ladder counted in marks above it. The
@@ -289,9 +296,16 @@ not read as twenty-four versions of the same object:
 - **Swims**, the three swimming medals: a plate with the distance above two
   waves rather than in a band.
 - **Lifetime**, the four odometer medals: not a plate at all but an odometer
-  window, wide and rounded, with a gauge arc over it. These four are the only
-  medals earned once each and the only ones counted in converted Miles rather
-  than in miles on the ground.
+  window, wide and rounded, with a gauge arc over it. These count every mile
+  covered in any activity.
+- **Miles ridden**, the four lifetime cycling medals: the same odometer window
+  under a wheel instead of the gauge arc, and RIDDEN under the number.
+- **Miles swum**, the four lifetime swimming medals: the same window again under
+  two waves, and SWUM under the number.
+
+The twelve lifetime medals are the only ones earned once each rather than
+counted. All twelve read raw miles on the ground, the same as every other medal
+here: nothing in the catalogue is counted in converted Miles.
 
 Draw them as a set: the same size and weight, readable at a glance, because five
 of them share the width of a phone screen. Medals are drawn small, roughly 56

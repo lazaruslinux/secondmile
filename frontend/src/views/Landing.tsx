@@ -143,8 +143,9 @@ export default function Landing({ onEnter, invite }: Props) {
             makes the promises above honest while they are still being built. */}
         <p className="landing-alpha">
           This project is currently in closed Alpha testing and is in active development.
-          Features may change, evolve, or go away entirely. You may experience bugs and
-          sync issues. Please use the bug report feature, and have fun.
+          Features may change, evolve, or go away entirely. A lot of the artwork is
+          temporary. You may experience bugs and sync issues. Please use the bug report
+          feature, and have fun.
         </p>
       </section>
 

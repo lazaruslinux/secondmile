@@ -1,3 +1,5 @@
+import { useState } from 'react'
+
 import type { Medal } from '../api.ts'
 import { medalArt } from '../art.ts'
 import { MEDAL_ORDER, medalName } from '../labels.ts'
@@ -6,6 +8,29 @@ import { EARNS_PER_STAR, MAX_STARS, medalCountsOf, starsFor } from '../profile.t
 // The word the interface uses for these, in one place. Everything underneath it
 // (ids, files, classes) is named badge; only what a person reads says medal.
 const SECTION_TITLE = 'Medals'
+
+// Whether this browser was last left hiding the ones still to come. Kept
+// between visits like the Activity tab's view is, and off until it is asked
+// for: a medal is a thing to aim at as much as a thing won, so the catalogue
+// opens showing all of them.
+const UNEARNED_KEY = 'secondmile.medals.unearned'
+
+function rememberedHiding(): boolean {
+  try {
+    return localStorage.getItem(UNEARNED_KEY) === 'hide'
+  } catch {
+    // A browser with storage turned off simply opens on the whole catalogue.
+    return false
+  }
+}
+
+function rememberHiding(hiding: boolean): void {
+  try {
+    localStorage.setItem(UNEARNED_KEY, hiding ? 'hide' : 'show')
+  } catch {
+    // Nothing to say: the choice holds for this visit and is forgotten after.
+  }
+}
 
 // Where the stars sit, in the 64 unit box every medal is drawn in. The ring is
 // outside the artwork's own rim: the places that can show stars inset the
@@ -103,27 +128,47 @@ interface Props {
 // nor a week, so any word put above them would be the wrong one. A medal is a
 // thing to aim at as much as a thing won, so nothing here is hidden until it
 // arrives: one not yet earned is the same drawing gone quiet with a nought
-// under it.
+// under it, unless this browser has asked for the shelf it has already won.
 export default function Medals({ medals }: Props) {
   const counts = medalCountsOf(medals)
-  const earned = MEDAL_ORDER.filter((id) => (counts.get(id) ?? 0) > 0).length
+  const held = MEDAL_ORDER.filter((id) => (counts.get(id) ?? 0) > 0)
+  const [hiding, setHiding] = useState(rememberedHiding)
+  const shown = hiding ? held : MEDAL_ORDER
+
+  function chooseHiding(next: boolean) {
+    setHiding(next)
+    rememberHiding(next)
+  }
 
   return (
     <section className="card" id="medals">
       <div className="set-head">
         <h2>{SECTION_TITLE}</h2>
         <span className="muted">
-          {earned} of {MEDAL_ORDER.length}
+          {held.length} of {MEDAL_ORDER.length}
         </span>
       </div>
       <p className="hint">
         Medals repeat. Every {EARNS_PER_STAR} of the same one adds a star, up to {MAX_STARS}.
       </p>
 
+      {/* A filter rather than a setting, and the count above it still says how
+          many of the whole catalogue are held. */}
+      <button
+        type="button"
+        className={hiding ? 'filter-chip filter-chip-on medal-filter' : 'filter-chip medal-filter'}
+        aria-pressed={hiding}
+        onClick={() => chooseHiding(!hiding)}
+      >
+        Hide unearned
+      </button>
+
+      {hiding && held.length === 0 && <p className="hint">No medals earned yet.</p>}
+
       {/* The count sits under its own medal, and one never earned keeps a
           nought rather than a gap, so the columns stay level down the grid. */}
       <ul className="medal-strip">
-        {MEDAL_ORDER.map((id) => {
+        {shown.map((id) => {
           const count = counts.get(id) ?? 0
           return (
             <li key={id} className="medal-tile">

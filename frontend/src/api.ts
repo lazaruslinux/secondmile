@@ -217,13 +217,21 @@ export interface ActivityStats {
   workouts: number
 }
 
-// The six kinds of medal. Every medal in the catalogue belongs to exactly one.
-// Nothing on screen groups by them any more; the server still says which.
-export type MedalFamily = 'race' | 'weekly' | 'time' | 'cycle' | 'swim' | 'lifetime'
+// The eight kinds of medal. Every medal in the catalogue belongs to exactly
+// one. Nothing on screen groups by them any more; the server still says which.
+export type MedalFamily =
+  | 'race'
+  | 'weekly'
+  | 'time'
+  | 'cycle'
+  | 'swim'
+  | 'lifetime'
+  | 'cycle_lifetime'
+  | 'swim_lifetime'
 
 // One medal and how many times it has been earned. The server sends the whole
 // catalogue whether each has been earned or not, so a count of zero is a medal
-// still to come rather than a missing row. All but the lifetime family repeat:
+// still to come rather than a missing row. All but the lifetime ladders repeat:
 // the count is the whole of what an account holds, and the stars around the
 // artwork are worked out from it here rather than sent. A lifetime medal is
 // earned once, so its count is only ever nought or one.

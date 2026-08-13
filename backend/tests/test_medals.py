@@ -5,7 +5,7 @@ import datetime as dt
 from zoneinfo import ZoneInfo
 
 from app import medals, models, progress, security
-from app.activity import SERVER_TZ
+from app.activity import SERVER_TZ, DayMetrics, converted_miles
 
 # A Monday well clear of the clock, so a case that means to test a Tuesday is
 # never a case about the day the suite happened to run.
@@ -77,12 +77,12 @@ def medals_after(db_session, user_id, start_ts, **kwargs) -> list[str]:
 # --------------------------------------------------------------------------
 
 
-def test_the_catalogue_is_twenty_four_medals_in_six_families():
-    assert len(medals.CATALOG) == 24
-    assert len(medals.BY_ID) == 24
+def test_the_catalogue_is_thirty_two_medals_in_eight_families():
+    assert len(medals.CATALOG) == 32
+    assert len(medals.BY_ID) == 32
     assert [row.family for row in medals.CATALOG] == (
         ["race"] * 7 + ["weekly"] * 4 + ["time"] * 2 + ["cycle"] * 4 + ["swim"] * 3
-        + ["lifetime"] * 4
+        + ["lifetime"] * 4 + ["cycle_lifetime"] * 4 + ["swim_lifetime"] * 4
     )
     for row in medals.CATALOG:
         assert row.name.strip()
@@ -102,6 +102,8 @@ def test_every_family_with_thresholds_ascends():
         medals.CYCLE_MEDALS,
         medals.SWIM_MEDALS,
         medals.LIFETIME_MEDALS,
+        medals.CYCLE_LIFETIME_MEDALS,
+        medals.SWIM_LIFETIME_MEDALS,
     ):
         distances = [row.distance_mi for row in family]
         assert distances == sorted(distances)
@@ -319,11 +321,13 @@ def test_a_ride_earns_the_highest_cycling_rung_it_reaches(signed_in, db_session,
 def test_a_ride_never_earns_a_race_medal_however_far_it_goes(
     signed_in, db_session, member
 ):
-    """A hundred miles on a bike is a Century, and it is not a 50K."""
+    """A hundred miles on a bike is a Century, and it is not a 50K. The two
+    lifetime ladders it also crosses are the odometer's business, not the race
+    family's."""
     earned = medals_after(
         db_session, member.id, at(0, 9), activity="cycle", miles=100.0, duration_s=6 * 3600
     )
-    assert earned == ["cycle_100"]
+    assert earned == ["cycle_100", "lifetime_100", "cycle_lifetime_100"]
 
 
 def test_a_swim_earns_only_from_its_own_family(signed_in, db_session, member):
@@ -334,7 +338,7 @@ def test_a_swim_earns_only_from_its_own_family(signed_in, db_session, member):
     ) == ["swim_half"]
     assert medals_after(
         db_session, member.id, at(1, 9), activity="swim", miles=12.0, duration_s=6 * 3600
-    ) == ["swim_half", "swim_2"]
+    ) == ["swim_half", "swim_2", "swim_lifetime_10"]
 
 
 def test_a_walk_and_a_run_earn_nothing_from_the_cycling_or_swimming_families(
@@ -347,18 +351,22 @@ def test_a_walk_and_a_run_earn_nothing_from_the_cycling_or_swimming_families(
 
 
 # --------------------------------------------------------------------------
-# The lifetime odometer
+# The lifetime ladders: the odometer, and one per sport
 # --------------------------------------------------------------------------
 
+LIFETIME_IDS = {
+    medal.id for ladder in medals.LIFETIME_LADDERS for medal in ladder.medals
+}
 
-def odometer_rows(db_session, user_id) -> list[tuple]:
-    """The odometer earns only, in the order they were written."""
+
+def lifetime_rows(db_session, user_id) -> list[tuple]:
+    """The lifetime-ladder earns only, in the order they were written."""
     return [
         (row.badge_id, row.workout_id, row.earned_at)
         for row in db_session.query(models.BadgeEarn)
         .filter(models.BadgeEarn.user_id == user_id)
         .order_by(models.BadgeEarn.id)
-        if row.badge_id.startswith("lifetime_")
+        if row.badge_id in LIFETIME_IDS
     ]
 
 
@@ -369,67 +377,209 @@ def test_the_odometer_hangs_on_the_workout_whose_credit_crossed_the_line(
     crossing = add_workout(db_session, member.id, at(1, 9), miles=60.0)
     add_workout(db_session, member.id, at(2, 9), miles=60.0)
     progress.process_user(db_session, member.id)
-    assert odometer_rows(db_session, member.id) == [
+    assert lifetime_rows(db_session, member.id) == [
         ("lifetime_100", crossing.id, crossing.start_ts)
     ]
 
 
-def test_the_odometer_reads_converted_miles_rather_than_ground(
+def test_the_odometer_reads_raw_miles_rather_than_converted(
     signed_in, db_session, member
 ):
-    """Twenty-five miles swum is a hundred Miles, which is the number the game
-    is scored in and the only family here that is not measured on the ground."""
+    """The reversal, pinned: a century ride puts a hundred miles on the odometer
+    and crosses the hundred, where the converted reading it replaced would have
+    called the same ride 33.3 and crossed nothing."""
+    assert round(converted_miles("cycle", 100.0), 1) == 33.3
     crossing = add_workout(
-        db_session, member.id, at(0, 9), activity="swim", miles=25.0, duration_s=10 * 3600
+        db_session, member.id, at(0, 9), activity="cycle", miles=100.0, duration_s=6 * 3600
     )
     progress.process_user(db_session, member.id)
-    assert [row[0] for row in odometer_rows(db_session, member.id)] == ["lifetime_100"]
-    assert odometer_rows(db_session, member.id)[0][1] == crossing.id
+    assert lifetime_rows(db_session, member.id) == [
+        ("lifetime_100", crossing.id, crossing.start_ts),
+        ("cycle_lifetime_100", crossing.id, crossing.start_ts),
+    ]
+
+
+def test_every_activity_puts_its_own_ground_on_the_odometer(
+    signed_in, db_session, member
+):
+    """Walked, run, ridden or swum, a mile is a mile to the odometer: thirty of
+    each is a hundred and twenty, and the fourth of them carries the line."""
+    add_workout(db_session, member.id, at(0, 9), activity="walk", miles=30.0, duration_s=9 * 3600)
+    add_workout(db_session, member.id, at(1, 9), miles=30.0, duration_s=5 * 3600)
+    add_workout(db_session, member.id, at(2, 9), activity="cycle", miles=30.0, duration_s=3 * 3600)
+    crossing = add_workout(
+        db_session, member.id, at(3, 9), activity="swim", miles=30.0, duration_s=20 * 3600
+    )
+    progress.process_user(db_session, member.id)
+    assert [row[0] for row in lifetime_rows(db_session, member.id)][0] == "lifetime_100"
+    assert lifetime_rows(db_session, member.id)[0][1] == crossing.id
+
+
+def test_steps_never_climb_a_lifetime_ladder(signed_in, db_session, member):
+    """Twenty miles of pedometer beside ninety-nine of running is ninety-nine on
+    the odometer. Steps are stored and shown and climb nothing."""
+    progress.record_steps(
+        db_session,
+        member.id,
+        {MONDAY: DayMetrics(steps=40000, distance_mi=20.0)},
+        security.now_utc(),
+    )
+    db_session.commit()
+    add_workout(db_session, member.id, at(0, 9), miles=99.0, duration_s=20 * 3600)
+    progress.process_user(db_session, member.id)
+    assert lifetime_rows(db_session, member.id) == []
+
+    add_workout(db_session, member.id, at(1, 9), miles=1.0)
+    progress.process_user(db_session, member.id)
+    assert [row[0] for row in lifetime_rows(db_session, member.id)] == ["lifetime_100"]
 
 
 def test_the_odometer_lands_exactly_on_its_threshold(signed_in, db_session, member):
     add_workout(db_session, member.id, at(0, 9), miles=40.0)
     add_workout(db_session, member.id, at(1, 9), miles=59.9)
     progress.process_user(db_session, member.id)
-    assert odometer_rows(db_session, member.id) == []
+    assert lifetime_rows(db_session, member.id) == []
 
     add_workout(db_session, member.id, at(2, 9), miles=0.1)
     progress.process_user(db_session, member.id)
-    assert [row[0] for row in odometer_rows(db_session, member.id)] == ["lifetime_100"]
+    assert [row[0] for row in lifetime_rows(db_session, member.id)] == ["lifetime_100"]
 
 
 def test_one_credit_may_cross_two_lifetime_lines_at_once(signed_in, db_session, member):
-    crossing = add_workout(db_session, member.id, at(0, 9), activity="cycle", miles=780.0)
+    """And the swimming ladder is not one of them: a ride is not a swim."""
+    crossing = add_workout(db_session, member.id, at(0, 9), activity="cycle", miles=260.0)
     progress.process_user(db_session, member.id)
-    # Two hundred and sixty converted Miles out of one very long ride.
-    assert odometer_rows(db_session, member.id) == [
+    assert lifetime_rows(db_session, member.id) == [
         ("lifetime_100", crossing.id, crossing.start_ts),
         ("lifetime_250", crossing.id, crossing.start_ts),
+        ("cycle_lifetime_100", crossing.id, crossing.start_ts),
+        ("cycle_lifetime_250", crossing.id, crossing.start_ts),
     ]
 
 
 def test_the_odometer_is_earned_once_and_never_again(signed_in, db_session, member):
-    """The one family here that is ticked off rather than counted."""
+    """The one kind of medal here that is ticked off rather than counted."""
     for offset in range(4):
         add_workout(db_session, member.id, at(offset, 9), miles=60.0)
         progress.process_user(db_session, member.id)
-    assert [row[0] for row in odometer_rows(db_session, member.id)] == ["lifetime_100"]
+    assert [row[0] for row in lifetime_rows(db_session, member.id)] == ["lifetime_100"]
 
     # And a sweep that finds nothing new writes nothing new.
     progress.process_user(db_session, member.id)
-    assert [row[0] for row in odometer_rows(db_session, member.id)] == ["lifetime_100"]
+    assert [row[0] for row in lifetime_rows(db_session, member.id)] == ["lifetime_100"]
 
 
-def test_a_rebuild_earns_the_odometer_on_the_same_workout(signed_in, db_session, member):
+def test_a_sport_ladder_climbs_that_sport_only(signed_in, db_session, member):
+    """Fifty miles run and fifty swum: the odometer takes all hundred, the
+    swimming ladder takes fifty, and the cycling ladder takes nothing."""
+    add_workout(db_session, member.id, at(0, 9), miles=50.0, duration_s=8 * 3600)
+    add_workout(
+        db_session, member.id, at(1, 9), activity="swim", miles=50.0, duration_s=30 * 3600
+    )
+    progress.process_user(db_session, member.id)
+    assert [row[0] for row in lifetime_rows(db_session, member.id)] == [
+        "lifetime_100",
+        "swim_lifetime_10",
+        "swim_lifetime_25",
+        "swim_lifetime_50",
+    ]
+
+
+def test_a_sport_ladder_counts_that_sport_s_own_lifetime_total(
+    signed_in, db_session, member
+):
+    """Rung by rung out of the sport's own miles: three rides of forty are a
+    hundred and twenty ridden, however far the walk beside them went."""
+    add_workout(db_session, member.id, at(0, 9), activity="walk", miles=90.0, duration_s=30 * 3600)
+    first = add_workout(db_session, member.id, at(1, 9), activity="cycle", miles=40.0, duration_s=4 * 3600)
+    add_workout(db_session, member.id, at(2, 9), activity="cycle", miles=40.0, duration_s=4 * 3600)
+    third = add_workout(db_session, member.id, at(3, 9), activity="cycle", miles=40.0, duration_s=4 * 3600)
+    progress.process_user(db_session, member.id)
+    assert lifetime_rows(db_session, member.id) == [
+        # The walk plus the first ride is a hundred and thirty on the odometer.
+        ("lifetime_100", first.id, first.start_ts),
+        # A hundred and twenty ridden, reached on the third of them.
+        ("cycle_lifetime_100", third.id, third.start_ts),
+    ]
+
+
+def test_a_sport_ladder_rung_is_earned_once_like_the_odometer(
+    signed_in, db_session, member
+):
+    for offset in range(4):
+        add_workout(
+            db_session, member.id, at(offset, 9), activity="swim", miles=4.0, duration_s=4 * 3600
+        )
+        progress.process_user(db_session, member.id)
+    # Sixteen miles swum: the ten crossed once, the twenty-five out of reach.
+    assert [row[0] for row in lifetime_rows(db_session, member.id)] == ["swim_lifetime_10"]
+
+    progress.process_user(db_session, member.id)
+    assert [row[0] for row in lifetime_rows(db_session, member.id)] == ["swim_lifetime_10"]
+
+
+def test_a_rebuild_earns_the_lifetime_medals_on_the_same_workouts(
+    signed_in, db_session, member
+):
     add_workout(db_session, member.id, at(0, 9), miles=60.0)
     add_workout(db_session, member.id, at(1, 9), miles=60.0)
-    add_workout(db_session, member.id, at(2, 9), activity="swim", miles=40.0, duration_s=9 * 3600)
+    add_workout(db_session, member.id, at(2, 9), activity="swim", miles=40.0, duration_s=24 * 3600)
     progress.process_user(db_session, member.id)
-    before = odometer_rows(db_session, member.id)
-    assert [row[0] for row in before] == ["lifetime_100", "lifetime_250"]
+    before = lifetime_rows(db_session, member.id)
+    assert [row[0] for row in before] == [
+        "lifetime_100",
+        "swim_lifetime_10",
+        "swim_lifetime_25",
+    ]
 
     progress.recompute(db_session, member.id)
-    assert odometer_rows(db_session, member.id) == before
+    assert lifetime_rows(db_session, member.id) == before
+
+
+def test_a_deletion_moves_the_crossing_and_the_rebuild_lands_on_it(
+    signed_in, db_session, member
+):
+    """The delete-aware half of determinism: the first run goes, so the hundred
+    is crossed later and by a different workout."""
+    first = add_workout(db_session, member.id, at(0, 9), miles=60.0)
+    second = add_workout(db_session, member.id, at(1, 9), miles=60.0)
+    third = add_workout(db_session, member.id, at(2, 9), miles=60.0)
+    progress.process_user(db_session, member.id)
+    assert lifetime_rows(db_session, member.id) == [
+        ("lifetime_100", second.id, second.start_ts)
+    ]
+
+    first.deleted_at = security.now_utc()
+    db_session.commit()
+    progress.rebuild_from_surviving(db_session, member.id)
+    assert lifetime_rows(db_session, member.id) == [
+        ("lifetime_100", third.id, third.start_ts)
+    ]
+
+
+def test_a_credit_after_a_deletion_counts_the_surviving_miles_only(
+    signed_in, db_session, member
+):
+    """The same delete-awareness one workout at a time: a sweep picks the total
+    up from what is left, so the miles that went do not hide a later crossing.
+    """
+    gone = add_workout(db_session, member.id, at(0, 9), miles=60.0)
+    add_workout(db_session, member.id, at(1, 9), miles=60.0)
+    progress.process_user(db_session, member.id)
+    assert [row[0] for row in lifetime_rows(db_session, member.id)] == ["lifetime_100"]
+
+    gone.deleted_at = security.now_utc()
+    db_session.commit()
+    progress.rebuild_from_surviving(db_session, member.id)
+    assert lifetime_rows(db_session, member.id) == []
+
+    crossing = add_workout(db_session, member.id, at(2, 9), miles=45.0, duration_s=8 * 3600)
+    progress.process_user(db_session, member.id)
+    # A hundred and five surviving miles, not the hundred and sixty-five that
+    # counting the deleted run would have read straight past the line.
+    assert lifetime_rows(db_session, member.id) == [
+        ("lifetime_100", crossing.id, crossing.start_ts)
+    ]
 
 
 # --------------------------------------------------------------------------
@@ -592,12 +742,12 @@ def test_backfill_replays_the_new_families_and_writes_nothing_the_second_time(
     race medals, the sport families and the odometer, and none of which was
     ever written for it.
 
-    The odometer is the one worth watching here, because it is the one earned
-    once: a second run of the command has to find it already held rather than
-    hand out a second hundredth Mile.
+    The lifetime ladders are the ones worth watching here, because they are the
+    medals earned once: a second run of the command has to find them already
+    held rather than hand out a second hundredth mile.
     """
     add_workout(db_session, member.id, at(0, 9), activity="walk", miles=8.0)
-    add_workout(db_session, member.id, at(1, 9), activity="cycle", miles=30.0)
+    add_workout(db_session, member.id, at(1, 9), activity="cycle", miles=70.0)
     crossing = add_workout(db_session, member.id, at(2, 9), activity="swim", miles=25.0)
     progress.process_user(db_session, member.id)
     medals.clear_earns(db_session, member.id)
@@ -605,11 +755,20 @@ def test_backfill_replays_the_new_families_and_writes_nothing_the_second_time(
 
     _backfill(db_session, monkeypatch)
     awarded = workout_medals(db_session, member.id)
-    assert awarded == ["race_10k", "cycle_25", "swim_2", "lifetime_100"]
+    assert awarded == [
+        "race_10k",
+        "cycle_50",
+        "swim_2",
+        "lifetime_100",
+        "swim_lifetime_10",
+        "swim_lifetime_25",
+    ]
     # Earned at the crossing's own start, which is what keeps the letter quiet
     # about a medal dated in June.
-    assert odometer_rows(db_session, member.id) == [
-        ("lifetime_100", crossing.id, crossing.start_ts)
+    assert lifetime_rows(db_session, member.id) == [
+        ("lifetime_100", crossing.id, crossing.start_ts),
+        ("swim_lifetime_10", crossing.id, crossing.start_ts),
+        ("swim_lifetime_25", crossing.id, crossing.start_ts),
     ]
 
     _backfill(db_session, monkeypatch)

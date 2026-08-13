@@ -189,9 +189,9 @@ def cmd_backfill_badges(args: argparse.Namespace) -> None:
     medal than the week actually reached; that is the same answer a full replay
     would produce. Nothing is ever deleted here.
 
-    The odometer is replayed through the same walk, oldest first from a total of
-    nothing, which is exactly what the pipeline and a rebuild do; the lifetime
-    total is summed here rather than read off the progress row so that this
+    The lifetime ladders are replayed through the same walk, oldest first from a
+    total of nothing, which is exactly what the pipeline and a rebuild do; the
+    raw miles are summed here rather than read off the progress row so that this
     command still touches nothing but medals.
     """
     username = args.username.strip().lower()
@@ -217,14 +217,10 @@ def cmd_backfill_badges(args: argparse.Namespace) -> None:
         ).scalars().all()
         awarded = 0
         weeks = set()
-        lifetime = 0.0
+        lifetime = medals.zero_lifetime()
         for workout in credited:
             awarded += len(medals.award_workout_medals(db, user.id, workout))
-            before = lifetime
-            lifetime += activity_rules.converted_miles(workout.activity, workout.distance_mi)
-            awarded += len(
-                medals.award_odometer_medals(db, user.id, workout, before, lifetime)
-            )
+            awarded += len(medals.award_lifetime_medals(db, user.id, workout, lifetime))
             weeks.add(activity_rules.week_start(workout.start_ts))
         for monday in sorted(weeks):
             medals.update_week(db, user.id, monday)

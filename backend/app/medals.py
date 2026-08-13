@@ -1,24 +1,22 @@
 """The medals: the catalogue, the rules that earn them, and their awarding.
 
-Twenty-four medals in six families. Five of the six repeat: a marathon next
+Thirty-two medals in eight families. Five of the eight repeat: a marathon next
 month is another Marathon, a big week in October is another 25-mile week. The
-sixth is the lifetime odometer, and it is the one thing here earned once and
-ticked off, because a hundredth Mile only ever happens once. Every rule that
+other three are the lifetime ladders, and they are the things here earned once
+and ticked off, because a hundredth mile only ever happens once. Every rule that
 follows says which of the two it is.
 
 Two tables hold the earns, split by what earns them rather than by family.
 badge_earns is one row per workout per medal: the four families a single session
-earns (race, cycle, swim and time), and the odometer, whose row hangs on the
-workout whose credit carried the total over the line. weekly_badge_earns is one
-row per week per family, for the family a week earns, which is what lets a week
-upgrade its medal in place as the miles add up.
+earns (race, cycle, swim and time), and the lifetime ladders, whose rows hang on
+the workout whose credit carried a total over the line. weekly_badge_earns is
+one row per week per family, for the family a week earns, which is what lets a
+week upgrade its medal in place as the miles add up.
 
-Every threshold is raw miles, never converted Miles, with one deliberate
-exception: a 5K is a distance on the ground and a 25-mile week is twenty-five
-miles walked, run, ridden, or swum, and no conversion rate has any business
-changing what either of them is. The odometer is the exception because it is not
-a distance on the ground at all: it is the lifetime total the game itself is
-scored in, so it is the only family read in converted Miles.
+Every threshold here is raw miles, never converted Miles. A 5K is a distance on
+the ground, a 25-mile week is twenty-five miles walked, run, ridden, or swum,
+and a lifetime ladder is every mile the body actually covered; no conversion
+rate has any business changing what any of them is.
 """
 
 import datetime as dt
@@ -48,9 +46,8 @@ class Medal:
     name: str
     # Miles the medal is earned at: one workout's distance for the race, cycle
     # and swim families, one week's total for the weekly family, and the
-    # account's lifetime converted Miles for the odometer, which is the one
-    # family here not measured on the ground. Nothing at all for the time
-    # family, which is earned by a clock.
+    # account's lifetime total for a lifetime ladder. Raw miles in every case.
+    # Nothing at all for the time family, which is earned by a clock.
     distance_mi: float | None = None
 
 
@@ -76,9 +73,8 @@ CATALOG: tuple[Medal, ...] = (
     Medal("weekly_40", "weekly", "40-mile week", 40.0),
     Medal("early_riser", "time", "Early Riser"),
     Medal("night_owl", "time", "Night Owl"),
-    # DRAFT NAMES, awaiting the owner's word: the four rides and the three
-    # swims below are named to hold the shape, and only the two race medals
-    # above and the eleven that predate them are settled.
+    # One ride, at its own distances: Century is the classic hundred-mile club
+    # ride, and raw distance on the road as every single-session medal is.
     Medal("cycle_10", "cycle", "10 Mile Ride", 10.0),
     Medal("cycle_25", "cycle", "25 Mile Ride", 25.0),
     Medal("cycle_50", "cycle", "50 Mile Ride", 50.0),
@@ -86,12 +82,24 @@ CATALOG: tuple[Medal, ...] = (
     Medal("swim_half", "swim", "Half Mile Swim", 0.5),
     Medal("swim_1", "swim", "Mile Swim", 1.0),
     Medal("swim_2", "swim", "2 Mile Swim", 2.0),
-    # DRAFT NAMES as well. Converted Miles rather than ground, and earned once
-    # each: see the odometer section below.
+    # The three lifetime ladders, earned once each and read in raw miles: see
+    # the section below. The odometer counts everything; the two sport ladders
+    # count their own sport, because in one shared total a rider's miles vanish
+    # into everybody's foot miles.
     Medal("lifetime_100", "lifetime", "100 Miles", 100.0),
     Medal("lifetime_250", "lifetime", "250 Miles", 250.0),
     Medal("lifetime_500", "lifetime", "500 Miles", 500.0),
     Medal("lifetime_1000", "lifetime", "1000 Miles", 1000.0),
+    Medal("cycle_lifetime_100", "cycle_lifetime", "100 Miles Ridden", 100.0),
+    Medal("cycle_lifetime_250", "cycle_lifetime", "250 Miles Ridden", 250.0),
+    Medal("cycle_lifetime_500", "cycle_lifetime", "500 Miles Ridden", 500.0),
+    Medal("cycle_lifetime_1000", "cycle_lifetime", "1000 Miles Ridden", 1000.0),
+    # Shorter rungs, because a mile swum is not a mile ridden: fifty miles in
+    # the water is a season's work where fifty on the road is a Saturday.
+    Medal("swim_lifetime_10", "swim_lifetime", "10 Miles Swum", 10.0),
+    Medal("swim_lifetime_25", "swim_lifetime", "25 Miles Swum", 25.0),
+    Medal("swim_lifetime_50", "swim_lifetime", "50 Miles Swum", 50.0),
+    Medal("swim_lifetime_100", "swim_lifetime", "100 Miles Swum", 100.0),
 )
 
 BY_ID: dict[str, Medal] = {row.id: row for row in CATALOG}
@@ -107,10 +115,35 @@ WEEKLY_MEDALS: tuple[Medal, ...] = _family("weekly")
 CYCLE_MEDALS: tuple[Medal, ...] = _family("cycle")
 SWIM_MEDALS: tuple[Medal, ...] = _family("swim")
 LIFETIME_MEDALS: tuple[Medal, ...] = _family("lifetime")
+CYCLE_LIFETIME_MEDALS: tuple[Medal, ...] = _family("cycle_lifetime")
+SWIM_LIFETIME_MEDALS: tuple[Medal, ...] = _family("swim_lifetime")
+
+
+@dataclass(frozen=True)
+class Ladder:
+    """One lifetime ladder: the family it awards from, the activities whose raw
+    miles climb it, and its rungs in ascending order."""
+
+    family: str
+    activities: tuple[str, ...]
+    medals: tuple[Medal, ...]
+
+
+# The three ladders climbed by a lifetime total rather than by one session. The
+# odometer takes every mile from every activity; each sport ladder takes its own
+# sport and nothing else, so a walk never moves the cycling one. Steps are not
+# workouts and reach none of them.
+LIFETIME_LADDERS: tuple[Ladder, ...] = (
+    Ladder("lifetime", models.ACTIVITIES, LIFETIME_MEDALS),
+    Ladder("cycle_lifetime", ("cycle",), CYCLE_LIFETIME_MEDALS),
+    Ladder("swim_lifetime", ("swim",), SWIM_LIFETIME_MEDALS),
+)
+
+LIFETIME_FAMILIES = tuple(ladder.family for ladder in LIFETIME_LADDERS)
 
 # Which table a family's earns live in. The split is the one thing about a
 # family that is not data: a week cannot be keyed by a workout.
-WORKOUT_FAMILIES = ("race", "time", "cycle", "swim", "lifetime")
+WORKOUT_FAMILIES = ("race", "time", "cycle", "swim") + LIFETIME_FAMILIES
 WEEK_FAMILIES = ("weekly",)
 
 # Feet are feet. A mile covered on foot is a mile, so the race family and the
@@ -248,29 +281,60 @@ def award_workout_medals(
 
 
 # --------------------------------------------------------------------------
-# What the odometer earns
+# What the lifetime ladders earn
 # --------------------------------------------------------------------------
 
 
-def odometer_medals(total_before: float, total_after: float) -> list[Medal]:
-    """The odometer medals one credit carries the lifetime total past.
+def zero_lifetime() -> dict[str, float]:
+    """A lifetime reading of nothing, one running total per ladder. Where a
+    replay of a whole history starts."""
+    return {ladder.family: 0.0 for ladder in LIFETIME_LADDERS}
+
+
+def lifetime_so_far(db: Session, user_id: int) -> dict[str, float]:
+    """What this account's already credited workouts come to, per ladder.
+
+    Raw miles, added up from the workouts rather than read off the progress row:
+    that row holds converted Miles, which is not what these ladders climb, and
+    nothing stores this total. A deleted workout is out of it, so a credit
+    landing after a deletion reads the same total a clean rebuild would.
+    """
+    totals = zero_lifetime()
+    rows = db.execute(
+        select(models.Workout.activity, func.sum(models.Workout.distance_mi))
+        .join(
+            models.ProcessedWorkout,
+            models.ProcessedWorkout.workout_id == models.Workout.id,
+        )
+        .where(models.Workout.user_id == user_id, models.Workout.deleted_at.is_(None))
+        .group_by(models.Workout.activity)
+    ).all()
+    for activity, miles in rows:
+        for ladder in LIFETIME_LADDERS:
+            if activity in ladder.activities:
+                totals[ladder.family] += miles or 0.0
+    return totals
+
+
+def _crossed(ladder: Ladder, total_before: float, total_after: float) -> list[Medal]:
+    """The rungs one credit carries a ladder's total past.
 
     Two totals rather than one, because the medal belongs to the crossing: a
-    credit that takes an account from 98 Miles to 260 earns both the hundred and
+    credit that takes an account from 98 miles to 260 earns both the hundred and
     the two hundred and fifty, and a credit that starts past a line earns
-    nothing from it. Converted Miles, the number the account is scored in.
+    nothing from it.
     """
     return [
         medal
-        for medal in LIFETIME_MEDALS
+        for medal in ladder.medals
         if total_before + _EPSILON < medal.distance_mi <= total_after + _EPSILON
     ]
 
 
-def _held_odometer_ids(db: Session, user_id: int) -> set[str]:
-    """Which odometer medals this account already has. One query, because the
-    family is earned once each and the check is what enforces it."""
-    ids = [medal.id for medal in LIFETIME_MEDALS]
+def _held_lifetime_ids(db: Session, user_id: int) -> set[str]:
+    """Which lifetime medals this account already has. One query, because the
+    ladders are earned once each and the check is what enforces it."""
+    ids = [medal.id for ladder in LIFETIME_LADDERS for medal in ladder.medals]
     return set(
         db.execute(
             select(models.BadgeEarn.badge_id).where(
@@ -281,17 +345,21 @@ def _held_odometer_ids(db: Session, user_id: int) -> set[str]:
     )
 
 
-def award_odometer_medals(
+def award_lifetime_medals(
     db: Session,
     user_id: int,
     workout: models.Workout,
-    total_before: float,
-    total_after: float,
+    totals: dict[str, float],
 ) -> list[Medal]:
-    """Record the lifetime lines this credit crossed. Returns the rows written.
+    """Add one credit's raw miles to the lifetime totals and record every line
+    the addition crossed. Returns the rows written.
+
+    `totals` is the caller's running reading, advanced here: the walk carries it
+    workout by workout rather than asking the database for it each time, which
+    is what keeps a sweep of a hundred workouts one query.
 
     Earned once each, which is the one place this file departs from everything
-    around it: a second hundredth Mile is not a thing that happens. The held
+    around it: a second hundredth mile is not a thing that happens. The held
     check is what says so, since the unique key next door only refuses the same
     medal on the same workout.
 
@@ -300,15 +368,21 @@ def award_odometer_medals(
     history oldest first from a total of nothing, which is the same walk in the
     same order, so the same workout crosses the same threshold.
 
-    The pace flag does not block this one, and deliberately. The odometer counts
-    a total rather than a claim about one session, and a flagged workout's miles
+    The pace flag does not block these, and deliberately. A ladder counts a
+    total rather than a claim about one session, and a flagged workout's miles
     are in that total either way; refusing the crossing would lose the medal
     outright rather than move it, because a line is only ever crossed once.
     """
-    crossed = odometer_medals(total_before, total_after)
+    crossed: list[Medal] = []
+    for ladder in LIFETIME_LADDERS:
+        if workout.activity not in ladder.activities:
+            continue
+        before = totals[ladder.family]
+        totals[ladder.family] = before + workout.distance_mi
+        crossed.extend(_crossed(ladder, before, totals[ladder.family]))
     if not crossed:
         return []
-    held = _held_odometer_ids(db, user_id)
+    held = _held_lifetime_ids(db, user_id)
     written = []
     for medal in crossed:
         if medal.id in held:

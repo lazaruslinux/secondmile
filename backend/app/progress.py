@@ -186,11 +186,16 @@ def process_user(
         .scalars()
         .all()
     )
+    # Read once, before a single marker is written, so the walk below picks the
+    # lifetime ladders up exactly where the credited history left them. Not read
+    # at all when there is nothing to credit, which is most sweeps: every screen
+    # comes through here.
+    lifetime = medals.lifetime_so_far(db, user_id) if pending else {}
     credited = 0
     for workout in pending:
         if not _claim(db, workout.id):
             continue
-        _credit(db, progress, workout, bear=bear)
+        _credit(db, progress, workout, lifetime, bear=bear)
         credited += 1
     if credited:
         progress.updated_at = now_utc()
@@ -214,11 +219,11 @@ def _credit(
     db: Session,
     progress: models.UserProgress,
     workout: models.Workout,
+    lifetime: dict[str, float],
     *,
     bear: bool = True,
 ) -> None:
     miles = converted_miles(workout.activity, workout.distance_mi)
-    lifetime_before = progress.xp
     progress.xp += miles
     progress.level = level_for_xp(progress.xp)
     # The other lane, out of the same workout and out of nothing it shares: the
@@ -226,11 +231,10 @@ def _credit(
     # where it keeps until it is spent.
     progress.manna += manna_for(workout.active_kcal)
     medals.award_workout_medals(db, progress.user_id, workout)
-    # The lifetime lines this credit crossed, read either side of the addition
-    # above: the odometer belongs to the crossing rather than to the workout.
-    medals.award_odometer_medals(
-        db, progress.user_id, workout, lifetime_before, progress.xp
-    )
+    # The lifetime lines this credit crossed. Raw miles rather than the
+    # converted ones above: the ladders count the ground the body covered, and
+    # a medal belongs to the crossing rather than to the workout.
+    medals.award_lifetime_medals(db, progress.user_id, workout, lifetime)
     # After the workout is credited, so the week it falls in is totalled with
     # this one in it. The whole week is walked again rather than added to, which
     # is what makes a backfill arriving out of order land on the same rows.
@@ -825,6 +829,9 @@ def rebuild_from_surviving(db: Session, user_id: int) -> models.UserProgress:
 
     now = now_utc()
     fuel = 0.0
+    # From nothing, because every marker has just gone: the walk below is the
+    # whole surviving history again, oldest first.
+    lifetime = medals.zero_lifetime()
     for workout in db.execute(
         select(models.Workout)
         .where(models.Workout.user_id == user_id, models.Workout.deleted_at.is_(None))
@@ -834,13 +841,12 @@ def rebuild_from_surviving(db: Session, user_id: int) -> models.UserProgress:
             continue
         miles = converted_miles(workout.activity, workout.distance_mi)
         fuel += miles
-        lifetime_before = progress.xp
         progress.xp += miles
         progress.manna += manna_for(workout.active_kcal)
         medals.award_workout_medals(db, user_id, workout)
         # The same walk the pipeline does, from a total of nothing and oldest
         # first, so the workout that crossed a lifetime line crosses it again.
-        medals.award_odometer_medals(db, user_id, workout, lifetime_before, progress.xp)
+        medals.award_lifetime_medals(db, user_id, workout, lifetime)
         medals.update_week_for(db, user_id, workout)
     # The workouts are the whole of it. Steps are no fuel: the dormant ledger
     # is not read here, so a rebuild lands on what the recorded activities pay

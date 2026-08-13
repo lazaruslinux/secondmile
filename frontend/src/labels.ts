@@ -65,12 +65,13 @@ export function defaultHeadline(activity: Activity, startTs: string): string {
 // changed in both places or in neither.
 export const GENDERS = ['Male', 'Female']
 
-// The medal catalogue: twenty-four medals in the order every screen draws
+// The medal catalogue: thirty-two medals in the order every screen draws
 // them, which is the server's own catalogue order. No screen groups them by
-// family, so the order is the whole of the arrangement. All but the last four
-// repeat, so a medal is a count rather than a yes or a no; the odometer at the
-// end is earned once each. The catalogue is fixed rather than grown: nothing
-// here is added to without the art and the server being changed together.
+// family, so the order is the whole of the arrangement. All but the last twelve
+// repeat, so a medal is a count rather than a yes or a no; the three lifetime
+// ladders at the end are earned once each. The catalogue is fixed rather than
+// grown: nothing here is added to without the art and the server being changed
+// together.
 export const MEDAL_ORDER = [
   'race_1mi',
   'race_2mi',
@@ -96,13 +97,20 @@ export const MEDAL_ORDER = [
   'lifetime_250',
   'lifetime_500',
   'lifetime_1000',
+  'cycle_lifetime_100',
+  'cycle_lifetime_250',
+  'cycle_lifetime_500',
+  'cycle_lifetime_1000',
+  'swim_lifetime_10',
+  'swim_lifetime_25',
+  'swim_lifetime_50',
+  'swim_lifetime_100',
 ]
 
 // The names are the interface's own, not the server's, so the whole set reads
 // as one wherever it is drawn. The stylesheet is what puts them in capitals.
-// The eleven that reach 40-mile week are settled; First Mile and Second Mile
-// are the owner's own and never change; the eleven below them are DRAFT NAMES
-// waiting on his word.
+// All of them are settled, First Mile and Second Mile most of all: those two
+// are the owner's own and never change.
 export const MEDAL_NAMES: Record<string, string> = {
   race_1mi: 'First Mile',
   race_2mi: 'Second Mile',
@@ -128,17 +136,26 @@ export const MEDAL_NAMES: Record<string, string> = {
   lifetime_250: '250 Miles',
   lifetime_500: '500 Miles',
   lifetime_1000: '1000 Miles',
+  cycle_lifetime_100: '100 Miles Ridden',
+  cycle_lifetime_250: '250 Miles Ridden',
+  cycle_lifetime_500: '500 Miles Ridden',
+  cycle_lifetime_1000: '1000 Miles Ridden',
+  swim_lifetime_10: '10 Miles Swum',
+  swim_lifetime_25: '25 Miles Swum',
+  swim_lifetime_50: '50 Miles Swum',
+  swim_lifetime_100: '100 Miles Swum',
 }
 
 // How to earn each one, written as the instruction it is rather than as a
 // description of it. The thresholds are the server's and they are written out
-// in docs/03-artwork.md as well. All of them are raw miles on the ground except
-// the last four, which are the converted Miles the level bar counts in and say
-// so. The race medals and the two time medals are earned on foot, walked or
-// run; a week counts every activity; the rides and the swims are each their own
-// sport only. The clock times are the instance's timezone, which is every
-// account's local time only while one instance serves one place. No line takes
-// a trailing period: they read as one catalogue.
+// in docs/03-artwork.md as well. Every one of them is raw miles on the ground,
+// the lifetime ladders included: they count the miles covered, not the
+// converted Miles the level bar reads. The race medals and the two time medals
+// are earned on foot, walked or run; a week counts every activity; the rides
+// and the swims are each their own sport only. The clock times are the
+// instance's timezone, which is every account's local time only while one
+// instance serves one place. No line takes a trailing period: they read as one
+// catalogue.
 export const MEDAL_DETAILS: Record<string, string> = {
   race_1mi: 'Walk or run 1 mile',
   race_2mi: 'Walk or run 2 miles',
@@ -160,10 +177,18 @@ export const MEDAL_DETAILS: Record<string, string> = {
   swim_half: 'Swim half a mile or more in one swim',
   swim_1: 'Swim a mile or more in one swim',
   swim_2: 'Swim 2 miles or more in one swim',
-  lifetime_100: 'Reach 100 lifetime Miles, the total the level bar counts',
-  lifetime_250: 'Reach 250 lifetime Miles',
-  lifetime_500: 'Reach 500 lifetime Miles',
-  lifetime_1000: 'Reach 1000 lifetime Miles',
+  lifetime_100: 'Cover 100 miles in total, counting every mile of every activity',
+  lifetime_250: 'Cover 250 miles in total, in any activity',
+  lifetime_500: 'Cover 500 miles in total, in any activity',
+  lifetime_1000: 'Cover 1000 miles in total, in any activity',
+  cycle_lifetime_100: 'Ride 100 miles in total, counting every mile you have ridden',
+  cycle_lifetime_250: 'Ride 250 miles in total',
+  cycle_lifetime_500: 'Ride 500 miles in total',
+  cycle_lifetime_1000: 'Ride 1000 miles in total',
+  swim_lifetime_10: 'Swim 10 miles in total, counting every mile you have swum',
+  swim_lifetime_25: 'Swim 25 miles in total',
+  swim_lifetime_50: 'Swim 50 miles in total',
+  swim_lifetime_100: 'Swim 100 miles in total',
 }
 
 // A medal id the server sent that this build has no name for still has to read

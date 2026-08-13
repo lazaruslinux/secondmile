@@ -140,6 +140,14 @@ const MEDAL_FILES: Record<string, string> = {
   lifetime_250: 'lifetime-250',
   lifetime_500: 'lifetime-500',
   lifetime_1000: 'lifetime-1000',
+  cycle_lifetime_100: 'cycle-lifetime-100',
+  cycle_lifetime_250: 'cycle-lifetime-250',
+  cycle_lifetime_500: 'cycle-lifetime-500',
+  cycle_lifetime_1000: 'cycle-lifetime-1000',
+  swim_lifetime_10: 'swim-lifetime-10',
+  swim_lifetime_25: 'swim-lifetime-25',
+  swim_lifetime_50: 'swim-lifetime-50',
+  swim_lifetime_100: 'swim-lifetime-100',
 }
 
 // A medal id this build has never heard of falls back to its id read as a file
