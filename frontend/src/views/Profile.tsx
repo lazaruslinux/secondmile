@@ -340,19 +340,22 @@ export default function Profile({
 
             <SportChips stats={profile.lifetime} units={units} />
 
-            {/* One quiet line, on your own screen and nowhere else. Nothing
-                above it counts these steps: they are in no miles total and
-                earn nothing, and this line is the whole of what the app makes
-                of them. A week with none says nothing rather than printing a
-                zero at somebody. */}
-            {steps > 0 && <p className="hint">Steps this week: {steps.toLocaleString()}</p>}
-
-            {/* What the calories have come to, on your own screen and nowhere
-                else. A currency rather than a stat: it is in no total above,
-                it is nowhere near the XP, and the calories themselves still
-                read as calories on every card and table they always did. An
-                account with none says nothing rather than printing a zero. */}
-            {manna > 0 && <p className="hint">Manna: {manna.toLocaleString()}</p>}
+            {/* The pedometer's tally and what the calories have come to, worn
+                like the counts above rather than whispered: his call, zeros
+                included, because a wallet that hides its zero reads as a
+                missing feature. Own screen only, as ever. Neither is a stat:
+                the steps are in no miles total and earn nothing, and manna is
+                a currency that sits nowhere near the XP. */}
+            <ul className="profile-counts own-tallies">
+              <li>
+                <span className="count-value">{steps.toLocaleString()}</span>
+                <span className="count-label">Steps this week</span>
+              </li>
+              <li>
+                <span className="count-value">{manna.toLocaleString()}</span>
+                <span className="count-label">Manna</span>
+              </li>
+            </ul>
 
             <div className="profile-edit">
               <div className="choice">

@@ -4565,3 +4565,11 @@ button:disabled {
   border: 1px solid var(--line);
   color: var(--muted);
 }
+
+/* The own-page tallies (steps, manna) wear the same clothes as the four
+   counts above them, separated by a hairline so they read as their own
+   quiet row: shown always, zeros included. */
+.own-tallies {
+  border-top: 1px solid var(--line);
+  padding-top: 0.9rem;
+}
