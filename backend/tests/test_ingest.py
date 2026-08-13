@@ -613,3 +613,90 @@ def test_the_cleanup_command_run_twice_reports_zeros(db_session, member, monkeyp
     assert "rows stripped of routes: 0" in second
     assert f"rows deleted as older than {config.INGEST_LOG_RETENTION_DAYS} days: 0" in second
     assert "rows kept: 1" in second
+
+
+# --------------------------------------------------------------------------
+# The backfill window
+# --------------------------------------------------------------------------
+
+
+def stamped(days_before_signup: int) -> str:
+    """A start that many days before the account in the fixtures was created."""
+    return (
+        security.now_utc() - dt.timedelta(days=days_before_signup)
+    ).isoformat().replace("+00:00", "Z")
+
+
+def test_a_workout_from_inside_the_window_imports_and_an_older_one_does_not(
+    signed_in, ingest_token, db_session, member
+):
+    """Fourteen days before the account existed is the line. A day inside it is
+    a workout; a day outside it is refused and counted, because an export
+    reaching back years is what a first sync looks like and not an error."""
+    payload = export(
+        workout("Outdoor Run", stamped(13), 1800, 3.0, 300),
+        workout("Outdoor Run", stamped(15), 1800, 4.0, 400),
+    )
+    response = post(signed_in, ingest_token, payload)
+    assert response.status_code == 200
+    assert response.json() == {"imported": 1, "skipped": 0, "flagged": 0, "ignored": 1}
+
+    assert [row.distance_mi for row in db_session.query(models.Workout)] == [3.0]
+    logged = db_session.query(models.IngestLog).one()
+    assert [item["reason"] for item in logged.result["ignored_detail"]] == [
+        "before this account's backfill window"
+    ]
+
+
+def test_the_window_is_anchored_to_the_account_and_never_to_today(
+    signed_in, ingest_token, db_session, member
+):
+    """Anchored to the signup, so an account that has been here a while syncs
+    its whole history and a gap after joining loses nothing. A rolling fortnight
+    would refuse this one."""
+    member.created_at = security.now_utc() - dt.timedelta(days=100)
+    db_session.commit()
+
+    payload = export(workout("Outdoor Run", stamped(90), 1800, 5.0, 500))
+    assert post(signed_in, ingest_token, payload).json()["imported"] == 1
+
+
+def test_a_day_of_steps_older_than_the_window_is_refused_too(
+    signed_in, ingest_token, db_session, member
+):
+    """The same rule one metric across, and counted the same way: the day is
+    dropped and nothing is stored for it."""
+    from test_steps import reading, sync
+
+    old_day = (security.now_utc() - dt.timedelta(days=15)).date()
+    response = sync(signed_in, ingest_token, metrics=reading(old_day, steps=9000, miles=4.0))
+    assert response.status_code == 200
+    # One refusal, because the metrics are read into one reading per day and the
+    # day is what is refused.
+    assert response.json()["ignored"] == 1
+    assert db_session.query(models.DailySteps).count() == 0
+
+
+def test_the_window_reconsiders_nothing_already_stored(
+    signed_in, ingest_token, db_session, member
+):
+    """It decides what an export may offer, never what the history holds: a row
+    written before the rule existed stays exactly where it is."""
+    old = models.Workout(
+        user_id=member.id,
+        activity="run",
+        start_ts=security.now_utc() - dt.timedelta(days=400),
+        duration_s=1800,
+        distance_mi=6.0,
+        active_kcal=600.0,
+        avg_hr=None,
+        source="sync",
+        flags={},
+        created_at=security.now_utc() - dt.timedelta(days=400),
+    )
+    db_session.add(old)
+    db_session.commit()
+
+    post(signed_in, ingest_token, export(workout("Outdoor Run", stamped(1), 1800, 3.0, 300)))
+    db_session.expire_all()
+    assert db_session.get(models.Workout, old.id).distance_mi == 6.0

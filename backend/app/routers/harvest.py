@@ -1,13 +1,17 @@
 """The harvest and the four things manna is spent on.
 
-One button gathers, and everything else here is a way of spending what was
-gathered: on your own grove quietly, or on somebody else's, which is the half
-that pays. Manna never buys a mile, a level, a chest, growth or a medal, and no
+One button gathers the fruit, and everything else here is a way of spending the
+bank: on your own grove quietly, or on somebody else's, which is the half that
+pays. Manna never buys a mile, a level, a chest, growth or a medal, and no
 endpoint in this file may ever be taught to (TWO-LANE LAW).
 
 Every verb is friend-gated where it acts on somebody else, and a stranger's
 plant, a stranger's account and a thing that never existed are all the same 404:
 whose plot an id belongs to is not something to learn by asking.
+
+Two of them are capped: one account may put only so much manna into one other
+person inside the window, feeding and gifts counted together. Server side, where
+every rule in this app lives.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -20,6 +24,7 @@ from app.config import (
     FEED_COST,
     FEED_MAX_BANKED,
     FRUIT_SEASON_MI,
+    MANNA_TO_ONE_PERSON,
     RENOWN_FEED,
     RENOWN_FRUIT_GIFT,
     RENOWN_MANNA_GIFT,
@@ -31,17 +36,11 @@ router = APIRouter(tags=["harvest"])
 NO_SUCH_PLANT = "No such planting."
 NO_SUCH_FRIEND = "No such friend."
 NO_SUCH_FRUIT = "No such fruit."
-NOT_ENOUGH = "You have not gathered enough manna for that."
+NOT_ENOUGH = "You do not have enough manna for that."
+# Said the same way at both verbs it guards. No number of days and no countdown:
+# it is a limit, not a timer.
+TOO_MUCH_FOR_ONE = "That is more manna than you can give one person just now."
 TOO_MANY_SPENDS = "Too many spends just now. Wait a minute."
-
-
-class GatherBody(BaseModel):
-    # How much of the pending pile to bring in. None is none of it, which is a
-    # gather of the fruit alone: a pile worth a year of calories is not
-    # something to hand somebody by accident, and everything gathered starts a
-    # seven day clock. The fruit is not asked about, because a harvest comes in
-    # whole.
-    manna: int | None = None
 
 
 class FeedBody(BaseModel):
@@ -68,27 +67,40 @@ def _spending(user: models.User) -> None:
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, TOO_MANY_SPENDS)
 
 
+def _within_cap(db: Session, user_id: int, to_user_id: int, amount: int) -> None:
+    """Refuse a spend that would put more than the window allows into one person.
+
+    Checked before anything is taken, so a refusal costs nothing. Your own grove
+    never asks: a plant holds FEED_MAX_BANKED and that is its own cap.
+
+    The answer says no and says nothing else. Nobody is told how much is left or
+    when it comes back, because a countdown is exactly what this is not.
+    """
+    if to_user_id == user_id:
+        return
+    already = harvest.given_to_lately(db, user_id, to_user_id, security.now_utc())
+    if already + amount > MANNA_TO_ONE_PERSON:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, TOO_MUCH_FOR_ONE)
+
+
 def _state(db: Session, user: models.User) -> dict:
     """Everything the grove screen needs about a harvest, in one answer.
 
-    Own account only. What somebody has gathered and what they have to give is
-    theirs to know, exactly as their pending pile is: no friend payload carries
-    a word of it.
+    Own account only. What somebody has banked and what they have to give is
+    theirs to know: no friend payload carries a word of it.
     """
     row = progress.ensure_progress(db, user.id)
     borne = harvest.on_the_plant(db, user.id)
     basket = harvest.in_the_basket(db, user.id)
     return {
-        # Gathered and spendable, then what is still waiting on the plants and
-        # in the pile. Two numbers because they are two things: only the first
-        # buys anything, and only the first is ever at risk.
-        "manna": harvest.gathered_manna(db, user.id),
-        "manna_pending": row.manna_pending,
+        # The bank. One number, because there is one: manna is earned, kept and
+        # spent, and none of it is ever waiting for anything.
+        "manna": row.manna,
         "borne": [harvest.serialize_batch(one) for one in borne],
         "basket": [harvest.serialize_batch(one) for one in basket],
         # Whether the one button has anything to do. Said by the server so the
         # screen never has to work out what counts as ready.
-        "ready": bool(borne) or row.manna_pending > 0,
+        "ready": bool(borne),
         # What a feeding costs and how much a plant can hold, so the button can
         # say the price rather than a copy of it being kept on the client.
         "feed_cost": FEED_COST,
@@ -118,30 +130,21 @@ def read_harvest(
 
 @router.post("/harvest/gather")
 def gather_all(
-    body: GatherBody | None = None,
     db: Session = Depends(get_db),
     user: models.User = Depends(security.current_user),
 ) -> dict:
-    """Bring in the harvest, and as much manna as was asked for.
+    """Bring in the harvest.
 
-    One button on one screen. The fruit comes in whole, because a harvest is a
-    harvest; the manna comes in by the amount somebody names, because a pile
-    built out of a year of calories is worth far more than a week of giving
-    spends and everything gathered starts its seven days at once.
+    One button on one screen, and the fruit comes in whole, because a harvest is
+    a harvest. Manna is not part of it: it is banked as the calories are
+    credited and is never gathered.
 
     Nothing is refused when there is nothing to bring in: the answer is that
     none of it moved, which is also what a second press a moment later gets.
     """
     _spending(user)
-    row = progress.process_user(db, user.id)
-    wanted = 0 if body is None or body.manna is None else body.manna
-    if wanted < 0:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "That is not an amount of manna.")
-    if wanted > row.manna_pending:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, "That is more manna than you have waiting."
-        )
-    taken = harvest.gather(db, row, security.now_utc(), wanted)
+    progress.process_user(db, user.id)
+    taken = harvest.gather(db, user.id, security.now_utc())
     db.commit()
     return {**_state(db, user), **taken}
 
@@ -152,15 +155,16 @@ def feed_plant(
     db: Session = Depends(get_db),
     user: models.User = Depends(security.current_user),
 ) -> dict:
-    """Feed gathered manna to a grown plant, yours or a friend's.
+    """Feed manna to a grown plant, yours or a friend's.
 
     What it buys is fruit on that plant's next bearing and nothing else: not a
     mile of growth, not a level, not a chest (TWO-LANE LAW). It banks on the
     plant and is spent the moment the plant bears.
 
     A friend's plant is the same act with a name on it, and it is the one that
-    pays renown. Your own is the quiet option, worth nothing to anybody's
-    standing, because giving to yourself is not giving; it is here so somebody
+    pays renown and the one the window's cap counts. Your own is the quiet
+    option, worth nothing to anybody's standing and capped only by what a plant
+    will hold, because giving to yourself is not giving; it is here so somebody
     with no friends yet still has somewhere for their calories to go.
     """
     _spending(user)
@@ -183,8 +187,9 @@ def feed_plant(
             f"A plant holds {FEED_MAX_BANKED} extra fruit at most before it bears.",
         )
     cost = FEED_COST * body.bonus
+    _within_cap(db, user.id, planting.user_id, cost)
     if not harvest.spend_manna(db, user.id, cost):
-        # The one statement that reads the pile and takes from it, so two
+        # The one statement that reads the bank and takes from it, so two
         # requests cannot both spend the same manna.
         raise HTTPException(status.HTTP_400_BAD_REQUEST, NOT_ENOUGH)
 
@@ -216,12 +221,11 @@ def give_manna(
     db: Session = Depends(get_db),
     user: models.User = Depends(security.current_user),
 ) -> dict:
-    """Hand a friend raw manna out of your own gathered pile.
+    """Hand a friend raw manna out of your own bank.
 
-    It joins their pending pile rather than their gathered one, so it is safe
-    until they gather it themselves: a gift must never arrive already ageing.
-    They are told in their letter, which is where every gift in this app is
-    attributed.
+    It joins theirs and is spendable the moment it lands, because manna is a
+    bank on both sides. They are told in their letter, which is where every gift
+    in this app is attributed.
     """
     _spending(user)
     progress.process_user(db, user.id)
@@ -231,6 +235,7 @@ def give_manna(
         raise HTTPException(status.HTTP_404_NOT_FOUND, NO_SUCH_FRIEND)
     if body.amount < 1:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "A gift is at least 1 manna.")
+    _within_cap(db, user.id, body.user_id, body.amount)
     if not harvest.spend_manna(db, user.id, body.amount):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, NOT_ENOUGH)
 
@@ -245,7 +250,7 @@ def give_manna(
             earned_renown=earned,
         )
     )
-    progress.ensure_progress(db, body.user_id).manna_pending += body.amount
+    progress.ensure_progress(db, body.user_id).manna += body.amount
     if earned:
         fellowship.pay_renown(db, user.id, RENOWN_MANNA_GIFT)
     db.commit()

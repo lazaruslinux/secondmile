@@ -382,15 +382,12 @@ export interface Profile {
   // friend payload does not carry it and must not. Optional, so a server that
   // predates steps reads as none.
   week_steps?: number
-  // Manna, in its two states. manna is gathered and spendable, and is the only
-  // one that buys anything; manna_pending is still waiting and is safe until it
-  // is gathered. A currency and not a stat, so neither is in any total on this
-  // payload and neither goes near the XP; calories still print as calories
-  // wherever they always did. Your own screen only, the friend payload carries
-  // neither and must not. Both optional, so a server that predates either reads
-  // as none of it.
+  // The manna bank: one number, earned from calories and spent on people. A
+  // currency and not a stat, so it is in no total on this payload and goes
+  // nowhere near the XP; calories still print as calories wherever they always
+  // did. Your own screen only, the friend payload does not carry it and must
+  // not. Optional, so a server that predates manna reads as none.
   manna?: number
-  manna_pending?: number
   // What the plot has come to. seeds_found counts the distinct species owned,
   // out of the twelve a chest can hold; plant_levels is every level on every
   // plant added up. Optional so the app still renders against a server that
@@ -588,8 +585,8 @@ export interface Planting {
   gilded: boolean
   // 1 seedling, 2 growing, 3 grown, worked out by the server.
   stage?: number
-  // How much extra it will bear next time, bought with gathered manna. Fruit
-  // and only fruit: nothing above this line moves when it does.
+  // How much extra it will bear next time, bought with manna. Fruit and only
+  // fruit: nothing above this line moves when it does.
   fed?: number
 }
 
@@ -626,12 +623,10 @@ export interface Keepsake {
 }
 
 // The harvest as the Grove screen reads it. Own account only: what somebody has
-// gathered and what they have to give is theirs to know.
+// banked and what they have to give is theirs to know.
 export interface HarvestState {
-  // Gathered and spendable, then still waiting. Only the first buys anything,
-  // and only the first is ever at risk.
+  // The bank. It never spoils and is never gathered.
   manna: number
-  manna_pending: number
   borne: FruitBatch[]
   basket: FruitBatch[]
   // Whether the one button has anything to do, said by the server so the screen
@@ -645,13 +640,11 @@ export interface HarvestState {
   season_progress_mi: number
 }
 
-// What one gather brought in, with the state it left behind. The amounts this
-// act moved are named apart from the balances beside them: "manna" is what is
-// in the pile now, and gathered_manna is what this press brought into it.
+// What one gather brought in, with the state it left behind. Fruit only: manna
+// is banked as it is earned and no press moves it.
 export interface Gathered extends HarvestState {
   fruit: number
   batches: number
-  gathered_manna: number
 }
 
 // A friend's plot, which is theirs to grow and only ours to water. Enough to
@@ -1405,23 +1398,21 @@ export function getHarvest(): Promise<HarvestState> {
   return getJson<HarvestState>('/harvest')
 }
 
-// Bring the harvest in. The fruit comes whole and the manna comes by the amount
-// chosen, because a pile built out of a year of calories is worth far more than
-// a week of giving spends and everything gathered starts its seven days at
-// once. Zero is a gather of the fruit alone.
-export async function gatherHarvest(manna: number): Promise<Gathered> {
-  const res = await sendJson('/harvest/gather', 'POST', { manna })
+// Bring the harvest in. The fruit comes whole, and gathering starts its seven
+// days; nothing else moves, because manna is banked rather than gathered.
+export async function gatherHarvest(): Promise<Gathered> {
+  const res = await sendJson('/harvest/gather', 'POST', {})
   return (await res.json()) as Gathered
 }
 
-// Feed gathered manna to a grown plant, your own or a friend's. What it buys is
-// fruit on that plant's next bearing and nothing else: never growth.
+// Feed manna to a grown plant, your own or a friend's. What it buys is fruit on
+// that plant's next bearing and nothing else: never growth.
 export async function feedPlant(plantingId: number, bonus = 1): Promise<void> {
   await sendJson('/harvest/feed', 'POST', { planting_id: plantingId, bonus })
 }
 
-// Hand a friend raw manna. It joins their waiting pile, safe until they gather
-// it themselves, and their letter says who sent it.
+// Hand a friend raw manna. It joins their bank, theirs to spend at once, and
+// their letter says who sent it.
 export async function giveManna(userId: number, amount: number): Promise<void> {
   await sendJson('/harvest/manna', 'POST', { user_id: userId, amount })
 }

@@ -10,13 +10,17 @@ from sqlalchemy.orm import Session
 
 from app import activity, gear, history, models, progress, routemaps, security, throttle
 from app.config import (
+    BACKFILL_WINDOW_DAYS,
     INGEST_LOG_RETENTION_DAYS,
     MAX_INGEST_METRIC_POINTS,
     MAX_INGEST_WORKOUTS,
+    SERVER_TZ,
 )
 from app.db import get_db
 
 router = APIRouter(tags=["ingest"])
+
+TOO_OLD = "before this account's backfill window"
 
 
 def _refuse_constant(literal: str) -> float:
@@ -56,6 +60,44 @@ def ingest_user(request: Request, db: Session = Depends(get_db)) -> models.User:
     return user
 
 
+def _inside_window(
+    user: models.User,
+    parsed: list[activity.ParsedWorkout],
+    metrics: dict[dt.date, activity.DayMetrics],
+) -> tuple[list[activity.ParsedWorkout], dict[dt.date, activity.DayMetrics], list[dict]]:
+    """What this account may import out of one export, and one refusal for each
+    thing that is older than it may.
+
+    The window runs from BACKFILL_WINDOW_DAYS before the account was created,
+    and it is anchored there rather than to now on purpose: a member who joined
+    today cannot import a decade of somebody's exports, and a member offline for
+    a month after joining still syncs every day of it.
+
+    Refused and counted rather than raised. An export reaching further back than
+    the window is what a first sync looks like on a phone with years on it, and
+    it is not an error.
+
+    Reads the payload and nothing else. No stored row is ever reconsidered by
+    this: what is already in the history stays exactly as it is.
+    """
+    opened = user.created_at - dt.timedelta(days=BACKFILL_WINDOW_DAYS)
+    first_day = opened.astimezone(SERVER_TZ).date()
+    refused: list[dict] = []
+    kept = []
+    for item in parsed:
+        if item.start_ts < opened:
+            refused.append({"start": item.start_ts.isoformat(), "reason": TOO_OLD})
+            continue
+        kept.append(item)
+    days = {}
+    for day, reading in metrics.items():
+        if day < first_day:
+            refused.append({"day": day.isoformat(), "reason": TOO_OLD})
+            continue
+        days[day] = reading
+    return kept, days, refused
+
+
 @router.post("/ingest")
 async def ingest(request: Request, db: Session = Depends(get_db)) -> dict:
     # The limiter runs before the token check so that guessing tokens costs the
@@ -88,6 +130,12 @@ async def ingest(request: Request, db: Session = Depends(get_db)) -> dict:
     # the sync. They earn nothing: steps are stored and shown, and that is all.
     metrics, metric_refusals = activity.parse_metrics(payload)
     ignored += metric_refusals
+
+    # Anything older than this account's backfill window, dropped here and
+    # counted with the other refusals. The tombstone and dedupe rules below are
+    # untouched by it: this decides what is offered, not what is already stored.
+    parsed, metrics, too_old = _inside_window(user, parsed, metrics)
+    ignored += too_old
 
     # The default pair, read once for the export. New walks and runs are
     # recorded in it, as far as the pair itself says they are; a ride, a swim and

@@ -361,10 +361,9 @@ export default function Profile({
                 the steps are in no miles total and earn nothing, and manna is
                 a currency that sits nowhere near the XP.
 
-                The manna line carries both of its states, because only the
-                gathered half buys anything and only the gathered half is ever
-                at risk. What is waiting is safe until it is gathered, so it is
-                said plainly rather than left to be discovered. */}
+                One manna number, because there is one: it is a bank, earned
+                from calories and spent on people, and none of it is waiting for
+                anything. */}
             <ul className="profile-counts own-tallies">
               <li>
                 <span className="count-value">{steps.toLocaleString()}</span>

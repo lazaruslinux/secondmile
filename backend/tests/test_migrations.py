@@ -825,8 +825,10 @@ def test_the_manna_backfill_converts_every_credited_workout(at_0024):
     upgrade()
 
     with engine.connect() as connection:
+        # Read at head, where 0030 has renamed the column: nothing was gathered
+        # on this database, so the fold added nothing to what 0025 wrote.
         assert connection.execute(
-            sa.text("SELECT user_id, manna_pending FROM user_progress ORDER BY user_id")
+            sa.text("SELECT user_id, manna FROM user_progress ORDER BY user_id")
         ).all() == [(1, 1310), (2, 125)]
         # Purely additive beside it: the experience the account already had is
         # exactly where it was.
@@ -864,7 +866,7 @@ def test_the_manna_column_steps_back_down_again(at_0024):
     command.upgrade(cfg, "head")
     with engine.connect() as connection:
         assert connection.execute(
-            sa.text("SELECT manna_pending FROM user_progress")
+            sa.text("SELECT manna FROM user_progress")
         ).scalar_one() == 660
 
 
@@ -1082,7 +1084,7 @@ def test_the_fruit_release_lands_on_a_grove_that_has_never_borne(at_0025):
     with engine.connect() as connection:
         assert connection.execute(
             sa.text(
-                "SELECT xp, manna_pending, fruit_progress_mi, fruit_seasons"
+                "SELECT xp, manna, fruit_progress_mi, fruit_seasons"
                 " FROM user_progress WHERE user_id = 1"
             )
         ).one() == (1240.5, 71940, 0.0, 0)
@@ -1130,10 +1132,14 @@ def test_the_fruit_release_steps_back_down_again(at_0025):
                 " VALUES (1, 1, 'banana', 0, 3, 1, 33.0, 'August', '2026-08-12 00:00:00')"
             )
         )
+        # Already back to the soil, so the fold in 0030 neither took it up nor
+        # hands it back on the way down: what it gives this case is a real row
+        # for the drop below to take.
         connection.execute(
             sa.text(
-                "INSERT INTO manna_batches (user_id, amount, remaining, gathered_at)"
-                " VALUES (1, 450, 450, '2026-08-12 00:00:00')"
+                "INSERT INTO manna_batches (user_id, amount, remaining, gathered_at,"
+                " composted_at)"
+                " VALUES (1, 450, 450, '2026-08-12 00:00:00', '2026-08-19 00:00:00')"
             )
         )
         connection.commit()
@@ -1173,7 +1179,7 @@ def test_the_fruit_release_steps_back_down_again(at_0025):
     command.upgrade(cfg, "head")
     with engine.connect() as connection:
         assert connection.execute(
-            sa.text("SELECT fruit_seasons, manna_pending FROM user_progress")
+            sa.text("SELECT fruit_seasons, manna FROM user_progress")
         ).one() == (0, 650)
 
 
@@ -1390,3 +1396,111 @@ def test_the_gear_scope_steps_back_down_again(at_0028):
     command.upgrade(cfg, "head")
     with engine.connect() as connection:
         assert connection.execute(sa.text("SELECT applies_to FROM gear")).scalar_one() == "both"
+
+
+@pytest.fixture()
+def at_0029(tmp_path, monkeypatch):
+    """A database at revision 0029, which is the shape the manna fold meets.
+
+    Its own fixture because the fold reads the gathered batches against the
+    pending column, and 0026 is the last revision that puts either in place.
+    """
+    url = f"sqlite:///{tmp_path}/bank.db"
+    monkeypatch.setattr(config.settings, "database_url", url)
+    cfg = Config(str(BACKEND / "alembic.ini"))
+    cfg.set_main_option("script_location", str(BACKEND / "migrations"))
+    command.upgrade(cfg, "0029")
+    engine = sa.create_engine(url)
+    try:
+        yield engine, (lambda: command.upgrade(cfg, "head"))
+    finally:
+        engine.dispose()
+
+
+def _gathered(connection, user_id: int, amount: int, remaining: int, *, composted=None) -> None:
+    """One pile somebody gathered under the old model, with whatever was left of
+    it after spending, and a date if it went back to the soil."""
+    connection.execute(
+        sa.text(
+            "INSERT INTO manna_batches (user_id, amount, remaining, gathered_at,"
+            " composted_at) VALUES (:user_id, :amount, :remaining,"
+            " '2026-08-12 00:00:00', :composted)"
+        ),
+        {
+            "user_id": user_id,
+            "amount": amount,
+            "remaining": remaining,
+            "composted": composted,
+        },
+    )
+
+
+def test_the_manna_fold_adds_the_gathered_pile_to_the_pending_one(at_0029):
+    """0030: two piles become one bank.
+
+    The sum is the pending column plus whatever is left in the batches that have
+    not composted. Nothing is invented and nothing is taken: every manna anybody
+    could have spent the moment before this ran is spendable the moment after.
+    """
+    engine, upgrade = at_0029
+    with engine.connect() as connection:
+        # His shape: a mountain of pending manna and nothing gathered.
+        _account(connection, 1, "runner")
+        _progress_with_manna(connection, 1, 71940, xp=1240.5)
+        # Gathered 500 and fed 150 of it to a plant, so 350 is still in hand.
+        _account(connection, 2, "mate")
+        _progress_with_manna(connection, 2, 800)
+        _gathered(connection, 2, 500, 350)
+        # And a pile that went back to the soil, which is gone and stays gone.
+        _account(connection, 3, "other")
+        _progress_with_manna(connection, 3, 40)
+        _gathered(connection, 3, 600, 600, composted="2026-08-19 00:00:00")
+        connection.commit()
+
+    upgrade()
+
+    with engine.connect() as connection:
+        assert connection.execute(
+            sa.text("SELECT user_id, manna FROM user_progress ORDER BY user_id")
+        ).all() == [(1, 71940), (2, 1150), (3, 40)]
+        # Purely a fold: the experience beside it is exactly where it was, and
+        # the batches themselves are untouched history.
+        assert connection.execute(
+            sa.text("SELECT xp FROM user_progress WHERE user_id = 1")
+        ).scalar_one() == 1240.5
+        assert connection.execute(
+            sa.text("SELECT count(*) FROM manna_batches")
+        ).scalar_one() == 2
+        columns = {
+            row[1] for row in connection.execute(sa.text("PRAGMA table_info(user_progress)"))
+        }
+        assert "manna_pending" not in columns
+
+
+def test_the_manna_bank_steps_back_down_again(at_0029):
+    """Stepping back is the fold run backwards: the gathered pile is still in the
+    batches, so taking it off the bank lands on the two numbers it started
+    from."""
+    engine, upgrade = at_0029
+    with engine.connect() as connection:
+        _account(connection, 1, "runner")
+        _progress_with_manna(connection, 1, 800)
+        _gathered(connection, 1, 500, 350)
+        connection.commit()
+    upgrade()
+
+    cfg = Config(str(BACKEND / "alembic.ini"))
+    cfg.set_main_option("script_location", str(BACKEND / "migrations"))
+    command.downgrade(cfg, "0029")
+
+    with engine.connect() as connection:
+        assert connection.execute(
+            sa.text("SELECT manna_pending FROM user_progress")
+        ).scalar_one() == 800
+        assert connection.execute(
+            sa.text("SELECT amount, remaining FROM manna_batches")
+        ).one() == (500, 350)
+
+    command.upgrade(cfg, "head")
+    with engine.connect() as connection:
+        assert connection.execute(sa.text("SELECT manna FROM user_progress")).scalar_one() == 1150

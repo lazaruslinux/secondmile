@@ -3,20 +3,23 @@
 Two lanes meet here and neither crosses. The MILES decide when a grove bears:
 the meter beside the chest ladder is fed by converted Miles alone, and at the
 top of it every mature plant bears at once. The MANNA decides how much: fed
-plants bear more, and gathered manna is the only thing that ever buys that.
-Nothing in this file touches experience, a level, a chest, growth or a medal,
-and a release that taught it to would be the design bug the TWO-LANE LAW names.
+plants bear more, and manna is the only thing that ever buys that. Nothing in
+this file touches experience, a level, a chest, growth or a medal, and a
+release that taught it to would be the design bug the TWO-LANE LAW names.
 
-Three states, and everything only ever moves forward through them. Fruit sits
-on the plant and manna sits in the pending pile, both safe forever. Gathering
-brings them in, and gathered goods live GATHERED_LIFE_DAYS and then quietly go
-back to the soil. Nothing counts down anywhere: the sweep runs when an account
-is already being read or credited, the way every other passive sweep here does.
+Manna is a permanent bank. Calories earn it, spending it lowers it, and it
+never spoils, is never gathered and never counts down.
+
+Spoiling is fruit's alone. Fruit sits on the plant, safe forever; gathering
+brings it in, and gathered fruit lives GATHERED_LIFE_DAYS and then quietly goes
+back to the soil. Nothing counts down there either: the sweep runs when an
+account is already being read or credited, the way every other passive sweep
+here does.
 """
 
 import datetime as dt
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app import grove, models, species
@@ -25,6 +28,7 @@ from app.config import (
     FRUIT_YIELD,
     GATHERED_LIFE_DAYS,
     GOLDEN_FRUIT_PREFIX,
+    MANNA_TO_ONE_PERSON_DAYS,
     SERVER_TZ,
 )
 
@@ -197,40 +201,12 @@ def in_the_basket(db: Session, user_id: int) -> list[models.FruitBatch]:
     )
 
 
-def gathered_manna(db: Session, user_id: int) -> int:
-    """What is in the gathered pile and spendable, across every live batch."""
-    return int(
-        db.execute(
-            select(func.coalesce(func.sum(models.MannaBatch.remaining), 0)).where(
-                models.MannaBatch.user_id == user_id,
-                models.MannaBatch.composted_at.is_(None),
-            )
-        ).scalar_one()
-    )
-
-
-def gathered_ever(db: Session, user_id: int) -> int:
-    """Everything that has ever left the pending pile by being gathered.
-
-    What a rebuild subtracts. From pending's side gathering is a spend, and
-    spent stays spent: a workout taken back may take its calories out of what is
-    still waiting, and it can never reach into what was already brought in.
-    """
-    return int(
-        db.execute(
-            select(func.coalesce(func.sum(models.MannaBatch.amount), 0)).where(
-                models.MannaBatch.user_id == user_id
-            )
-        ).scalar_one()
-    )
-
-
 def gifted_manna_ever(db: Session, user_id: int) -> int:
     """Every raw manna gift this account has been given.
 
-    A gift joins the pending pile, so a rebuild of that pile has to add it back:
-    it is not a derivation of anybody's workouts, and taking a run back must
-    never take away what a friend sent.
+    A gift lands in the bank, so a rebuild of the bank has to add it back: it is
+    not a derivation of anybody's workouts, and taking a run back must never
+    take away what a friend sent.
     """
     return int(
         db.execute(
@@ -241,59 +217,91 @@ def gifted_manna_ever(db: Session, user_id: int) -> int:
     )
 
 
-def gather(
-    db: Session, progress: models.UserProgress, moment: dt.datetime, manna: int = 0
-) -> dict:
-    """Bring in the harvest, and as much of the pending manna as was asked for.
+def spent_manna_ever(db: Session, user_id: int) -> int:
+    """Every manna this account has ever spent: fed to a plant, or given away.
 
-    One act on one screen, because a grove is one place. The two halves of it
-    are not the same shape, and that is his call: fruit comes in whole, because
-    a harvest is a harvest and there is no sense in leaving half of it hanging,
-    while manna comes in by the amount somebody chooses. A pile built out of a
-    year of calories is far more than any week of giving spends, and gathering
-    all of it would be composting most of it seven days later.
+    What a rebuild subtracts, because spent stays spent (R31): a workout taken
+    back lowers what the surviving history is worth and can never reach into
+    what has already gone to a plant or to a friend.
 
-    What is gathered starts its seven days here and nowhere earlier. Everything
-    left behind, on the plant and in the pending pile, stays safe forever.
+    Feeding your own plot counts. It is a spend like any other; that it bought
+    your own fruit is a fact about who it went to, not about whether it left.
+
+    One thing this cannot see: manna that composted under the old gathered-pile
+    model, before 0030 folded the piles into one bank. Those rows are dormant
+    history and are not read, so a rebuild of an account that lost some would
+    hand it back. Bounded, one-off, and named in 0030's own docstring.
+    """
+    fed = db.execute(
+        select(func.coalesce(func.sum(models.PlantFeeding.manna_spent), 0)).where(
+            models.PlantFeeding.from_user_id == user_id
+        )
+    ).scalar_one()
+    given = db.execute(
+        select(func.coalesce(func.sum(models.MannaGift.amount), 0)).where(
+            models.MannaGift.from_user_id == user_id
+        )
+    ).scalar_one()
+    return int(fed) + int(given)
+
+
+def given_to_lately(
+    db: Session, from_user_id: int, to_user_id: int, moment: dt.datetime
+) -> int:
+    """How much manna has gone from one account into one other person's hands
+    inside the window: their plants fed and raw manna sent, added together.
+
+    What the cap is measured against. Both halves count because both are manna
+    put into the same person, and a limit one of them could walk around would
+    not be one.
+    """
+    cutoff = moment - dt.timedelta(days=MANNA_TO_ONE_PERSON_DAYS)
+    fed = db.execute(
+        select(func.coalesce(func.sum(models.PlantFeeding.manna_spent), 0)).where(
+            models.PlantFeeding.from_user_id == from_user_id,
+            models.PlantFeeding.to_user_id == to_user_id,
+            models.PlantFeeding.created_at > cutoff,
+        )
+    ).scalar_one()
+    given = db.execute(
+        select(func.coalesce(func.sum(models.MannaGift.amount), 0)).where(
+            models.MannaGift.from_user_id == from_user_id,
+            models.MannaGift.to_user_id == to_user_id,
+            models.MannaGift.created_at > cutoff,
+        )
+    ).scalar_one()
+    return int(fed) + int(given)
+
+
+def gather(db: Session, user_id: int, moment: dt.datetime) -> dict:
+    """Bring in the harvest. Fruit, and nothing else.
+
+    One act on one screen, because a grove is one place, and the fruit comes in
+    whole: a harvest is a harvest and there is no sense in leaving half of it
+    hanging. Manna is not gathered at all any more; it is banked as it is earned.
+
+    What is gathered starts its seven days here and nowhere earlier. What is
+    left on the plant stays safe forever.
 
     Flushes but never commits: the caller owns the transaction.
     """
-    fruit = on_the_plant(db, progress.user_id)
+    fruit = on_the_plant(db, user_id)
     for row in fruit:
         row.gathered_at = moment
-    manna = min(max(manna, 0), max(progress.manna_pending, 0))
-    if manna > 0:
-        db.add(
-            models.MannaBatch(
-                user_id=progress.user_id,
-                amount=manna,
-                remaining=manna,
-                gathered_at=moment,
-                composted_at=None,
-            )
-        )
-        progress.manna_pending -= manna
     db.flush()
-    # Named apart from the balances the caller answers with. "manna" there is
-    # what is in the pile; this is what this one act brought in, and one word
-    # meaning both would be a note on screen saying the wrong number.
-    return {
-        "fruit": sum(row.count for row in fruit),
-        "batches": len(fruit),
-        "gathered_manna": manna,
-    }
+    return {"fruit": sum(row.count for row in fruit), "batches": len(fruit)}
 
 
 def compost(db: Session, user_id: int, moment: dt.datetime) -> None:
-    """Quietly return whatever has been gathered too long to the soil.
+    """Quietly return whatever fruit has been gathered too long to the soil.
 
     Passive, and run where the account is already being read or credited: this
     app has no scheduler and wants none. Nothing is announced as it happens and
     nothing counts down to it; the letter says one soft line afterwards if there
     is one to say.
 
-    Only gathered goods age. Fruit on the plant, manna still pending, fruit
-    already given away and a batch spent to nothing are all untouched.
+    Only gathered fruit ages. Fruit on the plant, fruit already given away, and
+    every manna anybody holds are all untouched: the bank does not spoil.
     """
     cutoff = moment - WINDOW
     for row in db.execute(
@@ -306,33 +314,17 @@ def compost(db: Session, user_id: int, moment: dt.datetime) -> None:
         )
     ).scalars():
         row.composted_at = moment
-    for row in db.execute(
-        select(models.MannaBatch).where(
-            models.MannaBatch.user_id == user_id,
-            models.MannaBatch.gathered_at <= cutoff,
-            models.MannaBatch.composted_at.is_(None),
-            models.MannaBatch.remaining > 0,
-        )
-    ).scalars():
-        row.composted_at = moment
     db.flush()
 
 
 def composted_since(db: Session, user_id: int, since: dt.datetime | None) -> bool:
-    """Whether anything went back to the soil since the letter was put down."""
+    """Whether any fruit went back to the soil since the letter was put down."""
     fruit = select(models.FruitBatch.id).where(
         models.FruitBatch.user_id == user_id, models.FruitBatch.composted_at.is_not(None)
     )
-    manna = select(models.MannaBatch.id).where(
-        models.MannaBatch.user_id == user_id, models.MannaBatch.composted_at.is_not(None)
-    )
     if since is not None:
         fruit = fruit.where(models.FruitBatch.composted_at > since)
-        manna = manna.where(models.MannaBatch.composted_at > since)
-    return (
-        db.execute(fruit.limit(1)).first() is not None
-        or db.execute(manna.limit(1)).first() is not None
-    )
+    return db.execute(fruit.limit(1)).first() is not None
 
 
 # --------------------------------------------------------------------------
@@ -341,38 +333,29 @@ def composted_since(db: Session, user_id: int, since: dt.datetime | None) -> boo
 
 
 def spend_manna(db: Session, user_id: int, amount: int) -> bool:
-    """Take manna out of the gathered pile, oldest batch first.
+    """Take manna out of the bank. Answers False and takes nothing when the
+    bank does not cover it.
 
-    Oldest first so that spending never leaves an old pile to rot behind a new
-    one. Answers False and takes nothing when the pile does not cover it, which
-    is what makes this the one place a balance is checked and changed together:
-    two requests racing on the same pile cannot both pass a read done earlier.
-
-    Only ever the gathered pile. Pending manna is not spendable by anything.
+    One statement, which reads the balance and lowers it together: two requests
+    racing cannot both pass a read taken a moment earlier. The row the caller is
+    holding is expired afterwards, so whatever reads the balance next reads what
+    this wrote rather than what it loaded.
     """
     if amount <= 0:
         return False
-    batches = list(
-        db.execute(
-            select(models.MannaBatch)
-            .where(
-                models.MannaBatch.user_id == user_id,
-                models.MannaBatch.composted_at.is_(None),
-                models.MannaBatch.remaining > 0,
-            )
-            .order_by(models.MannaBatch.gathered_at, models.MannaBatch.id)
-            .with_for_update()
-        ).scalars()
+    changed = db.execute(
+        update(models.UserProgress)
+        .where(
+            models.UserProgress.user_id == user_id,
+            models.UserProgress.manna >= amount,
+        )
+        .values(manna=models.UserProgress.manna - amount)
     )
-    if sum(row.remaining for row in batches) < amount:
+    if changed.rowcount != 1:
         return False
-    owing = amount
-    for row in batches:
-        if owing <= 0:
-            break
-        taken = min(row.remaining, owing)
-        row.remaining -= taken
-        owing -= taken
+    held = db.get(models.UserProgress, user_id)
+    if held is not None:
+        db.expire(held)
     db.flush()
     return True
 

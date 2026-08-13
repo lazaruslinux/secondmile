@@ -138,7 +138,7 @@ def ensure_progress(db: Session, user_id: int) -> models.UserProgress:
         level=0,
         chest_progress_mi=0.0,
         cycle_pos=0,
-        manna_pending=0,
+        manna=0,
         fruit_progress_mi=0.0,
         fruit_seasons=0,
         last_ack_at=None,
@@ -222,9 +222,9 @@ def _credit(
     progress.xp += miles
     progress.level = level_for_xp(progress.xp)
     # The other lane, out of the same workout and out of nothing it shares: the
-    # calories become manna and the miles never do. Accrual is passive and
-    # nothing counts down, so this is the only line that moves it.
-    progress.manna_pending += manna_for(workout.active_kcal)
+    # calories become manna and the miles never do. Straight into the bank,
+    # where it keeps until it is spent.
+    progress.manna += manna_for(workout.active_kcal)
     medals.award_workout_medals(db, progress.user_id, workout)
     # The lifetime lines this credit crossed, read either side of the addition
     # above: the odometer belongs to the crossing rather than to the workout.
@@ -717,36 +717,39 @@ def recompute(db: Session, user_id: int) -> models.UserProgress:
         row.chest_progress_mi = 0.0
         row.cycle_pos = 0
         # Emptied like the experience beside it, and filled again by the replay
-        # below and then reconciled: what has been gathered has left the pending
-        # pile for good, and what a friend sent joined it without any workout of
-        # this account's behind it.
-        row.manna_pending = 0
+        # below and then reconciled: what has been spent has left the bank for
+        # good, and what a friend sent joined it without any workout of this
+        # account's behind it.
+        row.manna = 0
         # The meter only. The count of seasons stays: every one of them bore
         # fruit that is somewhere by now.
         row.fruit_progress_mi = 0.0
     db.commit()
     progress = process_user(db, user_id, bear=False)
-    progress.manna_pending = _pending_after_spends(db, user_id, progress.manna_pending)
+    progress.manna = _balance_after_spends(db, user_id, progress.manna)
     db.commit()
     return progress
 
 
-def _pending_after_spends(db: Session, user_id: int, accrued: int) -> int:
-    """What the pending pile comes to once everything that has left it is taken
-    off and everything that was put into it is added on.
+def _balance_after_spends(db: Session, user_id: int, accrued: int) -> int:
+    """What the bank comes to once everything spent is taken off and everything
+    given by somebody else is added on.
 
-    Accrued is what the surviving workouts are worth. Gathering is a spend from
-    this pile's side, and spent stays spent (R31): a deleted workout takes back
-    what is still waiting and can never reach into what was already brought in,
-    fed to a plant, or handed to a friend. A raw manna gift is the other
-    direction and is nobody's derivation: it was given, so it is added back.
+    Accrued is what the surviving workouts are worth. Spent stays spent (R31): a
+    deleted workout takes back what the calories were worth and can never reach
+    into what has already been fed to a plant or handed to a friend. A raw manna
+    gift is the other direction and is nobody's derivation: it was given, so it
+    is added back.
 
     Never below zero, exactly as the chest ladder is never below its own floor.
-    An account that gathered more than its surviving workouts now account for
-    simply has an empty pending pile until the miles catch up.
+    An account that spent more than its surviving workouts now account for
+    simply has an empty bank until the miles catch up.
     """
     return max(
-        0, accrued + harvest.gifted_manna_ever(db, user_id) - harvest.gathered_ever(db, user_id)
+        0,
+        accrued
+        + harvest.gifted_manna_ever(db, user_id)
+        - harvest.spent_manna_ever(db, user_id),
     )
 
 
@@ -787,10 +790,9 @@ def rebuild_from_surviving(db: Session, user_id: int) -> models.UserProgress:
     negative and never a second harvest of fruit that has already been gathered,
     given away, or left to compost.
 
-    Manna is the same doctrine one table across. What is still pending is
-    recomputed from the surviving workouts, plus what friends sent, less
-    everything that has ever been gathered; what was gathered, fed to a plant or
-    handed to somebody is spent and stays spent.
+    Manna is the same doctrine one column across. The bank is recomputed from
+    the surviving workouts, plus what friends sent, less everything ever spent;
+    what was fed to a plant or handed to somebody is spent and stays spent.
 
     Nothing anybody chose is rebuilt either: the satchel, the plantings, every
     anointing, every feeding, and the renown are actions rather than
@@ -818,8 +820,8 @@ def rebuild_from_surviving(db: Session, user_id: int) -> models.UserProgress:
     progress.fruit_progress_mi = 0.0
     # Recomputed from the surviving workouts, exactly as the experience is:
     # taking a workout back takes back the calories it was worth. What has been
-    # gathered is reconciled after the walk, in _pending_after_spends.
-    progress.manna_pending = 0
+    # spent is reconciled after the walk, in _balance_after_spends.
+    progress.manna = 0
 
     now = now_utc()
     fuel = 0.0
@@ -834,7 +836,7 @@ def rebuild_from_surviving(db: Session, user_id: int) -> models.UserProgress:
         fuel += miles
         lifetime_before = progress.xp
         progress.xp += miles
-        progress.manna_pending += manna_for(workout.active_kcal)
+        progress.manna += manna_for(workout.active_kcal)
         medals.award_workout_medals(db, user_id, workout)
         # The same walk the pipeline does, from a total of nothing and oldest
         # first, so the workout that crossed a lifetime line crosses it again.
@@ -862,7 +864,7 @@ def rebuild_from_surviving(db: Session, user_id: int) -> models.UserProgress:
     if _advance_fruit(db, progress, fuel, now, borne) > 0:
         progress.fruit_progress_mi = 0.0
 
-    progress.manna_pending = _pending_after_spends(db, user_id, progress.manna_pending)
+    progress.manna = _balance_after_spends(db, user_id, progress.manna)
     progress.updated_at = now
     db.commit()
     return progress

@@ -245,9 +245,8 @@ def _harvest(db: Session, user_id: int, since: dt.datetime | None) -> dict:
 def _manna_gifts(db: Session, user_id: int, since: dt.datetime | None) -> list[dict]:
     """Raw manna friends sent, oldest first, with who sent it.
 
-    It is already in the pending pile by the time this is read: a gift is safe
-    the moment it arrives and waits there until it is gathered, so this line is
-    the news rather than the delivery.
+    It is already in the bank by the time this is read, and was spendable from
+    the moment it landed, so this line is the news rather than the delivery.
     """
     stmt = (
         select(models.MannaGift.amount, models.User.username)

@@ -415,17 +415,16 @@ class UserProgress(Base):
     # a score anybody sees: no response carries the number, and the only thing
     # it drives is which flourish grows on the avatar's border.
     renown: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    # Manna waiting to be gathered: what this account's burned calories came
-    # to, one workout at a time, rounded up to the next multiple of five. A
-    # currency and never a stat, and the giving lane's alone: it buys nothing
+    # The manna bank: what this account's burned calories came to, one workout
+    # at a time, rounded up to the next multiple of five. One permanent number.
+    # A currency and never a stat, and the giving lane's alone: it buys nothing
     # in the earning lane, ever. Steps put nothing here, because steps carry no
-    # calories the app will spend. Nothing spoils and nothing counts down, so
-    # this only ever goes up until it is gathered.
+    # calories the app will spend.
     #
-    # Gathered manna is not here: it is the manna_batches rows, because gathered
-    # goods carry the day they were gathered and a single number could not say
-    # which part of itself is a week old.
-    manna_pending: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Nothing spoils and nothing counts down. It goes up when calories are
+    # credited or a friend sends some, and down when it is spent; spent is
+    # spent. 0030 folded the old gathered and pending piles into it.
+    manna: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     # Converted Miles banked toward the next bearing, and how many bearings this
     # grove has had. The meter runs beside the chest one and on the same fuel,
     # and at the top of it every mature plant bears at once; the count is what a
@@ -701,8 +700,8 @@ class Planting(Base):
     # between them. Backfilled to the growth of the day by 0021, so nothing a
     # plant did before that release reads as a crossing.
     growth_at_ack: Mapped[float | None] = mapped_column(Float, nullable=True)
-    # How much extra this plant will bear next time, bought with gathered manna
-    # at FEED_COST each and capped at FEED_MAX_BANKED. Emptied the moment it
+    # How much extra this plant will bear next time, bought with manna at
+    # FEED_COST each and capped at FEED_MAX_BANKED. Emptied the moment it
     # bears, so feeding is done for one harvest rather than bought once.
     #
     # TWO-LANE LAW: this number reaches the yield and nothing else. Growth, the
@@ -795,19 +794,18 @@ class FruitKeepsake(Base):
 class MannaBatch(Base):
     __tablename__ = "manna_batches"
 
-    # One gather's worth of manna, and the only place gathered manna is kept.
-    # Rows rather than a number on the progress row, because gathered goods live
-    # seven days from the day they were gathered and one number could not say
-    # which part of itself is old.
+    # DORMANT. One gather's worth of manna, from the release where manna was
+    # gathered and kept seven days. Manna is a permanent bank now: nothing
+    # writes these rows and nothing reads them, and what was in them was folded
+    # into user_progress.manna by 0030. Kept because they are what happened.
     #
-    # Spending draws on the oldest batch first, so nothing goes back to the soil
-    # while a newer pile is being spent around it.
+    # The fruit batches beside them are live: fruit is still gathered and still
+    # composts, which is the half of the spoilage idea that survived.
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    # What was gathered, and what is left of it. The first never changes, which
-    # is what lets a rebuild ask how much has ever left the pending pile.
+    # What was gathered, and what was left of it when the piles were folded.
     amount: Mapped[int] = mapped_column(Integer, nullable=False)
     remaining: Mapped[int] = mapped_column(Integer, nullable=False)
     gathered_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
@@ -823,9 +821,8 @@ class MannaGift(Base):
         Index("ix_manna_gift_pair", "from_user_id", "to_user_id", "created_at"),
     )
 
-    # Raw manna handed to a friend. It leaves the giver's gathered pile and
-    # joins the receiver's pending one, where it is safe until they gather it:
-    # a gift must never arrive already ageing.
+    # Raw manna handed to a friend. It leaves the giver's bank and joins the
+    # receiver's, where it is theirs to spend at once and keeps forever.
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     from_user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
@@ -846,9 +843,11 @@ class PlantFeeding(Base):
         Index("ix_plant_feeding_pair", "from_user_id", "to_user_id", "created_at"),
     )
 
-    # Gathered manna spent on a mature plant, your own or a friend's, for more
-    # fruit on its next bearing. The row is the record of the spend; what it
-    # bought sits on the planting as fed_bonus until that plant bears.
+    # Manna spent on a mature plant, your own or a friend's, for more fruit on
+    # its next bearing. The row is the record of the spend; what it bought sits
+    # on the planting as fed_bonus until that plant bears. Read twice more: a
+    # rebuild sums what has ever been spent, and the weekly cap sums what has
+    # gone to one person lately.
     #
     # TWO-LANE LAW: bonus is fruit and only fruit. Nothing here is growth.
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

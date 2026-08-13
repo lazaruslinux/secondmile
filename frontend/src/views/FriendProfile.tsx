@@ -152,8 +152,8 @@ type Step =
   | { at: 'remove' }
   // The three manna verbs. Feeding is aimed at one of their plants, so it picks
   // one first and then asks; the two gifts are aimed at the person, so they ask
-  // straight away. All three spend gathered manna or something grown with it,
-  // and none of them can be undone.
+  // straight away. All three spend the bank or something grown with it, and none
+  // of them can be undone.
   | { at: 'pick-plant' }
   | { at: 'feed'; plant: FriendPlanting }
   | { at: 'manna' }
@@ -265,7 +265,7 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
   const [plot, setPlot] = useState<FriendPlanting[]>([])
   const [held, setHeld] = useState<SatchelItem[]>([])
   // This account's own harvest, which is what the three manna verbs spend from.
-  // Never theirs: what somebody has gathered is theirs to know.
+  // Never theirs: what somebody has banked is theirs to know.
   const [harvest, setHarvest] = useState<HarvestState | null>(null)
   // How much manna this gift is for, as it is being typed.
   const [amount, setAmount] = useState('')
@@ -499,7 +499,7 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
   const oils = pileItems(held.filter((one) => one.kind === 'oil'))
   const hasWater = waters.length > 0
 
-  // And what is gathered that could be spent on them. Manna is the half of this
+  // And what is banked that could be spent on them. Manna is the half of this
   // app that is meant to go to other people, so all three of its verbs are on
   // this screen and only the quiet one is not.
   const manna = harvest?.manna ?? 0
@@ -638,9 +638,9 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
             </button>
             {/* The three manna verbs, beside the potion because they are the
                 same kind of thing: something of yours, spent on them. Feeding
-                boosts their next harvest, raw manna joins their waiting pile,
-                and fruit is the top of the ladder. None of them touches a mile
-                of anybody's growth. */}
+                boosts their next harvest, raw manna joins their bank, and fruit
+                is the top of the ladder. None of them touches a mile of
+                anybody's growth. */}
             <button
               type="button"
               className="secondary"
@@ -994,8 +994,8 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
         </Confirm>
       )}
 
-      {/* Raw manna. It joins their waiting pile rather than their gathered one,
-          so a gift never arrives already ageing. */}
+      {/* Raw manna. It joins their bank, where it is theirs to spend at once and
+          keeps for good. */}
       {step.at === 'manna' && (
         <Confirm
           heading={`Send manna to ${who}`}
@@ -1010,8 +1010,7 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
           }}
         >
           <p className="hint">
-            It waits in their pile until they gather it, and their letter says who
-            sent it.
+            It goes straight into their manna, and their letter says who sent it.
           </p>
           <label>
             Manna to send
@@ -1024,7 +1023,7 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
               onChange={(event) => setAmount(event.target.value)}
             />
           </label>
-          <p className="hint">{manna.toLocaleString()} gathered.</p>
+          <p className="hint">{manna.toLocaleString()} manna.</p>
         </Confirm>
       )}
 

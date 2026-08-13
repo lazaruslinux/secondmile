@@ -62,14 +62,9 @@ type Step =
   | { at: 'feed'; plant: Planting }
   | { at: 'give'; fruit: FruitBatch }
 
-// What one gather brought in, said in the plainest words there are. The two
-// halves are named separately because they arrive on different terms: the fruit
-// comes whole and the manna comes by the amount that was asked for.
-function gatheredLine(fruit: number, manna: number): string {
-  const parts = []
-  if (fruit > 0) parts.push(`${fruit} fruit`)
-  if (manna > 0) parts.push(`${manna.toLocaleString()} manna`)
-  return parts.length === 0 ? 'Nothing was ready.' : `Gathered ${parts.join(' and ')}.`
+// What one gather brought in, said in the plainest words there are.
+function gatheredLine(fruit: number): string {
+  return fruit === 0 ? 'Nothing was ready.' : `Gathered ${fruit} fruit.`
 }
 
 export default function Grove({ userId }: Props) {
@@ -88,9 +83,6 @@ export default function Grove({ userId }: Props) {
   const [busy, setBusy] = useState(false)
   const [stepError, setStepError] = useState('')
   const [note, setNote] = useState('')
-  // How much of the waiting pile this gather is for. A string while it is being
-  // typed, because a half-typed number is not one.
-  const [wanted, setWanted] = useState('')
   const [friends, setFriends] = useState<Person[]>([])
 
   const load = useCallback(async () => {
@@ -117,7 +109,6 @@ export default function Grove({ userId }: Props) {
   }, [userId, plantings, harvest])
 
   const manna = harvest?.manna ?? 0
-  const waiting = harvest?.manna_pending ?? 0
   const feedCost = harvest?.feed_cost ?? 0
   const feedCap = harvest?.feed_cap ?? 0
   const basket = harvest?.basket ?? []
@@ -149,19 +140,13 @@ export default function Grove({ userId }: Props) {
   function openGather() {
     setNote('')
     setStepError('')
-    // Enough to feed one plant to its cap, or whatever is waiting where that is
-    // less. A suggestion and nothing more: the amount is the member's, and what
-    // is left behind is safe.
-    const suggest = Math.min(waiting, (harvest?.feed_cost ?? 0) * (harvest?.feed_cap ?? 0))
-    setWanted(String(suggest))
     setStep({ at: 'gather' })
   }
 
   function gather() {
-    const manna = Math.max(0, Math.min(waiting, Math.trunc(Number(wanted) || 0)))
     void act(async () => {
-      const brought = await gatherHarvest(manna)
-      setNote(gatheredLine(brought.fruit, brought.gathered_manna))
+      const brought = await gatherHarvest()
+      setNote(gatheredLine(brought.fruit))
       setStep({ at: 'none' })
     })
   }
@@ -227,11 +212,7 @@ export default function Grove({ userId }: Props) {
           <ul className="profile-counts harvest-counts">
             <li>
               <span className="count-value">{manna.toLocaleString()}</span>
-              <span className="count-label">Manna gathered</span>
-            </li>
-            <li>
-              <span className="count-value">{waiting.toLocaleString()}</span>
-              <span className="count-label">Manna waiting</span>
+              <span className="count-label">Manna</span>
             </li>
           </ul>
 
@@ -360,9 +341,8 @@ export default function Grove({ userId }: Props) {
         <Inventory onChanged={() => void load()} />
       </section>
 
-      {/* How much of the waiting pile to bring in. Asked rather than assumed,
-          because gathering starts the seven days and a pile built out of a year
-          of calories is worth far more than a week of giving spends. */}
+      {/* Asked rather than done on the press, because gathering starts the
+          seven days on everything it brings in. */}
       {step.at === 'gather' && (
         <Confirm
           heading="Gather"
@@ -374,18 +354,6 @@ export default function Grove({ userId }: Props) {
           onCancel={() => setStep({ at: 'none' })}
         >
           <p className="hint">{GATHER_HINT}</p>
-          <label>
-            Manna to gather
-            <input
-              type="number"
-              min={0}
-              max={waiting}
-              step={1}
-              value={wanted}
-              onChange={(event) => setWanted(event.target.value)}
-            />
-          </label>
-          <p className="hint">{waiting.toLocaleString()} waiting.</p>
         </Confirm>
       )}
 

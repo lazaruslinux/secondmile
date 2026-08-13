@@ -359,19 +359,19 @@ export const NOTHING_HELD = 'Nothing found yet. Items come out of chests.'
 export const NO_WATER = 'No water in your inventory. It comes out of chests.'
 
 // The harvest, and the four things manna is spent on. Every line here says what
-// is true and nothing more: manna buys fruit, never growth, and nothing that has
-// not been gathered is ever at risk.
+// is true and nothing more: manna buys fruit, never growth, and only gathered
+// fruit is ever at risk.
 export const HARVEST_HINT =
   'Your plants bear fruit every 33 XP, all at once. Gather brings the fruit in ' +
-  'whole and as much manna as you choose; whatever you leave keeps.'
+  'whole. Manna is banked from your calories and keeps for good.'
 export const NOTHING_BORNE = 'Nothing to gather yet.'
 export const EMPTY_BASKET = 'Nothing gathered. Fruit lands here when you gather it.'
-export const NO_MANNA = 'No manna gathered. Gather some in your grove first.'
+export const NO_MANNA = 'No manna yet. Your calories earn it.'
 export const GATHER_HINT =
-  'The fruit comes in whole. Choose how much manna to bring with it: gathered ' +
-  'manna keeps for a week, and anything left waiting keeps for good.'
+  'The fruit comes in whole. Gathered fruit keeps for a week; what stays on the ' +
+  'plant keeps for good.'
 export const FED = 'Fed. Its next harvest is bigger.'
-export const MANNA_SENT = 'Sent. It is waiting in their pile.'
+export const MANNA_SENT = 'Sent. It is in their manna.'
 export const FRUIT_GIVEN = 'Given. It is in their basket.'
 
 // What feeding buys, said wherever a plant is picked for it. The second

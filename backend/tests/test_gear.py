@@ -545,7 +545,6 @@ def test_gear_earns_nothing_anywhere(signed_in, db_session, member):
         "level",
         "xp_into_level",
         "manna",
-        "manna_pending",
         "medals",
         "grove",
         "item_tallies",

@@ -214,7 +214,7 @@ export function fruitGiftLines(recap: RecapState): string[] {
 // when there is something to say. No number, no name and no reproach: what was
 // gathered and left is a thing that happened, not a mistake to be told about.
 export function compostLine(recap: RecapState): string {
-  return recap.composted === true ? 'Some of what you gathered went back to the soil.' : ''
+  return recap.composted === true ? 'Some of the fruit you gathered went back to the soil.' : ''
 }
 
 // The one line about the frame's growth, said only when the server says it rose.

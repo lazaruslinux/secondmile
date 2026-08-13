@@ -333,7 +333,7 @@ def serialize_planting(row: models.Planting) -> dict:
         "mature": level >= species.MATURE_LEVEL,
         "gilded": level >= species.MAX_LEVEL,
         "matured_at": row.matured_at.isoformat() if row.matured_at is not None else None,
-        # How much extra it will bear next time, bought with gathered manna.
+        # How much extra it will bear next time, bought with manna.
         # Fruit and only fruit: none of the numbers above it move when this one
         # does (TWO-LANE LAW).
         "fed": row.fed_bonus,

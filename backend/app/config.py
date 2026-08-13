@@ -206,16 +206,25 @@ WATER_POUR_MI = 10.0
 # workout should never be worth less than the calories it cost.
 MANNA_STEP_KCAL = 5
 
-# Days a gathered pile keeps before composting. Clock starts at the gather, not
-# before: what is unharvested never expires.
+# Days gathered FRUIT keeps before composting. Clock starts at the gather, not
+# before: fruit left on the plant never expires, and manna never spoils at all.
 GATHERED_LIFE_DAYS = 7
 
-# What feeding a mature plant costs, in gathered manna, for one more fruit on
-# its next bearing, and how many of those may be banked before it bears. Yield
-# only: no line that reads either of these may touch growth, a level, a chest or
-# a medal (see the TWO-LANE LAW).
-FEED_COST = 150
+# What feeding a mature plant costs, in manna, for one more fruit on its next
+# bearing, and how many of those may be banked before it bears. Three at 500 is
+# a full feeding at 1500. Yield only: no line that reads either of these may
+# touch growth, a level, a chest or a medal (see the TWO-LANE LAW).
+FEED_COST = 500
 FEED_MAX_BANKED = 3
+
+# The most manna one account may put into one other person inside this many
+# days, counting a friend's plant fed and raw manna sent to them together. A
+# bank built out of a year of calories drains across people rather than into one
+# of them. Your own grove is exempt: a plant holds FEED_MAX_BANKED and no more,
+# which caps it by shape rather than by arithmetic. A limit and not a timer, so
+# nothing anywhere counts down to it.
+MANNA_TO_ONE_PERSON = 2000
+MANNA_TO_ONE_PERSON_DAYS = 7
 
 
 # Fruit: what a grown plant bears, which is the only thing manna is ever spent
@@ -405,6 +414,13 @@ MAX_INGEST_METRIC_POINTS = 100_000
 # thousand steps is a very long day out; this is well past one.
 MAX_DAILY_STEPS = 250_000
 MAX_DAILY_STEP_MI = MAX_WORKOUT_DISTANCE_MI
+
+# How far back of a phone's history one account may import, counted from the day
+# that account was created. Anchored to the signup and never to now, so an
+# offline fortnight after joining still syncs whole: what this refuses is a new
+# account importing years of somebody's old exports at once. Stored rows are
+# never reconsidered by it.
+BACKFILL_WINDOW_DAYS = 14
 
 # How long a stored sync payload is kept. The log is a replay net for a parsing
 # bug, and a bug older than a season has either been found or has been lived
