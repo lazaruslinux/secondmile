@@ -48,6 +48,7 @@ LETTER_KEYS = [
     "miles",
     "miles_total",
     "steps",
+    "manna",
     "xp",
     "chests",
     "medals",
@@ -312,7 +313,14 @@ def let_a_moment_pass(db_session, seconds: int = 1) -> None:
 
 
 def log_workout(
-    db_session, user_id: int, activity="run", miles=1.0, *, pace_min=12.0, offset_min=0
+    db_session,
+    user_id: int,
+    activity="run",
+    miles=1.0,
+    *,
+    pace_min=12.0,
+    offset_min=0,
+    kcal=0.0,
 ) -> models.Workout:
     """One workout written straight in and credited, the way a sync would.
 
@@ -320,6 +328,10 @@ def log_workout(
     collide on the dedupe key. The flags and the crediting are the ingest
     path's own, in the order it does them: a shortcut that skipped either would
     let cases pass against a row the app itself never produces.
+
+    Calories are none unless a case asks for them, which keeps every case about
+    a distance free of the currency they are worth: manna comes from the kcal
+    and nothing else here touches it.
     """
     start = neutral_start() + dt.timedelta(minutes=offset_min)
     duration_s = max(600, int(miles * pace_min * 60))
@@ -332,7 +344,7 @@ def log_workout(
         start_ts=start,
         duration_s=duration_s,
         distance_mi=miles,
-        active_kcal=0.0,
+        active_kcal=kcal,
         avg_hr=None,
         source="sync",
         flags=flags,

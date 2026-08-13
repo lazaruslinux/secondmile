@@ -7,6 +7,7 @@ deterministic.
 """
 
 import datetime as dt
+import math
 import random
 from collections.abc import Sequence
 
@@ -25,6 +26,7 @@ from app.config import (
     LEGACY_CHEST_TIER,
     LEVEL_COSTS_MI,
     LEVEL_STEP_MI,
+    MANNA_STEP_KCAL,
     MAX_DAILY_STEP_MI,
     MAX_DAILY_STEPS,
     MAX_DIAMOND_SPORTS,
@@ -96,6 +98,29 @@ def border_tier(level: int) -> int:
 
 
 # --------------------------------------------------------------------------
+# Manna
+# --------------------------------------------------------------------------
+
+
+def manna_for(kcal: float | None) -> int:
+    """What one workout's active calories are worth in manna.
+
+    One for one, rounded up to the next multiple of MANNA_STEP_KCAL: 650 comes
+    to 650 and 656 comes to 660. Per workout and never over a total, so the
+    rounding is a small kindness on each session rather than a growing one on a
+    sum; the same history therefore converts to the same manna however it is
+    added up, which is what lets a backfill, a credit and a rebuild agree.
+
+    A workout with nothing recorded, or with a negative reading from a confused
+    sensor, is worth nothing rather than a free step. Miles play no part in any
+    of it: manna is calories, and the distance is the other lane's business.
+    """
+    if kcal is None or kcal <= 0:
+        return 0
+    return math.ceil(kcal / MANNA_STEP_KCAL) * MANNA_STEP_KCAL
+
+
+# --------------------------------------------------------------------------
 # Processing
 # --------------------------------------------------------------------------
 
@@ -112,6 +137,7 @@ def ensure_progress(db: Session, user_id: int) -> models.UserProgress:
         level=0,
         chest_progress_mi=0.0,
         cycle_pos=0,
+        manna_pending=0,
         last_ack_at=None,
         updated_at=now_utc(),
     )
@@ -175,6 +201,10 @@ def _credit(db: Session, progress: models.UserProgress, workout: models.Workout)
     # Experience is the distance itself. One converted Mile, one XP.
     progress.xp += miles
     progress.level = level_for_xp(progress.xp)
+    # The other lane, out of the same workout and out of nothing it shares: the
+    # calories become manna and the miles never do. Accrual is passive and
+    # nothing counts down, so this is the only line that moves it.
+    progress.manna_pending += manna_for(workout.active_kcal)
     medals.award_workout_medals(db, progress.user_id, workout)
     # After the workout is credited, so the week it falls in is totalled with
     # this one in it. The whole week is walked again rather than added to, which
@@ -244,8 +274,12 @@ def record_steps(
     Miles are for the work put in on a recorded activity. Steps are something
     else, and what they become is an open question nobody has answered yet, so
     they are stored and shown and are worth no experience, no level, no chest,
-    no growth and no medal. Nothing downstream of here reads these rows except
-    the screens that print them.
+    no growth, no medal and no manna. Nothing downstream of here reads these
+    rows except the screens that print them.
+
+    Manna is the newest of those and the easiest to hand over by accident: it
+    comes from calories, a step reading carries none, and a pedometer's own
+    estimate of them is not something anybody went out and burned.
 
     Two rules. The reading is high-water, so a partial export of today cannot
     take a fuller one back down. And it is bounded before it is stored, a
@@ -591,6 +625,11 @@ def recompute(db: Session, user_id: int) -> models.UserProgress:
         row.level = 0
         row.chest_progress_mi = 0.0
         row.cycle_pos = 0
+        # Emptied like the experience beside it, and filled again by the replay
+        # below: pending manna is a derivation of the workouts, so it is worked
+        # out from them rather than carried across. Nothing has been spent yet,
+        # so there is nothing here a rebuild could take back from anybody.
+        row.manna_pending = 0
     db.commit()
     return process_user(db, user_id)
 
@@ -643,6 +682,11 @@ def rebuild_from_surviving(db: Session, user_id: int) -> models.UserProgress:
     progress.level = 0
     progress.chest_progress_mi = 0.0
     progress.cycle_pos = 0
+    # Recomputed from the surviving workouts, exactly as the experience is:
+    # taking a workout back takes back the calories it was worth. Nothing can
+    # be spent yet, so there is no spent-stays-spent question here; the round
+    # that adds spending answers it, and this line is where it will be asked.
+    progress.manna_pending = 0
 
     now = now_utc()
     fuel = 0.0
@@ -656,6 +700,7 @@ def rebuild_from_surviving(db: Session, user_id: int) -> models.UserProgress:
         miles = converted_miles(workout.activity, workout.distance_mi)
         fuel += miles
         progress.xp += miles
+        progress.manna_pending += manna_for(workout.active_kcal)
         medals.award_workout_medals(db, user_id, workout)
         medals.update_week_for(db, user_id, workout)
     # The workouts are the whole of it. Steps are no fuel: the dormant ledger

@@ -139,6 +139,11 @@ def read_recap(
         # somebody went out and did, and a pedometer's tally is not one of them
         # and earns nothing.
         "steps": _step_count(db, user.id, since),
+        # Beside the body's own figures and above the weighted one, because
+        # this is what the calories in those workouts came to rather than
+        # anything the ladder runs on. Never news on its own: manna only
+        # arrives with workouts, and workouts are already news.
+        "manna": _manna(db, user.id, since),
         "xp": round(xp, 2),
         "chests": _delivered(db, user.id, since),
         "medals": _fresh_medals(db, user.id, since),
@@ -181,6 +186,26 @@ def _miles(
         miles[activity] = round(float(total), 2)
         xp += converted_miles(activity, float(total))
     return miles, xp
+
+
+def _manna(db: Session, user_id: int, since: dt.datetime | None) -> int:
+    """What the calories in this letter's workouts came to.
+
+    The same window the miles above are summed over, down to the arrival rule
+    and the deleted ones left out, so the line and the rows it sits under can
+    never describe two different sets of workouts.
+
+    Summed one workout at a time rather than off a total of the calories,
+    because the rounding is per workout: two sessions of 651 are 1320 manna and
+    never 1305. That is also why this walks the rows instead of asking the
+    database for a sum, which would have to round the same way in two dialects.
+    """
+    stmt = select(models.Workout.active_kcal).where(
+        models.Workout.user_id == user_id, models.Workout.deleted_at.is_(None)
+    )
+    if since is not None:
+        stmt = stmt.where(models.Workout.created_at > since)
+    return sum(progress.manna_for(kcal) for kcal in db.execute(stmt).scalars())
 
 
 def _step_count(db: Session, user_id: int, since: dt.datetime | None) -> int:

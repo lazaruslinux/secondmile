@@ -319,6 +319,12 @@ export interface Profile {
   // friend payload does not carry it and must not. Optional, so a server that
   // predates steps reads as none.
   week_steps?: number
+  // Manna waiting: what this account's burned calories have come to. A
+  // currency and not a stat, so it is in no total on this payload and never
+  // beside the XP; calories still print as calories wherever they always did.
+  // Your own screen only, the friend payload does not carry it and must not.
+  // Optional, so a server that predates manna reads as none.
+  manna?: number
   // What the plot has come to. seeds_found counts the distinct species owned,
   // out of the twelve a chest can hold; plant_levels is every level on every
   // plant added up. Optional so the app still renders against a server that
@@ -625,6 +631,10 @@ export interface RecapState {
   // the four, in neither the total above them nor the XP below: it is a number
   // the letter reports and nothing the account earned.
   steps?: number
+  // What the calories in this letter's workouts came to. Its own line, in no
+  // total and never news on its own: manna arrives with workouts, and those
+  // are news already.
+  manna?: number
   // The weighted number the game runs on. Never called miles anywhere.
   xp?: number
   // Chests are opened in the inventory now, so the letter names what landed

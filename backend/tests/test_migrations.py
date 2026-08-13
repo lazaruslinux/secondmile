@@ -56,6 +56,26 @@ def at_0012(tmp_path, monkeypatch):
         engine.dispose()
 
 
+@pytest.fixture()
+def at_0024(tmp_path, monkeypatch):
+    """A database at revision 0024, which is the shape the manna backfill meets.
+
+    Its own fixture rather than either of the earlier ones: the backfill reads a
+    workout's deleted_at and the processed marker beside it, and the column
+    arrives in 0020, well after the revision those two start at.
+    """
+    url = f"sqlite:///{tmp_path}/manna.db"
+    monkeypatch.setattr(config.settings, "database_url", url)
+    cfg = Config(str(BACKEND / "alembic.ini"))
+    cfg.set_main_option("script_location", str(BACKEND / "migrations"))
+    command.upgrade(cfg, "0024")
+    engine = sa.create_engine(url)
+    try:
+        yield engine, (lambda: command.upgrade(cfg, "head"))
+    finally:
+        engine.dispose()
+
+
 def _account(connection, user_id: int, username: str, slots: str = "[]") -> None:
     connection.execute(
         sa.text(
@@ -723,6 +743,129 @@ def test_the_bug_report_table_arrives_empty_and_touches_nothing(migrated):
         assert connection.execute(
             sa.text("SELECT view, user_agent FROM bug_reports ORDER BY id")
         ).all() == [("grove", "Mozilla/5.0"), ("home", None)]
+
+
+def _credited(connection, workout_id: int) -> None:
+    """The marker the pipeline writes when it has paid for a workout. What the
+    manna backfill counts is what already carries one."""
+    connection.execute(
+        sa.text("INSERT INTO processed_workouts (workout_id) VALUES (:id)"),
+        {"id": workout_id},
+    )
+
+
+def _progress(connection, user_id: int, xp: float = 0.0) -> None:
+    """One progress row in the shape 0024 leaves it, which is the row the manna
+    column lands on."""
+    connection.execute(
+        sa.text(
+            "INSERT INTO user_progress (user_id, xp, level, chest_progress_mi,"
+            " cycle_pos, renown, updated_at)"
+            " VALUES (:user_id, :xp, 0, 0, 0, 0, '2026-08-01 00:00:00')"
+        ),
+        {"user_id": user_id, "xp": xp},
+    )
+
+
+def _burn(connection, workout_id: int, user_id: int, kcal, *, deleted=None) -> None:
+    """One workout that burned something, dated so nothing collides."""
+    start = f"2026-07-{workout_id:02d} 06:00:00"
+    connection.execute(
+        sa.text(
+            "INSERT INTO workouts (id, user_id, activity, start_ts, duration_s,"
+            " distance_mi, active_kcal, source, flags, created_at, deleted_at)"
+            " VALUES (:id, :user_id, 'run', :start, 3600, 5.0, :kcal, 'sync', '{}',"
+            " :start, :deleted)"
+        ),
+        {
+            "id": workout_id,
+            "user_id": user_id,
+            "start": start,
+            "kcal": kcal,
+            "deleted": deleted,
+        },
+    )
+
+
+def test_the_manna_backfill_converts_every_credited_workout(at_0024):
+    """0025: the column arrives at zero for everybody and is then filled from
+    the calories already recorded.
+
+    Per workout and rounded up, which is his rule and the app's: 650 stays 650
+    and 656 climbs to 660. A deleted workout never earned anything, and one
+    still waiting for its first sweep is paid for by that sweep, so neither is
+    counted here.
+    """
+    engine, upgrade = at_0024
+    with engine.connect() as connection:
+        _account(connection, 1, "runner")
+        _progress(connection, 1, xp=29.02)
+        _account(connection, 2, "mate")
+        _progress(connection, 2)
+        # His two examples, on one account.
+        _burn(connection, 1, 1, 650.0)
+        _burn(connection, 2, 1, 656.0)
+        # Nothing burned is worth nothing rather than a free step. The column
+        # itself refuses a null, which is why a workout with nothing recorded is
+        # a zero here; the null a reader might still meet is answered one layer
+        # up, in app.progress.manna_for.
+        _burn(connection, 3, 1, 0.0)
+        _burn(connection, 4, 1, 0.0)
+        # Taken back, so the calories went with the miles.
+        _burn(connection, 5, 1, 900.0, deleted="2026-08-01 00:00:00")
+        # Somebody else's, by the same rule and no special case.
+        _burn(connection, 6, 2, 121.0)
+        for workout_id in (1, 2, 3, 4, 5, 6):
+            _credited(connection, workout_id)
+        # Arrived and not yet credited: the sweep after the upgrade pays for it,
+        # and counting it here as well would pay twice.
+        _burn(connection, 7, 1, 500.0)
+        connection.commit()
+
+    upgrade()
+
+    with engine.connect() as connection:
+        assert connection.execute(
+            sa.text("SELECT user_id, manna_pending FROM user_progress ORDER BY user_id")
+        ).all() == [(1, 1310), (2, 125)]
+        # Purely additive beside it: the experience the account already had is
+        # exactly where it was.
+        assert connection.execute(
+            sa.text("SELECT xp FROM user_progress WHERE user_id = 1")
+        ).scalar_one() == 29.02
+
+
+def test_the_manna_column_steps_back_down_again(at_0024):
+    """Stepping back takes the column away and leaves the workouts every number
+    in it was worked out from untouched, so the same upgrade lands on the same
+    pile a second time."""
+    engine, upgrade = at_0024
+    with engine.connect() as connection:
+        _account(connection, 1, "runner")
+        _progress(connection, 1)
+        _burn(connection, 1, 1, 656.0)
+        _credited(connection, 1)
+        connection.commit()
+    upgrade()
+
+    cfg = Config(str(BACKEND / "alembic.ini"))
+    cfg.set_main_option("script_location", str(BACKEND / "migrations"))
+    command.downgrade(cfg, "0024")
+
+    with engine.connect() as connection:
+        columns = {
+            row[1] for row in connection.execute(sa.text("PRAGMA table_info(user_progress)"))
+        }
+        assert "manna_pending" not in columns
+        assert connection.execute(
+            sa.text("SELECT active_kcal FROM workouts")
+        ).scalar_one() == 656.0
+
+    command.upgrade(cfg, "head")
+    with engine.connect() as connection:
+        assert connection.execute(
+            sa.text("SELECT manna_pending FROM user_progress")
+        ).scalar_one() == 660
 
 
 def test_the_bug_report_table_steps_back_down_again(migrated):

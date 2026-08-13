@@ -347,6 +347,13 @@ class UserProgress(Base):
     # a score anybody sees: no response carries the number, and the only thing
     # it drives is which flourish grows on the avatar's border.
     renown: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Manna waiting to be gathered: what this account's burned calories came
+    # to, one workout at a time, rounded up to the next multiple of five. A
+    # currency and never a stat, and the giving lane's alone: it buys nothing
+    # in the earning lane, ever. Steps put nothing here, because steps carry no
+    # calories the app will spend. Nothing spoils and nothing counts down, so
+    # this only ever goes up until there is something to spend it on.
+    manna_pending: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     updated_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
 
 

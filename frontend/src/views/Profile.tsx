@@ -28,6 +28,7 @@ import {
   chestBar,
   displayNameOf,
   lifetimeMiles,
+  mannaBalance,
   medalCountsOf,
   ownedMedalIds,
   weekSteps,
@@ -201,6 +202,7 @@ export default function Profile({
   const ownedMedals = ownedMedalIds(profile.medals)
   const bio = profile.bio?.trim() ?? ''
   const steps = weekSteps(profile)
+  const manna = mannaBalance(profile)
 
   return (
     <>
@@ -344,6 +346,13 @@ export default function Profile({
                 of them. A week with none says nothing rather than printing a
                 zero at somebody. */}
             {steps > 0 && <p className="hint">Steps this week: {steps.toLocaleString()}</p>}
+
+            {/* What the calories have come to, on your own screen and nowhere
+                else. A currency rather than a stat: it is in no total above,
+                it is nowhere near the XP, and the calories themselves still
+                read as calories on every card and table they always did. An
+                account with none says nothing rather than printing a zero. */}
+            {manna > 0 && <p className="hint">Manna: {manna.toLocaleString()}</p>}
 
             <div className="profile-edit">
               <div className="choice">

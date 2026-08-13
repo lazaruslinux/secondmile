@@ -186,6 +186,13 @@ def serialize_profile(db: Session, user: models.User, row: models.UserProgress) 
         # ambient life rather than something done, and a friend has no business
         # reading it.
         "week_steps": progress.step_count(db, user.id, monday),
+        # What the calories have come to, waiting to be gathered. A currency
+        # rather than a stat, which is why it is one number here and appears in
+        # no total, on no card and nowhere near the experience above: calories
+        # still print as calories everywhere they always did. Your own screen
+        # only, like the steps above it. The friend payload does not carry it
+        # and must not; what somebody has to give away is theirs to know.
+        "manna": row.manna_pending,
         # How much is in the plot and how much of it is grown. Not a
         # collection: there is no total to fill, only what somebody planted.
         "grove": grove.summary(db, user.id),

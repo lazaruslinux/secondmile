@@ -201,6 +201,17 @@ SWIM_GROWTH_BONUS = 0.5
 WATER_POUR_MI = 10.0
 
 
+# Manna: what burned calories become. The giving lane's currency and nothing
+# else, so no number below this line ever touches experience, a level, a chest,
+# growth or a medal.
+
+# One workout's active calories convert one for one and round UP to the next
+# multiple of this, which is the generous read of "nearest 5": 650 is 650 and
+# 656 is 660. Rounding up rather than to the nearest is deliberate, because a
+# workout should never be worth less than the calories it cost.
+MANNA_STEP_KCAL = 5
+
+
 # Experience is converted Miles, one for one. Nothing but synced movement ever
 # produces any of it, and the number on the profile is the distance itself
 # rather than a score derived from it.

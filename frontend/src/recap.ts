@@ -92,6 +92,15 @@ export function recapSteps(recap: RecapState): number {
   return Math.trunc(sent)
 }
 
+// What the calories in this letter's workouts came to, as the line prints them.
+// Read as defensively as the steps above, and for the same reason: a whole
+// number above zero or nothing at all.
+export function recapManna(recap: RecapState): number {
+  const sent = recap.manna
+  if (typeof sent !== 'number' || !isFinite(sent) || sent <= 0) return 0
+  return Math.trunc(sent)
+}
+
 // The chests that landed, named by their step: "10K chest, Marathon chest".
 // Named rather than counted, and two of the same step are said twice, because
 // there are only ever a handful and the name is the thing that happened.
@@ -179,6 +188,10 @@ export function flourishLine(recap: RecapState): string {
 // Steps are not in it, deliberately. Everybody takes some every day, so a
 // letter that opened for them would open forever and mean nothing by it. They
 // are a line a letter already worth reading carries, never the reason it opens.
+//
+// Manna is not in it either, for a plainer reason: it only ever arrives with
+// workouts, and the workouts are already news. A letter that opened for manna
+// would be opening twice for one thing.
 export function recapHasNews(recap: RecapState): boolean {
   return (
     (recap.miles_total ?? 0) > 0 ||

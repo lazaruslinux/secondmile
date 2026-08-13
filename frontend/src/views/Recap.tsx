@@ -23,6 +23,7 @@ import {
   recapChestNames,
   recapGiftLine,
   recapGrowthLines,
+  recapManna,
   recapMiles,
   recapMilesTotal,
   recapNotes,
@@ -69,6 +70,7 @@ export default function Recap({ recap, units, onDismiss }: Props) {
   const mileRows = recapMiles(recap.miles)
   const milesTotal = recapMilesTotal(mileRows)
   const steps = recapSteps(recap)
+  const manna = recapManna(recap)
   const chestNames = recapChestNames(recap.chests)
   const gift = recapGiftLine(recap.chests)
 
@@ -164,6 +166,14 @@ export default function Recap({ recap, units, onDismiss }: Props) {
               rather than news. */}
           {steps > 0 && (
             <p className="recap-line">Your phone counted {steps.toLocaleString()} steps.</p>
+          )}
+
+          {/* One line, and only when the window carried some. Said here, under
+              what the body did, because that is where it came from: the
+              calories on those workouts, not the miles and nothing the ladder
+              runs on. A window with no manna in it says nothing at all. */}
+          {manna > 0 && (
+            <p className="recap-line">Your calories became {manna.toLocaleString()} manna.</p>
           )}
 
           {chestNames !== '' && (

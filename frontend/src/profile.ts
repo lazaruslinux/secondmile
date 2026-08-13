@@ -194,6 +194,15 @@ export function weekSteps(profile: Profile): number {
   return typeof sent === 'number' && isFinite(sent) && sent > 0 ? Math.trunc(sent) : 0
 }
 
+// The manna waiting to be gathered, or none. Read the way every optional field
+// crossing this seam is: anything that is not a real number above zero is none,
+// so a server that predates manna and an account with none read the same and
+// the line simply is not drawn. Never on anybody else's screen.
+export function mannaBalance(profile: Profile): number {
+  const sent = profile.manna
+  return typeof sent === 'number' && isFinite(sent) && sent > 0 ? Math.trunc(sent) : 0
+}
+
 // The weekly medals and the raw miles each one is earned at, which is the
 // server's ladder written down a second time so a target can be shown before
 // it is reached. Raw miles, never XP: a week is twenty-five miles walked, run,
