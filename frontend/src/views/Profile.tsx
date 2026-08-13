@@ -3,11 +3,13 @@ import {
   avatarUrl,
   errorText,
   getProfile,
+  listBasket,
   listChests,
   listGrove,
   openChest,
   setDisplayedBadges,
   type Chest,
+  type Keepsake,
   type Planting,
   type Profile as ProfileData,
   type SatchelItem,
@@ -28,7 +30,7 @@ import {
   chestBar,
   displayNameOf,
   lifetimeMiles,
-  mannaBalance,
+  mannaLine,
   medalCountsOf,
   ownedMedalIds,
   weekSteps,
@@ -51,6 +53,7 @@ interface Cached {
   profile: ProfileData
   chests: Chest[]
   plantings: Planting[]
+  keepsakes: Keepsake[]
 }
 
 // What this tab last showed, kept by account so a second person signing in on
@@ -86,6 +89,11 @@ export default function Profile({
   const [plantings, setPlantings] = useState<Planting[]>(
     () => cache.get(userId)?.plantings ?? [],
   )
+  // What friends have given, which is a record and nothing else: nothing here
+  // is spent, nothing spoils, and nothing in the game reads it.
+  const [keepsakes, setKeepsakes] = useState<Keepsake[]>(
+    () => cache.get(userId)?.keepsakes ?? [],
+  )
   const [loading, setLoading] = useState(() => !cache.has(userId))
   const [loadError, setLoadError] = useState('')
 
@@ -102,14 +110,19 @@ export default function Profile({
 
   const load = useCallback(async () => {
     try {
-      const [mine, waiting, plot] = await Promise.all([
+      const [mine, waiting, plot, given] = await Promise.all([
         getProfile(),
         listChests(),
         listGrove(),
+        // The basket is a keepsake shelf rather than part of the profile, so a
+        // server that cannot answer for it leaves the shelf empty rather than
+        // taking the screen down.
+        listBasket().catch(() => []),
       ])
       setProfile(mine)
       setChests(waiting)
       setPlantings(plot)
+      setKeepsakes(given)
       setLoadError('')
     } catch (err) {
       setLoadError(errorText(err))
@@ -125,8 +138,8 @@ export default function Profile({
   // Whatever is on the screen is what a return to this tab should show, edits
   // made here included, so the cache follows the state rather than the fetch.
   useEffect(() => {
-    if (profile) cache.set(userId, { profile, chests, plantings })
-  }, [userId, profile, chests, plantings])
+    if (profile) cache.set(userId, { profile, chests, plantings, keepsakes })
+  }, [userId, profile, chests, plantings, keepsakes])
 
   // The picture is uploaded from the edit panel and saved there and then, so
   // this only has to redraw what is already on the server.
@@ -202,7 +215,7 @@ export default function Profile({
   const ownedMedals = ownedMedalIds(profile.medals)
   const bio = profile.bio?.trim() ?? ''
   const steps = weekSteps(profile)
-  const manna = mannaBalance(profile)
+  const manna = mannaLine(profile)
 
   return (
     <>
@@ -345,14 +358,19 @@ export default function Profile({
                 included, because a wallet that hides its zero reads as a
                 missing feature. Own screen only, as ever. Neither is a stat:
                 the steps are in no miles total and earn nothing, and manna is
-                a currency that sits nowhere near the XP. */}
+                a currency that sits nowhere near the XP.
+
+                The manna line carries both of its states, because only the
+                gathered half buys anything and only the gathered half is ever
+                at risk. What is waiting is safe until it is gathered, so it is
+                said plainly rather than left to be discovered. */}
             <ul className="profile-counts own-tallies">
               <li>
                 <span className="count-value">{steps.toLocaleString()}</span>
                 <span className="count-label">Steps this week</span>
               </li>
               <li>
-                <span className="count-value">{manna.toLocaleString()}</span>
+                <span className="count-value manna-value">{manna}</span>
                 <span className="count-label">Manna</span>
               </li>
             </ul>
@@ -503,6 +521,26 @@ export default function Profile({
               </div>
             )}
           </section>
+
+          {/* What friends have grown and given away, kept forever. It has no
+              verb and no number anything spends: somebody went out, earned a
+              harvest, and handed it over, and this is the record of that. Drawn
+              only when there is something in it, because an empty shelf on a
+              screen full of counts reads as a feature that is missing. */}
+          {keepsakes.length > 0 && (
+            <section className="card">
+              <h2 className="label">Basket</h2>
+              <ul className="keepsakes">
+                {keepsakes.map((row) => (
+                  <li key={row.id} className="keepsake">
+                    <p className="keepsake-who">From {row.from}</p>
+                    <p className="keepsake-what">{row.provenance}</p>
+                    <p className="hint">{formatDate(row.received_at)}</p>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
           {/* The centrepiece: the whole catalogue, family by family, with the
               race ladder first since it is the one every run is measured

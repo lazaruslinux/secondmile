@@ -296,6 +296,39 @@ export const NOTHING_HELD = 'Nothing found yet. Items come out of chests.'
 // Where water comes from, said the way the potion lines beside it are said.
 export const NO_WATER = 'No water in your inventory. It comes out of chests.'
 
+// The harvest, and the four things manna is spent on. Every line here says what
+// is true and nothing more: manna buys fruit, never growth, and nothing that has
+// not been gathered is ever at risk.
+export const HARVEST_HINT =
+  'Your plants bear fruit every 33 XP, all at once. Gather brings the fruit in ' +
+  'whole and as much manna as you choose; whatever you leave keeps.'
+export const NOTHING_BORNE = 'Nothing to gather yet.'
+export const EMPTY_BASKET = 'Nothing gathered. Fruit lands here when you gather it.'
+export const NO_MANNA = 'No manna gathered. Gather some in your grove first.'
+export const GATHER_HINT =
+  'The fruit comes in whole. Choose how much manna to bring with it: gathered ' +
+  'manna keeps for a week, and anything left waiting keeps for good.'
+export const FED = 'Fed. Its next harvest is bigger.'
+export const MANNA_SENT = 'Sent. It is waiting in their pile.'
+export const FRUIT_GIVEN = 'Given. It is in their basket.'
+
+// What feeding buys, said wherever a plant is picked for it. The second
+// sentence is the two-lane law in the app's own voice, and it is here because
+// this is the one screen where somebody might expect otherwise.
+export function feedHint(cost: number): string {
+  return `${cost.toLocaleString()} manna for one more fruit next time it bears. It never makes anything grow faster.`
+}
+
+// What one plant is carrying, said under it. Both numbers come from the server
+// already joined, so nothing here counts anything.
+export function fedLine(fed: number): string {
+  return `Fed, ${fed} more next harvest`
+}
+
+export function readyLine(label: string): string {
+  return `${label} ready`
+}
+
 // What a refused upload says. The proxy in front of the app answers some of
 // these before the server does, so the sentence is written here rather than
 // read off the response, and it is word for word the server's own.

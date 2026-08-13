@@ -172,6 +172,51 @@ export function recapGrowthLines(recap: RecapState): string[] {
   return (recap.plant_growth ?? []).map(growthLine).filter((line) => line !== '')
 }
 
+// A short list as a sentence says it: "a", "a and b", "a, b and c". Written
+// here because three lines of the letter join lists and a list joined three
+// ways reads as three different letters.
+function asList(parts: string[]): string {
+  if (parts.length <= 1) return parts[0] ?? ''
+  return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`
+}
+
+// What the grove bore while the app was shut, as one sentence. The counts and
+// the names arrive already joined and in the right number, so nothing here
+// counts anything or pluralises anything.
+export function harvestLine(recap: RecapState): string {
+  const piles = (recap.harvest?.fruit ?? [])
+    .map((row) => (typeof row.label === 'string' ? row.label.trim() : ''))
+    .filter((label) => label !== '')
+  return piles.length === 0 ? '' : `Your grove bore ${asList(piles)}.`
+}
+
+// Raw manna friends sent. One line each, named, because a gift is from somebody
+// rather than from the app.
+export function mannaGiftLines(recap: RecapState): string[] {
+  return (recap.manna_gifts ?? [])
+    .filter((row) => typeof row.amount === 'number' && row.amount > 0)
+    .map((row) => `${row.from ?? 'A friend'} sent you ${(row.amount ?? 0).toLocaleString()} manna.`)
+}
+
+// Fruit friends gave, with the sentence it came with. The provenance is the
+// server's and is said whole: it is the whole of what makes a gift of fruit
+// different from a gift of anything else.
+export function fruitGiftLines(recap: RecapState): string[] {
+  return (recap.fruit_gifts ?? [])
+    .map((row) => {
+      const what = (row.provenance ?? row.label ?? '').trim()
+      return what === '' ? '' : `${row.from ?? 'A friend'} gave you ${what}.`
+    })
+    .filter((line) => line !== '')
+}
+
+// The one soft line about what went back to the soil, said afterwards and only
+// when there is something to say. No number, no name and no reproach: what was
+// gathered and left is a thing that happened, not a mistake to be told about.
+export function compostLine(recap: RecapState): string {
+  return recap.composted === true ? 'Some of what you gathered went back to the soil.' : ''
+}
+
 // The one line about the frame's growth, said only when the server says it rose.
 // The stage is carried on every letter, so it is the rise and not the stage that
 // decides whether anything is said at all.
@@ -192,9 +237,18 @@ export function flourishLine(recap: RecapState): string {
 // Manna is not in it either, for a plainer reason: it only ever arrives with
 // workouts, and the workouts are already news. A letter that opened for manna
 // would be opening twice for one thing.
+//
+// The harvest IS in it, and for the opposite reason: fruit is earned by miles,
+// so a grove that bore is the same kind of event as a chest that dropped. Gifts
+// are in it because somebody did something for this account and nothing else
+// would ever say so. What composted is not: it is an aside on a letter already
+// worth reading, never a reason to interrupt anybody.
 export function recapHasNews(recap: RecapState): boolean {
   return (
     (recap.miles_total ?? 0) > 0 ||
+    harvestLine(recap) !== '' ||
+    mannaGiftLines(recap).length > 0 ||
+    fruitGiftLines(recap).length > 0 ||
     recapMilesTotal(recapMiles(recap.miles)) > 0 ||
     (recap.chests?.length ?? 0) > 0 ||
     (recap.workouts?.length ?? 0) > 0 ||

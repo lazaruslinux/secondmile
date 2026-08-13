@@ -267,6 +267,9 @@ def test_watering_a_friends_plot_grows_it_and_pays_the_giver(
         "stage",
         "mature",
         "gilded",
+        # How much manna has been fed into it, which is a count of giving and
+        # not a fact about how its owner spent their weeks.
+        "fed",
     }
     db_session.refresh(theirs)
     assert theirs.growth_mi == WATER_POUR_MI
@@ -612,6 +615,7 @@ def test_a_planting_says_the_same_things_whatever_it_is(signed_in, db_session, m
         "mature",
         "gilded",
         "matured_at",
+        "fed",
     }
     # Every species levels, so none of them answers with a null here.
     assert (row["level"], row["level_mi"]) == (0, 100.0)
@@ -724,6 +728,9 @@ def test_a_friend_sees_the_plants_and_their_levels_and_no_miles(signed_in, db_se
         "stage",
         "mature",
         "gilded",
+        # How much manna has been fed into it, which is a count of giving and
+        # not a fact about how its owner spent their weeks.
+        "fed",
     }
     assert rows[0]["species"] == "pomegranate"
     assert rows[0]["stage"] == 2

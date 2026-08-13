@@ -20,6 +20,7 @@ from app.routers import (
     chests,
     fellowship,
     grove,
+    harvest,
     ingest,
     invites,
     profile,
@@ -182,6 +183,7 @@ app.include_router(settings.router, prefix="/api")
 app.include_router(profile.router, prefix="/api")
 app.include_router(chests.router, prefix="/api")
 app.include_router(grove.router, prefix="/api")
+app.include_router(harvest.router, prefix="/api")
 app.include_router(fellowship.router, prefix="/api")
 app.include_router(invites.router, prefix="/api")
 app.include_router(stats.router, prefix="/api")

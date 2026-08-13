@@ -181,6 +181,10 @@ satchel_limiter = RateLimiter(20, "satchel")
 # Opening chests. Somebody back from a fortnight away opens a dozen in a
 # sitting, and each one is a roll and a write.
 chest_open_limiter = RateLimiter(20, "chest-open")
+# Gathering, feeding a plant, and giving manna or fruit away, all out of one
+# budget: they are four verbs on one harvest, and the satchel's four already
+# share theirs for the same reason.
+harvest_spend_limiter = RateLimiter(20, "harvest-spend")
 # Putting the letter down. Once per sign-in in real use; the allowance is for
 # a client that retries rather than for a person.
 recap_ack_limiter = RateLimiter(10, "recap-ack")
@@ -217,6 +221,10 @@ bug_report_limiter = RateLimiter(3, "bug-report")
 profile_read_limiter = RateLimiter(60, "profile-read")
 feed_limiter = RateLimiter(60, "feed")
 recap_read_limiter = RateLimiter(60, "recap-read")
+# The harvest and the basket beside it, on the same allowance as the three
+# screens above: both are read every time somebody opens the grove or the You
+# screen, and neither guards anything.
+harvest_read_limiter = RateLimiter(60, "harvest-read")
 
 
 # What a screen asked for too fast is told. Shared rather than written out in

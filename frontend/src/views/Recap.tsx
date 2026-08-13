@@ -17,7 +17,11 @@ import {
   medalName,
 } from '../labels.ts'
 import {
+  compostLine,
   flourishLine,
+  fruitGiftLines,
+  harvestLine,
+  mannaGiftLines,
   noteAuthor,
   recapCheers,
   recapChestNames,
@@ -88,6 +92,9 @@ export default function Recap({ recap, units, onDismiss }: Props) {
   const notes = recapNotes(recap.encouragement)
   const cheers = recapCheers(recap.encouragement)
   const growth = recapGrowthLines(recap)
+  const harvest = harvestLine(recap)
+  const gifts = [...mannaGiftLines(recap), ...fruitGiftLines(recap)]
+  const composted = compostLine(recap)
   const grew = flourishLine(recap)
   // What the letter had to leave out. The server sends the newest ten and the
   // true count, and a cut nobody is told about is the same as a lie.
@@ -232,6 +239,36 @@ export default function Recap({ recap, units, onDismiss }: Props) {
               </ul>
             </section>
           )}
+
+          {/* What the miles brought in. It sits under the growing because it
+              is what the growing is for, and it points at the grove rather than
+              doing anything itself: the letter is the news and the grove is
+              where things are done. */}
+          {harvest !== '' && (
+            <section className="recap-section">
+              <h3>Your harvest</h3>
+              <p className="recap-line">{harvest}</p>
+              <p className="hint">Gather it in your grove.</p>
+            </section>
+          )}
+
+          {/* What friends spent on this account. Named, because a gift is from
+              somebody, and said here because this is where every gift in this
+              app is finally attributed. */}
+          {gifts.length > 0 && (
+            <section className="recap-section">
+              <h3>Given to you</h3>
+              <ul className="recap-growth">
+                {gifts.map((line, index) => (
+                  <li key={index}>{line}</li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {/* One soft line, afterwards, with no number and no reproach. Nothing
+              anywhere counted down to it. */}
+          {composted !== '' && <p className="hint recap-grew">{composted}</p>}
 
           {/* One line, said once. Growth comes from encouraging other people,
               so this is the only place the app mentions it. */}

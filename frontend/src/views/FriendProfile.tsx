@@ -4,7 +4,11 @@ import {
   anointFriend,
   avatarUrl,
   errorText,
+  feedPlant,
   getFriendProfile,
+  getHarvest,
+  giveFruit,
+  giveManna,
   inviteFriend,
   listFriendGrove,
   listSatchel,
@@ -16,6 +20,7 @@ import {
   type FeedItem,
   type FriendPlanting,
   type FriendProfile as FriendProfileData,
+  type HarvestState,
   type MemberCard,
   type RecentPhoto,
   type SatchelItem,
@@ -33,6 +38,12 @@ import {
   ACTIVITY_ICONS,
   ANOINT_HINT,
   ANOINTED,
+  EMPTY_BASKET,
+  FED,
+  feedHint,
+  FRUIT_GIVEN,
+  MANNA_SENT,
+  NO_MANNA,
   NO_WATER,
   NOTHING_RECORDED_FRIEND,
   NOTHING_THIS_WEEK,
@@ -45,6 +56,7 @@ import { ownedMedalIds } from '../profile.ts'
 import { pileItems, type Stack } from '../satchel.ts'
 import AvatarFrame from './AvatarFrame.tsx'
 import BandGrove from './BandGrove.tsx'
+import Chooser, { type Choice } from './Chooser.tsx'
 import Confirm from './Confirm.tsx'
 import FeedCard from './FeedCard.tsx'
 import Icon from './Icon.tsx'
@@ -137,6 +149,14 @@ type Step =
   | { at: 'water'; plant: FriendPlanting }
   | { at: 'oil' }
   | { at: 'remove' }
+  // The three manna verbs. Feeding is aimed at one of their plants, so it picks
+  // one first and then asks; the two gifts are aimed at the person, so they ask
+  // straight away. All three spend gathered manna or something grown with it,
+  // and none of them can be undone.
+  | { at: 'pick-plant' }
+  | { at: 'feed'; plant: FriendPlanting }
+  | { at: 'manna' }
+  | { at: 'fruit' }
 
 // A member of this instance who is not a friend, as much of them as the club
 // decided a member may see: their name, their face in its frame, the line they
@@ -253,6 +273,11 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
   const [profile, setProfile] = useState<FriendProfileData | MemberCard | null>(null)
   const [plot, setPlot] = useState<FriendPlanting[]>([])
   const [held, setHeld] = useState<SatchelItem[]>([])
+  // This account's own harvest, which is what the three manna verbs spend from.
+  // Never theirs: what somebody has gathered is theirs to know.
+  const [harvest, setHarvest] = useState<HarvestState | null>(null)
+  // How much manna this gift is for, as it is being typed.
+  const [amount, setAmount] = useState('')
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
 
@@ -266,10 +291,11 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
       // Only the profile decides whether there is a screen at all. Their plot
       // and this account's own satchel are what the verbs need, so either
       // failing leaves a verb quiet rather than taking the page down.
-      const [person, plants, satchel] = await Promise.all([
+      const [person, plants, satchel, mine] = await Promise.all([
         getFriendProfile(userId),
         listFriendGrove(userId).catch(() => []),
         listSatchel().catch(() => []),
+        getHarvest().catch(() => null),
       ])
       setProfile(person)
       // A plant is drawn and named from its species, both by reading the
@@ -280,6 +306,7 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
           : [],
       )
       setHeld(Array.isArray(satchel) ? satchel : [])
+      setHarvest(mine)
       setLoadError('')
     } catch (err) {
       setLoadError(errorText(err))
@@ -350,6 +377,33 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
       setNote(ANOINTED)
       setStep({ at: 'none' })
     }, OIL_KEPT)
+  }
+
+  // Manna spent on one of their plants. What it buys is fruit on that plant's
+  // next bearing and nothing else: it never makes anything grow faster.
+  function feed(plant: FriendPlanting) {
+    void act(async () => {
+      await feedPlant(plant.id)
+      setNote(FED)
+      setStep({ at: 'none' })
+    })
+  }
+
+  function sendManna() {
+    const sent = Math.trunc(Number(amount) || 0)
+    void act(async () => {
+      await giveManna(userId, sent)
+      setNote(MANNA_SENT)
+      setStep({ at: 'none' })
+    })
+  }
+
+  function give(fruitId: number) {
+    void act(async () => {
+      await giveFruit(userId, fruitId)
+      setNote(FRUIT_GIVEN)
+      setStep({ at: 'none' })
+    })
   }
 
   async function remove() {
@@ -450,6 +504,28 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
   const waters = pileItems(held.filter((one) => one.kind === 'water'))
   const oils = pileItems(held.filter((one) => one.kind === 'oil'))
   const hasWater = waters.length > 0
+
+  // And what is gathered that could be spent on them. Manna is the half of this
+  // app that is meant to go to other people, so all three of its verbs are on
+  // this screen and only the quiet one is not.
+  const manna = harvest?.manna ?? 0
+  const feedCost = harvest?.feed_cost ?? 0
+  const feedCap = harvest?.feed_cap ?? 0
+  const basketRows = harvest?.basket ?? []
+  // Nothing that is not grown, and nothing already fed as far as it goes: a
+  // spend that bought nothing is worse than a button that says no.
+  const feedable: Choice[] = plot
+    .filter((row) => row.mature === true && (row.fed ?? 0) < feedCap)
+    .map((row) => ({
+      id: row.id,
+      label: plantingName(row),
+      detail: plantStateLine(row, friendStage(row)),
+    }))
+  const fruitChoices: Choice[] = basketRows.map((row) => ({
+    id: row.id,
+    label: row.label,
+    detail: row.provenance,
+  }))
 
   return (
     <>
@@ -566,11 +642,54 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
             >
               Anoint
             </button>
+            {/* The three manna verbs, beside the potion because they are the
+                same kind of thing: something of yours, spent on them. Feeding
+                boosts their next harvest, raw manna joins their waiting pile,
+                and fruit is the top of the ladder. None of them touches a mile
+                of anybody's growth. */}
+            <button
+              type="button"
+              className="secondary"
+              disabled={busy || manna < feedCost || feedable.length === 0}
+              onClick={() => {
+                setNote('')
+                setActionError('')
+                setStep({ at: 'pick-plant' })
+              }}
+            >
+              Feed a plant
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              disabled={busy || manna < 1}
+              onClick={() => {
+                setNote('')
+                setActionError('')
+                setAmount(String(Math.min(manna, feedCost)))
+                setStep({ at: 'manna' })
+              }}
+            >
+              Send manna
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              disabled={busy || basketRows.length === 0}
+              onClick={() => {
+                setNote('')
+                setActionError('')
+                setStep({ at: 'fruit' })
+              }}
+            >
+              Give fruit
+            </button>
           </div>
 
           {oils.length === 0 && (
             <p className="hint">No potions in your inventory. They come out of chests.</p>
           )}
+          {manna === 0 && <p className="hint">{NO_MANNA}</p>}
 
           {note && (
             <p className="note note-success" role="status">
@@ -797,6 +916,96 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
           busy={busy}
           error={actionError}
           onUse={(stack) => anoint(stack)}
+          onCancel={() => {
+            setActionError('')
+            setStep({ at: 'none' })
+          }}
+        />
+      )}
+
+      {/* Which of their plants a feeding is for. Their own screen says how far
+          along each one is, and so does this. */}
+      {step.at === 'pick-plant' && (
+        <Chooser
+          title="Feed a plant"
+          hint="Pick one of their grown plants."
+          choices={feedable}
+          empty="Nothing of theirs is grown yet."
+          busy={busy}
+          error={actionError}
+          onChoose={(id) => {
+            const plant = plot.find((one) => one.id === id)
+            if (plant) setStep({ at: 'feed', plant })
+          }}
+          onCancel={() => {
+            setActionError('')
+            setStep({ at: 'none' })
+          }}
+        />
+      )}
+
+      {step.at === 'feed' && (
+        <Confirm
+          heading={`Feed their ${plantingName(step.plant)}`}
+          confirmLabel="Feed"
+          cancelLabel="Cancel"
+          busy={busy}
+          error={actionError}
+          onConfirm={() => feed(step.plant)}
+          onCancel={() => {
+            setActionError('')
+            setStep({ at: 'pick-plant' })
+          }}
+        >
+          <p className="hint">{feedHint(feedCost)}</p>
+        </Confirm>
+      )}
+
+      {/* Raw manna. It joins their waiting pile rather than their gathered one,
+          so a gift never arrives already ageing. */}
+      {step.at === 'manna' && (
+        <Confirm
+          heading={`Send manna to ${who}`}
+          confirmLabel="Send"
+          cancelLabel="Cancel"
+          busy={busy}
+          error={actionError}
+          onConfirm={sendManna}
+          onCancel={() => {
+            setActionError('')
+            setStep({ at: 'none' })
+          }}
+        >
+          <p className="hint">
+            It waits in their pile until they gather it, and their letter says who
+            sent it.
+          </p>
+          <label>
+            Manna to send
+            <input
+              type="number"
+              min={1}
+              max={manna}
+              step={1}
+              value={amount}
+              onChange={(event) => setAmount(event.target.value)}
+            />
+          </label>
+          <p className="hint">{manna.toLocaleString()} gathered.</p>
+        </Confirm>
+      )}
+
+      {/* Something out of your own basket, which carries where it came from.
+          On their side it is a keepsake and does nothing at all. */}
+      {step.at === 'fruit' && (
+        <Chooser
+          title={`Give fruit to ${who}`}
+          hint="Pick something out of your basket. It keeps its story."
+          choices={fruitChoices}
+          empty={EMPTY_BASKET}
+          busy={busy}
+          error={actionError}
+          onChoose={(id) => give(id)}
           onCancel={() => {
             setActionError('')
             setStep({ at: 'none' })

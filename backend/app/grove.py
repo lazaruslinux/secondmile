@@ -333,6 +333,10 @@ def serialize_planting(row: models.Planting) -> dict:
         "mature": level >= species.MATURE_LEVEL,
         "gilded": level >= species.MAX_LEVEL,
         "matured_at": row.matured_at.isoformat() if row.matured_at is not None else None,
+        # How much extra it will bear next time, bought with gathered manna.
+        # Fruit and only fruit: none of the numbers above it move when this one
+        # does (TWO-LANE LAW).
+        "fed": row.fed_bonus,
     }
 
 
@@ -361,6 +365,10 @@ def serialize_for_friend(row: models.Planting) -> dict:
         "mature": is_mature(row),
         # Finished, so a friend knows there is no point pouring water into it.
         "gilded": is_gilded(row),
+        # How much it has already been fed, so a friend can see there is no room
+        # left before they spend anything on it. A count of feeding rather than
+        # a fact about its owner's weeks, which is why it crosses the fence.
+        "fed": row.fed_bonus,
     }
 
 

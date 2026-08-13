@@ -3557,6 +3557,97 @@ button:disabled {
   color: var(--muted);
 }
 
+/* What a plant is carrying and what it has been fed. Both are about the fruit
+   and neither is about the growth above them, so they sit under the state line
+   in the accent rather than in the muted grey the miles wear. */
+.plant-fruit {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--accent);
+}
+
+.plant-fed {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+/* The one verb on a plant tile. It sits at the foot of the tile whatever else
+   the tile carries, so a row of plants keeps one line of buttons. */
+.plant-feed {
+  margin-top: auto;
+  align-self: flex-start;
+}
+
+/* The harvest card. The two manna figures wear the profile's own count tiles,
+   because they are the same kind of number in the same kind of block. */
+.harvest-counts {
+  margin-bottom: 0.9rem;
+}
+
+.harvest-sub {
+  display: block;
+  margin-top: 1.1rem;
+}
+
+/* The basket: what has been gathered and is there to be given away. One row per
+   batch, the name and where it came from on the left and the verb on the right,
+   which is the shape the chest list beside it already uses. */
+.basket {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.basket-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.basket-body {
+  min-width: 0;
+}
+
+.basket-name {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+/* The keepsake shelf on the You screen. A record and nothing else, so it is a
+   list of small paragraphs rather than a grid of squares: there is no verb here
+   and nothing to tap. */
+.keepsakes {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.keepsake-who {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.keepsake-what {
+  margin: 0.15rem 0 0;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+/* The manna tile carries two numbers in one line, so it is allowed to wrap
+   rather than pushing the tile beside it off a phone. */
+.manna-value {
+  font-size: 0.95rem;
+  line-height: 1.3;
+}
+
 /* The inventory */
 
 /* A chest reveal draws a seed at a fixed size. The square is what carries that

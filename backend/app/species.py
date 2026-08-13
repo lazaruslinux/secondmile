@@ -62,10 +62,12 @@ class Species:
     rarity: str
     # Converted Miles one level of this species costs. Always its rarity's step.
     level_mi: float
-    # What it bears once it is grown. Fruit is the word for the category
-    # everywhere in the game; this is what this one species calls its own
-    # harvest. Nothing bears anything this round, so nothing reads it yet.
+    # What it bears once it is grown, in both numbers. Fruit is the word for
+    # the category everywhere in the game; these are what this one species calls
+    # its own harvest. Two forms because a rare tree bears exactly one of them
+    # and "1 olives" is not a thing anybody wrote.
     produce: str
+    produce_one: str
     # Said once, when the seed comes out of the chest. Empty for every species
     # that has nothing about it to explain, which is all but one.
     reveal: str = ""
@@ -73,23 +75,32 @@ class Species:
 
 _CATALOG: tuple[Species, ...] = (
     # Common: small plants and quick growers, modest fruit.
-    Species("strawberry", "Strawberry seed", "Strawberry bush", "common", 15.0, "strawberries"),
-    Species("banana", "Banana seed", "Banana tree", "common", 15.0, "bananas"),
-    Species("raspberry", "Raspberry seed", "Raspberry bush", "common", 15.0, "raspberries"),
-    Species("blueberry", "Blueberry seed", "Blueberry bush", "common", 15.0, "blueberries"),
+    Species("strawberry", "Strawberry seed", "Strawberry bush", "common", 15.0, "strawberries", "strawberry"),
+    Species("banana", "Banana seed", "Banana tree", "common", 15.0, "bananas", "banana"),
+    Species("raspberry", "Raspberry seed", "Raspberry bush", "common", 15.0, "raspberries", "raspberry"),
+    Species("blueberry", "Blueberry seed", "Blueberry bush", "common", 15.0, "blueberries", "blueberry"),
     # Uncommon: bushes and vines.
-    Species("blackberry", "Blackberry seed", "Blackberry bush", "uncommon", 40.0, "blackberries"),
-    Species("mango", "Mango seed", "Mango tree", "uncommon", 40.0, "mangoes"),
-    Species("grapevine", "Grape seed", "Grapevine", "uncommon", 40.0, "grapes"),
-    Species("fig_bush", "Fig seed", "Fig bush", "uncommon", 40.0, "figs"),
+    Species("blackberry", "Blackberry seed", "Blackberry bush", "uncommon", 40.0, "blackberries", "blackberry"),
+    Species("mango", "Mango seed", "Mango tree", "uncommon", 40.0, "mangoes", "mango"),
+    Species("grapevine", "Grape seed", "Grapevine", "uncommon", 40.0, "grapes", "grape"),
+    Species("fig_bush", "Fig seed", "Fig bush", "uncommon", 40.0, "figs", "fig"),
     # Rare: trees, slow, and the best of it.
-    Species("olive", "Olive seed", "Olive tree", "rare", 100.0, "olives"),
-    Species("dates", "Date seed", "Date palm", "rare", 100.0, "dates"),
-    Species("coffee", "Coffee seed", "Coffee plant", "rare", 100.0, "coffee cherries"),
-    Species("pomegranate", "Pomegranate seed", "Pomegranate tree", "rare", 100.0, "pomegranates"),
+    Species("olive", "Olive seed", "Olive tree", "rare", 100.0, "olives", "olive"),
+    Species("dates", "Date seed", "Date palm", "rare", 100.0, "dates", "date"),
+    Species("coffee", "Coffee seed", "Coffee plant", "rare", 100.0, "coffee cherries", "coffee cherry"),
+    Species("pomegranate", "Pomegranate seed", "Pomegranate tree", "rare", 100.0, "pomegranates", "pomegranate"),
     # The first chest, and only the first chest. It levels like everything else
     # and the only thing said about it is that there is one of it.
-    Species("mustard", "Mustard seed", "Mustard", "rare", 100.0, "mustard seed", MUSTARD_REVEAL),
+    Species(
+        "mustard",
+        "Mustard seed",
+        "Mustard",
+        "rare",
+        100.0,
+        "mustard seeds",
+        "mustard seed",
+        MUSTARD_REVEAL,
+    ),
 )
 
 BY_ID: dict[str, Species] = {row.id: row for row in _CATALOG}

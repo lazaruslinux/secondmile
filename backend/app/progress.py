@@ -15,7 +15,7 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app import grove, medals, models, species
+from app import grove, harvest, medals, models, species
 from app.activity import DayMetrics, converted_miles, week_start
 from app.config import (
     BORDER_LEVELS,
@@ -23,6 +23,7 @@ from app.config import (
     CHEST_SLOT_ITEMS,
     CHEST_TIER_FLOOR,
     CHEST_UPGRADE_CHANCE,
+    FRUIT_SEASON_MI,
     LEGACY_CHEST_TIER,
     LEVEL_COSTS_MI,
     LEVEL_STEP_MI,
@@ -138,6 +139,8 @@ def ensure_progress(db: Session, user_id: int) -> models.UserProgress:
         chest_progress_mi=0.0,
         cycle_pos=0,
         manna_pending=0,
+        fruit_progress_mi=0.0,
+        fruit_seasons=0,
         last_ack_at=None,
         updated_at=now_utc(),
     )
@@ -146,7 +149,9 @@ def ensure_progress(db: Session, user_id: int) -> models.UserProgress:
     return row
 
 
-def process_user(db: Session, user_id: int) -> models.UserProgress:
+def process_user(
+    db: Session, user_id: int, *, bear: bool = True
+) -> models.UserProgress:
     """Credit every workout this account has not been credited for, oldest first.
 
     A deleted workout is not one of them, ever. It has no marker row either, so
@@ -155,8 +160,17 @@ def process_user(db: Session, user_id: int) -> models.UserProgress:
 
     Workouts and nothing else. Steps are stored and shown and earn nothing at
     all: see record_steps.
+
+    Whatever has been gathered too long goes back to the soil on the way past.
+    Every screen in the app comes through here, so the sweep needs no scheduler,
+    which is the same bargain the ingest log's prune and the deleted-workout
+    purge already make.
+
+    `bear` is false only on a replay that is re-walking history the grove has
+    already borne for; see recompute.
     """
     progress = ensure_progress(db, user_id)
+    harvest.compost(db, user_id, now_utc())
     pending = (
         db.execute(
             select(models.Workout)
@@ -176,7 +190,7 @@ def process_user(db: Session, user_id: int) -> models.UserProgress:
     for workout in pending:
         if not _claim(db, workout.id):
             continue
-        _credit(db, progress, workout)
+        _credit(db, progress, workout, bear=bear)
         credited += 1
     if credited:
         progress.updated_at = now_utc()
@@ -196,7 +210,13 @@ def _claim(db: Session, workout_id: int) -> bool:
     return True
 
 
-def _credit(db: Session, progress: models.UserProgress, workout: models.Workout) -> None:
+def _credit(
+    db: Session,
+    progress: models.UserProgress,
+    workout: models.Workout,
+    *,
+    bear: bool = True,
+) -> None:
     miles = converted_miles(workout.activity, workout.distance_mi)
     # Experience is the distance itself. One converted Mile, one XP.
     progress.xp += miles
@@ -217,6 +237,10 @@ def _credit(db: Session, progress: models.UserProgress, workout: models.Workout)
     moment = workout.created_at or workout.start_ts
     _advance_chests(db, progress, miles, moment)
     grove.grow(db, progress.user_id, miles, workout.activity, moment)
+    # After the growing, so a plant this workout brought to maturity is standing
+    # grown when the season it also filled comes round. The same converted Miles
+    # feed both meters and no currency feeds either: bearing is earned.
+    _advance_fruit(db, progress, miles, moment, bear=bear)
 
 
 # --------------------------------------------------------------------------
@@ -435,6 +459,60 @@ def _advance_chests(
             lifted.consumed_chest_id = chest.id
 
 
+# --------------------------------------------------------------------------
+# Fruit
+# --------------------------------------------------------------------------
+
+
+def _advance_fruit(
+    db: Session,
+    progress: models.UserProgress,
+    miles: float,
+    moment: dt.datetime,
+    owed: int = 0,
+    *,
+    bear: bool = True,
+) -> int:
+    """Bank converted Miles toward the next bearing and bear what falls out.
+
+    The chest accumulator's twin, on the same fuel and with the same manners:
+    the meter carries between workouts, so a run that ends short of a season
+    leaves what it covered here, and one long workout can bear several times
+    over. A bearing is grove-wide; see harvest.bear.
+
+    TWO-LANE LAW: converted Miles are the only thing that ever reaches this
+    function. Manna decides how much a plant bears and never when, and a release
+    that let any currency move this meter would be the design bug that section
+    names.
+
+    `owed` is how many seasons this grove has already borne and has to pay for
+    again before anything new comes of it, which is only ever the case on a
+    rebuild after a deletion (see rebuild_from_surviving). Those crossings cost
+    their miles and bear nothing: the fruit they would bear is the fruit already
+    on the plant, in the basket, or long since given away. Answers with however
+    much of that debt is still unpaid, which is zero on every ordinary call.
+
+    `bear` false is the other half of the same idea, for a replay that walks the
+    whole history again: every crossing is silent, because every one of them has
+    already happened once.
+    """
+    remaining = miles
+    while True:
+        room = FRUIT_SEASON_MI - progress.fruit_progress_mi
+        if remaining < room - _EPSILON:
+            progress.fruit_progress_mi += remaining
+            return owed
+        remaining -= room
+        progress.fruit_progress_mi = 0.0
+        if owed > 0:
+            owed -= 1
+            continue
+        if not bear:
+            continue
+        progress.fruit_seasons += 1
+        harvest.bear(db, progress.user_id, moment, progress.fruit_seasons)
+
+
 def _drop_chest(
     db: Session, user_id: int, tier: str, from_anointing_id: int | None = None
 ) -> models.Chest:
@@ -614,6 +692,14 @@ def recompute(db: Session, user_id: int) -> models.UserProgress:
     own, and holding one back would only have the replay drop it a second time.
     An anointing already spent stays spent. Giving an old gift back to be given
     again would be minting one nobody sent.
+
+    Fruit is not replayed either, and for the chests' reason turned round: a
+    borne batch may already have been gathered, given to a friend, or gone back
+    to the soil, and none of those can be handed back. The replay walks the
+    meter without bearing anything, so it lands where the miles say and the
+    seasons already had stay had. The one thing this cannot do is bear a season
+    a lowered FRUIT_SEASON_MI would newly pay for; the next real workout does
+    that, which is the safe way round to be wrong.
     """
     db.execute(delete(models.Chest).where(models.Chest.user_id == user_id))
     grove.reset_growth(db, user_id)
@@ -626,12 +712,37 @@ def recompute(db: Session, user_id: int) -> models.UserProgress:
         row.chest_progress_mi = 0.0
         row.cycle_pos = 0
         # Emptied like the experience beside it, and filled again by the replay
-        # below: pending manna is a derivation of the workouts, so it is worked
-        # out from them rather than carried across. Nothing has been spent yet,
-        # so there is nothing here a rebuild could take back from anybody.
+        # below and then reconciled: what has been gathered has left the pending
+        # pile for good, and what a friend sent joined it without any workout of
+        # this account's behind it.
         row.manna_pending = 0
+        # The meter only. The count of seasons stays: every one of them bore
+        # fruit that is somewhere by now.
+        row.fruit_progress_mi = 0.0
     db.commit()
-    return process_user(db, user_id)
+    progress = process_user(db, user_id, bear=False)
+    progress.manna_pending = _pending_after_spends(db, user_id, progress.manna_pending)
+    db.commit()
+    return progress
+
+
+def _pending_after_spends(db: Session, user_id: int, accrued: int) -> int:
+    """What the pending pile comes to once everything that has left it is taken
+    off and everything that was put into it is added on.
+
+    Accrued is what the surviving workouts are worth. Gathering is a spend from
+    this pile's side, and spent stays spent (R31): a deleted workout takes back
+    what is still waiting and can never reach into what was already brought in,
+    fed to a plant, or handed to a friend. A raw manna gift is the other
+    direction and is nobody's derivation: it was given, so it is added back.
+
+    Never below zero, exactly as the chest ladder is never below its own floor.
+    An account that gathered more than its surviving workouts now account for
+    simply has an empty pending pile until the miles catch up.
+    """
+    return max(
+        0, accrued + harvest.gifted_manna_ever(db, user_id) - harvest.gathered_ever(db, user_id)
+    )
 
 
 def rebuild_from_surviving(db: Session, user_id: int) -> models.UserProgress:
@@ -664,8 +775,21 @@ def rebuild_from_surviving(db: Session, user_id: int) -> models.UserProgress:
     nothing records. The other half of that is that a restore does not
     re-credit the growth it never took away. Deliberate, and pinned by a test.
 
+    Fruit is the chests' rule again. Every batch ever borne stays exactly where
+    it is, and only the meter under them recomputes: the surviving miles have to
+    pay for every season already borne before a single new one comes round.
+    Where they no longer cover them the meter parks empty, which is never
+    negative and never a second harvest of fruit that has already been gathered,
+    given away, or left to compost.
+
+    Manna is the same doctrine one table across. What is still pending is
+    recomputed from the surviving workouts, plus what friends sent, less
+    everything that has ever been gathered; what was gathered, fed to a plant or
+    handed to somebody is spent and stays spent.
+
     Nothing anybody chose is rebuilt either: the satchel, the plantings, every
-    anointing, and the renown are actions rather than consequences.
+    anointing, every feeding, and the renown are actions rather than
+    consequences.
     """
     progress = ensure_progress(db, user_id)
     medals.clear_earns(db, user_id)
@@ -678,14 +802,18 @@ def rebuild_from_surviving(db: Session, user_id: int) -> models.UserProgress:
         .where(models.Chest.user_id == user_id)
     ).scalar_one()
 
+    # How many seasons this grove has already borne. Read before anything is
+    # credited, because every one of them was a crossing once.
+    borne = progress.fruit_seasons
+
     progress.xp = 0.0
     progress.level = 0
     progress.chest_progress_mi = 0.0
     progress.cycle_pos = 0
+    progress.fruit_progress_mi = 0.0
     # Recomputed from the surviving workouts, exactly as the experience is:
-    # taking a workout back takes back the calories it was worth. Nothing can
-    # be spent yet, so there is no spent-stays-spent question here; the round
-    # that adds spending answers it, and this line is where it will be asked.
+    # taking a workout back takes back the calories it was worth. What has been
+    # gathered is reconciled after the walk, in _pending_after_spends.
     progress.manna_pending = 0
 
     now = now_utc()
@@ -719,6 +847,13 @@ def rebuild_from_surviving(db: Session, user_id: int) -> models.UserProgress:
         progress.cycle_pos = dropped % len(CHEST_LADDER)
         progress.chest_progress_mi = 0.0
 
+    # The same walk for the same reason, one meter across. Anything the
+    # surviving miles pay for beyond the seasons already borne does bear, which
+    # is what makes a restore give back exactly what the deletion took.
+    if _advance_fruit(db, progress, fuel, now, borne) > 0:
+        progress.fruit_progress_mi = 0.0
+
+    progress.manna_pending = _pending_after_spends(db, user_id, progress.manna_pending)
     progress.updated_at = now
     db.commit()
     return progress

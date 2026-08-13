@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app import fellowship, grove, medals, models, progress, security, throttle
+from app import fellowship, grove, harvest, medals, models, progress, security, throttle
 from app.activity import converted_miles
 from app.config import SERVER_TZ
 from app.db import get_db
@@ -149,6 +149,18 @@ def read_recap(
         "medals": _fresh_medals(db, user.id, since),
         "encouragement": _received(db, user.id, since),
         "plant_growth": _plant_growth(db, user.id),
+        # What the grove bore while they were away, which is news for the
+        # plainest reason there is: the miles earned it. The letter tells it and
+        # points at the grove; the gathering itself happens there, because the
+        # letter is what arrived and the grove is where things are done.
+        "harvest": _harvest(db, user.id, since),
+        # Gifts, attributed the way every gift in this app is attributed: in the
+        # letter, afterwards, by the person who received it.
+        "manna_gifts": _manna_gifts(db, user.id, since),
+        "fruit_gifts": _fruit_gifts(db, user.id, since),
+        # One quiet flag, and the client says one soft line about it. Nothing
+        # counts down to this anywhere and nothing is said before it happens.
+        "composted": harvest.composted_since(db, user.id, since),
         **_arrived(db, user.id, since),
         **_flourish(db, user.id, row, since),
     }
@@ -206,6 +218,74 @@ def _manna(db: Session, user_id: int, since: dt.datetime | None) -> int:
     if since is not None:
         stmt = stmt.where(models.Workout.created_at > since)
     return sum(progress.manna_for(kcal) for kcal in db.execute(stmt).scalars())
+
+
+def _harvest(db: Session, user_id: int, since: dt.datetime | None) -> dict:
+    """What the grove bore since the last letter was put down.
+
+    Piled by fruit rather than listed by plant, because a harvest is one event
+    and four bushes bearing is one sentence. The seasons are counted from the
+    moments themselves: a bearing writes every batch at once, so the number of
+    distinct moments is the number of times the grove came round.
+
+    Windowed by when the fruit was borne, like every other figure in the letter,
+    and counted whatever became of it afterwards. Gathering it, giving it away
+    and leaving it to compost all happened after the news.
+    """
+    stmt = select(func.count(func.distinct(models.FruitBatch.season))).where(
+        models.FruitBatch.user_id == user_id
+    )
+    if since is not None:
+        stmt = stmt.where(models.FruitBatch.borne_at > since)
+    return {
+        "seasons": int(db.execute(stmt).scalar_one()),
+        "fruit": harvest.harvest_since(db, user_id, since),
+    }
+
+
+def _manna_gifts(db: Session, user_id: int, since: dt.datetime | None) -> list[dict]:
+    """Raw manna friends sent, oldest first, with who sent it.
+
+    It is already in the pending pile by the time this is read: a gift is safe
+    the moment it arrives and waits there until it is gathered, so this line is
+    the news rather than the delivery.
+    """
+    stmt = (
+        select(models.MannaGift.amount, models.User.username)
+        .join(models.User, models.User.id == models.MannaGift.from_user_id)
+        .where(models.MannaGift.to_user_id == user_id)
+    )
+    if since is not None:
+        stmt = stmt.where(models.MannaGift.created_at > since)
+    return [
+        {"from": username, "amount": int(amount)}
+        for amount, username in db.execute(
+            stmt.order_by(models.MannaGift.created_at, models.MannaGift.id)
+        ).all()
+    ]
+
+
+def _fruit_gifts(db: Session, user_id: int, since: dt.datetime | None) -> list[dict]:
+    """Fruit friends gave, with the sentence it came with.
+
+    Read off the keepsake rather than off the giver's grove, because the
+    keepsake is the permanent record and the grove it came from has moved on.
+    """
+    stmt = select(models.FruitKeepsake).where(models.FruitKeepsake.user_id == user_id)
+    if since is not None:
+        stmt = stmt.where(models.FruitKeepsake.received_at > since)
+    return [
+        {
+            "from": row.from_username,
+            "name": harvest.fruit_name(row.species, row.golden),
+            "label": harvest.fruit_words(row.count, row.species, row.golden),
+            "count": row.count,
+            "provenance": row.provenance,
+        }
+        for row in db.execute(
+            stmt.order_by(models.FruitKeepsake.received_at, models.FruitKeepsake.id)
+        ).scalars()
+    ]
 
 
 def _step_count(db: Session, user_id: int, since: dt.datetime | None) -> int:

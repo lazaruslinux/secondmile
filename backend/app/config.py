@@ -211,6 +211,45 @@ WATER_POUR_MI = 10.0
 # workout should never be worth less than the calories it cost.
 MANNA_STEP_KCAL = 5
 
+# What one gathered pile of anything lives for before it quietly goes back to
+# the soil. It starts at the gather and never before it, so time away costs
+# nothing: what is on the plant and what is waiting in the pending pile are both
+# safe forever. Nothing counts this down anywhere on screen.
+GATHERED_LIFE_DAYS = 7
+
+# What feeding a mature plant costs, in gathered manna, for one more fruit on
+# its next bearing, and how many of those may be banked before it bears. Yield
+# only: no line that reads either of these may touch growth, a level, a chest or
+# a medal (see the TWO-LANE LAW).
+FEED_COST = 150
+FEED_MAX_BANKED = 3
+
+
+# Fruit: what a grown plant bears, which is the only thing manna is ever spent
+# toward. Everything under this line is the giving lane as well: bearing is paid
+# for in converted Miles, and what it produces buys nothing in the earning lane.
+
+# How many converted Miles the meter beside the chest ladder takes to fill. At
+# the top of it every mature plant in the grove bears at once and the meter
+# keeps whatever is left over, so one long day can bear several times. Miles are
+# the season and there is no clock anywhere in it.
+FRUIT_SEASON_MI = 33.0
+
+# How much one plant bears, by what it is. Rarer plants bear less and are worth
+# more for it, which is the whole of the scale. The mustard tree is named on its
+# own rather than read off its rarity: it is a rare for rolling purposes only,
+# and what it bears is a decision about the mustard tree.
+FRUIT_YIELD: dict[str, int] = {
+    "common": 3,
+    "uncommon": 2,
+    "rare": 1,
+    "mustard": 1,
+}
+
+# What a fully grown plant's harvest is called: the same count, a finer name.
+# Never more fruit, which was his answer outright.
+GOLDEN_FRUIT_PREFIX = "golden "
+
 
 # Experience is converted Miles, one for one. Nothing but synced movement ever
 # produces any of it, and the number on the profile is the distance itself
@@ -252,6 +291,17 @@ RENOWN_NOTE = 3
 # worth more than water because it is scarcer and because it becomes a chest.
 RENOWN_WATER = 5
 RENOWN_OIL = 8
+# Manna spent on somebody else. Feeding a friend's plant sits where water sits,
+# because it is the same act pointed at the same thing; raw manna sits where a
+# note sits, because it is given without being aimed at anything; and fruit sits
+# at the top beside the potion, because it is the end of the whole chain: miles
+# grew it, calories fed it, and it was gathered before it could be given.
+#
+# Feeding your own plant is worth none of this and never asks. Others first by
+# what it pays, not by what it forbids.
+RENOWN_FEED = 5
+RENOWN_MANNA_GIFT = 3
+RENOWN_FRUIT_GIFT = 8
 
 # The diminishing window. Inside this many days, one pair earns renown for the
 # first cheer and the first note only; everything after still arrives, and is

@@ -24,6 +24,9 @@ from app.activity import converted_miles
 from app.config import (
     FLOURISH_RENOWN,
     RENOWN_CHEER,
+    RENOWN_FEED,
+    RENOWN_FRUIT_GIFT,
+    RENOWN_MANNA_GIFT,
     RENOWN_NOTE,
     RENOWN_OIL,
     RENOWN_WATER,
@@ -263,6 +266,83 @@ def gift_earns_renown(
     )
 
 
+def _first_in_window(db: Session, stmt, moment: dt.datetime, column) -> bool:
+    """Whether one pair has no earning row of this kind inside the window yet.
+
+    The three manna givings ask this of three different tables, so the window
+    itself is written once: the caller brings the rows for its pair and its
+    kind, and this decides whether the newest of them is old enough to have let
+    the next one earn again.
+    """
+    cutoff = moment - dt.timedelta(days=RENOWN_WINDOW_DAYS)
+    return db.execute(stmt.where(column > cutoff).limit(1)).first() is None
+
+
+def feed_earns_renown(
+    db: Session, from_user_id: int, to_user_id: int, moment: dt.datetime
+) -> bool:
+    """Whether feeding this friend's plant pays anything.
+
+    Water's rule pointed at a different verb: one pair earns for the first feed
+    inside the window and nothing after, however many plants are fed. Feeding
+    your own plot never asks, because giving to yourself is not giving.
+    """
+    if from_user_id == to_user_id:
+        return False
+    return _first_in_window(
+        db,
+        select(models.PlantFeeding.id).where(
+            models.PlantFeeding.from_user_id == from_user_id,
+            models.PlantFeeding.to_user_id == to_user_id,
+            models.PlantFeeding.earned_renown.is_(True),
+        ),
+        moment,
+        models.PlantFeeding.created_at,
+    )
+
+
+def manna_gift_earns_renown(
+    db: Session, from_user_id: int, to_user_id: int, moment: dt.datetime
+) -> bool:
+    """Whether handing this friend raw manna pays anything. A note's rule: the
+    first one inside the window, whatever it was worth."""
+    return _first_in_window(
+        db,
+        select(models.MannaGift.id).where(
+            models.MannaGift.from_user_id == from_user_id,
+            models.MannaGift.to_user_id == to_user_id,
+            models.MannaGift.earned_renown.is_(True),
+        ),
+        moment,
+        models.MannaGift.created_at,
+    )
+
+
+def fruit_gift_earns_renown(
+    db: Session, from_user_id: int, to_user_id: int, moment: dt.datetime
+) -> bool:
+    """Whether giving this friend fruit pays anything. The top of the ladder,
+    diminishing like everything else on it."""
+    return _first_in_window(
+        db,
+        select(models.FruitBatch.id).where(
+            models.FruitBatch.user_id == from_user_id,
+            models.FruitBatch.given_to_user_id == to_user_id,
+            models.FruitBatch.earned_renown.is_(True),
+        ),
+        moment,
+        models.FruitBatch.given_at,
+    )
+
+
+def pay_renown(db: Session, user_id: int, amount: int) -> None:
+    """Add to what somebody has earned by giving. Never by receiving: a number
+    that grew from being given to would reward asking rather than caring."""
+    if amount:
+        progress.ensure_progress(db, user_id).renown += amount
+    db.flush()
+
+
 def spend_on(
     db: Session,
     item: models.SatchelItem,
@@ -326,8 +406,8 @@ def renown_since(
 
     Summed from the things that earned it rather than stored, which is what
     lets the recap say the flourish grew without keeping a second copy of the
-    total. Both ways of giving count: words about somebody's workout, and
-    something out of a chest handed over.
+    total. Every way of giving counts: words about somebody's workout, something
+    out of a chest handed over, and manna spent on somebody else's grove.
     """
     said = select(models.Encouragement.kind, func.count()).where(
         models.Encouragement.from_user_id == user_id,
@@ -344,10 +424,36 @@ def renown_since(
         RENOWN_PER_KIND.get(kind, 0) * int(count)
         for kind, count in db.execute(said.group_by(models.Encouragement.kind)).all()
     )
-    return total + sum(
+    total += sum(
         RENOWN_PER_GIFT.get(kind, 0) * int(count)
         for kind, count in db.execute(given.group_by(models.SatchelItem.kind)).all()
     )
+    return total + _manna_renown_since(db, user_id, since)
+
+
+def _manna_renown_since(db: Session, user_id: int, since: dt.datetime | None) -> int:
+    """The three manna givings, counted the same way the two above are.
+
+    One count each rather than one query: they are three tables, and the row
+    that earned in each of them carries its own stamp. A feeding of your own
+    plot never earned, so it is never counted here either.
+    """
+    rows = (
+        (models.PlantFeeding, models.PlantFeeding.from_user_id, models.PlantFeeding.created_at, RENOWN_FEED),
+        (models.MannaGift, models.MannaGift.from_user_id, models.MannaGift.created_at, RENOWN_MANNA_GIFT),
+        (models.FruitBatch, models.FruitBatch.user_id, models.FruitBatch.given_at, RENOWN_FRUIT_GIFT),
+    )
+    total = 0
+    for table, owner, stamp, worth in rows:
+        stmt = (
+            select(func.count())
+            .select_from(table)
+            .where(owner == user_id, table.earned_renown.is_(True))
+        )
+        if since is not None:
+            stmt = stmt.where(stamp > since)
+        total += worth * int(db.execute(stmt).scalar_one())
+    return total
 
 
 # --------------------------------------------------------------------------

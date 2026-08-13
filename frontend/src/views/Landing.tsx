@@ -197,6 +197,27 @@ export default function Landing({ onEnter, invite }: Props) {
         </p>
       </section>
 
+      {/* Written on 2026-08-09 and held until it was true. It ships in the
+          round that built the two sinks it promises: feeding a garden and
+          giving to a friend. The eyebrow uses "=" where the one above uses
+          "earn" because manna really is calories one for one, while a mile
+          earns a different amount of XP depending on the activity; the two read
+          differently on purpose, and the difference is the truth.
+
+          The last two sentences are the two-lane law said plainly, and they
+          close the obvious objection to it in the same breath: water is not a
+          loophole, because water only ever comes out of chests the miles
+          dropped. */}
+      <section className="landing-section">
+        <p className="label landing-eyebrow">Calories = manna</p>
+        <h2>Give your garden energy by burning yours.</h2>
+        <p>
+          Calories become manna, one for one. Feed it to your garden for a richer
+          harvest, or give it to a friend for theirs. It will never make anything grow
+          faster. Growth comes from distance, and from the water that distance earns.
+        </p>
+      </section>
+
       <section className="landing-section">
         <p className="label landing-eyebrow">Private by design</p>
         <h2>Invite-only, and no trackers.</h2>

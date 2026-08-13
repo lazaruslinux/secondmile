@@ -352,8 +352,22 @@ class UserProgress(Base):
     # currency and never a stat, and the giving lane's alone: it buys nothing
     # in the earning lane, ever. Steps put nothing here, because steps carry no
     # calories the app will spend. Nothing spoils and nothing counts down, so
-    # this only ever goes up until there is something to spend it on.
+    # this only ever goes up until it is gathered.
+    #
+    # Gathered manna is not here: it is the manna_batches rows, because gathered
+    # goods carry the day they were gathered and a single number could not say
+    # which part of itself is a week old.
     manna_pending: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Converted Miles banked toward the next bearing, and how many bearings this
+    # grove has had. The meter runs beside the chest one and on the same fuel,
+    # and at the top of it every mature plant bears at once; the count is what a
+    # rebuild pays for again before anything bears a second time, exactly as the
+    # chests already dropped are.
+    #
+    # TWO-LANE LAW: both of these are fed by converted Miles and by nothing
+    # else. No currency may ever move either one, because bearing is earned.
+    fruit_progress_mi: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    fruit_seasons: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     updated_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
 
 
@@ -620,6 +634,174 @@ class Planting(Base):
     # between them. Backfilled to the growth of the day by 0021, so nothing a
     # plant did before that release reads as a crossing.
     growth_at_ack: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # How much extra this plant will bear next time, bought with gathered manna
+    # at FEED_COST each and capped at FEED_MAX_BANKED. Emptied the moment it
+    # bears, so feeding is done for one harvest rather than bought once.
+    #
+    # TWO-LANE LAW: this number reaches the yield and nothing else. Growth, the
+    # level, the chest ladder and the medals never read it, and a release that
+    # taught it to touch one of them would be the design bug that section names.
+    fed_bonus: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class FruitBatch(Base):
+    __tablename__ = "fruit_batches"
+
+    # One plant's harvest from one bearing. Rows rather than a count on the
+    # planting, because a batch carries where it came from: the miles that grew
+    # it and the month it came in, which is what a gift of it is able to say.
+    #
+    # Every state a batch can be in is a stamp on this row, and it only ever
+    # moves forward: borne, gathered, then given away or gone back to the soil.
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # Which plant bore it. Nulled rather than cascaded if that plant ever goes,
+    # for the reason an item's chest is: what a plot produced is not undone by
+    # what became of the thing that produced it.
+    planting_id: Mapped[int | None] = mapped_column(
+        ForeignKey("plantings.id", ondelete="SET NULL"), nullable=True
+    )
+    species: Mapped[str] = mapped_column(_CATALOG_ID, nullable=False)
+    # Whether the plant was fully grown when it bore. The same count either way:
+    # a gilded plant's harvest is finer named and never larger.
+    golden: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    count: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Which bearing this came from, counting from one. Written because one
+    # workout can cross the meter twice and both crossings are stamped with that
+    # workout's own moment: the letter counts how many times a grove came round,
+    # and the stamps alone could not tell it.
+    season: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    # The provenance, written at the bearing rather than worked out later: how
+    # far the season ran, and the month it came in. Stored because a batch can
+    # be given away, and what a gift says about itself must not change when a
+    # constant is retuned.
+    season_mi: Mapped[float] = mapped_column(Float, nullable=False)
+    season_month: Mapped[str] = mapped_column(String(16), nullable=False)
+    borne_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
+    # Null while it is still on the plant, which is safe forever. Set at the
+    # gather, which is also where the seven days start.
+    gathered_at: Mapped[dt.datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    # Set when it quietly went back to the soil. Nothing counts down to it and
+    # nothing on screen mentions it before it happens.
+    composted_at: Mapped[dt.datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    # Set when it was given away, with who it went to. The row stays: giving is
+    # a thing that happened, and the keepsake on the other side is its own row.
+    given_at: Mapped[dt.datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    given_to_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    # Whether giving it paid the giver any renown, stored exactly as a spent
+    # satchel item stores it, so the seven day window is one indexed lookup and
+    # nothing can pay twice.
+    earned_renown: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+
+class FruitKeepsake(Base):
+    __tablename__ = "fruit_keepsakes"
+
+    # Fruit somebody was given, on the receiving side. A record and nothing
+    # else: it has no count that is spent, no verb, and no mechanic anywhere in
+    # the game reads it. It is kept forever, which is the whole of what it is.
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # Who gave it, both ways round. The name is frozen here as well as pointed
+    # at, because a keepsake outlives the account that sent it and a row that
+    # could only say "somebody" would not be a keepsake.
+    from_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    from_username: Mapped[str] = mapped_column(String(32), nullable=False)
+    species: Mapped[str] = mapped_column(_CATALOG_ID, nullable=False)
+    golden: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    count: Mapped[int] = mapped_column(Integer, nullable=False)
+    # The sentence the giver's batch could say about itself, frozen at the
+    # moment of the gift. Written down rather than composed on every read: the
+    # plant it grew on is the giver's, and a keepsake must not change its story
+    # because somebody else's grove moved on.
+    provenance: Mapped[str] = mapped_column(String(200), nullable=False)
+    received_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
+
+
+class MannaBatch(Base):
+    __tablename__ = "manna_batches"
+
+    # One gather's worth of manna, and the only place gathered manna is kept.
+    # Rows rather than a number on the progress row, because gathered goods live
+    # seven days from the day they were gathered and one number could not say
+    # which part of itself is old.
+    #
+    # Spending draws on the oldest batch first, so nothing goes back to the soil
+    # while a newer pile is being spent around it.
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # What was gathered, and what is left of it. The first never changes, which
+    # is what lets a rebuild ask how much has ever left the pending pile.
+    amount: Mapped[int] = mapped_column(Integer, nullable=False)
+    remaining: Mapped[int] = mapped_column(Integer, nullable=False)
+    gathered_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
+    # Set when whatever was left of it went back to the soil. A batch spent to
+    # nothing is spent rather than composted and never carries this.
+    composted_at: Mapped[dt.datetime | None] = mapped_column(UtcDateTime, nullable=True)
+
+
+class MannaGift(Base):
+    __tablename__ = "manna_gifts"
+    __table_args__ = (
+        # The renown window: the newest earning row for one pair.
+        Index("ix_manna_gift_pair", "from_user_id", "to_user_id", "created_at"),
+    )
+
+    # Raw manna handed to a friend. It leaves the giver's gathered pile and
+    # joins the receiver's pending one, where it is safe until they gather it:
+    # a gift must never arrive already ageing.
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    from_user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    to_user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    amount: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
+    # Stored for the reason every other giving stores it: one indexed lookup for
+    # the seven day window, and no way for a replay to pay twice.
+    earned_renown: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+
+class PlantFeeding(Base):
+    __tablename__ = "plant_feedings"
+    __table_args__ = (
+        Index("ix_plant_feeding_pair", "from_user_id", "to_user_id", "created_at"),
+    )
+
+    # Gathered manna spent on a mature plant, your own or a friend's, for more
+    # fruit on its next bearing. The row is the record of the spend; what it
+    # bought sits on the planting as fed_bonus until that plant bears.
+    #
+    # TWO-LANE LAW: bonus is fruit and only fruit. Nothing here is growth.
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    from_user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # Whose plant it was, which is the giver themselves when they fed their own.
+    to_user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    planting_id: Mapped[int | None] = mapped_column(
+        ForeignKey("plantings.id", ondelete="SET NULL"), nullable=True
+    )
+    manna_spent: Mapped[int] = mapped_column(Integer, nullable=False)
+    bonus: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
+    # False on every feeding of your own plot, which is the quiet option and
+    # pays nothing. Stored on the same terms as every other giving.
+    earned_renown: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
 
 class Friendship(Base):

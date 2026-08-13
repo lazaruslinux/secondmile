@@ -194,13 +194,22 @@ export function weekSteps(profile: Profile): number {
   return typeof sent === 'number' && isFinite(sent) && sent > 0 ? Math.trunc(sent) : 0
 }
 
-// The manna waiting to be gathered, or none. Read the way every optional field
-// crossing this seam is: anything that is not a real number above zero is none,
-// so a server that predates manna and an account with none read the same and
-// the line simply is not drawn. Never on anybody else's screen.
-export function mannaBalance(profile: Profile): number {
-  const sent = profile.manna
+// Manna in its two states: what has been gathered and is spendable, and what is
+// still waiting and is safe until somebody gathers it. Read the way every
+// optional field crossing this seam is: anything that is not a real number above
+// zero is none, so a server that predates either reads as none of it. Never on
+// anybody else's screen.
+function wholeNumber(sent: number | undefined): number {
   return typeof sent === 'number' && isFinite(sent) && sent > 0 ? Math.trunc(sent) : 0
+}
+
+// What the manna tile says: the gathered pile, and what is still waiting behind
+// it where there is any. Two numbers in one line because they are two states of
+// one thing, and only the first of them buys anything or is ever at risk.
+export function mannaLine(profile: Profile): string {
+  const gathered = wholeNumber(profile.manna).toLocaleString()
+  const waiting = wholeNumber(profile.manna_pending)
+  return waiting > 0 ? `${gathered} + ${waiting.toLocaleString()} waiting` : gathered
 }
 
 // The weekly medals and the raw miles each one is earned at, which is the

@@ -889,3 +889,150 @@ def test_the_bug_report_table_steps_back_down_again(migrated):
         assert "bug_reports" not in tables
         # The revision before it is still whole.
         assert {"daily_steps", "step_credits"} <= tables
+
+
+@pytest.fixture()
+def at_0025(tmp_path, monkeypatch):
+    """A database at revision 0025, which is the shape the fruit release meets.
+
+    Its own fixture again: the columns land on user_progress and plantings, and
+    the pending manna the whole round is built around only exists from 0025 on.
+    """
+    url = f"sqlite:///{tmp_path}/fruit.db"
+    monkeypatch.setattr(config.settings, "database_url", url)
+    cfg = Config(str(BACKEND / "alembic.ini"))
+    cfg.set_main_option("script_location", str(BACKEND / "migrations"))
+    command.upgrade(cfg, "0025")
+    engine = sa.create_engine(url)
+    try:
+        yield engine, (lambda: command.upgrade(cfg, "head"))
+    finally:
+        engine.dispose()
+
+
+def _progress_with_manna(connection, user_id: int, pending: int, xp: float = 0.0) -> None:
+    """One progress row in the shape 0025 leaves it, which is the row the fruit
+    meter lands on."""
+    connection.execute(
+        sa.text(
+            "INSERT INTO user_progress (user_id, xp, level, chest_progress_mi,"
+            " cycle_pos, renown, manna_pending, updated_at)"
+            " VALUES (:user_id, :xp, 0, 0, 0, 0, :pending, '2026-08-01 00:00:00')"
+        ),
+        {"user_id": user_id, "xp": xp, "pending": pending},
+    )
+
+
+def test_the_fruit_release_lands_on_a_grove_that_has_never_borne(at_0025):
+    """0026: five tables and three columns, every one of them additive.
+
+    Nothing already stored is read or rewritten. A grove that has been growing
+    for a year arrives with an empty meter and no seasons behind it, which is
+    the truth about it: fruit begins with this release, and backdating a harvest
+    would be inventing one. The pending manna 0025 seeded is untouched.
+    """
+    engine, upgrade = at_0025
+    with engine.connect() as connection:
+        _account(connection, 1, "runner")
+        _progress_with_manna(connection, 1, 71940, xp=1240.5)
+        _planting(connection, 1, 1, "banana", "2026-05-01 00:00:00", 320.0)
+        connection.commit()
+
+    upgrade()
+
+    with engine.connect() as connection:
+        assert connection.execute(
+            sa.text(
+                "SELECT xp, manna_pending, fruit_progress_mi, fruit_seasons"
+                " FROM user_progress WHERE user_id = 1"
+            )
+        ).one() == (1240.5, 71940, 0.0, 0)
+        # The plant is where it was, and unfed.
+        assert connection.execute(
+            sa.text("SELECT growth_mi, fed_bonus FROM plantings WHERE id = 1")
+        ).one() == (320.0, 0)
+        tables = set(
+            connection.execute(
+                sa.text("SELECT name FROM sqlite_master WHERE type = 'table'")
+            ).scalars()
+        )
+        assert {
+            "fruit_batches",
+            "fruit_keepsakes",
+            "manna_batches",
+            "manna_gifts",
+            "plant_feedings",
+        } <= tables
+        # Nothing is backfilled anywhere: there is no harvest to invent.
+        for table in ("fruit_batches", "manna_batches", "manna_gifts", "plant_feedings"):
+            assert connection.execute(
+                sa.text(f"SELECT count(*) FROM {table}")  # noqa: S608 - a fixed list
+            ).scalar_one() == 0
+
+
+def test_the_fruit_release_steps_back_down_again(at_0025):
+    """Stepping back takes the whole round away and leaves the release before it
+    exactly as it was, so the same upgrade run again lands on a grove that has
+    simply not borne yet."""
+    engine, upgrade = at_0025
+    with engine.connect() as connection:
+        _account(connection, 1, "runner")
+        _progress_with_manna(connection, 1, 650)
+        _planting(connection, 1, 1, "banana", "2026-05-01 00:00:00", 320.0)
+        connection.commit()
+    upgrade()
+
+    with engine.connect() as connection:
+        # Something in every new table, so the drop has real rows to take.
+        connection.execute(
+            sa.text(
+                "INSERT INTO fruit_batches (user_id, planting_id, species, golden, count,"
+                " season, season_mi, season_month, borne_at)"
+                " VALUES (1, 1, 'banana', 0, 3, 1, 33.0, 'August', '2026-08-12 00:00:00')"
+            )
+        )
+        connection.execute(
+            sa.text(
+                "INSERT INTO manna_batches (user_id, amount, remaining, gathered_at)"
+                " VALUES (1, 450, 450, '2026-08-12 00:00:00')"
+            )
+        )
+        connection.commit()
+
+    cfg = Config(str(BACKEND / "alembic.ini"))
+    cfg.set_main_option("script_location", str(BACKEND / "migrations"))
+    command.downgrade(cfg, "0025")
+
+    with engine.connect() as connection:
+        tables = set(
+            connection.execute(
+                sa.text("SELECT name FROM sqlite_master WHERE type = 'table'")
+            ).scalars()
+        )
+        assert not tables & {
+            "fruit_batches",
+            "fruit_keepsakes",
+            "manna_batches",
+            "manna_gifts",
+            "plant_feedings",
+        }
+        columns = {
+            row[1] for row in connection.execute(sa.text("PRAGMA table_info(user_progress)"))
+        }
+        assert not columns & {"fruit_progress_mi", "fruit_seasons"}
+        assert "fed_bonus" not in {
+            row[1] for row in connection.execute(sa.text("PRAGMA table_info(plantings)"))
+        }
+        # Everything the round was built on is still there.
+        assert connection.execute(
+            sa.text("SELECT manna_pending FROM user_progress WHERE user_id = 1")
+        ).scalar_one() == 650
+        assert connection.execute(
+            sa.text("SELECT growth_mi FROM plantings WHERE id = 1")
+        ).scalar_one() == 320.0
+
+    command.upgrade(cfg, "head")
+    with engine.connect() as connection:
+        assert connection.execute(
+            sa.text("SELECT fruit_seasons, manna_pending FROM user_progress")
+        ).one() == (0, 650)

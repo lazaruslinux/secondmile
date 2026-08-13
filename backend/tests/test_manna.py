@@ -9,8 +9,9 @@ one, rounded up to the next multiple of five, per workout and never over a
 total; and steps carry no calories anybody burned on purpose, so they are worth
 none of it.
 
-Nothing is spent yet, and nothing spoils: pending manna only goes up until the
-round that gives it somewhere to go.
+The pending pile is the half this file is about, and it is safe forever: it only
+ever goes up until somebody gathers it. What happens after that -- the gathered
+pile, what it buys, and the seven days it lives -- is test_fruit.py's.
 """
 
 from conftest import let_a_moment_pass, log_workout, make_user
@@ -73,19 +74,21 @@ def test_a_credited_workout_puts_its_calories_in_the_pending_pile(
     signed_in, db_session, member
 ):
     log_workout(db_session, member.id, "run", 5.0, kcal=650)
-    assert profile(signed_in)["manna"] == 650
+    assert profile(signed_in)["manna_pending"] == 650
     log_workout(db_session, member.id, "run", 5.0, kcal=656, offset_min=200)
     # Each workout converts on its own, so the pile is 650 and 660.
-    assert profile(signed_in)["manna"] == 1310
+    assert profile(signed_in)["manna_pending"] == 1310
+    # And none of it is spendable until it is gathered.
+    assert profile(signed_in)["manna"] == 0
 
 
 def test_a_workout_is_only_ever_worth_its_calories_once(signed_in, db_session, member):
     """The same idempotency the experience has: sweeping again credits nothing,
     because the workout already carries its processed marker."""
     log_workout(db_session, member.id, "run", 5.0, kcal=500)
-    assert profile(signed_in)["manna"] == 500
+    assert profile(signed_in)["manna_pending"] == 500
     progress.process_user(db_session, member.id)
-    assert profile(signed_in)["manna"] == 500
+    assert profile(signed_in)["manna_pending"] == 500
 
 
 def test_the_miles_play_no_part_in_what_a_workout_is_worth(signed_in, db_session, member):
@@ -93,7 +96,7 @@ def test_the_miles_play_no_part_in_what_a_workout_is_worth(signed_in, db_session
     calorie: the same burn is the same manna whatever carried it."""
     log_workout(db_session, member.id, "swim", 1.0, kcal=300)
     log_workout(db_session, member.id, "walk", 1.0, kcal=300, offset_min=200)
-    assert profile(signed_in)["manna"] == 600
+    assert profile(signed_in)["manna_pending"] == 600
 
 
 def test_a_long_workout_with_nothing_recorded_earns_experience_and_no_manna(
@@ -104,7 +107,7 @@ def test_a_long_workout_with_nothing_recorded_earns_experience_and_no_manna(
     log_workout(db_session, member.id, "run", 10.0)
     read = profile(signed_in)
     assert read["xp"] == 10.0
-    assert read["manna"] == 0
+    assert read["manna_pending"] == 0
 
 
 # --------------------------------------------------------------------------
@@ -118,7 +121,7 @@ def test_steps_grant_no_manna(signed_in, ingest_token, db_session, member):
     sync(signed_in, ingest_token, metrics=reading(steps=22000, miles=9.0))
     read = profile(signed_in)
     assert read["week_steps"] == 22000
-    assert read["manna"] == 0
+    assert read["manna_pending"] == 0
     assert pending(db_session, member.id) == 0
 
 
@@ -129,7 +132,7 @@ def test_a_day_of_steps_beside_a_workout_adds_nothing_to_it(
     recorded beside them."""
     log_workout(db_session, member.id, "run", 4.0, kcal=400)
     sync(signed_in, ingest_token, metrics=reading(steps=18000, miles=7.0))
-    assert profile(signed_in)["manna"] == 400
+    assert profile(signed_in)["manna_pending"] == 400
 
 
 # --------------------------------------------------------------------------
@@ -191,6 +194,7 @@ def test_a_friend_reads_no_manna(signed_in, db_session, member):
 
     seen = mate.get(f"/api/profile/{member.id}").json()
     assert "manna" not in seen
+    assert "manna_pending" not in seen
     # The lifetime calories are still there under their own name: calories keep
     # reading as calories wherever they always did.
     assert seen["lifetime"]["run"]["active_kcal"] == 650.0
@@ -204,6 +208,7 @@ def test_a_member_card_carries_no_manna(signed_in, db_session, member):
     seen = someone.get(f"/api/profile/{member.id}").json()
     assert seen["restricted"] is True
     assert "manna" not in seen
+    assert "manna_pending" not in seen
 
 
 def test_a_feed_card_carries_no_manna(signed_in, db_session, member):
@@ -217,6 +222,7 @@ def test_a_feed_card_carries_no_manna(signed_in, db_session, member):
     assert rows
     for row in rows:
         assert "manna" not in row
+        assert "manna_pending" not in row
 
 
 # --------------------------------------------------------------------------
@@ -251,7 +257,7 @@ def test_the_letter_covers_the_same_window_the_miles_do(signed_in, db_session, m
     letter = signed_in.get("/api/recap").json()
     assert letter["manna"] == 200
     # The pile itself is the profile's business and has both in it.
-    assert profile(signed_in)["manna"] == 850
+    assert profile(signed_in)["manna_pending"] == 850
 
 
 def test_a_deleted_workout_is_out_of_the_letter_and_out_of_the_pile(
@@ -261,7 +267,7 @@ def test_a_deleted_workout_is_out_of_the_letter_and_out_of_the_pile(
     assert signed_in.delete(f"/api/workouts/{doomed.id}").status_code == 204
     letter = signed_in.get("/api/recap").json()
     assert letter["manna"] == 0
-    assert profile(signed_in)["manna"] == 0
+    assert profile(signed_in)["manna_pending"] == 0
 
 
 def test_nothing_counts_down(signed_in, db_session, member):
@@ -270,7 +276,7 @@ def test_nothing_counts_down(signed_in, db_session, member):
     and no response carries a countdown of any kind."""
     log_workout(db_session, member.id, "run", 5.0, kcal=650)
     read = profile(signed_in)
-    assert read["manna"] == 650
+    assert read["manna_pending"] == 650
     assert not [key for key in read if "spoil" in key or "expire" in key]
     letter = signed_in.get("/api/recap").json()
     assert not [key for key in letter if "spoil" in key or "expire" in key]
