@@ -19,6 +19,7 @@ from app import activity as activity_rules
 from app import (
     avatars,
     fellowship,
+    gear,
     grove,
     harvest,
     images,
@@ -214,6 +215,12 @@ def serialize_profile(db: Session, user: models.User, row: models.UserProgress) 
         # Oil and water, spent and arrived. Counts only, the same four on the
         # friend payload: a tally of giving, not a record of it.
         "item_tallies": grove.item_tallies(db, user.id),
+        # The shoes and the miles on them. Maintenance rather than game: no
+        # number here is in any total on this payload, and nothing in the game
+        # reads one. The owner's copy carries the three things only they need:
+        # what a pair started at, when they mean to replace it, and which pair
+        # new walks and runs are recorded in.
+        "gear": gear.gear_list(db, user.id, own=True),
         # Which chest is coming and how far off it is, so the banner can say
         # so without asking a second endpoint, and whose oil is on it.
         "next_chest": progress.next_chest(row, gifts),
@@ -530,6 +537,7 @@ def _friend_workouts(db: Session, user: models.User, viewer_id: int) -> list[dic
     routed = routes_for(db, rows)
     pictures = photos_for(db, rows)
     clips = videos_for(db, rows)
+    worn = gear.display_for(db, rows)
     card = fellowship.people(db, [user.id])[user.id]
     encouragement = fellowship.counts(db, [row.id for row in rows], viewer_id)
     return [
@@ -545,6 +553,7 @@ def _friend_workouts(db: Session, user: models.User, viewer_id: int) -> list[dic
             clips.get(row.id, []),
             encouragement[row.id],
             hidden,
+            worn.get(row.id),
         )
         for row in rows
     ]
@@ -608,6 +617,11 @@ def serialize_friend_profile(db: Session, user: models.User, viewer_id: int) -> 
         # named in them, and the oil column only moves once a gift has landed,
         # so this says how much somebody gives without telling anybody who.
         "item_tallies": grove.item_tallies(db, user.id),
+        # Their shoes, size and width included. Deliberate: reading what a
+        # friend wears is the whole reason a friend sees gear at all. What a
+        # pair started at, when they mean to replace it, and which is their
+        # default stay behind; see gear.serialize.
+        "gear": gear.gear_list(db, user.id, own=False),
         # The same two cards the You screen carries, in the same shape, so the
         # sport chips and the tables are drawn from one payload rather than
         # worked out twice. The calories come out of both where they are

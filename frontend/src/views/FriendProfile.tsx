@@ -52,6 +52,7 @@ import {
   plantStateLine,
   POURED,
 } from '../labels.ts'
+import { fitLine, gearName, gearSubline, milesLine } from '../gear.ts'
 import { ownedMedalIds } from '../profile.ts'
 import { pileItems, type Stack } from '../satchel.ts'
 import AvatarFrame from './AvatarFrame.tsx'
@@ -486,6 +487,9 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
   const plantLevels = figure(profile.grove?.plant_levels) ?? 0
   const rows = feedRows(profile.workouts)
   const media = mediaRows(profile.recent_photos)
+  // Read defensively like everything else on this screen: a server that
+  // predates gear says nothing, which draws no card.
+  const shoes = Array.isArray(profile.gear) ? profile.gear : []
   const week = statsOf(profile.week)
   const lifetime = statsOf(profile.lifetime)
   // A stamp that will not parse is left out rather than printed as an invalid
@@ -771,6 +775,40 @@ export default function FriendProfile({ userId, units, onBack, onRemoved }: Prop
         <h2 className="label">Items</h2>
         <ItemTallies tallies={profile.item_tallies} />
       </section>
+
+      {/* What they wear and how far it has gone, read-only. The size and the
+          width are here deliberately: reading them is the whole reason a friend
+          sees somebody's shoes at all. Drawn only when there is a pair, because
+          an empty card on somebody else's screen reads as a feature missing
+          rather than as a shelf they have not filled. */}
+      {shoes.length > 0 && (
+        <section className="card">
+          <h2 className="label">Shoes</h2>
+          <ul className="gear-list">
+            {shoes.map((pair) => {
+              const subline = gearSubline(pair)
+              return (
+                <li
+                  key={pair.id}
+                  className={pair.retired ? 'gear-row gear-retired' : 'gear-row'}
+                >
+                  <div className="gear-what">
+                    <p className="gear-name">
+                      {gearName(pair)}
+                      {pair.retired && <span className="gear-chip gear-chip-quiet">Retired</span>}
+                    </p>
+                    {subline !== '' && <p className="hint">{subline}</p>}
+                    <p className="hint">{fitLine(pair)}</p>
+                  </div>
+                  <div className="gear-figure">
+                    <span className="count-value">{milesLine(pair.miles)}</span>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      )}
 
       <Medals medals={medals} />
 

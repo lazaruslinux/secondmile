@@ -592,6 +592,7 @@ def feed_row(
     video_ids: list[int],
     encouragement: dict,
     hidden: tuple[str, ...] = (),
+    gear: str | None = None,
 ) -> dict:
     """One feed event.
 
@@ -642,6 +643,12 @@ def feed_row(
         # them, so a reader that could not tell them apart would draw neither.
         "videos": video_ids,
         "source": workout.source,
+        # What it was done in, as the line the card prints, or null. Not held
+        # back: a shoe is a fact about a walk rather than a number about a body,
+        # and the size behind it is on the profile card either way. The id is
+        # own rows only, because it is only ever read to fill the owner's own
+        # picker.
+        "gear": gear,
         "own": own,
     }
     if "avg_hr" not in kept_back:
@@ -650,5 +657,8 @@ def feed_row(
         row["active_kcal"] = round(workout.active_kcal, 1)
     if own:
         row["xp"] = round(converted_miles(workout.activity, workout.distance_mi), 2)
+        # The id behind the line above, so the owner's edit panel can open on
+        # the pair that is already on it. Nobody else needs it.
+        row["gear_id"] = workout.gear_id
     row["encouragement"] = encouragement
     return row

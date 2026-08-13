@@ -47,6 +47,10 @@ FRIEND_ROW_KEYS = {
     "photos",
     "videos",
     "source",
+    # What it was done in, or null. Never kept back: shoes are a fact about the
+    # kit rather than a number about a body, and the size behind them is on the
+    # gear card either way.
+    "gear",
     "own",
     "encouragement",
 }
@@ -458,7 +462,7 @@ def test_a_friend_sees_the_whole_workout_by_default(signed_in, db_session, membe
     assert row["encouragement"] == {"cheers": 0, "notes": 0, "cheered_by_me": False}
     # What is on nobody's row but their own, spelled out so a future field
     # cannot quietly join the row.
-    for withheld in ("flags", "pace", "xp"):
+    for withheld in ("flags", "pace", "xp", "gear_id"):
         assert withheld not in row
 
 
@@ -467,7 +471,10 @@ def test_your_own_rows_keep_their_experience(signed_in, db_session, member):
     row = signed_in.get("/api/feed").json()[0]
     assert row["own"] is True
     assert row["xp"] == 2.0
-    assert set(row) == FRIEND_ROW_KEYS | {"xp"}
+    # The gear id rides with the experience: both are the owner's alone, one
+    # because it is what the workout earned and one because it only ever fills
+    # the owner's own picker.
+    assert set(row) == FRIEND_ROW_KEYS | {"xp", "gear_id"}
 
 
 def test_the_feed_mixes_both_accounts_newest_first(signed_in, db_session, member, mate):

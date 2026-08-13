@@ -10,6 +10,7 @@ import {
   type Activity as Sport,
   type DeletedWorkout,
   type FeedItem,
+  type Gear,
   type SortOrder,
   type Units,
   type Week,
@@ -133,6 +134,9 @@ interface Cached {
   weeks: Week[]
   deleted: DeletedWorkout[]
   avatarVersion: number | null
+  // The account's own shoes, for the picker behind a card's pencil. Off the
+  // profile this screen already loads rather than a call of its own.
+  gear: Gear[]
   // Kept with the rows they produced, so coming back to the tab draws the list
   // the controls above it claim to be showing.
   sort: WorkoutSort
@@ -179,6 +183,7 @@ export default function ActivityView({ userId, units, onOpenPerson }: Props) {
   const [avatarVersion, setAvatarVersion] = useState<number | null>(
     () => cache.get(userId)?.avatarVersion ?? null,
   )
+  const [gear, setGear] = useState<Gear[]>(() => cache.get(userId)?.gear ?? [])
   const [loading, setLoading] = useState(() => !cache.has(userId))
   const [loadError, setLoadError] = useState('')
   // Whether the history has been walked to its end under the controls as they
@@ -235,6 +240,7 @@ export default function ActivityView({ userId, units, onOpenPerson }: Props) {
       setWeeks(totals)
       setDeleted(gone)
       setAvatarVersion(me.avatar_version)
+      setGear(me.gear ?? [])
       setLoadError('')
     } catch (err) {
       if (mine !== wanted.current) return
@@ -299,13 +305,24 @@ export default function ActivityView({ userId, units, onOpenPerson }: Props) {
   // nothing, so a first visit that went wrong still says Loading on the next.
   useEffect(() => {
     if (!loading && loadError === '')
-      cache.set(userId, { workouts, weeks, deleted, avatarVersion, sort, order, sport, done })
+      cache.set(userId, {
+        workouts,
+        weeks,
+        deleted,
+        avatarVersion,
+        gear,
+        sort,
+        order,
+        sport,
+        done,
+      })
   }, [
     userId,
     workouts,
     weeks,
     deleted,
     avatarVersion,
+    gear,
     sort,
     order,
     sport,
@@ -435,6 +452,7 @@ export default function ActivityView({ userId, units, onOpenPerson }: Props) {
         item={workout}
         units={units}
         avatarVersion={avatarVersion}
+        gear={gear}
         onChanged={cardChanged}
         onDeleted={cardDeleted}
         note={flagNotes(workout.flags)}

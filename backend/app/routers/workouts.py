@@ -24,6 +24,7 @@ from starlette.formparsers import MultiPartException
 from app import activity as activity_rules
 from app import (
     fellowship,
+    gear,
     history,
     images,
     medals,
@@ -92,6 +93,7 @@ def _serialize(
     has_route: bool = False,
     photo_ids: list[int] | None = None,
     video_ids: list[int] | None = None,
+    worn: str | None = None,
 ) -> dict:
     """One row of your own history, in the shape the feed sends a workout in.
 
@@ -118,6 +120,7 @@ def _serialize(
             photo_ids or [],
             video_ids or [],
             encouragement,
+            gear=worn,
         ),
         "flags": workout.flags or {},
     }
@@ -289,6 +292,7 @@ def list_workouts(
     routed = routes_for(db, rows)
     pictures = photos_for(db, rows)
     clips = videos_for(db, rows)
+    worn = gear.display_for(db, rows)
     # One card for the whole page: every row here is this account's own.
     person = fellowship.people(db, {user.id})[user.id]
     given = fellowship.counts(db, [row.id for row in rows], user.id)
@@ -301,6 +305,7 @@ def list_workouts(
             row.id in routed,
             pictures.get(row.id),
             clips.get(row.id),
+            worn.get(row.id),
         )
         for row in rows
     ]
@@ -576,6 +581,7 @@ def restore_workout(
         workout.id in routes_for(db, [workout]),
         photos_for(db, [workout]).get(workout.id),
         videos_for(db, [workout]).get(workout.id),
+        gear.display_for(db, [workout]).get(workout.id),
     )
 
 
@@ -603,10 +609,41 @@ class WorkoutWords(BaseModel):
     There is no distance, duration, or start time here, and there never will be.
     What happened is not editable; the words around it are the only part a
     person authored.
+
+    The shoes are the exception that proves it: they are a fact about the kit
+    rather than about the miles, they are changeable on any walk or run however
+    old, and nothing anywhere earns from them.
     """
 
     title: str | None = None
     post: str | None = None
+    gear_id: int | None = None
+
+
+def _chosen_gear(
+    db: Session, workout: models.Workout, user_id: int, gear_id: int | None
+) -> int | None:
+    """Which pair a workout is being put in, checked. Null takes them off.
+
+    Three rules, and this function is the only place they are written: shoes go
+    on walks and runs alone, the pair has to be this account's own, and a
+    retired pair takes nothing new. A pair that is not this account's is the
+    same 404 a pair that does not exist gets.
+    """
+    if gear_id is None:
+        return None
+    if workout.activity not in gear.GEAR_ACTIVITIES:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "Shoes go on walks and runs."
+        )
+    chosen = db.get(models.Gear, gear_id)
+    if chosen is None or chosen.user_id != user_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such gear.")
+    if chosen.retired_at is not None:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "Those are retired. Un-retire them first."
+        )
+    return chosen.id
 
 
 @router.patch("/{workout_id}")
@@ -627,6 +664,8 @@ def update_workout(
         workout.title = _clean_words(body.title, WORKOUT_TITLE_MAX_CHARS, "A title")
     if "post" in body.model_fields_set:
         workout.post = _clean_words(body.post, WORKOUT_POST_MAX_CHARS, "A post")
+    if "gear_id" in body.model_fields_set:
+        workout.gear_id = _chosen_gear(db, workout, user.id, body.gear_id)
     db.commit()
     # The whole row comes back, in the same shape the history sends it, so the
     # card that sent the edit redraws from this without asking again.
@@ -638,6 +677,7 @@ def update_workout(
         workout.id in routes_for(db, [workout]),
         photos_for(db, [workout]).get(workout.id),
         videos_for(db, [workout]).get(workout.id),
+        gear.display_for(db, [workout]).get(workout.id),
     )
 
 

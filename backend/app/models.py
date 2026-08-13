@@ -202,6 +202,54 @@ class IngestToken(Base):
     rotated_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
 
 
+class Gear(Base):
+    __tablename__ = "gear"
+
+    # A pair of shoes somebody records so they can watch the miles add up on
+    # them. Pure utility: nothing in the game earns from gear, reads gear, or is
+    # changed by it, and no release may teach it to (TWO-LANE LAW applies twice
+    # over here, because gear is in neither lane).
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # Only "shoes" is written today. The column exists so bikes can join without
+    # a migration that reshapes what is already stored.
+    kind: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="shoes", server_default="shoes"
+    )
+    # "mens" or "womens", which is what decides the size and width lists in
+    # app.gear. Not a statement about who is wearing them: it is how shoes are
+    # sold.
+    style: Mapped[str] = mapped_column(String(6), nullable=False)
+    brand: Mapped[str] = mapped_column(String(60), nullable=False)
+    model: Mapped[str] = mapped_column(String(80), nullable=False)
+    # What they are called on screen when somebody has given them a name. Null
+    # for a pair that goes by its brand and model.
+    nickname: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    # US sizing in half steps, so a float rather than an integer.
+    size: Mapped[float] = mapped_column(Float, nullable=False)
+    width: Mapped[str] = mapped_column(String(2), nullable=False)
+    # Miles walked in them before this app ever saw them, added to what the
+    # assigned workouts come to. Never negative.
+    starting_mi: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.0, server_default="0"
+    )
+    # The mileage the owner means to replace them around, or null. It draws one
+    # quiet line and nothing else: nothing warns, nudges or notifies.
+    replace_around_mi: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # At most one per account, enforced in the router rather than by a partial
+    # index: setting one clears the rest in the same statement.
+    is_default: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    # Set when a pair is put away. It keeps its miles and its history and stays
+    # on the workouts it is already on; it leaves the pickers, so nothing new is
+    # assigned to it.
+    retired_at: Mapped[dt.datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    created_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
+
+
 class Workout(Base):
     __tablename__ = "workouts"
     # The idempotency key. Health Auto Export sends overlapping windows freely,
@@ -226,6 +274,14 @@ class Workout(Base):
     # rather than complete; see migration 0027.
     indoor: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    # Which shoes this was done in, or null. Maintenance and nothing else: no
+    # medal, no conversion and no total reads it, and only a walk or a run may
+    # carry one. Nulled rather than cascaded when a pair is deleted, so deleting
+    # gear never deletes a workout. Indexed because the mileage on a pair is
+    # summed from this column on every profile read.
+    gear_id: Mapped[int | None] = mapped_column(
+        ForeignKey("gear.id", ondelete="SET NULL"), nullable=True, index=True
     )
     source: Mapped[str] = mapped_column(SourceEnum, nullable=False)
     # Soft flags only, never a reason to reject. JSON rather than JSONB so the

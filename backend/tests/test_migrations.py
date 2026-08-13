@@ -1175,3 +1175,121 @@ def test_the_fruit_release_steps_back_down_again(at_0025):
         assert connection.execute(
             sa.text("SELECT fruit_seasons, manna_pending FROM user_progress")
         ).one() == (0, 650)
+
+
+@pytest.fixture()
+def at_0027(tmp_path, monkeypatch):
+    """A database at revision 0027, which is the shape the gear release meets.
+
+    Its own fixture because the column lands on workouts and the table it points
+    at is new, so nothing before this revision has anywhere to put either.
+    """
+    url = f"sqlite:///{tmp_path}/gear.db"
+    monkeypatch.setattr(config.settings, "database_url", url)
+    cfg = Config(str(BACKEND / "alembic.ini"))
+    cfg.set_main_option("script_location", str(BACKEND / "migrations"))
+    command.upgrade(cfg, "0027")
+    engine = sa.create_engine(url)
+    try:
+        yield engine, (lambda: command.upgrade(cfg, "head"))
+    finally:
+        engine.dispose()
+
+
+def test_the_gear_release_lands_on_a_history_wearing_nothing(at_0027):
+    """0028: one table and one column, both additive and neither backfilled.
+
+    A workout recorded before there was anywhere to say what it was done in
+    arrives wearing nothing, which is the truth about it. Assigning shoes to old
+    activities is somebody's own act afterwards, and a migration that guessed at
+    it would be inventing a record.
+    """
+    engine, upgrade = at_0027
+    with engine.connect() as connection:
+        _account(connection, 1, "runner")
+        _run(connection, 1, 1, "2026-07-20 13:12:00")
+        connection.commit()
+
+    upgrade()
+
+    with engine.connect() as connection:
+        tables = set(
+            connection.execute(
+                sa.text("SELECT name FROM sqlite_master WHERE type = 'table'")
+            ).scalars()
+        )
+        assert "gear" in tables
+        assert connection.execute(sa.text("SELECT COUNT(*) FROM gear")).scalar_one() == 0
+        # The workout is exactly what it was, wearing nothing.
+        assert connection.execute(
+            sa.text("SELECT distance_mi, gear_id FROM workouts")
+        ).one() == (9.0, None)
+
+        # The stamped columns are checked by writing a pair rather than by
+        # PRAGMA: what the release needs is for a pair with no nickname, no
+        # replacement mileage and no retirement to be storable.
+        connection.execute(
+            sa.text(
+                "INSERT INTO gear (user_id, kind, style, brand, model, nickname, size,"
+                " width, starting_mi, replace_around_mi, is_default, retired_at,"
+                " created_at)"
+                " VALUES (1, 'shoes', 'mens', 'Testbrand', 'Trail 3', NULL, 10.0, 'D',"
+                " 0, NULL, 0, NULL, '2026-08-13 09:00:00')"
+            )
+        )
+        connection.execute(sa.text("UPDATE workouts SET gear_id = 1"))
+        connection.commit()
+        assert connection.execute(
+            sa.text("SELECT brand, width, starting_mi, is_default FROM gear")
+        ).one() == ("Testbrand", "D", 0.0, 0)
+
+
+def test_the_gear_release_steps_back_down_again(at_0027):
+    """Stepping back takes the table and the column away and leaves every
+    workout untouched, so the same upgrade run again lands on a history wearing
+    nothing, which is where it started."""
+    engine, upgrade = at_0027
+    with engine.connect() as connection:
+        _account(connection, 1, "runner")
+        _run(connection, 1, 1, "2026-07-20 13:12:00")
+        connection.commit()
+    upgrade()
+
+    with engine.connect() as connection:
+        connection.execute(
+            sa.text(
+                "INSERT INTO gear (user_id, kind, style, brand, model, size, width,"
+                " starting_mi, is_default, created_at)"
+                " VALUES (1, 'shoes', 'mens', 'Testbrand', 'Trail 3', 10.0, 'D', 25.0,"
+                " 1, '2026-08-13 09:00:00')"
+            )
+        )
+        connection.execute(sa.text("UPDATE workouts SET gear_id = 1"))
+        connection.commit()
+
+    cfg = Config(str(BACKEND / "alembic.ini"))
+    cfg.set_main_option("script_location", str(BACKEND / "migrations"))
+    command.downgrade(cfg, "0027")
+
+    with engine.connect() as connection:
+        tables = set(
+            connection.execute(
+                sa.text("SELECT name FROM sqlite_master WHERE type = 'table'")
+            ).scalars()
+        )
+        assert "gear" not in tables
+        assert "gear_id" not in {
+            row[1] for row in connection.execute(sa.text("PRAGMA table_info(workouts)"))
+        }
+        # The miles the shoe was counting are the workout's own and are still
+        # exactly where they were.
+        assert connection.execute(
+            sa.text("SELECT distance_mi FROM workouts")
+        ).scalar_one() == 9.0
+
+    command.upgrade(cfg, "head")
+    with engine.connect() as connection:
+        assert connection.execute(sa.text("SELECT COUNT(*) FROM gear")).scalar_one() == 0
+        assert connection.execute(
+            sa.text("SELECT gear_id FROM workouts")
+        ).scalar_one() is None

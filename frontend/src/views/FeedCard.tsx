@@ -22,7 +22,9 @@ import {
   workoutPhotoUrl,
   workoutVideoPosterUrl,
   workoutVideoUrl,
+  type Activity,
   type FeedItem,
+  type Gear,
   type Units,
   type WorkoutNote,
 } from '../api.ts'
@@ -34,6 +36,7 @@ import {
   formatStart,
   unitName,
 } from '../format.ts'
+import { gearName, wearable } from '../gear.ts'
 import {
   activityIcon,
   ACTIVITY_NAMES,
@@ -543,6 +546,11 @@ export interface EditableWorkout {
   post?: string | null
   photos?: number[]
   videos?: number[]
+  // What it was, and what it was done in. Both are read by the shoe picker and
+  // by nothing else here: shoes go on walks and runs alone.
+  activity?: Activity
+  gear?: string | null
+  gear_id?: number | null
 }
 
 // How long a deleted workout waits under Activity before it is gone for good.
@@ -618,6 +626,9 @@ interface EditProps<T extends EditableWorkout> {
   // feed keeps it; the letter drops it, because a letter that lists several
   // workouts would repeat the same paragraph down the page.
   explain?: boolean
+  // This account's shoes, where the screen holding the card has them. Without
+  // them there is no picker, which is what the letter opens with.
+  gear?: Gear[]
 }
 
 // The owner's panel, on the card itself rather than over the page: what is being
@@ -630,9 +641,11 @@ export function EditPanel<T extends EditableWorkout>({
   onClose,
   onDeleted,
   explain = true,
+  gear = [],
 }: EditProps<T>) {
   const [title, setTitle] = useState(item.title ?? '')
   const [post, setPost] = useState(item.post ?? '')
+  const [gearId, setGearId] = useState(item.gear_id ?? null)
   const [saving, setSaving] = useState(false)
   // Which media call is in flight, so the note can say what is happening. A
   // video is its own value because it is the one that takes a moment.
@@ -644,6 +657,16 @@ export function EditPanel<T extends EditableWorkout>({
 
   const photos = item.photos ?? []
   const videos = item.videos ?? []
+  // Shoes go on walks and runs alone. The pair already on this one is offered
+  // whatever its state, so a retired pair does not quietly read as None; every
+  // other retired pair is out, because retired takes nothing new.
+  const picker =
+    item.activity === 'walk' || item.activity === 'run'
+      ? [
+          ...wearable(gear),
+          ...gear.filter((pair) => pair.retired && pair.id === item.gear_id),
+        ]
+      : []
   const busy = saving || mediaBusy !== '' || deleting
   // One count over both, because they fill the same slots.
   const full = photos.length + videos.length >= MEDIA_LIMIT
@@ -656,10 +679,19 @@ export function EditPanel<T extends EditableWorkout>({
       const saved = await updateWorkout(item.workout_id, {
         title: orNull(title),
         post: orNull(post),
+        // Only where the picker is drawn. Sending it from a panel that has no
+        // picker would take the shoes off a workout nobody asked about.
+        ...(picker.length > 0 ? { gear_id: gearId } : {}),
       })
       // Redrawn from what came back rather than from what was typed, so the
       // trimming the server did is what ends up on the card.
-      onChanged({ ...item, title: saved.title ?? null, post: saved.post ?? null })
+      onChanged({
+        ...item,
+        title: saved.title ?? null,
+        post: saved.post ?? null,
+        gear: saved.gear ?? null,
+        gear_id: saved.gear_id ?? null,
+      })
       onClose()
     } catch (err) {
       setFailed(errorText(err))
@@ -779,6 +811,26 @@ export function EditPanel<T extends EditableWorkout>({
           onChange={(event) => setPost(event.target.value)}
         />
       </label>
+
+      {picker.length > 0 && (
+        <label className="label">
+          Shoes
+          <select
+            value={gearId === null ? '' : String(gearId)}
+            disabled={busy}
+            onChange={(event) =>
+              setGearId(event.target.value === '' ? null : Number(event.target.value))
+            }
+          >
+            <option value="">None</option>
+            {picker.map((pair) => (
+              <option key={pair.id} value={String(pair.id)}>
+                {gearName(pair)}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
 
       <div className="feed-edit-photos">
         <p className="label">Photos and video</p>
@@ -932,6 +984,9 @@ interface Props {
   // only. The Activity tab is the one screen that reads flags, so this arrives
   // from there rather than off the row.
   note?: string
+  // This account's shoes, for the picker in the panel behind the pencil. Only
+  // your own cards ever open one.
+  gear?: Gear[]
   // Opens somebody's profile. On a friend's card that is whoever it belongs
   // to, from their picture and from their name; on your own it is whoever
   // wrote to you, from the notes under it. Your own header is never a way to
@@ -951,6 +1006,7 @@ export default function FeedCard({
   onChanged,
   onDeleted,
   note,
+  gear,
   onOpenPerson,
 }: Props) {
   const [editing, setEditing] = useState(false)
@@ -1019,6 +1075,7 @@ export default function FeedCard({
         {editing ? (
           <EditPanel
             item={item}
+            gear={gear}
             onChanged={onChanged}
             onDeleted={onDeleted}
             onClose={() => setEditing(false)}
@@ -1035,6 +1092,10 @@ export default function FeedCard({
         {!editing && post !== '' && <p className="feed-post">{post}</p>}
 
         <StatRow item={item} units={units} />
+
+        {/* What it was done in, under the numbers rather than beside them: it
+            is maintenance, not a figure, and it is only ever a line. */}
+        {item.gear && <p className="gear-line">{item.gear}</p>}
 
         {/* Under the numbers it is about, and worded as the sentence it is: a
             flagged workout still counts, and the card says so rather than
@@ -1128,6 +1189,8 @@ export default function FeedCard({
       {post !== '' && <p className="feed-post">{post}</p>}
 
       <StatRow item={item} units={units} />
+
+      {item.gear && <p className="gear-line">{item.gear}</p>}
 
       {item.has_route && <RouteLine workoutId={item.workout_id} />}
 

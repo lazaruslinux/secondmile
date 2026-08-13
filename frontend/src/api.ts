@@ -149,9 +149,16 @@ export interface FeedItem {
   // is drawn and nothing is asked for.
   has_route: boolean
   source: Source
+  // What it was done in, as the line the card prints, or null. Never hidden: a
+  // shoe is a fact about the kit rather than a number about a body. Absent from
+  // a server that predates gear, which reads the same as none.
+  gear?: string | null
   own: boolean
   // Own rows only. What the workout was worth, in converted miles.
   xp?: number
+  // Own rows only as well: the id behind the line above, read by the edit
+  // panel's picker and by nothing else.
+  gear_id?: number | null
   // What the person wrote on it and the pictures and video they put with it.
   // Friends' rows carry them too: a post is something deliberately shared. All
   // of them are optional, the same way they are on a workout.
@@ -268,6 +275,49 @@ export interface ItemTallies {
   water?: ItemTally
 }
 
+// How shoes are sold, which is what decides the size and width lists. Not a
+// statement about who is wearing them.
+export type GearStyle = 'mens' | 'womens'
+
+// One pair of shoes, with the miles on them. Maintenance and never game:
+// nothing here is earned, nothing here earns, and no total anywhere counts it.
+//
+// The first block is what a friend reads too, size and width included, which is
+// deliberate. The three optional fields below are the owner's own and arrive on
+// their own profile only.
+export interface Gear {
+  id: number
+  style: GearStyle
+  brand: string
+  model: string
+  nickname: string | null
+  size: number
+  width: string
+  // Raw miles: what the pair came with plus the distance of every activity
+  // still assigned to it, worked out by the server on every read.
+  miles: number
+  retired: boolean
+  starting_mi?: number
+  // The mileage they mean to replace them around, or null for a pair nobody
+  // set one on. It draws one quiet line and never a warning.
+  replace_around_mi?: number | null
+  is_default?: boolean
+}
+
+// What the form sends. Every field is optional so one panel saves a whole pair
+// and a single change alike; the server takes the style's standard width when
+// none is sent.
+export interface GearEdit {
+  style?: GearStyle
+  brand?: string
+  model?: string
+  nickname?: string | null
+  size?: number
+  width?: string
+  starting_mi?: number
+  replace_around_mi?: number | null
+}
+
 export interface Profile {
   user_id: number
   username: string
@@ -342,6 +392,9 @@ export interface Profile {
   grove?: { seeds_found: number; plant_levels: number }
   // Oil and water, spent and arrived. Optional like the grove above it.
   item_tallies?: ItemTallies
+  // The shoes and the miles on them, the owner's own copy. Optional, so a
+  // server that predates gear draws no card at all.
+  gear?: Gear[]
   // The next chest and how far off it is, if the server says. Both shapes a
   // server might reasonably use are allowed for, and the bar is left out
   // entirely when neither is there.
@@ -425,6 +478,10 @@ export interface FriendProfile {
   // The same four counts the You screen carries. Nobody is named in them, so
   // they cross the fence whole.
   item_tallies?: ItemTallies
+  // Their shoes, size and width included, and none of what only they need to
+  // know: what a pair started at, when they mean to replace it, and which one
+  // their new activities are recorded in.
+  gear?: Gear[]
   // The same two sets of totals the You screen carries, in the same shape, so
   // the sport chips and the two cards are drawn by the same components. A
   // calorie figure is missing from these where they have hidden it.
@@ -974,6 +1031,10 @@ export function listWeeks(): Promise<Week[]> {
 export interface WorkoutEdit {
   title?: string | null
   post?: string | null
+  // Which pair it was done in, or null for none. The exception that proves the
+  // rule above: shoes are a fact about the kit rather than about the miles, so
+  // they are changeable on any walk or run however old.
+  gear_id?: number | null
 }
 
 export async function updateWorkout(workoutId: number, edit: WorkoutEdit): Promise<Workout> {
@@ -1102,6 +1163,46 @@ export async function setHiddenFromFriends(hidden: HiddenField[]): Promise<Hidde
   const res = await sendJson('/settings', 'PATCH', { hidden_from_friends: hidden })
   const body = (await res.json()) as { hidden_from_friends?: HiddenField[] }
   return body.hidden_from_friends ?? []
+}
+
+// Gear. Own only, all of it: a friend's shoes arrive on their profile, and
+// nothing in this block takes an account id. Every write answers with the whole
+// list, so the card that sent one redraws from the server's word.
+
+export async function addGear(pair: GearEdit): Promise<Gear[]> {
+  const res = await sendJson('/gear', 'POST', pair)
+  return (await res.json()) as Gear[]
+}
+
+export async function updateGear(gearId: number, pair: GearEdit): Promise<Gear[]> {
+  const res = await sendJson(`/gear/${gearId}`, 'PATCH', pair)
+  return (await res.json()) as Gear[]
+}
+
+// The one pair new walks and runs are recorded in. At most one per account: the
+// server clears the rest in the same act.
+export async function setDefaultGear(gearId: number): Promise<Gear[]> {
+  const res = await send(`/gear/${gearId}/default`, { method: 'POST' })
+  return (await res.json()) as Gear[]
+}
+
+// Retiring keeps the miles and the history and leaves the pickers, so nothing
+// new is recorded in the pair. It is not a deletion and it is undone by the
+// call under it.
+export async function retireGear(gearId: number): Promise<Gear[]> {
+  const res = await send(`/gear/${gearId}/retire`, { method: 'POST' })
+  return (await res.json()) as Gear[]
+}
+
+export async function unretireGear(gearId: number): Promise<Gear[]> {
+  const res = await send(`/gear/${gearId}/unretire`, { method: 'POST' })
+  return (await res.json()) as Gear[]
+}
+
+// Only a pair nothing was ever recorded in. Anything on an activity answers 400
+// with a sentence saying to retire it instead.
+export async function deleteGear(gearId: number): Promise<void> {
+  await send(`/gear/${gearId}`, { method: 'DELETE' })
 }
 
 // A bug report: the words, and the name of the screen they were written on.

@@ -775,6 +775,9 @@ FRIEND_PROFILE_KEYS = {
     "lifetime",
     "recent_photos",
     "workouts",
+    # The shoes, size and width included: reading what a friend wears is the
+    # whole reason a friend sees gear at all.
+    "gear",
 }
 
 # Nothing on this list may appear at any depth of the response. The first group
@@ -1258,6 +1261,8 @@ MEMBER_CARD_ABSENT = {
     "birthdate",
     "age",
     "gender",
+    # A member you have not met learns nothing about anybody's kit either.
+    "gear",
 }
 
 

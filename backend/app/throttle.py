@@ -210,6 +210,10 @@ member_search_limiter = RateLimiter(20, "member-search")
 # plenty, and this window is a minute: five is a person making links for a
 # family in one sitting and nothing is looping.
 invite_link_limiter = RateLimiter(5, "invite-link")
+# Recording a pair of shoes and everything done to one afterwards, out of one
+# budget: they are a handful of verbs on a list of two or three rows, and
+# nobody is adding shoes faster than this.
+gear_limiter = RateLimiter(20, "gear")
 # Reporting a bug. As tight as anything a signed-in account can do, because a
 # report is written by hand and three in one minute is already somebody sending
 # the same one three times. The window here is a minute rather than the hour

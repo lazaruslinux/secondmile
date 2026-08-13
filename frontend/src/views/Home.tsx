@@ -633,6 +633,10 @@ export default function Home({
             item={item}
             units={units}
             avatarVersion={profile.avatar_version}
+            // The account's own shoes, for the picker behind the pencil. Off
+            // the profile this screen already loads rather than a call of its
+            // own.
+            gear={profile.gear}
             onChanged={cardChanged}
             onDeleted={cardDeleted}
             onOpenPerson={onOpenPerson}
