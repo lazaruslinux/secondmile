@@ -3538,6 +3538,14 @@ button:disabled {
   align-self: stretch;
 }
 
+/* On the light ground a plant in the plot stands on the tile the way the same
+   drawing stands on the You band, rather than in a dark square cut into a light
+   card. Only the plot: a chest reveal, a satchel square and a photograph keep
+   the well they are drawn for. Dark is untouched. */
+:root[data-theme='light'] .plant-frame .rarity-square {
+  background: transparent;
+}
+
 .plant-picture {
   height: 5.5rem;
 }

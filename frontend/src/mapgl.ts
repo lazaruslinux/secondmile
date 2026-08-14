@@ -10,9 +10,10 @@ import { addProtocol, MapLibreMap, setWorkerUrl, type GeoJSONSource, type StyleS
 // built worker's URL here, so it is emitted and served from our own origin.
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import { PMTiles, Protocol } from 'pmtiles'
-import { layers, namedFlavor } from '@protomaps/basemaps'
+import { type Flavor, layers, namedFlavor } from '@protomaps/basemaps'
 import type { RoutePoint } from './api.ts'
 import { TILES } from './basemap.ts'
+import type { Theme } from './theme.ts'
 import 'maplibre-gl/dist/maplibre-gl.css'
 
 setWorkerUrl(workerUrl)
@@ -28,9 +29,10 @@ protocol.add(archive)
 // Glyphs and sprites are files in the build, like the app's own fonts: the map
 // reaches outside this origin for nothing at all. Written out in full because
 // maplibre refuses a relative sprite URL, and our own origin is the only one
-// these can ever name.
+// these can ever name. One sprite sheet per ground, the same keys in both; the
+// glyphs are the lettering and are shared.
 const GLYPHS = `${location.origin}/basemap/fonts/{fontstack}/{range}.pbf`
-const SPRITE = `${location.origin}/basemap/sprites/dark`
+const SPRITES = `${location.origin}/basemap/sprites`
 
 // The tiles are OpenStreetMap under ODbL, which asks for the credit. It is the
 // only fine print in the app, and it stays folded into the compact control
@@ -38,7 +40,12 @@ const SPRITE = `${location.origin}/basemap/sprites/dark`
 const CREDIT =
   '<a href="https://github.com/protomaps/basemaps" target="_blank" rel="noreferrer">Protomaps</a> © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>'
 
-const DARK = namedFlavor('dark')
+// The map is drawn on the ground the app is: a caller says which, because
+// neither of the two builds a map without knowing already.
+const GROUNDS: Record<Theme, Flavor> = {
+  dark: namedFlavor('dark'),
+  light: namedFlavor('light'),
+}
 
 // maplibre wants a colour as a string, so the app's own token is read off the
 // root rather than written down a second time here.
@@ -46,11 +53,11 @@ function accent(): string {
   return getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()
 }
 
-export function basemapStyle(): StyleSpecification {
+export function basemapStyle(theme: Theme): StyleSpecification {
   return {
     version: 8,
     glyphs: GLYPHS,
-    sprite: SPRITE,
+    sprite: `${SPRITES}/${theme}`,
     sources: {
       protomaps: {
         type: 'vector',
@@ -60,19 +67,23 @@ export function basemapStyle(): StyleSpecification {
     },
     // Cast because the flavor's layers are typed against its own copy of the
     // style spec, which is the same shape under a different name.
-    layers: layers('protomaps', DARK, { lang: 'en' }),
+    layers: layers('protomaps', GROUNDS[theme], { lang: 'en' }),
   } as StyleSpecification
 }
 
-// No archive installed: the same dark ground the basemap would have painted,
-// and the route on top of it. The shape still reads, which is the part that
-// was always ours.
-export function bareStyle(): StyleSpecification {
+// No archive installed: the same ground the basemap would have painted, and the
+// route on top of it. The shape still reads, which is the part that was always
+// ours.
+export function bareStyle(theme: Theme): StyleSpecification {
   return {
     version: 8,
     sources: {},
     layers: [
-      { id: 'ground', type: 'background', paint: { 'background-color': DARK.background } },
+      {
+        id: 'ground',
+        type: 'background',
+        paint: { 'background-color': GROUNDS[theme].background },
+      },
     ],
   }
 }

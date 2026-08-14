@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import type { RoutePoint } from '../api.ts'
 import { basemapInstalled } from '../basemap.ts'
 import { cachedRoute, loadRoute, routePath } from '../route.ts'
+import { type Theme, useTheme } from '../theme.ts'
 
 // The renderer is a large thing to carry for a picture that draws itself, so it
 // arrives on the tap and not before.
@@ -27,9 +28,14 @@ export default function RouteLine({ workoutId, compact = false }: Props) {
   const [points, setPoints] = useState<RoutePoint[] | null>(
     () => cachedRoute(workoutId) ?? null,
   )
-  const [shot, setShot] = useState<string | null>(null)
+  // A picture is taken on one ground. It is kept with the ground it was drawn
+  // on, so a theme flip falls back to the line the card draws itself and asks
+  // for another rather than leaving a dark map on a light card.
+  const [shot, setShot] = useState<{ src: string; ground: Theme } | null>(null)
   const [open, setOpen] = useState(false)
   const box = useRef<HTMLButtonElement>(null)
+  const theme = useTheme()
+  const picture = shot?.ground === theme ? shot.src : null
 
   useEffect(() => {
     let live = true
@@ -48,7 +54,7 @@ export default function RouteLine({ workoutId, compact = false }: Props) {
   // the renderer at all.
   useEffect(() => {
     const button = box.current
-    if (compact || !points || shot || !button) return
+    if (compact || !points || picture || !button) return
     let live = true
     let watcher: IntersectionObserver | undefined
 
@@ -58,9 +64,9 @@ export default function RouteLine({ workoutId, compact = false }: Props) {
         if (!entries.some((entry) => entry.isIntersecting)) return
         watcher?.disconnect()
         void import('../snapshot.ts')
-          .then((maps) => maps.routeShot(workoutId, points))
-          .then((picture) => {
-            if (live && picture) setShot(picture)
+          .then((maps) => maps.routeShot(workoutId, points, theme))
+          .then((taken) => {
+            if (live && taken) setShot({ src: taken, ground: theme })
           })
           .catch(() => {
             // The line is already on the card; a picture that never came is
@@ -74,7 +80,7 @@ export default function RouteLine({ workoutId, compact = false }: Props) {
       live = false
       watcher?.disconnect()
     }
-  }, [compact, points, shot, workoutId])
+  }, [compact, points, picture, theme, workoutId])
 
   if (!points) return null
   const [width, height] = compact ? COMPACT_BOX : FEED_BOX
@@ -95,8 +101,8 @@ export default function RouteLine({ workoutId, compact = false }: Props) {
       >
         {/* The line stands in until the map arrives, and steps aside when it
             does: the picture has the route drawn into it already. */}
-        {shot ? (
-          <img className="route-thumb" src={shot} alt="" />
+        {picture ? (
+          <img className="route-thumb" src={picture} alt="" />
         ) : (
           <svg
             viewBox={`0 0 ${width} ${height}`}

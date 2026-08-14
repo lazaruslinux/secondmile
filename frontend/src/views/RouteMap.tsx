@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { MapLibreMap } from 'maplibre-gl'
 import type { RoutePoint } from '../api.ts'
 import { addRoute, archive, basemapStyle, bareStyle, corners } from '../mapgl.ts'
+import { useTheme } from '../theme.ts'
 
 // This file and the map module under it are chunks of their own: no part of
 // maplibre is loaded until somebody taps a route or a thumbnail asks for a
@@ -22,6 +23,12 @@ export default function RouteMap({ points, onClose }: Props) {
   const dialog = useRef<HTMLDialogElement>(null)
   const holder = useRef<HTMLDivElement>(null)
   const [installed, setInstalled] = useState(true)
+  // The ground the map is drawn on, settled when the dialog opens and held for
+  // as long as it is up: a theme flipped from behind the dialog leaves this map
+  // on the ground it was built with, which is cheaper than tearing down a map
+  // somebody is looking at, and it is gone at the next tap anyway.
+  const theme = useTheme()
+  const ground = useRef(theme)
 
   useEffect(() => {
     dialog.current?.showModal()
@@ -47,7 +54,7 @@ export default function RouteMap({ points, onClose }: Props) {
 
       map = new MapLibreMap({
         container: box,
-        style: have ? basemapStyle() : bareStyle(),
+        style: have ? basemapStyle(ground.current) : bareStyle(ground.current),
         bounds: corners(points),
         fitBoundsOptions: { padding: 40, animate: false },
         // Credit belongs with the tiles; with none drawn there is nobody to

@@ -7,6 +7,7 @@
 import { MapLibreMap } from 'maplibre-gl'
 import type { RoutePoint } from './api.ts'
 import { addRoute, basemapStyle, corners, setRoute } from './mapgl.ts'
+import type { Theme } from './theme.ts'
 
 // Rendered at the thumbnail's own proportions, a little roomier than the
 // modal's padding so the shape survives being cropped to a narrower card.
@@ -16,29 +17,53 @@ const PADDING = 48
 // waiting on a picture that is never coming.
 const PATIENCE = 6000
 
-// Drawn once per workout and kept for the life of the page: scrolling a card
-// past twice does not draw it twice. null is a workout that would not render,
-// which leaves the card with the line it already had. Nothing is written to
-// disk; a session is as long as these live.
-const shots = new Map<number, string | null>()
-const pending = new Map<number, Promise<string | null>>()
+// Drawn once per workout per ground and kept for the life of the page:
+// scrolling a card past twice does not draw it twice, and a theme flipped back
+// gets its pictures back rather than taking them again. null is a workout that
+// would not render, which leaves the card with the line it already had. Nothing
+// is written to disk; a session is as long as these live.
+const shots = new Map<string, string | null>()
+const pending = new Map<string, Promise<string | null>>()
 let queue: Promise<unknown> = Promise.resolve()
 
+function key(workoutId: number, theme: Theme): string {
+  return `${theme}:${workoutId}`
+}
+
 let ready: Promise<MapLibreMap | null> | undefined
+let stand: HTMLDivElement | undefined
 let drawn = false
+// The ground the standing renderer was built on. The flavor is baked into the
+// style the map was made with, so a flip builds another one.
+let ground: Theme | undefined
 
 // The one map. It is parked off the top of the viewport by class, at the exact
-// size the pictures are taken at, and it stays for the session.
-function renderer(): Promise<MapLibreMap | null> {
+// size the pictures are taken at, and it stays for the session. Only ever
+// called from inside the queue below, so a rebuild cannot land mid picture.
+function renderer(theme: Theme): Promise<MapLibreMap | null> {
+  if (ground !== theme) {
+    const old = ready
+    const box = stand
+    ground = theme
+    ready = undefined
+    stand = undefined
+    drawn = false
+    void old?.then((map) => {
+      map?.remove()
+      box?.remove()
+    })
+  }
+
   ready ??= new Promise((resolve) => {
     const box = document.createElement('div')
     box.className = 'route-shot'
     box.setAttribute('aria-hidden', 'true')
     document.body.append(box)
+    stand = box
 
     const made = new MapLibreMap({
       container: box,
-      style: basemapStyle(),
+      style: basemapStyle(theme),
       // Without this the drawing buffer is thrown away after each frame and
       // every picture comes back blank. It costs a little render speed, which
       // is why the modal's map does not ask for it.
@@ -59,6 +84,7 @@ function renderer(): Promise<MapLibreMap | null> {
       made.off('load', loaded)
       made.remove()
       box.remove()
+      stand = undefined
       resolve(null)
     }, PATIENCE)
     made.once('load', loaded)
@@ -82,8 +108,8 @@ function settled(map: MapLibreMap): Promise<boolean> {
   })
 }
 
-async function shoot(points: RoutePoint[]): Promise<string | null> {
-  const map = await renderer()
+async function shoot(points: RoutePoint[], theme: Theme): Promise<string | null> {
+  const map = await renderer(theme)
   if (!map) return null
 
   if (drawn) setRoute(map, points)
@@ -102,10 +128,15 @@ async function shoot(points: RoutePoint[]): Promise<string | null> {
   return map.getCanvas().toDataURL('image/webp', 0.85)
 }
 
-export function routeShot(workoutId: number, points: RoutePoint[]): Promise<string | null> {
-  const held = shots.get(workoutId)
+export function routeShot(
+  workoutId: number,
+  points: RoutePoint[],
+  theme: Theme,
+): Promise<string | null> {
+  const at = key(workoutId, theme)
+  const held = shots.get(at)
   if (held !== undefined) return Promise.resolve(held)
-  const running = pending.get(workoutId)
+  const running = pending.get(at)
   if (running) return running
 
   // One map means one picture at a time, so the jobs stand in a line. Twenty
@@ -113,17 +144,17 @@ export function routeShot(workoutId: number, points: RoutePoint[]): Promise<stri
   const task = queue.then(async () => {
     let shot: string | null = null
     try {
-      shot = await shoot(points)
+      shot = await shoot(points, theme)
     } catch {
       // A picture that would not come out is not worth saying anything about:
       // the card still has the line it drew itself.
       shot = null
     }
-    shots.set(workoutId, shot)
-    pending.delete(workoutId)
+    shots.set(at, shot)
+    pending.delete(at)
     return shot
   })
   queue = task
-  pending.set(workoutId, task)
+  pending.set(at, task)
   return task
 }
