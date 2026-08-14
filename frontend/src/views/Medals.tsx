@@ -4,6 +4,7 @@ import type { Medal } from '../api.ts'
 import { medalArt } from '../art.ts'
 import { MEDAL_ORDER, medalName } from '../labels.ts'
 import { EARNS_PER_STAR, MAX_STARS, medalCountsOf, starsFor } from '../profile.ts'
+import { useTheme } from '../theme.ts'
 
 // The word the interface uses for these, in one place. Everything underneath it
 // (ids, files, classes) is named badge; only what a person reads says medal.
@@ -88,7 +89,11 @@ interface MarkProps {
 // the rail on Home, in the picker, and in the recap, so all five show the same
 // drawing from the same file.
 export function MedalMark({ id, earned, stars = 0, standalone = false }: MarkProps) {
-  const art = medalArt(id)
+  // Every medal is drawn twice, once per ground: the picker, the strip and the
+  // chips all sit on the page rather than in a well, so the mark follows the
+  // theme wherever it is used, including inside the nest under an avatar.
+  const theme = useTheme()
+  const art = medalArt(id, theme)
   const name = medalName(id)
   const classes = ['badge']
   if (!earned) classes.push('badge-locked')

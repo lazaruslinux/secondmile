@@ -10,13 +10,15 @@
 // costs is one dark frame on a cold load for somebody set to light, which is
 // cheaper than loosening the policy.
 
+import { useSyncExternalStore } from 'react'
+
 const THEME_KEY = 'secondmile.appearance.theme'
 
 export type Theme = 'light' | 'dark'
 
 // Dark is the default and the fallback: a browser with storage turned off, or
 // one that has never been asked, opens on the theme everybody starts with.
-export function rememberedTheme(): Theme {
+function rememberedTheme(): Theme {
   try {
     return localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark'
   } catch {
@@ -36,11 +38,34 @@ export function rememberTheme(theme: Theme): void {
 // a meta tag cannot read a custom property, so the two values live here too.
 const CHROME: Record<Theme, string> = { dark: '#000000', light: '#f6f6f7' }
 
+// The theme the app is being drawn on right now. Kept here beside the element
+// it is written to, because the stylesheet is not the only thing that reads it:
+// some of the artwork exists twice, once per ground, and the components drawing
+// it have to be told when the ground moves under them.
+let current: Theme = rememberedTheme()
+const watchers = new Set<() => void>()
+
 export function applyTheme(theme: Theme): void {
+  current = theme
   document.documentElement.dataset.theme = theme
   document
     .querySelector('meta[name="theme-color"]')
     ?.setAttribute('content', CHROME[theme])
+  for (const watcher of watchers) watcher()
 }
 
-applyTheme(rememberedTheme())
+function watch(watcher: () => void): () => void {
+  watchers.add(watcher)
+  return () => {
+    watchers.delete(watcher)
+  }
+}
+
+// The current ground, for anything that has to redraw when it changes. Every
+// way of changing the theme goes through applyTheme, so this cannot drift from
+// what the root element says.
+export function useTheme(): Theme {
+  return useSyncExternalStore(watch, () => current)
+}
+
+applyTheme(current)

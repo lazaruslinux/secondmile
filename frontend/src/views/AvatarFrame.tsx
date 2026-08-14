@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { borderArt, flourishArt } from '../art.ts'
+import { useTheme } from '../theme.ts'
 
 interface Props {
   // What to call this person on screen: the name they gave if they gave one.
@@ -31,8 +32,11 @@ export default function AvatarFrame({
   labelled = false,
   children,
 }: Props) {
-  const border = borderArt(borderTier)
-  const growth = flourishArt(flourish)
+  // The frame stands on the page rather than in a well, so it is drawn from the
+  // twin that suits the ground and redrawn when the ground changes.
+  const theme = useTheme()
+  const border = borderArt(borderTier, theme)
+  const growth = flourishArt(flourish, theme)
 
   return (
     <div className={frameClass ? `avatar-frame ${frameClass}` : 'avatar-frame'}>

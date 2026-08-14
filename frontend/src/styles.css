@@ -4726,6 +4726,19 @@ button:disabled {
   font-size: 1.5rem;
 }
 
+.landing-bar-verbs {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Grey and unmarked beside a Sign in that is accent-coloured and underlined:
+   the way in has to be the one thing in the bar that looks pressable. */
+.landing-appearance {
+  color: var(--muted);
+  text-decoration: none;
+}
+
 /* The drawing is 4:1, so the height follows the width and nothing jumps as it
    loads. It breaks out of the text column on purpose: the column centres in
    the viewport, so half-shifting the image off its own centre lands it on the

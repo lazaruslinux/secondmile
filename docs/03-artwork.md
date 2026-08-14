@@ -24,6 +24,12 @@ whole of what a commission would cover.
 
 Ninety-eight files in total, all under `frontend/src/assets/`.
 
+Every border, flourish and medal file also has a `-light` twin beside it, such
+as `border-t3-light.svg`, which is the same drawing with its palette turned over
+for the light ground. Those twins are generated from the originals rather than
+drawn, so they are not counted above and a commission does not cover them: draw
+the original and the twin is regenerated from whatever arrives.
+
 There are two chest drawings on purpose. `grove/chest.svg` is a picture loaded
 by URL with its own colours, used for an inventory square. `icons/chest.svg` is
 placed straight into the page and drawn in `currentColor`, which is what lets
@@ -79,8 +85,8 @@ near-black on both grounds. Every file here is drawn to sit on that near-black
 card; interface icons are the exception, since they take the page's own colour.
 The placeholder art follows the palette at the bottom of this page; yours does
 not have to, as long as it reads on black. Art drawn only in pale greys will
-wash out on the light ground wherever it sits outside a well (the avatar
-borders have this problem today).
+wash out on the light ground wherever it sits outside a well, which is what the
+`-light` twins are for.
 
 ## Interface icons
 

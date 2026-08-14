@@ -4,6 +4,8 @@
 // appears at the next build. Nothing else has to change: no import, no list, no
 // code. A name with no file falls back to something plain.
 
+import type { Theme } from './theme.ts'
+
 function byName(files: Record<string, string>): Map<string, string> {
   const out = new Map<string, string>()
   for (const [path, url] of Object.entries(files)) {
@@ -95,15 +97,29 @@ export function itemArt(kind: string): string | null {
   return groveFile(kind)
 }
 
-export function borderArt(tier: number): string | null {
-  return borders.get(`border-t${tier}`) ?? null
+// The art that sits on the page itself rather than in a well exists twice, once
+// per ground: name-light.svg beside name.svg, the same drawing with its palette
+// turned over. Asking for a twin that was never drawn gets the dark file, so a
+// missing twin costs contrast rather than the picture. The theme is passed in
+// rather than read from the document, which is what makes it impossible to draw
+// one of these without also subscribing to the ground it is drawn on.
+function onGround(files: Map<string, string>, name: string, theme: Theme): string | null {
+  if (theme === 'light') {
+    const light = files.get(`${name}-light`)
+    if (light) return light
+  }
+  return files.get(name) ?? null
+}
+
+export function borderArt(tier: number, theme: Theme): string | null {
+  return onGround(borders, `border-t${tier}`, theme)
 }
 
 // The growth that lies over a border, one file per stage. Stage 0 is bare frame
 // and has no file, which is why nothing is drawn for it.
-export function flourishArt(stage: number): string | null {
+export function flourishArt(stage: number, theme: Theme): string | null {
   if (!(stage > 0)) return null
-  return borders.get(`flourish-f${stage}`) ?? null
+  return onGround(borders, `flourish-f${stage}`, theme)
 }
 
 // The markup of one interface icon, named after its file without the extension.
@@ -152,6 +168,6 @@ const MEDAL_FILES: Record<string, string> = {
 
 // A medal id this build has never heard of falls back to its id read as a file
 // name, so a medal added on the server costs a picture rather than a screen.
-export function medalArt(medalId: string): string | null {
-  return badges.get(MEDAL_FILES[medalId] ?? medalId.replace(/_/g, '-')) ?? null
+export function medalArt(medalId: string, theme: Theme): string | null {
+  return onGround(badges, MEDAL_FILES[medalId] ?? medalId.replace(/_/g, '-'), theme)
 }

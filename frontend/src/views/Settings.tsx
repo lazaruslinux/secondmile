@@ -14,7 +14,7 @@ import {
   type Units,
 } from '../api.ts'
 import { instanceTimezone } from '../format.ts'
-import { applyTheme, rememberedTheme, rememberTheme, type Theme } from '../theme.ts'
+import { applyTheme, rememberTheme, type Theme, useTheme } from '../theme.ts'
 import Confirm from './Confirm.tsx'
 
 // Said whatever happened. Whether that address belongs to anybody already is
@@ -86,8 +86,9 @@ export default function Settings({
   const [savingUnits, setSavingUnits] = useState(false)
 
   // This browser's own, so there is nothing to save and nothing to fail: the
-  // screen changes under the button that was pressed.
-  const [theme, setTheme] = useState<Theme>(rememberedTheme)
+  // screen changes under the button that was pressed. Read from the theme
+  // module rather than held here, because the landing page can change it too.
+  const theme = useTheme()
 
   const [hiddenError, setHiddenError] = useState('')
   const [savingHidden, setSavingHidden] = useState(false)
@@ -164,7 +165,6 @@ export default function Settings({
     if (next === theme) return
     applyTheme(next)
     rememberTheme(next)
-    setTheme(next)
   }
 
   // Drawn from what the server stored rather than from the tap, so a switch

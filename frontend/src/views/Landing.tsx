@@ -3,6 +3,7 @@ import { getStatus, welcomeAvatarUrl, type Welcome as WelcomeData } from '../api
 import heroDark from '../assets/landing-hero-dark.png'
 import heroLight from '../assets/landing-hero-light.png'
 import { ACTIVITY_ICONS, ACTIVITY_NAMES, ACTIVITY_ORDER } from '../labels.ts'
+import { applyTheme, rememberTheme, type Theme, useTheme } from '../theme.ts'
 import AvatarFrame from './AvatarFrame.tsx'
 import Icon from './Icon.tsx'
 import LandingStats from './LandingStats.tsx'
@@ -24,6 +25,14 @@ export default function Landing({ onEnter, invite }: Props) {
   const [openRegistration, setOpenRegistration] = useState<boolean | null>(null)
   const invited = invite !== undefined
   const who = invite?.data.inviter_display_name ?? ''
+  const theme = useTheme()
+
+  // The same two calls Settings makes, in the same order: the ground changes
+  // under the button and this browser keeps the choice.
+  function chooseTheme(next: Theme) {
+    applyTheme(next)
+    rememberTheme(next)
+  }
 
   useEffect(() => {
     // A link is its own answer: the invite variant offers the same account on
@@ -42,9 +51,22 @@ export default function Landing({ onEnter, invite }: Props) {
     <div className="landing">
       <header className="landing-bar">
         <span className="wordmark">secondmile</span>
-        <button type="button" className="link" onClick={() => onEnter(false)}>
-          Sign in
-        </button>
+        <div className="landing-bar-verbs">
+          {/* Named for the ground it is on rather than the one it would move
+              to, so somebody reading it learns where they are before they
+              press anything. Quieter than Sign in beside it: the way in is
+              the errand, and this is a preference. */}
+          <button
+            type="button"
+            className="link landing-appearance"
+            onClick={() => chooseTheme(theme === 'light' ? 'dark' : 'light')}
+          >
+            Appearance: {theme === 'light' ? 'Light' : 'Dark'}
+          </button>
+          <button type="button" className="link" onClick={() => onEnter(false)}>
+            Sign in
+          </button>
+        </div>
       </header>
 
       <section className="landing-hero">
