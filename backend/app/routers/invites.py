@@ -110,6 +110,12 @@ def mint_invite(
         raise HTTPException(
             status.HTTP_429_TOO_MANY_REQUESTS, "Too many links just now. Wait a minute."
         )
+    # The minting account's own row, locked until this request commits. The cap
+    # below is a count followed by an insert, and two mints arriving together
+    # would both count three and both write a fourth. Whoever gets here second
+    # waits on this line instead, and then counts what the first one wrote.
+    # A row that already exists, so nothing is added to the schema for it.
+    db.execute(select(models.User).where(models.User.id == user.id).with_for_update())
     waiting = db.execute(
         select(models.Invite).where(
             models.Invite.created_by == user.id,

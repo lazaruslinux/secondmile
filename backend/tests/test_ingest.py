@@ -410,6 +410,31 @@ def test_a_literal_infinity_in_the_body_is_a_bad_request(signed_in, ingest_token
     assert response.status_code == 400
 
 
+def test_a_body_nested_past_the_stack_is_a_bad_request(signed_in, ingest_token, db_session):
+    """A hundred thousand open brackets is a hundred kilobytes, which the body
+    size limit lets through, and the parser runs out of stack reading it.
+
+    RecursionError is not a ValueError, so before it was caught it climbed out
+    of the endpoint as a 500. The body is unreadable either way, and it gets the
+    answer every other unreadable body gets. The request after it proves the
+    process is still standing.
+    """
+    response = signed_in.post(
+        "/api/ingest",
+        content=b"[" * 100000,
+        headers={
+            "Authorization": f"Bearer {ingest_token}",
+            "Content-Type": "application/json",
+        },
+    )
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Body must be JSON."}
+    assert db_session.query(models.Workout).count() == 0
+
+    payload = export(workout("Outdoor Walk", "2026-07-20T06:00:00+00:00", 2400, 2.1, 190))
+    assert post(signed_in, ingest_token, payload).json()["imported"] == 1
+
+
 def test_an_export_with_too_many_entries_is_refused(signed_in, ingest_token, db_session):
     entry = workout("Outdoor Walk", "2026-07-20T06:00:00+00:00", 2400, 2.1, 190)
     payload = export(*[dict(entry) for _ in range(config.MAX_INGEST_WORKOUTS + 1)])

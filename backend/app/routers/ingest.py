@@ -110,11 +110,14 @@ async def ingest(request: Request, db: Session = Depends(get_db)) -> dict:
     raw = await request.body()
     try:
         payload = json.loads(raw, parse_constant=_refuse_constant)
-    except ValueError:
+    except (ValueError, RecursionError):
         # Nothing is logged in this case: the payload column is JSON, so there
         # is nowhere to put a body that is not JSON in the first place.
         # JSONDecodeError, UnicodeDecodeError, and the refusal above are all
         # ValueError, so one clause covers every way the body can be unreadable.
+        # RecursionError joins them because the parser runs out of stack on a
+        # body nested deep enough, and that is the same unreadable body rather
+        # than a fault of the server's: without this it escapes as a 500.
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Body must be JSON.") from None
 
     # Counted before anything is parsed, so an export with a million entries

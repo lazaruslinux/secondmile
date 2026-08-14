@@ -83,6 +83,35 @@ def test_three_links_may_wait_and_a_freed_slot_mints_again(signed_in, client, ou
     mint(signed_in)
 
 
+def test_minting_locks_the_account_row_before_it_counts(signed_in, db_session):
+    """The cap is a count and then an insert, so two mints at once could both
+    count three and both write a fourth. What stops them is the row lock taken
+    first, and the order is the whole of it: locked, then counted, then written.
+
+    Pinned by the statements rather than by real threads, because the suite runs
+    on SQLite, which has no FOR UPDATE to wait on and no second connection to
+    wait with. What the test can prove is that the lock goes out ahead of the
+    count, in the transaction the insert commits.
+    """
+    real_execute = db_session.execute
+    seen = []
+
+    def record(statement, *args, **kwargs):
+        seen.append(str(statement))
+        return real_execute(statement, *args, **kwargs)
+
+    db_session.execute = record
+    try:
+        mint(signed_in)
+    finally:
+        db_session.execute = real_execute
+
+    locks = [i for i, text in enumerate(seen) if "FROM users" in text and "FOR UPDATE" in text]
+    counts = [i for i, text in enumerate(seen) if "FROM invites" in text]
+    assert locks and counts
+    assert locks[0] < counts[0]
+
+
 def test_a_link_can_be_revoked_while_it_is_waiting_and_not_after(
     signed_in, client, db_session, outbox
 ):
