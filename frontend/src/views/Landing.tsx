@@ -280,6 +280,14 @@ export default function Landing({ onEnter, invite }: Props) {
           joining, and moving it is honester than locking it. */}
       {invite && (
         <section className="landing-section landing-actions">
+          {/* Read before the button on purpose: the window anchors to the day
+              the account is made, so this is the one fact that rewards being
+              known in advance. */}
+          <p className="hint landing-invite">
+            The app accepts workouts from up to 14 days before your account is
+            created, so the sooner you join, the more of your recent miles make
+            it in.
+          </p>
           <button type="button" className="primary" onClick={() => onEnter(true)}>
             Create your account
           </button>

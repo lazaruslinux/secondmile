@@ -209,6 +209,30 @@ export default function SetupGuide({ onBack }: Props) {
       </section>
 
       <section className="settings-group">
+        <h2 className="label settings-title guide-title">The days before you joined</h2>
+
+        <div className="card">
+          <h3>One manual export brings them in</h3>
+          <p className="guide-note">
+            The automations only send what happens from now on, but your account accepts
+            workouts from up to 14 days before the day it was created. Anything older than
+            that is refused, and the window never moves: it is anchored to your signup, so
+            time away later costs you nothing.
+          </p>
+          <p className="guide-note">
+            To bring those days in, run one manual export from Health Auto Export: a
+            Workouts export with a Date Range covering the days since the window opened.
+            Every walk, run, ride, and swim inside it lands with everything it earns,
+            exactly as if it had synced on the day.
+          </p>
+          <p className="guide-note">
+            The same window applies to steps. A manual Health Metrics export covers them,
+            though steps earn nothing either way.
+          </p>
+        </div>
+      </section>
+
+      <section className="settings-group">
         <h2 className="label settings-title guide-title">
           Automation 2: Secondmile_Steps{' '}
           <span className="guide-chip guide-chip-optional">Optional</span>
