@@ -174,6 +174,21 @@ export default function SetupGuide({ onBack }: Props) {
             new line into both automations.
           </p>
         </div>
+
+        <div className="card">
+          <h3>Let it read Apple Health</h3>
+          <p className="guide-note">
+            Health Auto Export can only send what Apple Health lets it read. The first time
+            it opens, iOS asks for that access; allow it, and turn on the categories it
+            lists.
+          </p>
+          <p className="guide-note">
+            If an automation fails with &quot;authorization not found&quot;, or runs without
+            sending anything, this permission is the usual reason: open the iPhone's
+            Settings, then Privacy &amp; Security, then Health, then Health Auto Export, and
+            turn everything on. Nothing reaches the server until this is granted.
+          </p>
+        </div>
       </section>
 
       <section className="settings-group">
