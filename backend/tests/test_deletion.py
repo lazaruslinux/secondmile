@@ -433,7 +433,11 @@ def test_hype_and_comments_are_hidden_with_it_and_whole_when_it_returns(
     assert db_session.query(models.Encouragement).count() == 2
 
     restored = signed_in.post(f"/api/workouts/{workout.id}/restore").json()
-    assert restored["encouragement"] == {"cheers": 1, "notes": 1, "cheered_by_me": False}
+    assert restored["encouragement"]["hype_count"] == 1
+    assert restored["encouragement"]["note_count"] == 1
+    assert restored["encouragement"]["cheered_by_me"] is False
+    # The words come back with the row, not only behind the thread endpoint.
+    assert [note["body"] for note in restored["encouragement"]["notes"]] == ["strong"]
     assert [row["body"] for row in signed_in.get(f"/api/workouts/{workout.id}/notes").json()] == [
         "strong"
     ]

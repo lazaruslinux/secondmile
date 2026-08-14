@@ -48,6 +48,10 @@ RENOWN_PER_KIND = {"cheer": RENOWN_CHEER, "note": RENOWN_NOTE}
 # water all evening earn one pour's worth between them.
 RENOWN_PER_GIFT = {"water": RENOWN_WATER, "oil": RENOWN_OIL}
 
+# How many notes ride a card without anybody asking for them: the pair printed
+# under every activity. Whatever else was said waits behind the view-all line.
+INLINE_NOTES = 2
+
 
 # --------------------------------------------------------------------------
 # Who is whose friend
@@ -549,16 +553,96 @@ def people(db: Session, user_ids) -> dict[int, dict]:
     return cards
 
 
-def counts(db: Session, workout_ids, viewer_id: int) -> dict[int, dict]:
-    """Cheers, notes, and whether the viewer has already cheered, per workout.
+def note_card(person: dict, body: str | None, created_at: dt.datetime) -> dict:
+    """One written note, as every screen that prints one receives it.
 
-    Two queries for the whole page. The counts are plain text on the card, so
-    they are totals rather than lists; the notes themselves are fetched only
-    when somebody opens them.
+    Written once because two places serve it: the thread endpoint, and the pair
+    of notes a card carries without being asked. A card drawn from one of those
+    and a card drawn from the other have to be the same card, or the same words
+    read differently depending on which end of the screen they arrived at.
+    """
+    return {
+        "user": person,
+        "body": body or "",
+        "created_at": created_at.isoformat(),
+    }
+
+
+def first_notes(db: Session, workout_ids, limit: int = INLINE_NOTES) -> dict[int, list[dict]]:
+    """The oldest few notes on each of these workouts, oldest first.
+
+    One query for a whole page of workouts, whatever is said on them: the notes
+    are numbered inside each workout by a window function and the page is cut at
+    the number, so a feed of twenty cards asks once rather than twenty times.
+    The numbering is the thread's own order, tie-broken by id, so the pair under
+    a card is the pair at the top of the thread it opens.
+
+    Nothing here decides who may read anything. The ids arrive from a caller
+    that has already settled what this viewer may see, and these notes ride a
+    payload that was going out either way.
+    """
+    ids = list(workout_ids)
+    if not ids:
+        return {}
+    ranked = (
+        select(
+            models.Encouragement.workout_id,
+            models.Encouragement.from_user_id,
+            models.Encouragement.body,
+            models.Encouragement.created_at,
+            func.row_number()
+            .over(
+                partition_by=models.Encouragement.workout_id,
+                order_by=(models.Encouragement.created_at, models.Encouragement.id),
+            )
+            .label("place"),
+        )
+        .where(
+            models.Encouragement.workout_id.in_(ids),
+            models.Encouragement.kind == "note",
+        )
+        .subquery()
+    )
+    rows = db.execute(
+        select(
+            ranked.c.workout_id,
+            ranked.c.from_user_id,
+            ranked.c.body,
+            ranked.c.created_at,
+        )
+        .where(ranked.c.place <= limit)
+        .order_by(ranked.c.workout_id, ranked.c.place)
+    ).all()
+    # The writers batched the way the feed batches everybody else: two queries
+    # for every face on the page.
+    cards = people(db, {from_user_id for _, from_user_id, _, _ in rows})
+    out: dict[int, list[dict]] = {}
+    for workout_id, from_user_id, body, created_at in rows:
+        out.setdefault(workout_id, []).append(
+            note_card(cards[from_user_id], body, created_at)
+        )
+    return out
+
+
+def counts(db: Session, workout_ids, viewer_id: int) -> dict[int, dict]:
+    """What a workout has been given: the two totals, whether the viewer has
+    cheered it, and the oldest notes written on it.
+
+    Four queries for the whole page however many rows are on it. The notes are
+    here rather than fetched per card because the pair under a card is part of
+    the card: asking for them one workout at a time is what turns a feed into
+    twenty requests. The rest of the thread still waits until somebody opens it.
     """
     ids = list(workout_ids)
     out = {
-        workout_id: {"cheers": 0, "notes": 0, "cheered_by_me": False}
+        workout_id: {
+            "hype_count": 0,
+            "note_count": 0,
+            "cheered_by_me": False,
+            # The oldest two, in the thread's order. Empty when nobody has
+            # written, never absent.
+            "notes": [],
+        }
         for workout_id in ids
     }
     if not ids:
@@ -570,7 +654,7 @@ def counts(db: Session, workout_ids, viewer_id: int) -> dict[int, dict]:
         .where(models.Encouragement.workout_id.in_(ids))
         .group_by(models.Encouragement.workout_id, models.Encouragement.kind)
     ).all():
-        out[workout_id]["cheers" if kind == "cheer" else "notes"] = int(count)
+        out[workout_id]["hype_count" if kind == "cheer" else "note_count"] = int(count)
     for workout_id in db.execute(
         select(models.Encouragement.workout_id).where(
             models.Encouragement.workout_id.in_(ids),
@@ -579,6 +663,8 @@ def counts(db: Session, workout_ids, viewer_id: int) -> dict[int, dict]:
         )
     ).scalars():
         out[workout_id]["cheered_by_me"] = True
+    for workout_id, notes in first_notes(db, ids).items():
+        out[workout_id]["notes"] = notes
     return out
 
 

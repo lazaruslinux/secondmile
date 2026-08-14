@@ -1084,10 +1084,12 @@ def workout_notes(
     was: encourage refuses anybody who is not a friend of the owner, so a
     member who cannot see a workout cannot speak on it either.
 
-    Fetched only when somebody opens the counts, which is why the feed carries
-    totals rather than bodies. It spends the feed's own read allowance: opening
-    the words under a card is part of reading the feed, and giving it a budget
-    of its own would only mean one more limiter guarding the same screen.
+    Fetched only when somebody opens a card's thread. The first two notes are
+    already on the card, sent with the row itself, so this is the rest of what
+    was said rather than the whole of it. It spends the feed's own read
+    allowance: opening the words under a card is part of reading the feed, and
+    giving it a budget of its own would only mean one more limiter guarding the
+    same screen.
     """
     if throttle.feed_limiter.hit(throttle.user_key(user)):
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, throttle.TOO_MANY_READS)
@@ -1111,11 +1113,7 @@ def workout_notes(
     # tapping it reaches their profile. Two queries for the whole list.
     people = fellowship.people(db, {from_user_id for from_user_id, _, _ in rows})
     return [
-        {
-            "user": people[from_user_id],
-            "body": body or "",
-            "created_at": created_at.isoformat(),
-        }
+        fellowship.note_card(people[from_user_id], body, created_at)
         for from_user_id, body, created_at in rows
     ]
 

@@ -104,7 +104,12 @@ function feedRows(workouts: FeedItem[] | undefined): FeedItem[] {
     .filter((row) => row != null && typeof row.workout_id === 'number' && row.user != null)
     .map((row) => ({
       ...row,
-      encouragement: row.encouragement ?? { cheers: 0, notes: 0, cheered_by_me: false },
+      encouragement: row.encouragement ?? {
+        hype_count: 0,
+        note_count: 0,
+        cheered_by_me: false,
+        notes: [],
+      },
     }))
 }
 

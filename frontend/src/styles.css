@@ -1586,24 +1586,38 @@ button:disabled {
   color: var(--accent);
 }
 
-/* Plain words, not a scoreboard. A workout nobody has said anything about
-   shows nothing here at all. */
+/* Plain words, not a scoreboard: "6 hypes · 1 comment", each half missing when
+   it is nought. A workout nobody has said anything about shows nothing here at
+   all. */
 .encourage-counts {
   display: block;
   margin: 0.5rem 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* The two ways into the rest of a thread: the comments half of the line above
+   the pair, and the line under it. Both stripped back to the words themselves,
+   because a comment count that looked like a button would be the loudest thing
+   on the card. */
+.encourage-counts-open,
+.encourage-more {
   padding: 0;
   min-height: 0;
   background: none;
   border: none;
   border-radius: 0;
-  text-align: left;
   font: inherit;
-  font-size: 0.82rem;
-  color: var(--muted);
+  color: inherit;
+  text-decoration: underline;
 }
 
-.encourage-counts-open {
-  text-decoration: underline;
+.encourage-more {
+  display: block;
+  margin: 0.4rem 0 0;
+  text-align: left;
+  font-size: 13px;
+  color: var(--muted);
 }
 
 .encourage-notes {

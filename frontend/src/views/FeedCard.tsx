@@ -23,6 +23,7 @@ import {
   workoutVideoPosterUrl,
   workoutVideoUrl,
   type Activity,
+  type Encouragement,
   type FeedItem,
   type Gear,
   type Units,
@@ -65,20 +66,17 @@ const POST_LIMIT = 2000
 // Photos and videos share these slots, which is why the name is not PHOTO.
 const MEDIA_LIMIT = 6
 
-interface Given {
-  cheers: number
-  notes: number
-  cheered: boolean
-}
+// How many comments a card prints without being asked, which is what the server
+// sends with the row. Stated here as well so the view-all line knows how many
+// are already on screen.
+const INLINE_NOTES = 2
 
-// "+6 hype, 1 comment", and nothing at all when there is nothing. A workout
-// nobody has said anything about looks like a workout, not like an empty box.
-// The kind stays 'note' under the screen; on the feed it is a comment.
-function countLine(given: Given): string {
-  const parts: string[] = []
-  if (given.cheers > 0) parts.push(`+${given.cheers} hype`)
-  if (given.notes > 0) parts.push(`${given.notes} ${given.notes === 1 ? 'comment' : 'comments'}`)
-  return parts.join(', ')
+// "6 hypes · 1 comment": each half hides itself at nought, and a card with
+// nothing said about it shows no line at all. A workout nobody has spoken on
+// looks like a workout, not like an empty box. The kind stays 'note' under the
+// screen; on a card it is a comment.
+function countWord(count: number, one: string, many: string): string {
+  return `${count} ${count === 1 ? one : many}`
 }
 
 interface EncourageProps {
@@ -142,32 +140,35 @@ function NoteRow({
   )
 }
 
-// The count line and the words behind it, wherever a card carries them: your
-// own workout and a friend's read the same way now, so the rule about who may
-// open a thread lives in one component rather than in two copies of it.
+// What a card says came back for a workout: the counts, the comments written
+// first, and the rest of them once somebody asks. Your own workout and a
+// friend's read the same way, so the rule about who may open a thread lives in
+// one component rather than in two copies of it.
 //
-// The counts are the line, and tapping it is what asks the server. Nothing is
-// fetched until somebody does, and what came back is kept, so closing and
-// reopening a card does not ask again.
+// The opening comments arrive with the row, so a card is whole the moment it
+// draws. Only the rest is fetched, only when somebody asks for it, and what
+// came back is kept, so closing and reopening a card does not ask again.
 function NoteThread({
   workoutId,
-  counts,
-  hasNotes,
+  given,
   onOpenPerson,
 }: {
   workoutId: number
-  // The whole line as it is printed, worked out by whoever is drawing it: an
-  // own card counts nobody's cheer as its own and a friend's card does.
-  counts: string
-  // Whether there is anything behind the line. A line of hype alone is not a
-  // door, so it is not drawn as one.
-  hasNotes: boolean
+  // What the server says this workout has been given, or what this account has
+  // made of it since. An own card counts nobody's hype as its own.
+  given: Encouragement
   onOpenPerson?: (userId: number) => void
 }) {
-  const [notes, setNotes] = useState<WorkoutNote[] | null>(null)
+  const [thread, setThread] = useState<WorkoutNote[] | null>(null)
   const [showing, setShowing] = useState(false)
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState('')
+
+  const opening = given.notes.slice(0, INLINE_NOTES)
+  // Anything said beyond the pair on screen. Counted rather than assumed, so a
+  // card that arrived with fewer than two still offers the way in when the
+  // total says there is more.
+  const rest = given.note_count - opening.length
 
   async function toggle() {
     if (showing) {
@@ -175,11 +176,11 @@ function NoteThread({
       return
     }
     setShowing(true)
-    if (notes !== null) return
+    if (thread !== null) return
     setBusy(true)
     setFailed('')
     try {
-      setNotes(await getWorkoutNotes(workoutId))
+      setThread(await getWorkoutNotes(workoutId))
     } catch (err) {
       setFailed(errorText(err))
     } finally {
@@ -187,20 +188,35 @@ function NoteThread({
     }
   }
 
+  const hypes = countWord(given.hype_count, 'hype', 'hypes')
+  const comments = countWord(given.note_count, 'comment', 'comments')
+  // The comments half is the way in as well, and the same one the line below
+  // the pair is. Only when there is something behind it: two comments are
+  // already on the card, so opening them would show what is showing.
+  const opens = rest > 0
+  const shown = showing && thread !== null ? thread : opening
+
   return (
     <>
-      {hasNotes ? (
-        <button
-          type="button"
-          className="encourage-counts encourage-counts-open"
-          aria-expanded={showing}
-          disabled={busy}
-          onClick={() => void toggle()}
-        >
-          {counts}
-        </button>
-      ) : (
-        <p className="encourage-counts">{counts}</p>
+      {(given.hype_count > 0 || given.note_count > 0) && (
+        <p className="encourage-counts">
+          {given.hype_count > 0 && <span>{hypes}</span>}
+          {given.hype_count > 0 && given.note_count > 0 && ' · '}
+          {given.note_count > 0 &&
+            (opens ? (
+              <button
+                type="button"
+                className="encourage-counts-open"
+                aria-expanded={showing}
+                disabled={busy}
+                onClick={() => void toggle()}
+              >
+                {comments}
+              </button>
+            ) : (
+              <span>{comments}</span>
+            ))}
+        </p>
       )}
 
       {failed && (
@@ -213,12 +229,24 @@ function NoteThread({
           workout it was written about, and anybody who can see the workout can
           read what was said on it. Somebody in here you have never met is a
           card away: their face opens their profile. */}
-      {showing && notes !== null && (
+      {shown.length > 0 && (
         <ul className="encourage-notes">
-          {notes.map((note, index) => (
+          {shown.map((note, index) => (
             <NoteRow key={index} note={note} onOpenPerson={onOpenPerson} />
           ))}
         </ul>
+      )}
+
+      {opens && !showing && (
+        <button
+          type="button"
+          className="encourage-more"
+          aria-expanded={false}
+          disabled={busy}
+          onClick={() => void toggle()}
+        >
+          View all {given.note_count} comments
+        </button>
       )}
     </>
   )
@@ -233,9 +261,9 @@ function EncourageRow({
   encouragement,
   onOpenPerson,
 }: EncourageProps & { onOpenPerson?: (userId: number) => void }) {
-  // Null until this account acts, so the counts stay the server's word up to
-  // that point and this account's own doing afterwards.
-  const [acted, setActed] = useState<Given | null>(null)
+  // Null until this account acts, so what is printed stays the server's word up
+  // to that point and the server's answer to this account's doing afterwards.
+  const [acted, setActed] = useState<Encouragement | null>(null)
   const [draft, setDraft] = useState('')
   // How many notes this account has written here. Only ever used as the
   // thread's key: writing one makes whatever was fetched a line out of date,
@@ -244,23 +272,19 @@ function EncourageRow({
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState('')
 
-  const given: Given = acted ?? {
-    cheers: encouragement.cheers,
-    notes: encouragement.notes,
-    cheered: encouragement.cheered_by_me,
-  }
+  const given = acted ?? encouragement
 
   async function cheer() {
-    if (given.cheered) return
+    if (given.cheered_by_me) return
     setBusy(true)
     setFailed('')
     try {
-      await encourage(workoutId, 'cheer')
-      setActed({ ...given, cheers: given.cheers + 1, cheered: true })
+      setActed(await encourage(workoutId, 'cheer'))
     } catch (err) {
       // A cheer already given answers 409, which means it is there rather than
       // that anything failed, so the button lands in the same quiet state.
-      if (err instanceof ApiError && err.status === 409) setActed({ ...given, cheered: true })
+      if (err instanceof ApiError && err.status === 409)
+        setActed({ ...given, cheered_by_me: true })
       else setFailed(errorText(err))
     } finally {
       setBusy(false)
@@ -274,8 +298,9 @@ function EncourageRow({
     setBusy(true)
     setFailed('')
     try {
-      await encourage(workoutId, 'note', body)
-      setActed({ ...given, notes: given.notes + 1 })
+      // The answer carries the workout's opening comments as they now stand, so
+      // a note that belongs in the pair joins it without a second request.
+      setActed(await encourage(workoutId, 'note', body))
       setSent((count) => count + 1)
       setDraft('')
     } catch (err) {
@@ -284,8 +309,6 @@ function EncourageRow({
       setBusy(false)
     }
   }
-
-  const counts = countLine(given)
 
   return (
     <div className="encourage">
@@ -307,10 +330,10 @@ function EncourageRow({
             list of ready-made ones to pick from anywhere in this app. */}
         <button
           type="button"
-          className={given.cheered ? 'cheer cheer-on' : 'cheer'}
-          aria-pressed={given.cheered}
-          aria-label={given.cheered ? 'hyped' : '+1 hype'}
-          title={given.cheered ? 'hyped' : '+1 hype'}
+          className={given.cheered_by_me ? 'cheer cheer-on' : 'cheer'}
+          aria-pressed={given.cheered_by_me}
+          aria-label={given.cheered_by_me ? 'hyped' : '+1 hype'}
+          title={given.cheered_by_me ? 'hyped' : '+1 hype'}
           disabled={busy}
           onClick={() => void cheer()}
         >
@@ -324,17 +347,14 @@ function EncourageRow({
         </p>
       )}
 
-      {counts !== '' && (
-        <NoteThread
-          // A note this account just wrote is part of the thread now, so the
-          // key moves and the component comes back with nothing cached.
-          key={sent}
-          workoutId={workoutId}
-          counts={counts}
-          hasNotes={given.notes > 0}
-          onOpenPerson={onOpenPerson}
-        />
-      )}
+      <NoteThread
+        // A note this account just wrote is part of the thread now, so the key
+        // moves and the component comes back with nothing cached.
+        key={sent}
+        workoutId={workoutId}
+        given={given}
+        onOpenPerson={onOpenPerson}
+      />
     </div>
   )
 }
@@ -347,19 +367,13 @@ function ReceivedRow({
   encouragement,
   onOpenPerson,
 }: EncourageProps & { onOpenPerson?: (userId: number) => void }) {
-  const counts = countLine({
-    cheers: encouragement.cheers,
-    notes: encouragement.notes,
-    cheered: false,
-  })
-  if (counts === '') return null
+  if (encouragement.hype_count === 0 && encouragement.note_count === 0) return null
 
   return (
     <div className="encourage">
       <NoteThread
         workoutId={workoutId}
-        counts={counts}
-        hasNotes={encouragement.notes > 0}
+        given={encouragement}
         onOpenPerson={onOpenPerson}
       />
     </div>

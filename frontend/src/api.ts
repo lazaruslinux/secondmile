@@ -116,11 +116,14 @@ export interface Person {
 }
 
 // What a workout has been given, from everyone, plus whether this account is one
-// of them. Bodies are not here: words go to the person they were written for.
+// of them. The oldest two comments come with it, so a card prints the start of
+// its thread without asking for anything; the rest waits behind the view-all
+// line.
 export interface Encouragement {
-  cheers: number
-  notes: number
+  hype_count: number
+  note_count: number
   cheered_by_me: boolean
+  notes: WorkoutNote[]
 }
 
 // One event in the feed: this account's workouts and its friends' together.
@@ -979,15 +982,20 @@ export async function cancelInvite(username: string): Promise<void> {
 // A cheer carries no words and a note carries nothing but the ones typed into
 // it. A second cheer on the same workout answers 409, which means it is already
 // there rather than that anything went wrong.
+//
+// What comes back is the workout's encouragement as it now stands, counts and
+// opening comments alike, so the card settles on the server's word rather than
+// on arithmetic done here.
 export async function encourage(
   workoutId: number,
   kind: EncouragementKind,
   body?: string,
-): Promise<void> {
-  await sendJson(`/workouts/${workoutId}/encourage`, 'POST', {
+): Promise<Encouragement> {
+  const res = await sendJson(`/workouts/${workoutId}/encourage`, 'POST', {
     kind,
     ...(body === undefined ? {} : { body }),
   })
+  return ((await res.json()) as { encouragement: Encouragement }).encouragement
 }
 
 // This account's workouts and its accepted friends'. A workout with no stored

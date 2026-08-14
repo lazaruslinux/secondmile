@@ -86,7 +86,12 @@ def test_a_history_row_is_the_card_the_feed_draws(signed_in, db_session, member)
     assert "id" not in row
     assert row["own"] is True
     assert row["user"]["username"] == member.username
-    assert row["encouragement"] == {"cheers": 0, "notes": 0, "cheered_by_me": False}
+    assert row["encouragement"] == {
+        "hype_count": 0,
+        "note_count": 0,
+        "cheered_by_me": False,
+        "notes": [],
+    }
     # Own rows carry everything: nothing is ever kept back from the person whose
     # workout it is.
     assert (row["avg_hr"], row["active_kcal"], row["flags"]) == (148.0, 320.0, {})

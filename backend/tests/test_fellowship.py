@@ -455,7 +455,12 @@ def test_a_friend_sees_the_whole_workout_by_default(signed_in, db_session, membe
     assert row["active_kcal"] == 300.0
     assert row["medals"] == ["race_5k"]
     assert row["user"]["username"] == member.username
-    assert row["encouragement"] == {"cheers": 0, "notes": 0, "cheered_by_me": False}
+    assert row["encouragement"] == {
+        "hype_count": 0,
+        "note_count": 0,
+        "cheered_by_me": False,
+        "notes": [],
+    }
     # What is on nobody's row but their own, spelled out so a future field
     # cannot quietly join the row.
     for withheld in ("flags", "pace", "xp", "gear_id"):
@@ -667,16 +672,18 @@ def test_a_cheer_is_wordless_and_counted(friends, db_session):
     response = theirs.post(f"/api/workouts/{workout.id}/encourage", json={"kind": "cheer"})
     assert response.status_code == 201
     assert response.json()["encouragement"] == {
-        "cheers": 1,
-        "notes": 0,
+        "hype_count": 1,
+        "note_count": 0,
         "cheered_by_me": True,
+        "notes": [],
     }
     assert db_session.query(models.Encouragement).one().body is None
     # The owner sees the count but has not cheered it themselves.
     assert mine.get("/api/feed").json()[0]["encouragement"] == {
-        "cheers": 1,
-        "notes": 0,
+        "hype_count": 1,
+        "note_count": 0,
         "cheered_by_me": False,
+        "notes": [],
     }
 
 
@@ -696,7 +703,7 @@ def test_notes_are_not_limited_to_one(friends, db_session):
             f"/api/workouts/{workout.id}/encourage", json={"kind": "note", "body": body}
         )
         assert response.status_code == 201
-    assert response.json()["encouragement"]["notes"] == 2
+    assert response.json()["encouragement"]["note_count"] == 2
 
 
 def test_a_note_needs_words_and_has_a_ceiling(friends, db_session):
@@ -859,6 +866,109 @@ def test_reading_notes_needs_a_session(client, db_session, member):
     assert client.get(f"/api/workouts/{workout.id}/notes").status_code == 401
 
 
+def write_notes(client, workout_id: int, db_session, *bodies: str) -> None:
+    """Several notes on one workout, each a moment after the last.
+
+    The clock is pinned for the suite, so notes written in one call would share
+    a timestamp and the oldest of them would be whichever the tie-break chose.
+    Aged apart here so 'oldest' means what the cases below say it means.
+    """
+    for index, body in enumerate(bodies):
+        if index:
+            let_a_moment_pass(db_session)
+        assert (
+            client.post(
+                f"/api/workouts/{workout_id}/encourage",
+                json={"kind": "note", "body": body},
+            ).status_code
+            == 201
+        )
+
+
+def test_a_card_carries_the_oldest_two_comments_and_both_counts(friends, db_session):
+    """The pair under a card, sent with the card: the two written first, in the
+    order they were written, and the totals beside them."""
+    mine, member, theirs, other = friends
+    workout = post_workout(db_session, member.id)
+    write_notes(theirs, workout.id, db_session, "First.", "Second.", "Third.")
+    assert theirs.post(f"/api/workouts/{workout.id}/encourage", json={"kind": "cheer"}).status_code == 201
+
+    given = mine.get("/api/feed").json()[0]["encouragement"]
+    assert given["hype_count"] == 1
+    assert given["note_count"] == 3
+    assert [note["body"] for note in given["notes"]] == ["First.", "Second."]
+    # The same card the thread endpoint serves, field for field, so the pair on
+    # the card and the top of the thread it opens are one thing.
+    assert given["notes"] == mine.get(f"/api/workouts/{workout.id}/notes").json()[:2]
+
+
+def test_a_card_with_nothing_said_on_it_carries_an_empty_pair(friends, db_session):
+    mine, member, theirs, other = friends
+    post_workout(db_session, member.id)
+    given = mine.get("/api/feed").json()[0]["encouragement"]
+    assert given == {
+        "hype_count": 0,
+        "note_count": 0,
+        "cheered_by_me": False,
+        "notes": [],
+    }
+
+
+def test_the_comments_ride_the_profile_and_the_log_as_well(friends, db_session):
+    """Three screens draw the same card, so three payloads carry the same pair:
+    the feed, a friend's profile, and the owner's own training log."""
+    mine, member, theirs, other = friends
+    workout = post_workout(db_session, member.id)
+    write_notes(theirs, workout.id, db_session, "First.", "Second.", "Third.")
+
+    for row in (
+        theirs.get(f"/api/profile/{member.id}").json()["workouts"][0],
+        mine.get("/api/workouts").json()[0],
+    ):
+        assert row["workout_id"] == workout.id
+        assert row["encouragement"]["note_count"] == 3
+        assert [note["body"] for note in row["encouragement"]["notes"]] == [
+            "First.",
+            "Second.",
+        ]
+
+
+def test_a_note_writer_arrives_as_the_person_card_every_screen_draws(friends, db_session):
+    mine, member, theirs, other = friends
+    workout = post_workout(db_session, member.id)
+    other.first_name = "Ada"
+    other.last_name = "Rowe"
+    db_session.commit()
+    write_notes(theirs, workout.id, db_session, "Strong finish.")
+
+    note = mine.get("/api/feed").json()[0]["encouragement"]["notes"][0]
+    assert set(note) == {"user", "body", "created_at"}
+    assert note["user"]["user_id"] == other.id
+    assert note["user"]["display_name"] == "Ada Rowe"
+    assert note["user"]["has_avatar"] is False
+    assert "border_tier" in note["user"] and "flourish" in note["user"]
+
+
+def test_a_viewer_who_cannot_see_a_workout_reads_none_of_its_comments(friends, db_session):
+    """The pair rides the payload and nothing else. A member who is not a friend
+    has no payload to ride, so the words are as absent as the workout is."""
+    mine, member, theirs, other = friends
+    workout = post_workout(db_session, member.id)
+    write_notes(theirs, workout.id, db_session, "Strong finish.")
+    _, outsider = sign_in(db_session, "stranger")
+
+    assert outsider.get("/api/feed").json() == []
+    # The restricted card a non-friend gets carries no workouts at all, so
+    # there is no row for a comment to ride out on.
+    assert "workouts" not in outsider.get(f"/api/profile/{member.id}").json()
+    for response in (
+        outsider.get("/api/feed"),
+        outsider.get(f"/api/profile/{member.id}"),
+        outsider.get(f"/api/workouts/{workout.id}/notes"),
+    ):
+        assert "Strong finish." not in response.text
+
+
 # --------------------------------------------------------------------------
 # Renown and the flourish
 # --------------------------------------------------------------------------
@@ -886,7 +996,7 @@ def test_the_second_cheer_of_the_week_still_arrives_but_pays_nothing(friends, db
     response = theirs.post(f"/api/workouts/{second.id}/encourage", json={"kind": "cheer"})
 
     assert response.status_code == 201
-    assert response.json()["encouragement"]["cheers"] == 1
+    assert response.json()["encouragement"]["hype_count"] == 1
     assert renown_of(db_session, other) == config.RENOWN_CHEER
     assert [row.earned_renown for row in db_session.query(models.Encouragement).all()] == [
         True,
