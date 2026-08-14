@@ -650,7 +650,7 @@ def update_workout(
     user: models.User = Depends(security.current_user),
 ) -> dict:
     """Title your own workout and write on it."""
-    if throttle.workout_edit_limiter.hit(throttle.client_address(request)):
+    if throttle.workout_edit_limiter.hit(throttle.user_key(user)):
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many edits just now. Wait a minute.")
     workout = _owned(db, workout_id, user.id)
     # Read from the field set rather than the value: a sent null is somebody
@@ -688,7 +688,7 @@ async def upload_photo(
     oversized body is abandoned mid-stream, not spooled to disk and measured
     afterwards (an UploadFile parameter would spool first).
     """
-    if throttle.photo_limiter.hit(throttle.client_address(request)):
+    if throttle.photo_limiter.hit(throttle.user_key(user)):
         raise HTTPException(
             status.HTTP_429_TOO_MANY_REQUESTS, "Too many uploads just now. Wait a minute."
         )
@@ -834,7 +834,7 @@ async def upload_video(
     seconds of work, and a job queue for that would be a system to run rather
     than a feature to have.
     """
-    if throttle.video_limiter.hit(throttle.client_address(request)):
+    if throttle.video_limiter.hit(throttle.user_key(user)):
         raise HTTPException(
             status.HTTP_429_TOO_MANY_REQUESTS, "Too many uploads just now. Wait a minute."
         )
@@ -1018,7 +1018,7 @@ def encourage(
     is not it. A cheer is wordless on purpose and a note is typed by whoever
     sends it. Nothing here suggests either one.
     """
-    if throttle.encourage_limiter.hit(throttle.client_address(request)):
+    if throttle.encourage_limiter.hit(throttle.user_key(user)):
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too much hype just now. Wait a minute.")
     if body.kind not in ("cheer", "note"):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, GENERIC_BAD_REQUEST)

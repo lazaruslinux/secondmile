@@ -319,7 +319,7 @@ async def upload_avatar(
     oversized body is abandoned mid-stream, not spooled to disk and measured
     afterwards (an UploadFile parameter would spool first).
     """
-    if throttle.avatar_limiter.hit(throttle.client_address(request)):
+    if throttle.avatar_limiter.hit(throttle.user_key(user)):
         raise HTTPException(
             status.HTTP_429_TOO_MANY_REQUESTS, "Too many uploads just now. Wait a minute."
         )

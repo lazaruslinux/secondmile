@@ -35,7 +35,17 @@ from app.routers import (
 # single request rather than serving them insecurely.
 check_deploy_config()
 
-app = FastAPI(title=APP_NAME, version=APP_VERSION)
+# No docs, schema, or explorer. /docs, /redoc, and /openapi.json draw an
+# unauthenticated map of every route and its shape; the shipped topology never
+# routes to them, but a route that is not served at all cannot be reached by a
+# topology that is wrong.
+app = FastAPI(
+    title=APP_NAME,
+    version=APP_VERSION,
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
+)
 
 _BODY_CAPS = {"/api/ingest": MAX_INGEST_BODY_BYTES}
 

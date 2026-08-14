@@ -74,7 +74,7 @@ def invite_friend(
     other person answers. Keeping them apart is what stops invite, read, cancel,
     repeat from being a way to walk the username space.
     """
-    if throttle.invite_limiter.hit(throttle.client_address(request)):
+    if throttle.invite_limiter.hit(throttle.user_key(user)):
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many invites just now. Wait a minute.")
     wanted = body.username.strip().lower()
     if wanted == user.username:
