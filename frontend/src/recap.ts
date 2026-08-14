@@ -147,8 +147,7 @@ function stageCrossing(row: RecapGrowth): string {
 
 // What one plant's growth reads as. Coming up out of the ground wins over
 // gaining levels when a plant did both, because maturing happens once and
-// growing happens every week. Nothing here mentions fruit: that mechanic is not
-// built, and the letter does not promise what the app cannot do.
+// growing happens every week.
 export function growthLine(row: RecapGrowth): string {
   // The crossing is the whole of the plant's week, so it takes the line. A
   // plant only ever matures by reaching level one, which is what "is grown"
@@ -160,6 +159,10 @@ export function growthLine(row: RecapGrowth): string {
   // Worked back from the levels gained when the starting level is missing, so
   // an older server still says which two numbers the climb ran between.
   const before = row.level_before ?? Math.max(0, level - (row.levels_gained ?? 0))
+  // Reaching the last level gilds a plant for good, which is not a level so
+  // much as a finish: the one climb worth its own sentence. Said only on the
+  // crossing into it, so a plant already gilded before this letter stays quiet.
+  if (row.gilded === true && before < level) return `${name} is fully grown.`
   if (before === 0 && level >= 1) return `${name} is grown. Level ${level}.`
   if (level > before) return `${name} reached level ${level}.`
   return ''

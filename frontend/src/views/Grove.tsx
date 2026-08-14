@@ -244,7 +244,7 @@ export default function Grove({ userId }: Props) {
 
           <div className="grove-area grove-area-basket">
             <div className="grove-area-head">
-              <span className="grove-area-label">Basket</span>
+              <span className="grove-area-label">Harvest</span>
               <span className="grove-area-value">{basket.length}</span>
             </div>
             {basket.length === 0 ? (

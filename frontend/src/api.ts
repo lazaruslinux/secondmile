@@ -684,14 +684,6 @@ export interface Chest {
   // Which step of the ladder dropped it, "5K" through "Ultra". Chests dropped
   // before the ladder existed carry none, so this is read defensively.
   tier?: string | null
-  // A chest a friend's oil brought rather than one the miles earned. Which
-  // field names the giver is the server's business; all the shapes it might
-  // reasonably use are allowed for here and read in one place.
-  bonus?: boolean
-  from_username?: string
-  giver_username?: string
-  giver?: string
-  from?: string
 }
 
 // Everything that happened while the app was shut. The chests were dropped and
