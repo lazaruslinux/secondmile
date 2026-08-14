@@ -50,28 +50,20 @@ def _live(db: Session, code: str) -> models.Invite | None:
     return invite
 
 
-def _link_row(db: Session, invite: models.Invite) -> dict:
+def _link_row(invite: models.Invite) -> dict:
     """One of your own links, as the settings screen lists it.
 
     The code travels because the row is the whole URL on screen and the client
     builds that from the address it was opened on, which is right for whoever
-    is reading rather than for whoever installed the site. Who claimed it is a
-    name rather than an id: it is there to be read, not to be tapped.
+    is reading rather than for whoever installed the site.
     """
-    claimed_by = None
-    if invite.used_by is not None:
-        person = db.get(models.User, invite.used_by)
-        if person is not None:
-            claimed_by = fellowship.display_name(person.first_name, person.last_name) or (
-                person.username
-            )
-    # No revoked state travels: revoking deletes the row, so a listed link is
-    # either waiting or claimed.
+    # Only waiting links travel: a claimed link leaves the list (the friendship
+    # is the record of it) and a revoked one is deleted, so no other state
+    # exists to describe.
     return {
         "id": invite.id,
         "code": invite.code,
         "created_at": invite.created_at.isoformat(),
-        "claimed_by": claimed_by,
     }
 
 
@@ -89,11 +81,18 @@ def list_invites(
     rows = list(
         db.execute(
             select(models.Invite)
-            .where(models.Invite.created_by == user.id, models.Invite.auto_friend.is_(True))
+            .where(
+                models.Invite.created_by == user.id,
+                models.Invite.auto_friend.is_(True),
+                # A spent link has done its work and the friendship it made is
+                # its record; keeping the row on screen kept a dead credential
+                # and a Copy button beside it.
+                models.Invite.used_by.is_(None),
+            )
             .order_by(models.Invite.created_at.desc(), models.Invite.id.desc())
         ).scalars()
     )
-    return [_link_row(db, invite) for invite in rows]
+    return [_link_row(invite) for invite in rows]
 
 
 @router.post("/invites", status_code=status.HTTP_201_CREATED)
@@ -134,7 +133,7 @@ def mint_invite(
     )
     db.add(invite)
     db.commit()
-    return _link_row(db, invite)
+    return _link_row(invite)
 
 
 @router.post("/invites/{invite_id}/revoke", status_code=status.HTTP_204_NO_CONTENT)

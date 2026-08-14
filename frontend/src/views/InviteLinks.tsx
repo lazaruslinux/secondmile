@@ -87,23 +87,18 @@ export default function InviteLinks() {
                   >
                     Copy
                   </button>
-                  {/* Nothing to take back once it is spent, so the button is
-                      simply not there. A revoked link is deleted and never
-                      listed at all. */}
-                  {link.claimed_by === null && (
-                    <button
-                      type="button"
-                      className="secondary"
-                      disabled={linkBusy}
-                      onClick={() => setRevoking(link)}
-                    >
-                      Revoke
-                    </button>
-                  )}
+                  {/* Every listed link is waiting: a spent one leaves the list
+                      (the friendship is its record) and a revoked one is
+                      deleted, so both verbs always apply. */}
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={linkBusy}
+                    onClick={() => setRevoking(link)}
+                  >
+                    Revoke
+                  </button>
                 </div>
-                {link.claimed_by !== null && (
-                  <p className="hint">Claimed by {link.claimed_by}.</p>
-                )}
                 {copyState?.what === `link-${link.id}` && (
                   <p className={copyState.ok ? 'note note-success' : 'note'} role="status">
                     {copyState.ok

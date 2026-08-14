@@ -49,9 +49,9 @@ def test_a_minted_link_never_expires_and_carries_a_friendship(signed_in, db_sess
     assert stored.expires_at is None
     assert stored.auto_friend is True
     assert stored.created_by == member.id
-    assert row["claimed_by"] is None
-    # A listed link is waiting or claimed; a revoked one is deleted, so no
-    # revoked state travels at all.
+    # A listed link is always waiting: a claimed one leaves the list and a
+    # revoked one is deleted, so neither state travels at all.
+    assert "claimed_by" not in row
     assert "revoked_at" not in row
 
 
@@ -64,20 +64,12 @@ def test_the_list_holds_your_own_links_and_nobody_elses(signed_in, db_session, a
     assert [row["code"] for row in listed] == [mine["code"]]
 
 
-def test_a_claimed_link_says_who_claimed_it(signed_in, client, db_session, outbox):
+def test_a_claimed_link_leaves_the_list(signed_in, client, outbox):
+    # The friendship the link made is its record; the row itself, a spent
+    # credential, has no more business on screen.
     row = mint(signed_in)
     assert signup(client, row["code"]).status_code == 201
-    newcomer = db_session.execute(
-        models.User.__table__.select().where(models.User.username == "newcomer")
-    ).one()
-    db_session.execute(
-        models.User.__table__.update()
-        .where(models.User.id == newcomer.id)
-        .values(first_name="Ada", last_name="Rowe")
-    )
-    db_session.commit()
-    listed = signed_in.get("/api/invites").json()
-    assert listed[0]["claimed_by"] == "Ada Rowe"
+    assert signed_in.get("/api/invites").json() == []
 
 
 def test_a_link_can_be_revoked_while_it_is_waiting_and_not_after(

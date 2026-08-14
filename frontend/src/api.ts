@@ -1293,10 +1293,8 @@ export interface InviteLink {
   id: number
   code: string
   created_at: string
-  // The name of whoever spent it, once somebody has. Null while it waits.
-  // Revoked links are deleted server-side, so a listed link never carries a
-  // revoked state.
-  claimed_by: string | null
+  // Every listed link is waiting: a spent link leaves the list and a revoked
+  // one is deleted server-side, so no other state ever travels.
 }
 
 export function listInviteLinks(): Promise<InviteLink[]> {

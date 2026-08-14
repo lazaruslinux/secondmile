@@ -4720,11 +4720,23 @@ button:disabled {
   padding: 0 1.1rem 3rem;
 }
 
+/* The masthead follows the reader down, like the signed-in chrome does. It
+   breaks out to the viewport's full width so the hero, which also breaks out,
+   slides under a solid bar rather than past a column-wide one; the padding
+   puts its contents back on the column's own edges. */
 .landing-bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   display: flex;
   align-items: center;
   justify-content: space-between;
   min-height: 54px;
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  padding: 0 max(1.1rem, calc(50vw - 23rem + 1.1rem));
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
 }
 
 /* The name is the masthead here rather than a label in the chrome, so it is
