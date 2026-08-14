@@ -50,8 +50,11 @@ export interface Stats {
   activities: number
   // Every step every pedometer on the instance has reported. Optional, because
   // a server from before steps existed says nothing, which reads as none and
-  // draws no third number at all.
+  // draws no steps number at all.
   steps?: number
+  // How many accounts have confirmed their address. Optional on the same terms:
+  // a server that predates the number draws none.
+  users?: number
 }
 
 // Soft flags: the server imports the workout either way and marks what looked

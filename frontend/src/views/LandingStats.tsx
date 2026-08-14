@@ -11,7 +11,13 @@ function easeOut(through: number): number {
   return 1 - (1 - through) ** 3
 }
 
-// What the instance has covered, under the sports in the hero. Three numbers at
+// A count with a floor of two digits, so a young instance reads as 02 rather
+// than as a lonely 2. Three digits and up are left exactly as they came.
+function padded(count: number): string {
+  return count.toLocaleString().padStart(2, '0')
+}
+
+// What the instance has covered, under the sports in the hero. Four numbers at
 // most and nothing else, and every one of them is a fact: this band draws what
 // the server counted or it draws nothing at all.
 //
@@ -21,7 +27,7 @@ export default function LandingStats() {
   // What the server said, once. One fetch on mount and no polling: the totals
   // move slowly and the page is read once.
   const [totals, setTotals] = useState<Stats | null>(null)
-  const [shown, setShown] = useState<Stats>({ miles: 0, activities: 0, steps: 0 })
+  const [shown, setShown] = useState<Stats>({ miles: 0, activities: 0, steps: 0, users: 0 })
   const band = useRef<HTMLUListElement>(null)
 
   useEffect(() => {
@@ -40,6 +46,9 @@ export default function LandingStats() {
           // A server that predates steps, or one whose instance has never seen
           // any, both read as none and draw no third number.
           steps: Number.isFinite(got.steps) ? Math.max(0, Math.trunc(got.steps ?? 0)) : 0,
+          // Same terms as the steps: a server that predates the member count
+          // reads as none and draws no number for it.
+          users: Number.isFinite(got.users) ? Math.max(0, Math.trunc(got.users ?? 0)) : 0,
         })
       })
       .catch(() => {
@@ -76,6 +85,7 @@ export default function LandingStats() {
             miles: Math.round(totals.miles * eased),
             activities: Math.round(totals.activities * eased),
             steps: Math.round((totals.steps ?? 0) * eased),
+            users: Math.round((totals.users ?? 0) * eased),
           })
           if (through < 1) frame = requestAnimationFrame(step)
         }
@@ -96,6 +106,14 @@ export default function LandingStats() {
 
   return (
     <ul className="landing-stats" ref={band}>
+      {/* The members who have confirmed their address, first in the row. Hidden
+          on an instance with none, on the terms the steps are hidden by. */}
+      {(totals.users ?? 0) > 0 && (
+        <li>
+          <span className="landing-stat-value">{padded(shown.users ?? 0)}</span>
+          <span className="label">Active users</span>
+        </li>
+      )}
       <li>
         <span className="landing-stat-value">{shown.miles.toLocaleString()}</span>
         <span className="label">Miles covered</span>

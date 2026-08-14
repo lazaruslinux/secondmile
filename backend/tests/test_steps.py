@@ -502,7 +502,12 @@ def test_the_public_counter_carries_the_steps(client, signed_in, ingest_token):
 
     sync(signed_in, ingest_token, metrics=reading(steps=7500, miles=2.0))
     stats.reset_cache()
-    assert client.get("/api/stats").json() == {"miles": 0, "activities": 0, "steps": 7500}
+    assert client.get("/api/stats").json() == {
+        "miles": 0,
+        "activities": 0,
+        "steps": 7500,
+        "users": 2,
+    }
 
 
 # --------------------------------------------------------------------------

@@ -1,14 +1,15 @@
 """What this instance has covered altogether, for the welcome page to count up.
 
-Two integers and nothing else: whole miles and how many workouts they came
-from, over every account at once. No per-user anything, no timestamps, and no
-way to ask about a person, because this is read by whoever opened the front
-page and nobody has signed in yet.
+A handful of integers and nothing else: whole miles, how many workouts they
+came from, the steps reported, and how many members there are, over every
+account at once. No per-user anything, no timestamps, and no way to ask about a
+person, because this is read by whoever opened the front page and nobody has
+signed in yet.
 
 The cache is not an optimisation, it is the privacy of the numbers. Live
 totals answered on demand would let anybody watching the endpoint see the
 moment a member's run lands, and how far it was, without ever being let in. Ten
-minutes of the same answer is what makes the pair a fact about the instance
+minutes of the same answer is what makes the set a fact about the instance
 rather than a feed of its members.
 """
 
@@ -44,7 +45,7 @@ def reset_cache() -> None:
 
 
 def _count(db: Session) -> dict[str, int]:
-    """Miles, workouts and steps across the instance, deleted ones left out.
+    """Miles, workouts, steps and members across the instance, deleted ones left out.
 
     A deletion is a disappearance from every total at once, exactly as it is
     from every feed: the counter must not go on claiming a workout its owner
@@ -55,6 +56,10 @@ def _count(db: Session) -> dict[str, int]:
     which is a different kind of number from the other two and is named as one
     on the page. Nothing is deleted from it: a day's steps are a reading rather
     than a thing anybody logged, so there is nothing to take back.
+
+    The members are the accounts that have confirmed their address, which is the
+    line between somebody who is here and a registration nobody ever answered
+    for. Still one aggregate integer: no names, no joins, no when.
     """
     miles, activities = db.execute(
         select(func.coalesce(func.sum(models.Workout.distance_mi), 0.0), func.count())
@@ -64,7 +69,15 @@ def _count(db: Session) -> dict[str, int]:
     steps = db.execute(
         select(func.coalesce(func.sum(models.DailySteps.steps), 0))
     ).scalar_one()
-    return {"miles": int(miles), "activities": int(activities), "steps": int(steps)}
+    users = db.execute(
+        select(func.count()).select_from(models.User).where(models.User.email_verified.is_(True))
+    ).scalar_one()
+    return {
+        "miles": int(miles),
+        "activities": int(activities),
+        "steps": int(steps),
+        "users": int(users),
+    }
 
 
 @router.get("/stats")
