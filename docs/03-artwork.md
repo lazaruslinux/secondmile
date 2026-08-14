@@ -73,9 +73,14 @@ Two constraints apply to every SVG here:
   The app loads nothing from outside its own origin. Embed anything you need,
   and use generic font families for text.
 
-The interface is dark and has no light variant, so every file here is drawn to
-sit on a near-black card. The placeholder art follows the palette at the bottom
-of this page; yours does not have to, as long as it reads on black.
+The interface ships dark by default with a light appearance the reader can
+choose, and the art wells behind plants, medals, and chest reveals stay
+near-black on both grounds. Every file here is drawn to sit on that near-black
+card; interface icons are the exception, since they take the page's own colour.
+The placeholder art follows the palette at the bottom of this page; yours does
+not have to, as long as it reads on black. Art drawn only in pale greys will
+wash out on the light ground wherever it sits outside a well (the avatar
+borders have this problem today).
 
 ## Interface icons
 
@@ -560,3 +565,15 @@ printed on in black, so a replacement has to work both ways round: each of the
 four clears 5:1 against the card behind it and 5:1 against the black type on it.
 The legendary orange is deliberately not a second gold, so that a legendary tab
 is never mistaken for the rare one or for the gild on a finished plant.
+
+## The favicon
+
+`frontend/public/favicon.svg` and `frontend/public/apple-touch-icon.png`
+
+The browser-tab mark: his pick of the offered set, the shoe over the 2M
+monogram, crimson on a black rounded square. The letters are Barlow 800
+converted to paths, so the mark renders identically with no font installed.
+The PNG is the same drawing squared off at 180 pixels for an iPhone home
+screen. These live in `public/` rather than `assets/` because the page names
+them by URL before the bundle loads; they are not counted in the register
+above.
