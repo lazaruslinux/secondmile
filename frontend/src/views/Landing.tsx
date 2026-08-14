@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getStatus, welcomeAvatarUrl, type Welcome as WelcomeData } from '../api.ts'
-import heroImage from '../assets/landing-hero.png'
+import heroDark from '../assets/landing-hero-dark.png'
+import heroLight from '../assets/landing-hero-light.png'
 import { ACTIVITY_ICONS, ACTIVITY_NAMES, ACTIVITY_ORDER } from '../labels.ts'
 import AvatarFrame from './AvatarFrame.tsx'
 import Icon from './Icon.tsx'
@@ -47,10 +48,12 @@ export default function Landing({ onEnter, invite }: Props) {
       </header>
 
       <section className="landing-hero">
-        {/* Placeholder art, swapped by replacing the one file. Decorative
-            rather than described: the four sports are named in words a few
-            lines below, so an alt text here would only say them twice. */}
-        <img className="landing-hero-img" src={heroImage} alt="" />
+        {/* One drawing per ground; the stylesheet shows whichever matches the
+            theme. Decorative rather than described: the four sports are named
+            in words a few lines below, so an alt text here would only say
+            them twice. */}
+        <img className="landing-hero-img landing-hero-img-dark" src={heroDark} alt="" />
+        <img className="landing-hero-img landing-hero-img-light" src={heroLight} alt="" />
 
         {/* The line the name comes from, quoted and cited. The citation is set
             small and faint on purpose: it belongs to the sentence rather than

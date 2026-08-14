@@ -20,9 +20,9 @@ whole of what a commission would cover.
 | Plants | 39 | Thirteen species at three growth stages each | The plot, and the reveal when a seed is found |
 | Ground | 1 | The strip of soil a grove stands on, `ground` | The floor of the band across the top of both profiles |
 | Loose pieces | 5 | Chest, gilding overlay, boost potion, water, unmarked seed | Inventory squares, chest reveals, finished plants |
-| Landing hero | 1 | The four sports in four strips, `landing-hero` | The top of the landing page |
+| Landing hero | 2 | The four sports in four strips, one drawing per ground, `landing-hero-dark` and `landing-hero-light` | The top of the landing page |
 
-Ninety-seven files in total, all under `frontend/src/assets/`.
+Ninety-eight files in total, all under `frontend/src/assets/`.
 
 There are two chest drawings on purpose. `grove/chest.svg` is a picture loaded
 by URL with its own colours, used for an inventory square. `icons/chest.svg` is
@@ -146,28 +146,29 @@ activity's own mark. The placeholder is a belt with an upright and a console.
 
 ## The landing hero
 
-`frontend/src/assets/landing-hero.png`
+`frontend/src/assets/landing-hero-dark.png` and
+`frontend/src/assets/landing-hero-light.png`
 
 The one picture on the landing page, drawn above the verse and before anybody
-has an account. It is the only file that sits at the top of `assets` rather than
-in a folder, because it is the only one of its kind: one drawing, read by the
-page by name.
+has an account. They are the only files that sit at the top of `assets` rather
+than in a folder, because they are the only ones of their kind: one drawing per
+ground, and the page shows whichever matches the theme.
 
-REAL ART since 2026-08-11: his finished piece, the second after the mustard.
-A 2000 by 500 transparent PNG, four to one, cut into four equal 500 by 500
-strips. Left to right they are walk, run, cycle, and swim, in the app's own
-order, each a white silhouette on transparency so it sits on whatever the page
-colour is. The strips are divided by near-black hairlines drawn into the file.
-The old SVG swap contract (the four `hero-*` group ids) retired with the
-placeholder; a future replacement only has to keep the four-to-one shape and
-the four-strip order.
+REAL ART since 2026-08-11, redrawn as a pair 2026-08-14: his finished pieces.
+Each is a 2000 by 500 transparent PNG, four to one, cut into four equal 500 by
+500 strips. Left to right they are walk, run, cycle, and swim, in the app's own
+order. The dark-ground file draws the figures light, the light-ground file
+draws them in the deep crimson family, each on transparency so it sits on
+whatever the page colour is. The strips are divided by hairlines drawn into the
+files. The old SVG swap contract (the four `hero-*` group ids) retired with the
+placeholder; a future replacement only has to keep the four-to-one shape, the
+four-strip order, and the one-file-per-ground pairing.
 
-Unlike the interface icons, this one is loaded as a picture rather than placed
-into the page, so it carries its own colours instead of `currentColor`. The
-placeholder uses the palette at the foot of this page: `#0d0d0f` for the card,
-`#26262b` for the rules, `#f4f4f5` for the figures, and `#dc143c` for the marks.
-It is drawn to the full width of a 46rem column, so it is shown as wide as about
-730 pixels and as narrow as a phone, and fine detail is lost at the narrow end.
+Unlike the interface icons, these are loaded as pictures rather than placed
+into the page, so they carry their own colours instead of `currentColor`. They
+are drawn to the full width of a 46rem column, so each is shown as wide as
+about 730 pixels and as narrow as a phone, and fine detail is lost at the
+narrow end.
 
 The two constraints above hold here as they do everywhere: presentation
 attributes only, since the content security policy drops a `style` attribute

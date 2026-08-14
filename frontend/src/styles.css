@@ -134,6 +134,8 @@
   --grove-manna: #d9a441;
   --grove-season: #4caf7d;
   --grove-basket: #b08d57;
+  /* The alpha notice on the landing page, in the mustard that is not gold. */
+  --landing-alpha: #e0b542;
   --radius: 4px;
   --gap: 0.45rem;
   /* The top bar's own height, written out of the parts that make it: the
@@ -149,12 +151,10 @@
 /* The light ground. Same shell, same spacing, same borders rather than shadows,
    same crimson: only what is under it changes. Every value here was checked
    against the surface it is read on, small text at 4.5 and the parts that are
-   only drawn at 3.
-   The two things it never applies to are the landing page and the sign in form.
-   Those are the brand face, they are dark by design rather than by setting, and
-   they are the only two screens in the app carrying these class names, so the
-   root asks whether one of them is on rather than each of them opting out. */
-:root[data-theme='light']:not(:has(.landing, .gate)) {
+   only drawn at 3. The landing and the sign in form follow it like every other
+   screen; the hero is drawn once per ground, and the page shows the matching
+   one, so nothing out there depends on the ground staying dark. */
+:root[data-theme='light'] {
   color-scheme: light;
   --bg: #f6f6f7;
   --surface: #ffffff;
@@ -189,6 +189,7 @@
   --grove-manna: #8c6a14;
   --grove-season: #1f7a4d;
   --grove-basket: #7a5c2e;
+  --landing-alpha: #8f6f14;
 }
 
 * {
@@ -4739,6 +4740,20 @@ button:disabled {
   border-radius: var(--radius);
 }
 
+/* The hero exists once per ground and the ground picks: both are in the page,
+   and the theme decides which one is drawn. */
+.landing-hero-img-light {
+  display: none;
+}
+
+:root[data-theme='light'] .landing-hero-img-light {
+  display: block;
+}
+
+:root[data-theme='light'] .landing-hero-img-dark {
+  display: none;
+}
+
 /* The verse carries the page, so the room above and below it is doing as much
    work as the size is. Tight leading and a little negative tracking keep three
    big lines reading as one sentence rather than as three. */
@@ -4893,7 +4908,7 @@ button:disabled {
    orange, which is a rarity. */
 .landing-alpha {
   margin: 1.6rem 0 0;
-  color: #e0b542;
+  color: var(--landing-alpha);
   font-weight: 700;
 }
 
