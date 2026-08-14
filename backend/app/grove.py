@@ -205,22 +205,102 @@ def spend_wish(
     return made
 
 
-def pour(row: models.Planting, moment: dt.datetime) -> None:
-    """Empty one water item into one planting."""
+def pour(
+    db: Session, user_id: int, row: models.Planting, moment: dt.datetime
+) -> None:
+    """Empty one water item into one planting, and write down that it happened.
+
+    The event row is the point. A workout's growth can be worked out from the
+    workout again; a pour has nothing behind it, so a rebuild that could not
+    read these rows would take the water back out of the ground.
+
+    In the same transaction as the growth it stands for, so the two can never
+    disagree: the caller commits both or neither.
+    """
     _advance(row, WATER_POUR_MI, moment)
+    db.add(
+        models.PourEvent(
+            planting_id=row.id,
+            user_id=user_id,
+            miles=WATER_POUR_MI,
+            created_at=moment,
+        )
+    )
+    db.flush()
 
 
-def reset_growth(db: Session, user_id: int) -> None:
+def reset_growth(db: Session, user_id: int) -> dict[int, dt.datetime | None]:
     """Take every planting back to bare ground for a rebuild to replay.
 
     The plantings themselves stay. What was planted is a choice somebody made;
     only how far it has come is derived from the miles.
+
+    Answers with the maturity date each planting stood at, keyed by planting id,
+    for replay_pours to hand back. Coming of age happened on a day, and a replay
+    can work out whether a plant is grown but not when it got there.
     """
+    dates: dict[int, dt.datetime | None] = {}
     for row in db.execute(
         select(models.Planting).where(models.Planting.user_id == user_id)
     ).scalars():
+        dates[row.id] = row.matured_at
         row.growth_mi = 0.0
         row.matured_at = None
+    return dates
+
+
+def replay_pours(
+    db: Session, user_id: int, matured: dict[int, dt.datetime | None]
+) -> None:
+    """Put back everything a replay of the workouts alone cannot account for.
+
+    Called after that replay, on a plot whose growth is currently the workouts
+    and nothing else. What a plant ends up with is:
+
+        max(replayed workout growth, legacy_growth_mi) + every recorded pour
+
+    THE LEGACY FLOOR. legacy_growth_mi is the growth a plant stood at when 0031
+    ran, and zero on everything planted since. Pours before that revision left
+    no record, so how much of that figure was water and how much was miles
+    cannot be told apart now; the honest reading is that the whole of it is
+    growth this plot is owed, and the floor is what refuses to hand any of it
+    back. On a plant with no legacy the floor is zero and the sum is exact.
+
+    The floor is a one-off and it decays as the miles catch up: once the
+    replayed workouts pass it, it stops mattering and a rebuild is exact from
+    then on. Between the two, a legacy plant that has run up new miles keeps
+    every mile of the snapshot but reads those new ones as paying into it, so
+    the most this can lose is whatever water was poured before 0031, and never
+    below the growth the plant had on the day it ran.
+
+    Maturity is remembered rather than re-derived: a plant that ends up grown
+    keeps the date it already had, and only one that never had a date takes the
+    one the replay stamped on it.
+    """
+    rows = list(
+        db.execute(
+            select(models.Planting).where(models.Planting.user_id == user_id)
+        ).scalars()
+    )
+    for row in rows:
+        # Raised before the water goes on, so the pours land on top of the floor
+        # rather than being swallowed by it.
+        row.growth_mi = max(row.growth_mi, row.legacy_growth_mi)
+
+    by_id = {row.id: row for row in rows}
+    events = db.execute(
+        select(models.PourEvent)
+        .where(models.PourEvent.planting_id.in_(list(by_id)))
+        # Oldest first, so the plant that came of age on a pour takes the date
+        # of the pour that did it rather than the last one to land.
+        .order_by(models.PourEvent.created_at, models.PourEvent.id)
+    ).scalars()
+    for event in events:
+        _advance(by_id[event.planting_id], event.miles, event.created_at)
+
+    for row in rows:
+        if is_mature(row) and matured.get(row.id) is not None:
+            row.matured_at = matured[row.id]
 
 
 # --------------------------------------------------------------------------

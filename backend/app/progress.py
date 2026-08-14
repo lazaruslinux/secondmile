@@ -694,7 +694,12 @@ def recompute(db: Session, user_id: int) -> models.UserProgress:
 
     Nothing anybody chose is rebuilt. The satchel, what is planted, and every
     anointing are actions rather than consequences, so they are left exactly as
-    they are; only the growth in the plot is replayed, from the same workouts.
+    they are; only the growth in the plot is replayed.
+
+    The plot is replayed from the workouts and then from the pours, which are
+    rows of their own from 0031 on, plus the floor that revision left under
+    every plant that predates it. A rebuild therefore never takes water back out
+    of the ground: see grove.replay_pours, which is the whole of that rule.
 
     Every chest goes, lifted ones included, because every chest is a distance
     now: oil raises a chest the miles earned rather than dropping one of its
@@ -711,7 +716,7 @@ def recompute(db: Session, user_id: int) -> models.UserProgress:
     that, which is the safe way round to be wrong.
     """
     db.execute(delete(models.Chest).where(models.Chest.user_id == user_id))
-    grove.reset_growth(db, user_id)
+    matured = grove.reset_growth(db, user_id)
     medals.clear_earns(db, user_id)
     _clear_markers(db, user_id)
     row = db.get(models.UserProgress, user_id)
@@ -730,6 +735,9 @@ def recompute(db: Session, user_id: int) -> models.UserProgress:
         row.fruit_progress_mi = 0.0
     db.commit()
     progress = process_user(db, user_id, bear=False)
+    # After the workouts, because the water went on after them: a pour is worth
+    # its stored miles wherever the replay had got to.
+    grove.replay_pours(db, user_id, matured)
     progress.manna = _balance_after_spends(db, user_id, progress.manna)
     db.commit()
     return progress
@@ -782,10 +790,16 @@ def rebuild_from_surviving(db: Session, user_id: int) -> models.UserProgress:
     honest record of what has been paid.
 
     The plot is not touched at all, in either direction. Growth already put
-    into a plant stays: a tree does not shrink because a run was taken back,
-    and a rebuild of the plot would also lose whatever poured water grew, which
-    nothing records. The other half of that is that a restore does not
-    re-credit the growth it never took away. Deliberate, and pinned by a test.
+    into a plant stays: a tree does not shrink because a run was taken back.
+    The other half of that is that a restore does not re-credit the growth it
+    never took away. Deliberate, and pinned by a test.
+
+    Water is recorded from 0031 on, so a replay of the plot could now put the
+    pours back, and this still does not do one. The reason was never only the
+    missing rows: a deletion here is a workout taken back, and the plot is the
+    one meter in the game that a taking-back does not reach. recompute() is the
+    hatch for rebuilding the plot, and it is deliberately not what a deletion
+    calls.
 
     Fruit is the chests' rule again. Every batch ever borne stays exactly where
     it is, and only the meter under them recomputes: the surviving miles have to

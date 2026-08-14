@@ -708,6 +708,37 @@ class Planting(Base):
     # level, the chest ladder and the medals never read it, and a release that
     # taught it to touch one of them would be the design bug that section names.
     fed_bonus: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # The growth this plant stood at when 0031 ran, and zero on everything
+    # planted since. Before that revision a pour left no record anywhere, so a
+    # replay of the workouts alone cannot reach the growth these plants already
+    # had; this is the floor it is held to. See grove.replay_pours.
+    legacy_growth_mi: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+
+
+class PourEvent(Base):
+    __tablename__ = "pour_events"
+
+    # One water item emptied into one planting. The durable half of a pour:
+    # growth from a workout can always be worked out from the workout again,
+    # and growth from water has nothing behind it, so without this row a
+    # rebuild would strip it (see progress.recompute).
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # Cascaded rather than nulled: an event about a plant that no longer exists
+    # has nothing left to grow, and a replay would have nowhere to put it.
+    planting_id: Mapped[int] = mapped_column(
+        ForeignKey("plantings.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # Whoever poured it, which is the plant's owner or a friend of theirs. The
+    # replay reads the plant rather than this column: water is water once it is
+    # in the ground, whoever brought it.
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # What the pour was worth when it happened, stored rather than looked up
+    # again, so retuning WATER_POUR_MI moves what the next pour grows and never
+    # what an old one grew.
+    miles: Mapped[float] = mapped_column(Float, nullable=False)
+    created_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
 
 
 class FruitBatch(Base):

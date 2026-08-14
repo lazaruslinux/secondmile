@@ -191,7 +191,9 @@ def pour_water(
     # Claimed before the water lands, so a planting cannot take two levels of
     # growth out of one item that two requests both read as unspent.
     _spend(db, item, now)
-    grove.pour(planting, now)
+    # Whoever poured is written down beside the growth, in this transaction, so
+    # a later rebuild can put the water back where it went.
+    grove.pour(db, user.id, planting, now)
     if not own:
         fellowship.spend_on(db, item, planting.user_id, "water", now)
     db.commit()

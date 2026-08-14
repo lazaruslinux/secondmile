@@ -1504,3 +1504,52 @@ def test_the_manna_bank_steps_back_down_again(at_0029):
     command.upgrade(cfg, "head")
     with engine.connect() as connection:
         assert connection.execute(sa.text("SELECT manna FROM user_progress")).scalar_one() == 1150
+
+
+@pytest.fixture()
+def at_0030(tmp_path, monkeypatch):
+    """A database at revision 0030, which is the shape the pour record meets.
+
+    Its own fixture because the floor is read off plantings.growth_mi, and this
+    is the last revision before there is anywhere to write it down.
+    """
+    url = f"sqlite:///{tmp_path}/pours.db"
+    monkeypatch.setattr(config.settings, "database_url", url)
+    cfg = Config(str(BACKEND / "alembic.ini"))
+    cfg.set_main_option("script_location", str(BACKEND / "migrations"))
+    command.upgrade(cfg, "0030")
+    engine = sa.create_engine(url)
+    try:
+        yield engine, (lambda: command.upgrade(cfg, "head"))
+    finally:
+        engine.dispose()
+
+
+def test_the_pour_record_floors_every_plant_already_in_the_ground(at_0030):
+    """0031: the water poured before this revision left no trace anywhere, so
+    each plant is floored at the growth it stands at and a rebuild is held to
+    it. The growth itself does not move, and the table arrives empty."""
+    engine, upgrade = at_0030
+    with engine.connect() as connection:
+        _account(connection, 1, "runner")
+        _planting(connection, 1, 1, "strawberry", "2026-03-01 00:00:00", 42.5)
+        # Grown and dated, which is what a stripped rebuild used to lose.
+        _planting(
+            connection, 2, 1, "olive", "2026-02-01 00:00:00", 495.0, "2026-04-01 00:00:00"
+        )
+        # Bare ground is floored at nothing, which is no floor at all.
+        _planting(connection, 3, 1, "mango", "2026-05-01 00:00:00", 0.0)
+        connection.commit()
+
+    upgrade()
+
+    with engine.connect() as connection:
+        assert connection.execute(
+            sa.text("SELECT id, growth_mi, legacy_growth_mi, matured_at FROM plantings ORDER BY id")
+        ).all() == [
+            (1, 42.5, 42.5, None),
+            (2, 495.0, 495.0, "2026-04-01 00:00:00"),
+            (3, 0.0, 0.0, None),
+        ]
+        # Nothing is invented on the way in: the pours themselves start here.
+        assert connection.execute(sa.text("SELECT count(*) FROM pour_events")).scalar_one() == 0

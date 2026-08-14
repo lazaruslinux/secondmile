@@ -11,7 +11,7 @@ import datetime as dt
 import pytest
 from fastapi.testclient import TestClient
 
-from app import models, progress, security, species
+from app import grove, models, progress, security, species
 from app.config import MAX_PENDING_ANOINTINGS, WATER_POUR_MI
 from app.main import app as fastapi_app
 from app.routers import grove as grove_router
@@ -694,12 +694,124 @@ def test_a_rebuild_replays_growth_and_touches_nothing_chosen(signed_in, db_sessi
 
     progress.recompute(db_session, member.id)
     after = signed_in.get("/api/grove").json()[0]
-    # The miles come back; the poured water does not, because it was spent.
-    assert after["growth_mi"] == 12.0
+    # The miles come back and so does the water: a pour is an event of its own
+    # from 0031 on, and a rebuild puts it back where it went.
+    assert after["growth_mi"] == 22.0
     assert after["id"] == before["id"]
     # The item stays spent: what somebody did with it is not derived from
     # anything and is never replayed.
     assert db_session.get(models.SatchelItem, water.id).used_at is not None
+
+
+def test_a_pour_writes_down_where_the_water_went(signed_in, db_session, member, mate):
+    """The event beside the growth, for a pour into your own plot and into a
+    friend's: the plant it landed on, who poured it, and what it was worth."""
+    other, other_client = mate
+    befriend(db_session, member, other)
+    mine = give_planting(db_session, member.id, "strawberry")
+    theirs = give_planting(db_session, other.id, "grapevine")
+    for client, item_owner, target in (
+        (signed_in, member, mine),
+        (signed_in, member, theirs),
+    ):
+        item = give_item(db_session, item_owner.id, "water")
+        assert (
+            client.post(
+                f"/api/satchel/{item.id}/pour", json={"planting_id": target.id}
+            ).status_code
+            == 200
+        )
+    events = (
+        db_session.query(models.PourEvent).order_by(models.PourEvent.id).all()
+    )
+    assert [(row.planting_id, row.user_id, row.miles) for row in events] == [
+        (mine.id, member.id, WATER_POUR_MI),
+        # The pourer rather than the plot's owner: the friend who brought it.
+        (theirs.id, member.id, WATER_POUR_MI),
+    ]
+    assert all(row.created_at is not None for row in events)
+    # Nothing is written for a pour that never happened.
+    refused = give_item(db_session, member.id, "water")
+    signed_in.post(f"/api/satchel/{refused.id}/pour", json={"planting_id": 999999})
+    assert db_session.query(models.PourEvent).count() == 2
+
+
+def test_a_rebuild_lands_a_watered_plot_exactly_where_it_was(
+    signed_in, db_session, member
+):
+    """Workouts and water together: the same growth, the same date of maturity,
+    and the same level on the other side of the hatch."""
+    planting = give_planting(db_session, member.id, "strawberry")
+    log_workout(db_session, member.id, "run", 8.0, pace_min=9, offset_min=0)
+    for _ in range(2):
+        water = give_item(db_session, member.id, "water")
+        assert (
+            signed_in.post(
+                f"/api/satchel/{water.id}/pour", json={"planting_id": planting.id}
+            ).status_code
+            == 200
+        )
+    log_workout(db_session, member.id, "swim", 1.0, pace_min=30, offset_min=200)
+    before = signed_in.get("/api/grove").json()[0]
+    matured_at = db_session.get(models.Planting, planting.id).matured_at
+    assert before["growth_mi"] > 0 and before["level"] >= 1 and matured_at is not None
+
+    progress.recompute(db_session, member.id)
+    after = signed_in.get("/api/grove").json()[0]
+    assert after == before
+    assert db_session.get(models.Planting, planting.id).matured_at == matured_at
+
+
+def test_a_rebuild_never_lowers_a_plant_that_predates_the_pour_record(
+    signed_in, db_session, member
+):
+    """A plot from before 0031, where the pours left no trace: the floor that
+    migration wrote is what a rebuild is held to, and it holds the date of
+    maturity with it."""
+    planting = give_planting(db_session, member.id, "strawberry", growth=42.0)
+    # What 0031 does to every plant already in the ground, and the maturity it
+    # had reached before any of this existed.
+    planting.legacy_growth_mi = 42.0
+    matured_at = security.now_utc() - dt.timedelta(days=30)
+    planting.matured_at = matured_at
+    db_session.commit()
+    was = grove.serialize_planting(planting)
+    log_workout(db_session, member.id, "run", 3.0)
+
+    progress.recompute(db_session, member.id)
+    db_session.refresh(planting)
+    assert planting.growth_mi >= was["growth_mi"]
+    assert grove.level_of(planting) >= was["level"]
+    # The date it came of age is remembered rather than worked out again.
+    assert planting.matured_at == matured_at
+    # And a pour recorded since lands on top of the floor rather than inside it.
+    water = give_item(db_session, member.id, "water")
+    assert (
+        signed_in.post(
+            f"/api/satchel/{water.id}/pour", json={"planting_id": planting.id}
+        ).status_code
+        == 200
+    )
+    poured = db_session.get(models.Planting, planting.id).growth_mi
+    progress.recompute(db_session, member.id)
+    assert db_session.get(models.Planting, planting.id).growth_mi == poured
+
+
+def test_a_gilded_plant_is_still_gilded_after_a_rebuild(signed_in, db_session, member):
+    """The finished plant is the one a stripped rebuild embarrassed most: its
+    fruit had already been borne, and it came back unfinished."""
+    grown = 15.0 * species.MAX_LEVEL
+    planting = give_planting(db_session, member.id, "strawberry", growth=grown)
+    planting.legacy_growth_mi = grown
+    planting.matured_at = security.now_utc() - dt.timedelta(days=60)
+    db_session.commit()
+    assert signed_in.get("/api/grove").json()[0]["gilded"] is True
+
+    progress.recompute(db_session, member.id)
+    after = signed_in.get("/api/grove").json()[0]
+    assert after["gilded"] is True
+    assert after["growth_mi"] == grown
+    assert after["matured_at"] is not None
 
 
 # --------------------------------------------------------------------------
