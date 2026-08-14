@@ -103,6 +103,11 @@
   --rarity-legendary: #e0762e;
   --radius: 4px;
   --gap: 0.45rem;
+  /* The top bar's own height, written out of the parts that make it: the
+     wordmark's line (1.05rem at the root's 1.4), the padding above and below
+     it, and the rule along the bottom. Anything that sticks beneath the bar
+     offsets by this, so it has to stay the height the bar actually renders. */
+  --topbar-h: calc(1.47rem + 1.4rem + 1px);
   /* Numbers are set in the narrower width of the same family: a distance is
      read as a figure rather than as a word, and a column of them lines up. */
   --font-nums: 'Barlow Semi Condensed', 'Barlow', system-ui, sans-serif;
@@ -256,14 +261,20 @@ code {
   background: var(--bg);
 }
 
+/* The chrome layer. The bar along the top and the bar along the bottom sit
+   above everything the page draws, medals and banners included, so a profile
+   scrolls under them rather than over them on its way off screen. */
 .topbar {
   position: sticky;
   top: 0;
-  z-index: 2;
+  z-index: 10;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  /* Holds the bar to the height the variable promises, so a sticky offset
+     taken from it can never drift from the real edge. */
+  min-height: var(--topbar-h);
   padding: 0.7rem 1rem;
   background: var(--bg);
   border-bottom: 1px solid var(--line);
@@ -313,6 +324,20 @@ code {
   padding: 0.25rem 0.15rem 0;
 }
 
+/* You only. That screen is long and its heading carries the two buttons that
+   act on it, so the heading follows the reader down, parked against the bottom
+   of the top bar. It has to be opaque and it has to cover the column gap under
+   it, or the cards would show through on their way past. Still no border and
+   no shadow: the shell stays flat whether it is stuck or not. */
+.view-head-sticky {
+  position: sticky;
+  top: var(--topbar-h);
+  z-index: 9;
+  padding-bottom: var(--gap);
+  margin-bottom: calc(var(--gap) * -1);
+  background: var(--bg);
+}
+
 .view-title {
   margin: 0;
   font-size: 1.4rem;
@@ -327,7 +352,7 @@ code {
   right: 0;
   bottom: 0;
   left: 0;
-  z-index: 3;
+  z-index: 10;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   background: var(--bg);
@@ -4452,6 +4477,12 @@ button:disabled {
    screen gets the width and the number of columns it can actually use.
    Everything narrower than this is untouched by the whole block. */
 @media (min-width: 900px) {
+  /* The sections move into the bar here, so its height is theirs: a 36px touch
+     target, the shorter padding below, and the rule. */
+  :root {
+    --topbar-h: calc(36px + 1.2rem + 1px);
+  }
+
   .tabbar {
     display: none;
   }

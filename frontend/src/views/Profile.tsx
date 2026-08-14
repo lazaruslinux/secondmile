@@ -222,7 +222,7 @@ export default function Profile({
 
   return (
     <>
-      <div className="view-head">
+      <div className="view-head view-head-sticky">
         <h1 className="view-title">You</h1>
         <div className="head-buttons">
           <button
