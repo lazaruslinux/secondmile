@@ -25,7 +25,7 @@ const WORKOUT_FIELDS: Field[] = [
   { name: 'URL', value: 'The address above' },
   { name: 'Timeout Interval', value: '60' },
   { name: 'Header Key', value: 'Authorization' },
-  { name: 'Header Value', value: 'bearer, a space, then your token' },
+  { name: 'Header Value', value: 'the bearer line you copied when you created your token' },
   { name: 'Data Type', value: 'Workouts' },
   { name: 'Include Route Data', value: 'On' },
   { name: 'Include Workout Metrics', value: 'On' },
@@ -51,7 +51,7 @@ const STEP_FIELDS: Field[] = [
   { name: 'URL', value: 'The same address' },
   { name: 'Timeout Interval', value: '60' },
   { name: 'Header Key', value: 'Authorization' },
-  { name: 'Header Value', value: 'bearer, a space, then your token' },
+  { name: 'Header Value', value: 'the bearer line you copied when you created your token' },
   { name: 'Data Type', value: 'Health Metrics' },
   {
     name: 'Select Health Metrics',
@@ -166,10 +166,12 @@ export default function SetupGuide({ onBack }: Props) {
           </div>
 
           <p className="guide-note">
-            They also need your sync token, which is on the Settings screen under Health
-            sync. Create it there and copy it while it is on the screen: the server keeps
-            only a hash of it, so it is shown once and never printed here. If you lose it,
-            rotate it and paste the new one into both automations.
+            They also need your sync token. Create it now, before you build the
+            automations: it is on the Settings screen under Health sync, and when it
+            appears, its Copy button copies the whole bearer line, ready to paste straight
+            into the Header Value field below. The server keeps only a hash of it, so it
+            is shown once and never printed here. If you lose it, rotate it and paste the
+            new line into both automations.
           </p>
         </div>
       </section>

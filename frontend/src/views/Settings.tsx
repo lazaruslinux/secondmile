@@ -442,13 +442,17 @@ export default function Settings({
           {freshToken && (
             <div className="token">
               <p className="warning">
-                Copy this into your export app now. It will not be shown again.
+                This is the whole Header Value for your export app. Copy it now; it will
+                not be shown again.
               </p>
-              <code>{freshToken}</code>
+              {/* The line is handed over assembled, prefix and all, so the thing
+                  copied and the thing pasted are the same object: describing the
+                  format in words got the description itself pasted once. */}
+              <code>{`bearer ${freshToken}`}</code>
               <button
                 type="button"
                 className="secondary"
-                onClick={() => void copy(freshToken, 'token')}
+                onClick={() => void copy(`bearer ${freshToken}`, 'token')}
               >
                 Copy
               </button>
