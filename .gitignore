@@ -62,3 +62,4 @@ Thumbs.db
 # The owner's work-in-progress art: baked into local builds, never committed.
 frontend/src/assets/grove-custom/*
 !frontend/src/assets/grove-custom/.gitkeep
+CLAUDE-archive.md
