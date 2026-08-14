@@ -4734,9 +4734,12 @@ button:disabled {
 
 /* Grey and unmarked beside a Sign in that is accent-coloured and underlined:
    the way in has to be the one thing in the bar that looks pressable. */
+/* A bordered chip rather than a link, so it reads as tappable, and in the
+   muted ink rather than the text's: a preference, not the way in. */
 .landing-appearance {
   color: var(--muted);
-  text-decoration: none;
+  padding: 0.35rem 0.7rem;
+  min-height: 36px;
 }
 
 /* The drawing is 4:1, so the height follows the width and nothing jumps as it

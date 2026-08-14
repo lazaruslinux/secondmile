@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   ApiError,
   errorText,
@@ -50,6 +50,9 @@ export default function Login({
   const [unverified, setUnverified] = useState(false)
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
+  // The disabled attribute arrives a render after the first tap, so a fast
+  // second tap in the same frame still fires. This one is read synchronously.
+  const inFlight = useRef(false)
 
   useEffect(() => {
     getStatus()
@@ -68,6 +71,8 @@ export default function Login({
 
   async function submit(event: FormEvent) {
     event.preventDefault()
+    if (inFlight.current) return
+    inFlight.current = true
     setBusy(true)
     setError('')
     setNote('')
@@ -89,6 +94,7 @@ export default function Login({
       setError(errorText(err))
       if (err instanceof ApiError && err.status === 403) setUnverified(true)
     } finally {
+      inFlight.current = false
       setBusy(false)
     }
   }

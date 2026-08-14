@@ -58,7 +58,7 @@ export default function Landing({ onEnter, invite }: Props) {
               the errand, and this is a preference. */}
           <button
             type="button"
-            className="link landing-appearance"
+            className="secondary landing-appearance"
             onClick={() => chooseTheme(theme === 'light' ? 'dark' : 'light')}
           >
             Appearance: {theme === 'light' ? 'Light' : 'Dark'}
