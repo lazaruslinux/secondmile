@@ -14,6 +14,7 @@ import {
   type Units,
 } from '../api.ts'
 import { instanceTimezone } from '../format.ts'
+import { applyTheme, rememberedTheme, rememberTheme, type Theme } from '../theme.ts'
 import Confirm from './Confirm.tsx'
 
 // Said whatever happened. Whether that address belongs to anybody already is
@@ -84,6 +85,10 @@ export default function Settings({
   const [unitsError, setUnitsError] = useState('')
   const [savingUnits, setSavingUnits] = useState(false)
 
+  // This browser's own, so there is nothing to save and nothing to fail: the
+  // screen changes under the button that was pressed.
+  const [theme, setTheme] = useState<Theme>(rememberedTheme)
+
   const [hiddenError, setHiddenError] = useState('')
   const [savingHidden, setSavingHidden] = useState(false)
 
@@ -153,6 +158,13 @@ export default function Settings({
     } finally {
       setSavingUnits(false)
     }
+  }
+
+  function chooseTheme(next: Theme) {
+    if (next === theme) return
+    applyTheme(next)
+    rememberTheme(next)
+    setTheme(next)
   }
 
   // Drawn from what the server stored rather than from the tap, so a switch
@@ -563,6 +575,35 @@ export default function Settings({
               {unitsError}
             </p>
           )}
+        </div>
+      </section>
+
+      {/* The same shape as Units above it, and with nothing said under the
+          heading: the two words are the whole of it, and the proof is the
+          screen changing as they are pressed. This browser's choice rather
+          than the account's, so no other device follows it. */}
+      <section className="settings-group">
+        <h2 className="label settings-title">Appearance</h2>
+
+        <div className="card">
+          <div className="choice">
+            <button
+              type="button"
+              className={theme === 'light' ? 'choice-option choice-current' : 'choice-option'}
+              aria-pressed={theme === 'light'}
+              onClick={() => chooseTheme('light')}
+            >
+              Light
+            </button>
+            <button
+              type="button"
+              className={theme === 'dark' ? 'choice-option choice-current' : 'choice-option'}
+              aria-pressed={theme === 'dark'}
+              onClick={() => chooseTheme('dark')}
+            >
+              Dark
+            </button>
+          </div>
         </div>
       </section>
 

@@ -2,11 +2,14 @@
    right after a workout, so the whole thing is a single readable column with
    large touch targets and a fixed bar along the bottom.
 
-   Dark only, on purpose: there is one theme and no light variant to keep in
-   step with it. Cards sit on pure black with black gutters between them, labels
-   are small and shouty, numbers are large and quiet, and crimson is the only
-   colour that is not black, white, or grey. Nothing moves: no transitions, no
-   animations, no shadows. */
+   Dark by default and light by asking: one shell with the ground flipped under
+   it, not two designs. Every colour that changes with the ground is a token in
+   the block below, so there is one place to keep the two in step; the handful
+   of hexes written anywhere else either hold on both grounds or belong to the
+   landing page, which never flips. Cards sit on the ground with
+   gutters of it between them, labels are small and shouty, numbers are large
+   and quiet, and crimson is the only colour that is not black, white, or grey.
+   Nothing moves: no transitions, no animations, no shadows. */
 
 /* The typefaces, bundled rather than fetched. Nothing in this app loads from
    another origin, so a font cannot be an exception: a Google Fonts link would
@@ -95,12 +98,42 @@
   --muted: #9a9aa0;
   --accent: #dc143c;
   /* The four rarities that are not the type colour. Common is drawn in --text,
-     so the five frames need only these four of their own. Each is read on a
-     near-black card and printed on in black, so each works both ways round. */
+     so the five frames need only these four of their own. Each has to work as a
+     border read against the card and as a solid block with the tab's name
+     printed on it, which is what --on-rarity below is for. */
   --rarity-uncommon: #4a8fd9;
   --rarity-rare: #d4af37;
   --rarity-epic: #a06cd5;
   --rarity-legendary: #e0762e;
+  /* The type on a rarity tab, which is the solid rarity colour behind it. */
+  --on-rarity: #000000;
+  /* The ground a drawing is made on: the square behind a plant, a medal, or a
+     photograph, and the one thing written on top of one. Dark under both
+     themes, because every piece of artwork in this app is drawn for a dark
+     ground and none of it is being redrawn. */
+  --well: #17171b;
+  --on-well: #f4f4f5;
+  /* A cell inside a card, and an empty one. Raised on the dark ground, sunk on
+     the light one, which is the same distinction either way round. */
+  --panel: #17171b;
+  --slot: #101014;
+  /* The two message boxes, each a tinted block with type on it. */
+  --error-text: #ffb3bd;
+  --error-bg: #24070d;
+  --error-line: #5e1622;
+  --success-text: #a9dcb8;
+  --success-bg: #0b1a10;
+  --success-line: #23492e;
+  /* The four stat chips and the grove card's three areas, each of which names
+     itself in its own colour on its own left edge. The faint wash behind them
+     is mixed from the same token, so a light variant carries its own tint. */
+  --chip-miles: #4a9eda;
+  --chip-activities: #3fbfb0;
+  --chip-level: #a855f7;
+  --chip-medals: #e0b542;
+  --grove-manna: #d9a441;
+  --grove-season: #4caf7d;
+  --grove-basket: #b08d57;
   --radius: 4px;
   --gap: 0.45rem;
   /* The top bar's own height, written out of the parts that make it: the
@@ -111,6 +144,51 @@
   /* Numbers are set in the narrower width of the same family: a distance is
      read as a figure rather than as a word, and a column of them lines up. */
   --font-nums: 'Barlow Semi Condensed', 'Barlow', system-ui, sans-serif;
+}
+
+/* The light ground. Same shell, same spacing, same borders rather than shadows,
+   same crimson: only what is under it changes. Every value here was checked
+   against the surface it is read on, small text at 4.5 and the parts that are
+   only drawn at 3.
+   The two things it never applies to are the landing page and the sign in form.
+   Those are the brand face, they are dark by design rather than by setting, and
+   they are the only two screens in the app carrying these class names, so the
+   root asks whether one of them is on rather than each of them opting out. */
+:root[data-theme='light']:not(:has(.landing, .gate)) {
+  color-scheme: light;
+  --bg: #f6f6f7;
+  --surface: #ffffff;
+  --line: #e3e3e7;
+  --line-strong: #d2d2d8;
+  --text: #17171a;
+  --muted: #62626b;
+  /* --accent is not here: the crimson is the brand and is the one colour that
+     reads the same on both grounds. */
+  /* Each rarity darkened until it holds on white. The tab reverses with them:
+     black type on these would be unreadable, so the light tab is printed in
+     white instead. The legendary tone is the only orange in the app and is
+     grandfathered; the ban is on new palette colours. */
+  --rarity-uncommon: #2f6fb8;
+  --rarity-rare: #8a6d1a;
+  --rarity-epic: #7c4bb8;
+  --rarity-legendary: #b45416;
+  --on-rarity: #ffffff;
+  /* --well keeps its dark value: see the block above. */
+  --panel: #f6f6f7;
+  --slot: #f0f0f2;
+  --error-text: #7a1123;
+  --error-bg: #fdeef1;
+  --error-line: #f2c6ce;
+  --success-text: #14572c;
+  --success-bg: #eaf6ee;
+  --success-line: #bfe0c9;
+  --chip-miles: #2b71b0;
+  --chip-activities: #127f73;
+  --chip-level: #7c3aed;
+  --chip-medals: #8f6f14;
+  --grove-manna: #8c6a14;
+  --grove-season: #1f7a4d;
+  --grove-basket: #7a5c2e;
 }
 
 * {
@@ -598,9 +676,9 @@ button:disabled {
 }
 
 .error {
-  color: #ffb3bd;
-  background: #24070d;
-  border: 1px solid #5e1622;
+  color: var(--error-text);
+  background: var(--error-bg);
+  border: 1px solid var(--error-line);
   border-radius: var(--radius);
   padding: 0.5rem 0.7rem;
   margin: 0;
@@ -609,9 +687,9 @@ button:disabled {
 
 /* The same shape as an error block for something that went right. */
 .note-success {
-  color: #a9dcb8;
-  background: #0b1a10;
-  border: 1px solid #23492e;
+  color: var(--success-text);
+  background: var(--success-bg);
+  border: 1px solid var(--success-line);
   border-radius: var(--radius);
   padding: 0.5rem 0.7rem;
   margin: 0;
@@ -2181,7 +2259,7 @@ button:disabled {
   height: 74%;
   object-fit: cover;
   border-radius: 3px;
-  background: #17171b;
+  background: var(--well);
 }
 
 .avatar-empty {
@@ -3346,7 +3424,7 @@ button:disabled {
   flex-direction: column;
   gap: 0.35rem;
   padding: 0.6rem;
-  background: #17171b;
+  background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius);
 }
@@ -3386,9 +3464,9 @@ button:disabled {
 /* Rarity frames
    Every square that holds a plant, a seed, or a tool with a rarity is bordered
    in that rarity and carries its name on a solid tab hanging off the foot of
-   the square. The tab is the same colour as the border with black type on it,
-   which reads on all five. The gild is a separate thing and stays on the
-   artwork itself. */
+   the square. The tab is the same colour as the border with --on-rarity type on
+   it, which reads on all five under either ground. The gild is a separate thing
+   and stays on the artwork itself. */
 
 .rarity-frame {
   display: flex;
@@ -3403,7 +3481,7 @@ button:disabled {
 .rarity-square {
   display: block;
   padding: 2px;
-  background: #17171b;
+  background: var(--well);
   border: 2px solid var(--text);
   border-radius: 4px 4px 0 0;
 }
@@ -3417,7 +3495,7 @@ button:disabled {
   letter-spacing: 0.06em;
   text-align: center;
   text-transform: uppercase;
-  color: #000000;
+  color: var(--on-rarity);
   background: var(--text);
   border-radius: 0 0 4px 4px;
 }
@@ -3680,30 +3758,30 @@ button:disabled {
 }
 
 .grove-area-manna {
-  border-left-color: #d9a441;
-  background: rgba(217, 164, 65, 0.07);
+  border-left-color: var(--grove-manna);
+  background: color-mix(in srgb, var(--grove-manna) 7%, transparent);
 }
 
 .grove-area-manna .grove-area-label {
-  color: #d9a441;
+  color: var(--grove-manna);
 }
 
 .grove-area-season {
-  border-left-color: #4caf7d;
-  background: rgba(76, 175, 125, 0.07);
+  border-left-color: var(--grove-season);
+  background: color-mix(in srgb, var(--grove-season) 7%, transparent);
 }
 
 .grove-area-season .grove-area-label {
-  color: #4caf7d;
+  color: var(--grove-season);
 }
 
 .grove-area-basket {
-  border-left-color: #b08d57;
-  background: rgba(176, 141, 87, 0.07);
+  border-left-color: var(--grove-basket);
+  background: color-mix(in srgb, var(--grove-basket) 7%, transparent);
 }
 
 .grove-area-basket .grove-area-label {
-  color: #b08d57;
+  color: var(--grove-basket);
 }
 
 /* Manna worn as a currency on the You screen: the grove's gold, one number,
@@ -3713,16 +3791,16 @@ button:disabled {
   justify-content: space-between;
   align-items: baseline;
   gap: 0.6rem;
-  border: 1px solid rgba(217, 164, 65, 0.45);
-  border-left: 3px solid #d9a441;
+  border: 1px solid color-mix(in srgb, var(--grove-manna) 45%, transparent);
+  border-left: 3px solid var(--grove-manna);
   border-radius: var(--radius);
-  background: rgba(217, 164, 65, 0.07);
+  background: color-mix(in srgb, var(--grove-manna) 7%, transparent);
   padding: 0.7rem 0.8rem;
   margin-top: 0.9rem;
 }
 
 .manna-band .grove-area-label {
-  color: #d9a441;
+  color: var(--grove-manna);
 }
 
 .manna-band-value {
@@ -3765,35 +3843,35 @@ button:disabled {
 }
 
 .chip-miles {
-  border-left-color: #4a9eda;
+  border-left-color: var(--chip-miles);
 }
 
 .chip-miles .count-label {
-  color: #4a9eda;
+  color: var(--chip-miles);
 }
 
 .chip-activities {
-  border-left-color: #3fbfb0;
+  border-left-color: var(--chip-activities);
 }
 
 .chip-activities .count-label {
-  color: #3fbfb0;
+  color: var(--chip-activities);
 }
 
 .chip-level {
-  border-left-color: #a855f7;
+  border-left-color: var(--chip-level);
 }
 
 .chip-level .count-label {
-  color: #a855f7;
+  color: var(--chip-level);
 }
 
 .chip-medals {
-  border-left-color: #e0b542;
+  border-left-color: var(--chip-medals);
 }
 
 .chip-medals .count-label {
-  color: #e0b542;
+  color: var(--chip-medals);
 }
 
 /* The grove's own two counts, a quiet line at the band's foot. Own screen
@@ -3967,7 +4045,7 @@ button:disabled {
 }
 
 .inv-empty {
-  background: #101014;
+  background: var(--slot);
   border: 1px solid var(--line);
   border-radius: 4px;
 }
@@ -4004,7 +4082,9 @@ button:disabled {
   font-size: 0.75rem;
   font-weight: 800;
   line-height: 1.1;
-  color: var(--text);
+  /* Written on the artwork rather than on the card, so it stays the light of a
+     dark ground under both themes along with the ground itself. */
+  color: var(--on-well);
   text-shadow: 0 0 3px #000000, 0 1px 2px #000000;
 }
 
@@ -4156,7 +4236,7 @@ button:disabled {
   height: auto;
   aspect-ratio: 1;
   margin: 0 auto;
-  background: #17171b;
+  background: var(--well);
   border: 1px solid var(--line);
   border-radius: 3px;
   cursor: move;
