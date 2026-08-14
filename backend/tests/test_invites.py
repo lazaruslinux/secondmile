@@ -72,6 +72,17 @@ def test_a_claimed_link_leaves_the_list(signed_in, client, outbox):
     assert signed_in.get("/api/invites").json() == []
 
 
+def test_three_links_may_wait_and_a_freed_slot_mints_again(signed_in, client, outbox):
+    # The cap is a bad-actor bound, not a budget: claiming or revoking a link
+    # frees its slot, so a growing club is never stuck behind it.
+    rows = [mint(signed_in) for _ in range(3)]
+    refused = signed_in.post("/api/invites")
+    assert refused.status_code == 400
+    assert "waiting" in refused.json()["detail"]
+    assert signup(client, rows[0]["code"]).status_code == 201
+    mint(signed_in)
+
+
 def test_a_link_can_be_revoked_while_it_is_waiting_and_not_after(
     signed_in, client, db_session, outbox
 ):

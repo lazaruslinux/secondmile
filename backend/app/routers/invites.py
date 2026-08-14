@@ -25,10 +25,10 @@ router = APIRouter(tags=["invites"])
 # One sentence for the four endings, and the page prints it as it stands.
 DEAD_LINK = "This invite link is not valid anymore."
 
-# How many links one account may have waiting at once. Far more than anybody
-# has people to invite, and low enough that the table is not somewhere to park
-# a few thousand codes.
-MAX_OPEN_LINKS = 50
+# How many links one account may have waiting at once. Low on purpose for a
+# public instance: enough to invite a few people at a time, and a compromised
+# account cannot spray codes. Claiming or revoking a link frees its slot.
+MAX_OPEN_LINKS = 3
 
 
 def _live(db: Session, code: str) -> models.Invite | None:
