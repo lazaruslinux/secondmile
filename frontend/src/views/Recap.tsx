@@ -50,6 +50,8 @@ interface Props {
 // causes any of it.
 export default function Recap({ recap, units, onDismiss }: Props) {
   const dialog = useRef<HTMLDialogElement>(null)
+  // Focus target on open, so the letter starts at its first words.
+  const heading = useRef<HTMLHeadingElement>(null)
   // The workouts as this letter now knows them: a title written here is on the
   // row underneath before the dialog is closed.
   const [workouts, setWorkouts] = useState<RecapWorkout[]>(recap.workouts ?? [])
@@ -61,6 +63,12 @@ export default function Recap({ recap, units, onDismiss }: Props) {
   // modal form brings the focus trap, the page behind held still, and Esc.
   useEffect(() => {
     dialog.current?.showModal()
+    // showModal puts focus on the first control it finds, which is a row
+    // button partway down and scrolls the letter to it, so a reader opens
+    // partway through. Start focus on the title and the body at its top.
+    heading.current?.focus()
+    const body = dialog.current?.querySelector<HTMLElement>('.recap')
+    if (body) body.scrollTop = 0
   }, [])
 
   const elapsed = recap.since ? formatElapsed(recap.since) : ''
@@ -113,7 +121,9 @@ export default function Recap({ recap, units, onDismiss }: Props) {
     >
       <section className="overlay-panel">
         <header className="overlay-head">
-          <h2 id="recap-title">While you were away</h2>
+          <h2 id="recap-title" ref={heading} tabIndex={-1} style={{ outline: 'none' }}>
+            While you were away
+          </h2>
           {/* The dialog is already titled with the words his markup opened on,
               so what goes here is the greeting and the length of the gap. */}
           <p className="hint">{welcome}</p>
