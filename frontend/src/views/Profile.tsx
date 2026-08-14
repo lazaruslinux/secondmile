@@ -42,7 +42,6 @@ import BandGrove from './BandGrove.tsx'
 import ChestBar from './ChestBar.tsx'
 import ChestItem from './ChestItem.tsx'
 import EditProfile from './EditProfile.tsx'
-import Fellowship from './Fellowship.tsx'
 import GearCard from './GearCard.tsx'
 import Icon from './Icon.tsx'
 import ItemTallies from './ItemTallies.tsx'
@@ -71,8 +70,8 @@ interface Props {
   // which so far means chests opened from the recap.
   refreshToken: number
   onOpenSettings: () => void
-  // Handed straight down to the friends list, whose rows go to a profile. The
-  // app owns which screen is up, so nothing below reaches for it itself.
+  // Opens a profile, which on this screen only ever means your own through the
+  // friend lens. The app owns which screen is up, so nothing here reaches for it.
   onOpenPerson: (userId: number) => void
 }
 
@@ -458,17 +457,15 @@ export default function Profile({
             )}
           </section>
 
-          {/* Under the tallies and above the friends list. Maintenance rather
-              than game: nothing on this card is earned, and nothing on it moves
-              a number anywhere else on the screen. */}
+          {/* Under the tallies. Maintenance rather than game: nothing on this
+              card is earned, and nothing on it moves a number anywhere else on
+              the screen. */}
           <GearCard
             gear={profile.gear ?? []}
             onChanged={(gear) =>
               setProfile((current) => (current ? { ...current, gear } : current))
             }
           />
-
-          <Fellowship userId={userId} onOpenPerson={onOpenPerson} />
         </div>
 
         <div className="you-col you-right">

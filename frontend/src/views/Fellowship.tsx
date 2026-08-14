@@ -22,7 +22,7 @@ const INVITE_SENT =
   'Sent. If that name belongs to someone here, the invite is waiting in their app.'
 
 // What this card last showed, kept by account for as long as the page lives, so
-// coming back to You is not a blank card while the list is on its way.
+// coming back to Friends is not a blank card while the list is on its way.
 const cache = new Map<number, Friends>()
 
 const EMPTY: Friends = { friends: [], pending_in: [], pending_out: [] }
@@ -192,8 +192,6 @@ export default function Fellowship({ userId, onOpenPerson }: Props) {
 
   return (
     <section className="card fellowship">
-      <h2 className="label">Friends</h2>
-
       {loading && <p className="notice">Loading.</p>}
       {loadError && (
         <p className="error" role="alert">
@@ -253,9 +251,10 @@ export default function Fellowship({ userId, onOpenPerson }: Props) {
           </ul>
         ))}
 
-      {/* Friends first, directly under the heading that names them, so the
-          lists below cannot be read as part of this one. Nothing is drawn for a
-          list that is empty: no headings over nothing, no count of how few. */}
+      {/* Friends first, unheaded because the screen is already named after
+          them, so the lists below cannot be read as part of this one. Nothing
+          is drawn for a list that is empty: no headings over nothing, no count
+          of how few. */}
       {friends.length > 0 && (
         <ul className="friend-list">
           {friends.map((person) => (

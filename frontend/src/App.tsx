@@ -18,6 +18,7 @@ import ActivityView from './views/Activity.tsx'
 import Landing from './views/Landing.tsx'
 import Login from './views/Login.tsx'
 import FriendProfile from './views/FriendProfile.tsx'
+import Friends from './views/Friends.tsx'
 import Grove from './views/Grove.tsx'
 import Home from './views/Home.tsx'
 import Icon from './views/Icon.tsx'
@@ -38,9 +39,9 @@ function welcomeCode(): string {
 // A handful of screens still do not earn a router: the whole navigation model is
 // which of them is on screen, and the URL has nothing to say about it yet.
 // Settings is not a tab; it is reached from the You screen. Neither is a
-// friend's profile, which is reached from the feed and from the friends list,
+// friend's profile, which is reached from the feed and from the Friends screen,
 // nor the phone setup guide, which is reached from Settings.
-type View = 'home' | 'activity' | 'grove' | 'you' | 'settings' | 'guide' | 'friend'
+type View = 'home' | 'activity' | 'grove' | 'friends' | 'you' | 'settings' | 'guide' | 'friend'
 
 const TABS: { id: View; label: string; icon: string }[] = [
   { id: 'home', label: 'Home', icon: 'tab-home' },
@@ -48,6 +49,7 @@ const TABS: { id: View; label: string; icon: string }[] = [
   // name, and only the word under this one changed.
   { id: 'activity', label: 'Activity', icon: 'tab-log' },
   { id: 'grove', label: 'Grove', icon: 'tab-grove' },
+  { id: 'friends', label: 'Friends', icon: 'tab-friends' },
   { id: 'you', label: 'You', icon: 'tab-you' },
 ]
 
@@ -62,7 +64,7 @@ export default function App() {
   const [invite] = useState(welcomeCode)
   const [view, setView] = useState<View>('home')
   // Whose profile is open and which screen it was opened from, so Back goes
-  // back to the feed or to the friends list rather than always to one of them.
+  // back to the feed or to the Friends screen rather than always to one of them.
   const [friend, setFriend] = useState<{ id: number; from: View } | null>(null)
   const [verifyNote, setVerifyNote] = useState('')
   const [recap, setRecap] = useState<RecapState | null>(null)
@@ -179,7 +181,7 @@ export default function App() {
     setView(from)
   }
 
-  // Which of the four sections the navigation points at. Three screens hang off
+  // Which of the five sections the navigation points at. Three screens hang off
   // a tab rather than being one: Settings and the setup guide behind it sit
   // under You, and a friend's profile sits under whichever screen opened it, so
   // none of them leaves the bar blank.
@@ -238,7 +240,7 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <span className="wordmark">secondmile</span>
-        {/* The same four sections as the bottom bar. Only one of the two is
+        {/* The same five sections as the bottom bar. Only one of the two is
             ever on screen: this one from 900px up, the bar below it. */}
         <nav className="topnav" aria-label="Sections">
           {TABS.map((tab) => {
@@ -285,6 +287,7 @@ export default function App() {
           <ActivityView userId={me.id} units={me.units} onOpenPerson={openFriend} />
         )}
         {view === 'grove' && <Grove userId={me.id} />}
+        {view === 'friends' && <Friends userId={me.id} onOpenPerson={openFriend} />}
         {view === 'you' && (
           <Profile
             userId={me.id}

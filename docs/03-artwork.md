@@ -16,13 +16,13 @@ whole of what a commission would cover.
 | Medals | 24 | One face per medal in the catalogue | You screen, Home rail, feed and Activity chips, avatar slots |
 | Avatar borders | 6 | One per level tier, `border-t1` to `border-t6` | Around every avatar, every screen |
 | Flourishes | 3 | The growth earned by encouraging people, `f1` to `f3` | Over the border, on every avatar |
-| Interface icons | 17 | Tab bar, cheer, gear, pencil, play, eye, chest ladder marker, week diamond, running shoe, and the five sport marks | Chrome, everywhere |
+| Interface icons | 18 | Tab bar, cheer, gear, pencil, play, eye, chest ladder marker, week diamond, running shoe, and the five sport marks | Chrome, everywhere |
 | Plants | 39 | Thirteen species at three growth stages each | The plot, and the reveal when a seed is found |
 | Ground | 1 | The strip of soil a grove stands on, `ground` | The floor of the band across the top of both profiles |
 | Loose pieces | 5 | Chest, gilding overlay, boost potion, water, unmarked seed | Inventory squares, chest reveals, finished plants |
 | Landing hero | 1 | The four sports in four strips, `landing-hero` | The top of the landing page |
 
-Ninety-six files in total, all under `frontend/src/assets/`.
+Ninety-seven files in total, all under `frontend/src/assets/`.
 
 There are two chest drawings on purpose. `grove/chest.svg` is a picture loaded
 by URL with its own colours, used for an inventory square. `icons/chest.svg` is
@@ -92,6 +92,7 @@ both.
 | `tab-home.svg` | Home in the bottom bar |
 | `tab-log.svg` | Activity in the bottom bar (the file keeps its name) |
 | `tab-grove.svg` | Grove in the bottom bar |
+| `tab-friends.svg` | Friends in the bottom bar |
 | `tab-you.svg` | You in the bottom bar |
 | `gear.svg` | The settings button in the You header |
 | `pencil.svg` | The edit button in the You header |

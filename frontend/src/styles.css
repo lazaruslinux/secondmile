@@ -354,7 +354,10 @@ code {
   left: 0;
   z-index: 10;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* Counted here rather than derived from the tab list: the content security
+     policy allows no inline style, so a column count carried in from the
+     markup would have nowhere to land. */
+  grid-template-columns: repeat(5, 1fr);
   background: var(--bg);
   border-top: 1px solid var(--line);
   padding-bottom: env(safe-area-inset-bottom);

@@ -73,13 +73,13 @@ Current version: **0.1.1**. Releases are tagged in git.
   they were written about: anyone who can see the workout can read them, and
   only the owner's friends can write one.
 - **Multi-user from day one.** Accounts are invite-only out of the box: the
-  server admin creates invites from the command line, and any member can mint
-  a single-use invite link from Settings, which opens a welcome page naming
-  whoever sent it and makes the two of you friends once it is claimed. Flip
-  `REGISTRATION_OPEN` and anyone who can reach the site can sign up instead. Either way a new
-  account has to verify its email address before it can sign in, and an
-  instance with no mail server configured writes the verification link to the
-  backend log instead of sending it.
+  server admin creates invites from the command line, and any member can mint a
+  single-use invite link from the Friends screen, which opens a welcome page
+  naming whoever sent it and makes the two of you friends once it is claimed.
+  Flip `REGISTRATION_OPEN` and anyone who can reach the site can sign up
+  instead. Either way a new account has to verify its email address before it
+  can sign in, and an instance with no mail server configured writes the
+  verification link to the backend log instead of sending it.
 
 ## Where it is going
 
