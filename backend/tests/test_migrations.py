@@ -1553,3 +1553,105 @@ def test_the_pour_record_floors_every_plant_already_in_the_ground(at_0030):
         ]
         # Nothing is invented on the way in: the pours themselves start here.
         assert connection.execute(sa.text("SELECT count(*) FROM pour_events")).scalar_one() == 0
+
+
+@pytest.fixture()
+def at_0031(tmp_path, monkeypatch):
+    """A database at revision 0031, which is the shape the fruit baseline meets.
+
+    Its own fixture because the backfill reads the season meter 0026 added and
+    the workouts behind it, and this is the last revision before there is
+    anywhere to write the answer down.
+    """
+    url = f"sqlite:///{tmp_path}/baseline.db"
+    monkeypatch.setattr(config.settings, "database_url", url)
+    cfg = Config(str(BACKEND / "alembic.ini"))
+    cfg.set_main_option("script_location", str(BACKEND / "migrations"))
+    command.upgrade(cfg, "0031")
+    engine = sa.create_engine(url)
+    try:
+        yield engine, (lambda: command.upgrade(cfg, "head"))
+    finally:
+        engine.dispose()
+
+
+def _meter(connection, user_id: int, *, seasons: int, banked: float) -> None:
+    """One progress row in the shape 0031 leaves it: a count of seasons borne
+    and the miles banked toward the next one."""
+    connection.execute(
+        sa.text(
+            "INSERT INTO user_progress (user_id, xp, level, chest_progress_mi,"
+            " cycle_pos, renown, manna, fruit_progress_mi, fruit_seasons, updated_at)"
+            " VALUES (:user_id, 0, 0, 0, 0, 0, 0, :banked, :seasons,"
+            " '2026-08-01 00:00:00')"
+        ),
+        {"user_id": user_id, "banked": banked, "seasons": seasons},
+    )
+
+
+def _moved(connection, workout_id: int, user_id: int, activity: str, miles: float, *, deleted=None):
+    """One workout that covered ground, dated so nothing collides."""
+    start = f"2026-07-{workout_id:02d} 06:00:00"
+    connection.execute(
+        sa.text(
+            "INSERT INTO workouts (id, user_id, activity, start_ts, duration_s,"
+            " distance_mi, active_kcal, source, flags, created_at, deleted_at)"
+            " VALUES (:id, :user_id, :activity, :start, 3600, :miles, 0, 'sync', '{}',"
+            " :start, :deleted)"
+        ),
+        {
+            "id": workout_id,
+            "user_id": user_id,
+            "activity": activity,
+            "start": start,
+            "miles": miles,
+            "deleted": deleted,
+        },
+    )
+
+
+def test_the_fruit_baseline_lands_on_the_fuel_the_meter_never_walked(at_0031):
+    """0032: per account, whatever its own record says the season meter has
+    never seen.
+
+    An account whose meter walked all of its fuel lands at nothing, which is
+    every account made since the release. One that ran for a year before it
+    lands at that whole year, so no replay of it ever bears a phantom season. A
+    meter claiming more than the workouts behind it can account for lands at
+    nothing rather than below it.
+    """
+    engine, upgrade = at_0031
+    with engine.connect() as connection:
+        _account(connection, 1, "since")
+        # Forty run, thirty three of them borne and seven banked: walked, all
+        # of it.
+        _meter(connection, 1, seasons=1, banked=7.0)
+        _moved(connection, 1, 1, "run", 25.0)
+        _moved(connection, 2, 1, "walk", 15.0)
+
+        _account(connection, 2, "before")
+        _meter(connection, 2, seasons=0, banked=0.0)
+        # Converted rather than raw: thirty on a bike is ten Miles, two in the
+        # pool is eight, and the deleted run is worth nothing at all.
+        _moved(connection, 3, 2, "cycle", 30.0)
+        _moved(connection, 4, 2, "swim", 2.0)
+        _moved(connection, 5, 2, "run", 6.0, deleted="2026-07-20 00:00:00")
+
+        _account(connection, 3, "scrubbed")
+        # Four seasons and ten miles behind them, which is a hand correction or
+        # a retune rather than anything the game did.
+        _meter(connection, 3, seasons=4, banked=0.0)
+        _moved(connection, 6, 3, "run", 10.0)
+
+        _account(connection, 4, "resting")
+        _meter(connection, 4, seasons=0, banked=0.0)
+        connection.commit()
+
+    upgrade()
+
+    with engine.connect() as connection:
+        rows = connection.execute(
+            sa.text("SELECT user_id, fruit_baseline_mi FROM user_progress ORDER BY user_id")
+        ).all()
+        assert [row[0] for row in rows] == [1, 2, 3, 4]
+        assert [row[1] for row in rows] == pytest.approx([0.0, 18.0, 0.0, 0.0])

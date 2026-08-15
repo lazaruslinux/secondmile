@@ -435,6 +435,14 @@ class UserProgress(Base):
     # else. No currency may ever move either one, because bearing is earned.
     fruit_progress_mi: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     fruit_seasons: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Converted Miles the meter above was never given and must never be given: an
+    # account that ran for a year before 0026 has that year on record, and no
+    # part of it was ever a season. Every replay of a whole history walks the
+    # fuel above this line and nothing below it, which is what keeps a deletion
+    # from bearing a harvest for a crossing nobody was there for. Fruit's alone:
+    # experience, the chest ladder, the medals and the manna go on reading the
+    # whole history exactly as they always have.
+    fruit_baseline_mi: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     updated_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
 
 

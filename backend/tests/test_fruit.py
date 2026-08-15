@@ -111,6 +111,24 @@ def meter(db_session, user_id: int) -> tuple[float, int]:
     return round(row.fruit_progress_mi, 4), row.fruit_seasons
 
 
+def as_a_pre_release_account(db_session, user_id: int) -> None:
+    """Rewind the fruit columns to the shape 0032 backfills.
+
+    A history that was run before the release: every mile on record is fuel the
+    meter never saw, so the baseline covers all of it, nothing has ever borne,
+    and the meter stands at nothing. The migration computes exactly this from
+    the same three numbers; said here in the app's own terms, because the
+    account the bug was found on is shaped like this and no test can log a
+    workout into a release that has already happened.
+    """
+    db_session.query(models.FruitBatch).filter(models.FruitBatch.user_id == user_id).delete()
+    row = db_session.get(models.UserProgress, user_id)
+    row.fruit_baseline_mi = row.xp
+    row.fruit_progress_mi = 0.0
+    row.fruit_seasons = 0
+    db_session.commit()
+
+
 # --------------------------------------------------------------------------
 # The season: when a grove bears
 # --------------------------------------------------------------------------
@@ -1107,6 +1125,78 @@ def test_a_restore_bears_what_the_returning_miles_newly_pay_for(
     assert signed_in.delete(f"/api/workouts/{doomed.id}").status_code == 204
     assert meter(db_session, member.id) == (0.0, 1)
     assert len(batches(db_session, member.id)) == 1
+
+
+def test_a_history_older_than_the_meter_never_bears_a_phantom_season(
+    signed_in, db_session, member
+):
+    """The bug 0032 came for. A rebuild replays the surviving fuel and pays back
+    only the seasons actually borne, so an account carrying a year of miles the
+    meter never walked used to bear a harvest for every one of those crossings
+    the first time it deleted anything. The walk starts above the baseline."""
+    give_planting(db_session, member.id, "strawberry", growth=15.0)
+    run_miles(db_session, member.id, 100.0)
+    as_a_pre_release_account(db_session, member.id)
+
+    since = run_miles(db_session, member.id, 5.0, offset_min=200)
+    assert meter(db_session, member.id) == (5.0, 0)
+
+    assert signed_in.delete(f"/api/workouts/{since.id}").status_code == 204
+    # A hundred miles on record, three seasons' worth of them, and not one
+    # season: the meter reads what is above the baseline and nothing else.
+    assert meter(db_session, member.id) == (0.0, 0)
+    assert batches(db_session, member.id) == []
+
+    assert signed_in.post(f"/api/workouts/{since.id}/restore").status_code == 200
+    assert meter(db_session, member.id) == (5.0, 0)
+    assert batches(db_session, member.id) == []
+
+
+def test_a_restore_still_bears_what_it_newly_pays_for_above_the_baseline(
+    signed_in, db_session, member
+):
+    """Owed, with a baseline underneath it: the returning miles pay for the
+    season already borne again first, and what they cover past it still bears
+    the moment they come back."""
+    give_planting(db_session, member.id, "strawberry", growth=15.0)
+    run_miles(db_session, member.id, 100.0)
+    as_a_pre_release_account(db_session, member.id)
+
+    doomed = run_miles(db_session, member.id, 20.0, offset_min=200)
+    run_miles(db_session, member.id, 20.0, offset_min=400)
+    assert (meter(db_session, member.id), len(batches(db_session, member.id))) == ((7.0, 1), 1)
+
+    assert signed_in.delete(f"/api/workouts/{doomed.id}").status_code == 204
+    assert meter(db_session, member.id) == (0.0, 1)
+
+    # Thirty more while it was away, so the returning twenty pay the season
+    # already borne back and carry the grove past the next one.
+    run_miles(db_session, member.id, 30.0, offset_min=600)
+    assert signed_in.post(f"/api/workouts/{doomed.id}/restore").status_code == 200
+    assert meter(db_session, member.id) == (70.0 - 2 * FRUIT_SEASON_MI, 2)
+    assert len(batches(db_session, member.id)) == 2
+
+
+def test_a_rebuild_bears_three_seasons_at_the_most(
+    signed_in, db_session, member, monkeypatch
+):
+    """The flood clamp. Lower FRUIT_SEASON_MI and every account's surviving
+    miles newly pay for crossings nobody was there for; the first deletion after
+    that would pour a year of harvests into one grove in a single pass. Three
+    bear and the rest are forgiven, on the same terms the shortfall the other
+    way is forgiven."""
+    give_planting(db_session, member.id, "strawberry", growth=15.0)
+    run_miles(db_session, member.id, 40.0)
+    spare = run_miles(db_session, member.id, 5.0, offset_min=200)
+    assert (meter(db_session, member.id), len(batches(db_session, member.id))) == ((12.0, 1), 1)
+
+    # The retune: a season is five miles from here, so the forty already run
+    # cross eight times, one of which pays the season already borne back.
+    monkeypatch.setattr(progress, "FRUIT_SEASON_MI", 5.0)
+
+    assert signed_in.delete(f"/api/workouts/{spare.id}").status_code == 204
+    assert meter(db_session, member.id) == (0.0, 4)
+    assert len(batches(db_session, member.id)) == 4
 
 
 def test_a_rebuild_takes_back_the_calories_and_never_the_spend(

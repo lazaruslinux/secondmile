@@ -23,6 +23,7 @@ from app.config import (
     CHEST_SLOT_ITEMS,
     CHEST_TIER_FLOOR,
     CHEST_UPGRADE_CHANCE,
+    FRUIT_REBUILD_BEAR_MAX,
     FRUIT_SEASON_MI,
     LEGACY_CHEST_TIER,
     LEVEL_COSTS_MI,
@@ -481,6 +482,7 @@ def _advance_fruit(
     owed: int = 0,
     *,
     bear: bool = True,
+    bear_max: int | None = None,
 ) -> int:
     """Bank converted Miles toward the next bearing and bear what falls out.
 
@@ -504,8 +506,14 @@ def _advance_fruit(
     `bear` false is the other half of the same idea, for a replay that walks the
     whole history again: every crossing is silent, because every one of them has
     already happened once.
+
+    `bear_max` is a ceiling on how many seasons one call may bear, which only a
+    rebuild ever sets (FRUIT_REBUILD_BEAR_MAX). Reaching it ends the walk with
+    the meter empty: the crossings past it are forgiven rather than borne, on the
+    same terms the shortfall the other way is forgiven.
     """
     remaining = miles
+    borne = 0
     while True:
         room = FRUIT_SEASON_MI - progress.fruit_progress_mi
         if remaining < room - _EPSILON:
@@ -518,7 +526,10 @@ def _advance_fruit(
             continue
         if not bear:
             continue
+        if bear_max is not None and borne >= bear_max:
+            return owed
         progress.fruit_seasons += 1
+        borne += 1
         harvest.bear(db, progress.user_id, moment, progress.fruit_seasons)
 
 
@@ -714,6 +725,10 @@ def recompute(db: Session, user_id: int) -> models.UserProgress:
     seasons already had stay had. The one thing this cannot do is bear a season
     a lowered FRUIT_SEASON_MI would newly pay for; the next real workout does
     that, which is the safe way round to be wrong.
+
+    The miles it lands on are the ones above fruit_baseline_mi. Fuel older than
+    the meter itself was never a season and does not become one by being walked
+    past a second time.
     """
     db.execute(delete(models.Chest).where(models.Chest.user_id == user_id))
     matured = grove.reset_growth(db, user_id)
@@ -735,6 +750,20 @@ def recompute(db: Session, user_id: int) -> models.UserProgress:
         row.fruit_progress_mi = 0.0
     db.commit()
     progress = process_user(db, user_id, bear=False)
+    # The replay above banked every surviving mile, the baseline included: the
+    # pipeline credits one workout at a time, and a baseline is a fact about a
+    # whole history rather than about any workout in it. So the meter is emptied
+    # and walked once more over what is the season's alone. The experience is
+    # the fuel to walk it with: converted Miles one for one, and just rebuilt
+    # from the same workouts.
+    progress.fruit_progress_mi = 0.0
+    _advance_fruit(
+        db,
+        progress,
+        max(0.0, progress.xp - progress.fruit_baseline_mi),
+        now_utc(),
+        bear=False,
+    )
     # After the workouts, because the water went on after them: a pour is worth
     # its stored miles wherever the replay had got to.
     grove.replay_pours(db, user_id, matured)
@@ -801,12 +830,20 @@ def rebuild_from_surviving(db: Session, user_id: int) -> models.UserProgress:
     hatch for rebuilding the plot, and it is deliberately not what a deletion
     calls.
 
-    Fruit is the chests' rule again. Every batch ever borne stays exactly where
-    it is, and only the meter under them recomputes: the surviving miles have to
-    pay for every season already borne before a single new one comes round.
-    Where they no longer cover them the meter parks empty, which is never
-    negative and never a second harvest of fruit that has already been gathered,
-    given away, or left to compost.
+    Fruit is the chests' rule again, with two lines under it the chests have no
+    need of. Every batch ever borne stays exactly where it is, and only the meter
+    under them recomputes: the surviving miles have to pay for every season
+    already borne before a single new one comes round. Where they no longer cover
+    them the meter parks empty, which is never negative and never a second
+    harvest of fruit that has already been gathered, given away, or left to
+    compost.
+
+    The first line is fruit_baseline_mi, taken off before the walk begins. Fuel
+    the meter never saw is not a season it owes, and replaying it as one is what
+    bore fourteen harvests in a single pass on the day this was found. The second
+    is FRUIT_REBUILD_BEAR_MAX, which caps what one pass may bear whatever the
+    walk finds: the honest ceiling on what handing a workout back can hand back
+    with it.
 
     Manna is the same doctrine one column across. The bank is recomputed from
     the surviving workouts, plus what friends sent, less everything ever spent;
@@ -878,10 +915,19 @@ def rebuild_from_surviving(db: Session, user_id: int) -> models.UserProgress:
         progress.cycle_pos = dropped % len(CHEST_LADDER)
         progress.chest_progress_mi = 0.0
 
-    # The same walk for the same reason, one meter across. Anything the
-    # surviving miles pay for beyond the seasons already borne does bear, which
-    # is what makes a restore give back exactly what the deletion took.
-    if _advance_fruit(db, progress, fuel, now, borne) > 0:
+    # The same walk for the same reason, one meter across, over the fuel that is
+    # the season's rather than all of it. Anything the surviving miles pay for
+    # beyond the seasons already borne does bear, which is what makes a restore
+    # give back exactly what the deletion took, up to the ceiling on one pass.
+    unpaid = _advance_fruit(
+        db,
+        progress,
+        max(0.0, fuel - progress.fruit_baseline_mi),
+        now,
+        borne,
+        bear_max=FRUIT_REBUILD_BEAR_MAX,
+    )
+    if unpaid > 0:
         progress.fruit_progress_mi = 0.0
 
     progress.manna = _balance_after_spends(db, user_id, progress.manna)

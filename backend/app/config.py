@@ -237,6 +237,16 @@ MANNA_TO_ONE_PERSON_DAYS = 7
 # the season and there is no clock anywhere in it.
 FRUIT_SEASON_MI = 33.0
 
+# The most seasons one rebuild pass may bear, however many crossings the walk
+# finds. A restore of the longest week anybody runs newly pays for about three,
+# which is the honest ceiling on what handing a deleted workout back can hand
+# back with it. Past it the crossings are forgiven: the day FRUIT_SEASON_MI is
+# lowered, every account's surviving miles newly pay for seasons nobody was
+# there for, and the first deletion after that would pour a year of harvests
+# into a grove in one pass. Rebuilds alone read this. A real workout still bears
+# as many times as its own miles pay for.
+FRUIT_REBUILD_BEAR_MAX = 3
+
 # How much one plant bears, by what it is. Rarer plants bear less and are worth
 # more for it, which is the whole of the scale. The mustard tree is named on its
 # own rather than read off its rarity: it is a rare for rolling purposes only,
