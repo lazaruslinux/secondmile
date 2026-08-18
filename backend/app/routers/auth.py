@@ -385,6 +385,7 @@ def me(user: models.User = Depends(security.current_user)) -> dict:
         # What this account keeps back from its friends, so Settings can draw
         # its own switches without fetching the whole profile for three of them.
         "hidden_from_friends": list(user.hidden_from_friends or []),
+        "notify_workout_arrival": user.notify_workout_arrival,
         "is_admin": user.is_admin,
     }
 

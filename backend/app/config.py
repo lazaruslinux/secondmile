@@ -83,6 +83,14 @@ class Settings(BaseSettings):
     # number does and why getting it wrong is a rate-limiting hole.
     trusted_proxy_hops: int = 0
 
+    # Web push. Both empty is a supported configuration, not a broken one: the
+    # push endpoints answer 404 and no send is ever attempted, which is the
+    # right behaviour for an install that has not generated a keypair. The
+    # private key is the base64url form; the subject is a mailto: address the
+    # push services may contact about misbehaving senders.
+    vapid_private_key: str = ""
+    vapid_subject: str = ""
+
 
 settings = Settings()
 

@@ -27,6 +27,9 @@ export interface Me {
   // What this account keeps back from its friends. Empty until somebody turns
   // a switch on, and absent from a server that predates the field.
   hidden_from_friends?: HiddenField[]
+  // Whether a sync that lands new workouts notifies this account's subscribed
+  // devices. Absent from a server that predates push.
+  notify_workout_arrival?: boolean
   is_admin: boolean
 }
 
@@ -1169,6 +1172,30 @@ export async function setHiddenFromFriends(hidden: HiddenField[]): Promise<Hidde
   const res = await sendJson('/settings', 'PATCH', { hidden_from_friends: hidden })
   const body = (await res.json()) as { hidden_from_friends?: HiddenField[] }
   return body.hidden_from_friends ?? []
+}
+
+export async function setNotifyWorkoutArrival(on: boolean): Promise<boolean> {
+  const res = await sendJson('/settings', 'PATCH', { notify_workout_arrival: on })
+  const body = (await res.json()) as { notify_workout_arrival: boolean }
+  return body.notify_workout_arrival
+}
+
+// The server's VAPID public key, which every device subscription is made with.
+// Throws the server's own sentence when push is not configured there.
+export async function getPushKey(): Promise<string> {
+  const body = await getJson<{ key: string }>('/push/key')
+  return body.key
+}
+
+export async function subscribePush(subscription: {
+  endpoint: string
+  keys: { p256dh: string; auth: string }
+}): Promise<void> {
+  await sendJson('/push/subscriptions', 'POST', subscription)
+}
+
+export async function unsubscribePush(endpoint: string): Promise<void> {
+  await sendJson('/push/subscriptions', 'DELETE', { endpoint })
 }
 
 // Gear. Own only, all of it: a friend's shoes arrive on their profile, and

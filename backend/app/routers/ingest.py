@@ -3,12 +3,12 @@
 import datetime as dt
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app import activity, gear, history, models, progress, routemaps, security, throttle
+from app import activity, gear, history, models, progress, push, routemaps, security, throttle
 from app.config import (
     BACKFILL_WINDOW_DAYS,
     INGEST_LOG_RETENTION_DAYS,
@@ -99,7 +99,9 @@ def _inside_window(
 
 
 @router.post("/ingest")
-async def ingest(request: Request, db: Session = Depends(get_db)) -> dict:
+async def ingest(
+    request: Request, background: BackgroundTasks, db: Session = Depends(get_db)
+) -> dict:
     # The limiter runs before the token check so that guessing tokens costs the
     # same allowance as anything else from that address.
     if throttle.ingest_limiter.hit(throttle.client_address(request)):
@@ -151,6 +153,9 @@ async def ingest(request: Request, db: Session = Depends(get_db)) -> dict:
     default_pair = gear.default_pair(db, user.id)
 
     imported = skipped = flagged = routes = 0
+    # What the phone gets told about below, gathered from the rows that were
+    # genuinely born here: a skipped duplicate is old news, never announced.
+    arrivals: list[dict] = []
     for item in parsed:
         flags = {}
         if activity.impossible_pace(item.activity, item.duration_s, item.distance_mi):
@@ -193,6 +198,14 @@ async def ingest(request: Request, db: Session = Depends(get_db)) -> dict:
         if activity.over_daily_cap(db, user.id, item.activity, item.start_ts):
             workout.flags = {**flags, "daily_cap": True}
         imported += 1
+        arrivals.append(
+            {
+                "activity": item.activity,
+                "start": item.start_ts.isoformat(),
+                "duration_s": item.duration_s,
+                "distance_mi": item.distance_mi,
+            }
+        )
         if workout.flags:
             flagged += 1
         if routemaps.store_route(db, workout.id, item.route):
@@ -254,4 +267,21 @@ async def ingest(request: Request, db: Session = Depends(get_db)) -> dict:
     # when the app is next opened is what makes the recap a story that was
     # already written by the time anybody looks at it.
     progress.process_user(db, user.id)
+
+    # Told after the commit and the crediting above, so the workout a phone
+    # buzzes about is already in the feed when its owner taps through. The
+    # send itself runs after the response: a slow push service costs the
+    # notification some seconds, never the sync.
+    if arrivals and user.notify_workout_arrival and push.configured():
+        subscriptions = [
+            (row.id, row.endpoint, row.p256dh, row.auth)
+            for row in db.execute(
+                select(models.PushSubscription).where(
+                    models.PushSubscription.user_id == user.id
+                )
+            ).scalars()
+        ]
+        if subscriptions:
+            payload = {"title": "secondmile", "body": push.arrival_body(arrivals, user.units)}
+            background.add_task(push.deliver, subscriptions, payload)
     return result

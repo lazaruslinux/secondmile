@@ -38,3 +38,10 @@ pillow
 # at all and, more to the point, what enforces the upload size cap while the
 # body is still arriving rather than after it has all been buffered
 python-multipart
+
+# Web push delivery: the VAPID signature and the RFC 8291 payload encryption
+# that browsers demand before they will show a notification. Hand-rolling
+# either is worse than the dependency. Held before 2.0 on purpose: the send
+# runs synchronously from a background task, and 2.x hard-requires the whole
+# aiohttp stack for an async path nothing here calls.
+pywebpush<2

@@ -26,12 +26,13 @@ UNITS = ("imperial", "metric")
 class SettingsBody(BaseModel):
     """A patch: only the fields that are sent are changed.
 
-    Both are optional so the two halves of the screen can save on their own,
-    read from the model's field set rather than from the value.
+    All optional so each part of the screen can save on its own, read from the
+    model's field set rather than from the value.
     """
 
     units: str | None = None
     hidden_from_friends: list[str] | None = None
+    notify_workout_arrival: bool | None = None
 
 
 class EmailBody(BaseModel):
@@ -166,5 +167,13 @@ def update_settings(
         user.units = body.units
     if "hidden_from_friends" in body.model_fields_set:
         user.hidden_from_friends = _clean_hidden(body.hidden_from_friends or [])
+    if "notify_workout_arrival" in body.model_fields_set:
+        # The account-wide switch. Device subscriptions stay stored either way,
+        # so turning this back on needs no phone in hand.
+        user.notify_workout_arrival = bool(body.notify_workout_arrival)
     db.commit()
-    return {"units": user.units, "hidden_from_friends": list(user.hidden_from_friends or [])}
+    return {
+        "units": user.units,
+        "hidden_from_friends": list(user.hidden_from_friends or []),
+        "notify_workout_arrival": user.notify_workout_arrival,
+    }

@@ -583,3 +583,9 @@ The PNG is the same drawing squared off at 180 pixels for an iPhone home
 screen. These live in `public/` rather than `assets/` because the page names
 them by URL before the bundle loads; they are not counted in the register
 above.
+
+`frontend/public/icon-192.png` and `frontend/public/icon-512.png` are the same
+favicon rendered square for the web app manifest, which is what an installed
+home-screen app and its notifications wear. Derived, not drawn: regenerate
+from `favicon.svg` (rsvg-convert at 192 and 512) whenever the favicon changes,
+and do not count them in the commission either.

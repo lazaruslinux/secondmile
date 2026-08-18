@@ -13,6 +13,7 @@ from sqlalchemy import (
     Index,
     Integer,
     String,
+    Text,
     TypeDecorator,
     UniqueConstraint,
     func,
@@ -126,6 +127,10 @@ class User(Base):
     # is the list of the few things they need not. The names it may hold are in
     # app.fellowship.HIDEABLE, which is where the rule that reads them lives.
     hidden_from_friends: Mapped[list] = mapped_column(JSONType, nullable=False, default=list)
+    # Whether a sync that brings new workouts pushes a notification to this
+    # account's subscribed devices. On by default because the phones only ever
+    # subscribe by the owner's own hand; this is the account-wide off switch.
+    notify_workout_arrival: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[dt.datetime] = mapped_column(
         UtcDateTime, nullable=False, server_default=func.now()
     )
@@ -199,6 +204,25 @@ class IngestToken(Base):
     )
     token_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     rotated_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
+
+
+class PushSubscription(Base):
+    __tablename__ = "push_subscriptions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # The push service URL one browser handed out for one device. Unique across
+    # accounts because the push service mints it per device: two rows with one
+    # endpoint would be one phone notified twice. It is also a capability URL,
+    # which is why no endpoint is ever echoed back out or written to a log.
+    endpoint: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
+    # The browser's public key and auth secret for this subscription, straight
+    # from the phone and used only to encrypt payloads to it.
+    p256dh: Mapped[str] = mapped_column(String(255), nullable=False)
+    auth: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
 
 
 class Gear(Base):

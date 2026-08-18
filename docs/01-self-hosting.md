@@ -95,6 +95,16 @@ negotiated with STARTTLS or used from the first byte. Mail failures are logged
 and never break a signup, so if a link does not arrive, check the backend log
 first and have the person use the resend button on the sign-in screen.
 
+## Push notifications, or running without them
+
+When a sync lands new workouts, subscribed devices get one notification about
+it. The feature needs a VAPID keypair; leave `VAPID_PRIVATE_KEY` empty and
+push is simply off, which is a supported way to run. To turn it on, generate a
+key once with the command in `.env.example`, set `VAPID_PRIVATE_KEY` and
+`VAPID_SUBJECT`, and restart. Each person then turns their own devices on from
+Settings. On an iPhone the site has to be added to the Home Screen first;
+that is the platform's rule for web push, not this app's.
+
 ## Progress, and rebuilding it
 
 Experience, levels, chests, and medals are all derived from the

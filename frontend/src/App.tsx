@@ -154,6 +154,10 @@ export default function App() {
     setMe((current) => (current ? { ...current, hidden_from_friends: hidden } : current))
   }
 
+  function changeNotify(on: boolean) {
+    setMe((current) => (current ? { ...current, notify_workout_arrival: on } : current))
+  }
+
   // Every screen scrolls the one document, so a new screen would otherwise open
   // at whatever depth the last one was left at. A screen starts at its top.
   useEffect(() => {
@@ -319,6 +323,8 @@ export default function App() {
             onUnitsChanged={changeUnits}
             hidden={me.hidden_from_friends ?? []}
             onHiddenChanged={changeHidden}
+            notifyArrival={me.notify_workout_arrival ?? true}
+            onNotifyChanged={changeNotify}
             onSignedOut={() => setMe(null)}
             onOpenGuide={() => setView('guide')}
             onBack={() => setView('you')}

@@ -25,6 +25,7 @@ from app.routers import (
     ingest,
     invites,
     profile,
+    push,
     settings,
     stats,
     workouts,
@@ -203,3 +204,4 @@ app.include_router(fellowship.router, prefix="/api")
 app.include_router(invites.router, prefix="/api")
 app.include_router(stats.router, prefix="/api")
 app.include_router(bugreport.router, prefix="/api")
+app.include_router(push.router, prefix="/api")

@@ -8,12 +8,20 @@ import {
   reportBug,
   rotateIngestToken,
   setHiddenFromFriends,
+  setNotifyWorkoutArrival,
   setUnits,
   type HiddenField,
   type IngestTokenStatus,
   type Units,
 } from '../api.ts'
 import { instanceTimezone } from '../format.ts'
+import {
+  deviceState,
+  disableThisDevice,
+  enableThisDevice,
+  isApplePhone,
+  type DeviceState,
+} from '../push.ts'
 import { applyTheme, rememberTheme, type Theme, useTheme } from '../theme.ts'
 import Confirm from './Confirm.tsx'
 
@@ -50,6 +58,10 @@ interface Props {
   // change it. Empty is everybody's starting point: friends see the lot.
   hidden: HiddenField[]
   onHiddenChanged: (hidden: HiddenField[]) => void
+  // The account-wide notification switch; the per-device half lives in this
+  // browser and needs no prop.
+  notifyArrival: boolean
+  onNotifyChanged: (on: boolean) => void
   onSignedOut: () => void
   onOpenGuide: () => void
   onBack: () => void
@@ -64,6 +76,8 @@ export default function Settings({
   onUnitsChanged,
   hidden,
   onHiddenChanged,
+  notifyArrival,
+  onNotifyChanged,
   onSignedOut,
   onOpenGuide,
   onBack,
@@ -93,6 +107,13 @@ export default function Settings({
   const [hiddenError, setHiddenError] = useState('')
   const [savingHidden, setSavingHidden] = useState(false)
 
+  // What this browser can do about notifications, asked once on the way in.
+  // 'unknown' draws nothing device-side for the moment the answer takes.
+  const [device, setDevice] = useState<DeviceState | 'unknown'>('unknown')
+  const [changingDevice, setChangingDevice] = useState(false)
+  const [savingNotify, setSavingNotify] = useState(false)
+  const [pushError, setPushError] = useState('')
+
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [passwordError, setPasswordError] = useState('')
@@ -114,7 +135,44 @@ export default function Settings({
     getIngestTokenStatus()
       .then(setTokenStatus)
       .catch((err: unknown) => setTokenError(errorText(err)))
+    void deviceState().then(setDevice)
   }, [])
+
+  async function toggleNotify() {
+    setSavingNotify(true)
+    setPushError('')
+    try {
+      onNotifyChanged(await setNotifyWorkoutArrival(!notifyArrival))
+    } catch (err) {
+      setPushError(errorText(err))
+    } finally {
+      setSavingNotify(false)
+    }
+  }
+
+  async function turnDeviceOn() {
+    setChangingDevice(true)
+    setPushError('')
+    try {
+      setDevice(await enableThisDevice())
+    } catch (err) {
+      setPushError(errorText(err))
+    } finally {
+      setChangingDevice(false)
+    }
+  }
+
+  async function turnDeviceOff() {
+    setChangingDevice(true)
+    setPushError('')
+    try {
+      setDevice(await disableThisDevice())
+    } catch (err) {
+      setPushError(errorText(err))
+    } finally {
+      setChangingDevice(false)
+    }
+  }
 
   // The first token has nothing to break, so only a replacement is confirmed.
   function askRotate() {
@@ -543,6 +601,74 @@ export default function Settings({
               View the setup guide
             </button>
           </p>
+        </div>
+      </section>
+
+      {/* Right under the sync that brings workouts in: what the phone says
+          when one lands. The switch is the account's; the button is this
+          device's. */}
+      <section className="settings-group">
+        <h2 className="label settings-title">Notifications</h2>
+
+        <div className="card">
+          <ul className="picker-list">
+            <li>
+              <label className="picker-option">
+                <input
+                  type="checkbox"
+                  checked={notifyArrival}
+                  disabled={savingNotify}
+                  onChange={() => void toggleNotify()}
+                />
+                <span>Workout arrivals</span>
+              </label>
+            </li>
+          </ul>
+          <p className="hint">
+            One notification when a sync lands new workouts. Turning it off silences
+            every device on this account.
+          </p>
+
+          {device === 'unsupported' && (
+            <p className="hint">
+              {isApplePhone()
+                ? 'On an iPhone, add secondmile to your Home Screen first. Notifications work from there.'
+                : 'This browser cannot receive notifications.'}
+            </p>
+          )}
+          {device === 'denied' && (
+            <p className="hint">
+              Notifications are blocked for this site in your browser settings.
+            </p>
+          )}
+          {device === 'off' && (
+            <button
+              type="button"
+              className="secondary"
+              disabled={changingDevice}
+              onClick={() => void turnDeviceOn()}
+            >
+              Turn on for this device
+            </button>
+          )}
+          {device === 'on' && (
+            <>
+              <p className="hint">This device receives notifications.</p>
+              <button
+                type="button"
+                className="secondary"
+                disabled={changingDevice}
+                onClick={() => void turnDeviceOff()}
+              >
+                Turn off for this device
+              </button>
+            </>
+          )}
+          {pushError && (
+            <p className="error" role="alert">
+              {pushError}
+            </p>
+          )}
         </div>
       </section>
 
