@@ -160,10 +160,13 @@ async def validation_error(request: Request, exc: RequestValidationError) -> JSO
     )
 
 
-@app.get("/api/status")
+@app.api_route("/api/status", methods=["GET", "HEAD"])
 def read_status() -> dict:
     """Public, unauthenticated, and deliberately dull: enough for a health check
     and a version banner, nothing an unauthenticated caller should not know.
+
+    HEAD is allowed because uptime monitors probe with it; without it they read
+    a healthy server as a 405.
 
     The registration mode is in here because the sign-in screen has to know
     whether to ask for an invite code before anyone has signed in, and it is

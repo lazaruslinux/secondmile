@@ -1109,11 +1109,11 @@ def test_a_rebuild_never_bears_a_season_twice(signed_in, db_session, member):
     assert len(batches(db_session, member.id)) == 2
 
 
-def test_a_restore_bears_what_the_returning_miles_newly_pay_for(
+def test_a_restore_gives_back_what_the_deletion_took(
     signed_in, db_session, member
 ):
-    """The other side of owed: miles beyond the seasons already borne do bear,
-    so a restore gives back exactly what the deletion took."""
+    """The returning miles repay the season already borne and the meter fills
+    back to where it stood; no fruit is taken or borne along the way."""
     give_planting(db_session, member.id, "strawberry", growth=15.0)
     doomed = run_miles(db_session, member.id, 20.0)
     run_miles(db_session, member.id, 20.0, offset_min=200)
@@ -1124,6 +1124,10 @@ def test_a_restore_bears_what_the_returning_miles_newly_pay_for(
 
     assert signed_in.delete(f"/api/workouts/{doomed.id}").status_code == 204
     assert meter(db_session, member.id) == (0.0, 1)
+    assert len(batches(db_session, member.id)) == 1
+
+    assert signed_in.post(f"/api/workouts/{doomed.id}/restore").status_code == 200
+    assert meter(db_session, member.id) == (7.0, 1)
     assert len(batches(db_session, member.id)) == 1
 
 

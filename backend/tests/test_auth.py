@@ -25,6 +25,13 @@ def test_status_is_public(client):
     }
 
 
+def test_status_answers_head(client):
+    # Uptime monitors probe with HEAD; a healthy server must not 405 them.
+    response = client.head("/api/status")
+    assert response.status_code == 200
+    assert response.content == b""
+
+
 def test_status_reports_the_configured_timezone(client, monkeypatch):
     # The app renders every workout time in this zone, so the answer has to
     # follow the setting rather than be whatever the process happens to run in.
