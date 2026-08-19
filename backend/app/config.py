@@ -73,6 +73,14 @@ class Settings(BaseSettings):
     # workout and video ids rather than from anything the uploader sent.
     video_dir: str = "/data/videos"
 
+    # Where a plain-text copy of every bug report is appended as it arrives.
+    # Empty is a supported configuration and the default: nothing is written,
+    # and nothing is said about it either. The database row is the record
+    # regardless, so this is a convenience for whoever runs the instance and
+    # never the only copy. The file is made 0600 inside a 0700 directory,
+    # because what people type into that box is theirs.
+    bug_reports_file: str = ""
+
     daily_cap_walk_mi: float = 40.0
     daily_cap_run_mi: float = 40.0
     daily_cap_cycle_mi: float = 200.0
@@ -371,6 +379,12 @@ NOTE_MAX_CHARS = 500
 BUG_REPORT_MAX_CHARS = 2000
 BUG_REPORT_VIEW_MAX_CHARS = 32
 BUG_REPORT_UA_MAX_CHARS = 300
+
+# How long one account waits between reports. A report is a paragraph written
+# by hand, and a second one inside the hour is nearly always the same paragraph
+# again. Counted from the newest stored row rather than from anything held in
+# memory, so restarting the server does not hand everybody a fresh allowance.
+BUG_REPORT_COOLDOWN_HOURS = 1
 
 # Avatar upload limits. The byte cap is checked against Content-Length and then
 # again while reading, because a client is free to lie in the header. The pixel

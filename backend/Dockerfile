@@ -36,8 +36,9 @@ RUN useradd --create-home app
 # Created and owned before the volume is mounted over it. A named volume takes
 # its ownership from the image's directory, so without this the mounted path
 # arrives owned by root and the unprivileged process cannot write an avatar.
-RUN mkdir -p /data/avatars /data/photos /data/videos \
-    && chown app:app /data/avatars /data/photos /data/videos
+RUN mkdir -p /data/avatars /data/photos /data/videos /data/reports \
+    && chown app:app /data/avatars /data/photos /data/videos /data/reports \
+    && chmod 700 /data/reports
 
 USER app
 

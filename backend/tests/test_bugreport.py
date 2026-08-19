@@ -3,12 +3,15 @@ on it without being asked."""
 
 import argparse
 import datetime as dt
+import logging
 
 import pytest
 from conftest import FROZEN_NOW
 
-from app import models
+from app import config, models
 from app.config import BUG_REPORT_MAX_CHARS
+
+TOO_SOON = "One report an hour. Try again later."
 
 
 def test_a_report_needs_a_session(client):
@@ -79,6 +82,108 @@ def test_reporting_is_rate_limited(signed_in):
         for _ in range(10)
     }
     assert seen == {201, 429}
+
+
+def test_a_second_report_inside_the_hour_is_refused(signed_in, db_session):
+    """One an hour, per account. The hour is read off the newest stored row
+    rather than out of a limiter's memory, so restarting the server cannot hand
+    everybody a fresh allowance."""
+    first = signed_in.post("/api/bugreport", json={"text": "the grove drew nothing"})
+    assert first.status_code == 201
+
+    again = signed_in.post("/api/bugreport", json={"text": "and it still draws nothing"})
+    assert again.status_code == 429
+    assert again.json()["detail"] == TOO_SOON
+    assert db_session.query(models.BugReport).count() == 1
+
+
+def test_a_report_an_hour_after_the_last_one_is_taken(signed_in, db_session):
+    """A window and not a lock: once the newest report is older than an hour,
+    the next one is stored like any other."""
+    first = signed_in.post("/api/bugreport", json={"text": "this morning"}).json()["id"]
+    stored = db_session.get(models.BugReport, first)
+    stored.created_at = FROZEN_NOW - dt.timedelta(hours=1, minutes=1)
+    db_session.commit()
+
+    later = signed_in.post("/api/bugreport", json={"text": "and again this afternoon"})
+    assert later.status_code == 201
+    # The acknowledgement is the id and nothing else, whichever report it is.
+    assert list(later.json()) == ["id"]
+    assert db_session.query(models.BugReport).count() == 2
+
+
+@pytest.fixture()
+def reports_file(tmp_path, monkeypatch):
+    """A configured BUG_REPORTS_FILE, in a directory that does not exist yet:
+    making it is part of what the first report has to do."""
+    target = tmp_path / "reports" / "bug-reports.txt"
+    monkeypatch.setattr(config.settings, "bug_reports_file", str(target))
+    return target
+
+
+def test_a_configured_file_gets_a_block_for_every_report(
+    signed_in, db_session, member, reports_file
+):
+    """One header line and the words under it, appended rather than replaced,
+    and written where nobody else on the host can read them."""
+    first = signed_in.post(
+        "/api/bugreport",
+        json={"text": "the grove drew nothing", "view": "grove"},
+        headers={"User-Agent": "Mozilla/5.0 (iPhone) Safari"},
+    )
+    assert first.status_code == 201
+    assert reports_file.read_text(encoding="utf-8") == (
+        f"{FROZEN_NOW.isoformat()}  {member.username}  "
+        "on grove  [Mozilla/5.0 (iPhone) Safari]\n"
+        "the grove drew nothing\n\n"
+    )
+    # The report itself, not the file, and the directory around it.
+    assert oct(reports_file.stat().st_mode)[-3:] == "600"
+    assert oct(reports_file.parent.stat().st_mode)[-3:] == "700"
+
+    stored = db_session.get(models.BugReport, first.json()["id"])
+    stored.created_at = FROZEN_NOW - dt.timedelta(hours=2)
+    db_session.commit()
+    # No browser string and no screen, which is what the file says out loud
+    # rather than leaving an empty bracket nobody can read.
+    signed_in.post(
+        "/api/bugreport", json={"text": "no browser this time"}, headers={"User-Agent": ""}
+    )
+    written = reports_file.read_text(encoding="utf-8")
+    assert written.startswith(f"{FROZEN_NOW.isoformat()}  {member.username}  on grove")
+    assert written.endswith(
+        f"{FROZEN_NOW.isoformat()}  {member.username}  on unknown  [no user agent]\n"
+        "no browser this time\n\n"
+    )
+
+
+def test_a_file_that_cannot_be_written_still_stores_the_report(
+    signed_in, db_session, tmp_path, monkeypatch, caplog
+):
+    """The row is the record and the file is a copy of it, so a path that
+    cannot be written is a line in the log rather than a lost report."""
+    blocked = tmp_path / "not-a-directory"
+    blocked.write_text("", encoding="utf-8")
+    monkeypatch.setattr(config.settings, "bug_reports_file", str(blocked / "reports.txt"))
+
+    with caplog.at_level(logging.WARNING, logger="secondmile.bugreport"):
+        response = signed_in.post("/api/bugreport", json={"text": "still stored", "view": "home"})
+    assert response.status_code == 201
+    assert db_session.query(models.BugReport).count() == 1
+    logged = [record for record in caplog.records if record.name == "secondmile.bugreport"]
+    assert len(logged) == 1
+    assert "Could not append a bug report" in logged[0].getMessage()
+
+
+def test_no_file_is_written_when_the_setting_is_empty(signed_in, tmp_path, caplog):
+    """Empty is the default and a supported configuration: nothing is written,
+    and nothing is said about not writing it either."""
+    assert config.settings.bug_reports_file == ""
+    with caplog.at_level(logging.WARNING, logger="secondmile.bugreport"):
+        response = signed_in.post("/api/bugreport", json={"text": "nowhere to put it"})
+    assert response.status_code == 201
+    assert not (tmp_path / "reports").exists()
+    assert [record for record in caplog.records if record.name == "secondmile.bugreport"] == []
 
 
 def _report(db_session, user_id: int, text: str, view: str, minutes: int, agent=None) -> None:

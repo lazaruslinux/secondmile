@@ -211,11 +211,11 @@ invite_link_limiter = RateLimiter(5, "invite-link")
 # budget: they are a handful of verbs on a list of two or three rows, and
 # nobody is adding shoes faster than this.
 gear_limiter = RateLimiter(20, "gear")
-# Reporting a bug. As tight as anything a signed-in account can do, because a
-# report is written by hand and three in one minute is already somebody sending
-# the same one three times. The window here is a minute rather than the hour
-# the rest of this app's writing is paced in: every limiter shares one window,
-# and three a minute is well inside the handful an hour this is meant to be.
+# Reporting a bug. A flood belt rather than the rule: the rule is one report an
+# hour, and the router asks the table for it so that a restart cannot hand
+# everybody a fresh allowance. Every limiter here shares a one minute window,
+# which is why the hour could not live in this file. What this catches is a
+# client hammering the endpoint before the first row is even there to count.
 bug_report_limiter = RateLimiter(3, "bug-report")
 # Turning a device's notifications on or off. Ten a minute is a person changing
 # their mind, not a client stuck in a subscribe loop.

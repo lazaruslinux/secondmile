@@ -36,7 +36,7 @@ const MAX_REPORT = 2000
 
 // Said once a report is stored. There is no history and no status to send
 // anybody back to, so this line is the whole of what a reporter gets.
-const REPORT_SENT = 'Thank you. That arrived, and there is no reply to wait for.'
+const REPORT_SENT = 'Thank you for your submission.'
 
 // The three switches, in the order the server keeps them. Pace is not among
 // them on purpose: it is distance over time, both of which stay on every card,
@@ -752,11 +752,14 @@ export default function Settings({
               onChange={(event) => setReportText(event.target.value)}
               required
             />
-            {/* The whole of what is stamped on a report, said before it is
-                sent rather than after: nothing about one is collected quietly. */}
+            {/* What makes a report answerable, asked for before it is sent
+                rather than replied to afterwards, and what is taken from the
+                request along with it: nothing here is collected quietly. */}
             <p className="hint">
-              Your account name, the screen you were on, and your browser are sent along
-              with this, and nothing else is.
+              Please be as detailed as possible when describing your issue. Include things
+              like the device you are using, action you were trying to perform and what
+              went wrong. Only your account name &amp; browser is captured, your email is
+              not used for this.
             </p>
 
             {reportError && (

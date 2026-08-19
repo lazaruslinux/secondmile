@@ -191,7 +191,29 @@ docker compose exec backend python manage.py bug-reports --limit 20
 Each one prints when it arrived, who sent it, which screen they were on, the
 front of their browser string, and what they typed. The account, the moment and
 the browser string are taken from the request rather than typed, and the
-Settings card says exactly that before anybody sends anything.
+Settings card says that the account name and the browser are captured before
+anybody sends anything.
+
+One account may file one report an hour. The hour is counted from the newest
+report that account has stored, so restarting the backend does not hand
+everybody a fresh allowance, and a second one inside it is answered with "One
+report an hour. Try again later."
+
+If you would rather read the reports as a file than through the command above,
+set `BUG_REPORTS_FILE` to a path inside the container and each one is appended
+there as it arrives, as a header line and the text below it:
+
+```
+2026-04-15T21:00:00+00:00  runner  on settings  [Mozilla/5.0 (iPhone) Safari]
+the grove drew nothing after this morning's sync
+```
+
+Leave it empty, which is the default, and nothing is written. The compose file
+mounts a volume at `/data/reports` for it, so `/data/reports/bug-reports.txt`
+survives a rebuild; the directory is created 0700 and the file 0600 on the
+first write. The database row is still the record either way. If the file
+cannot be written the backend logs a warning and the report is stored anyway,
+because losing what somebody typed over a copy of it would help nobody.
 
 A deleted workout keeps the same kind of window. Deleting one hides it
 everywhere and takes its miles back out of the totals; it waits under Deleted

@@ -49,6 +49,11 @@ services:
       # the largest files here can be backed up, moved, or left behind on their
       # own. The path matches VIDEO_DIR's default.
       - video-data:/data/videos
+      # Bug reports, if you asked for the plain-text copy of them. Same terms as
+      # the three above: BUG_REPORTS_FILE in .env names a file inside this
+      # volume, so the copies survive a rebuild. That setting is empty by
+      # default, in which case nothing is written and the volume stays empty.
+      - report-data:/data/reports
     # Bind to localhost only so the raw API stays on this machine, not the
     # LAN. Everything normal goes through the frontend's /api proxy.
     ports:
@@ -76,3 +81,4 @@ volumes:
   avatar-data:
   photo-data:
   video-data:
+  report-data:
