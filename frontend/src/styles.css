@@ -3610,9 +3610,11 @@ button:disabled {
 
 /* On the light ground a plant in the plot stands on the tile the way the same
    drawing stands on the You band, rather than in a dark square cut into a light
-   card. Only the plot: a chest reveal, a satchel square and a photograph keep
-   the well they are drawn for. Dark is untouched. */
-:root[data-theme='light'] .plant-frame .rarity-square {
+   card. The inventory squares followed on his flag: the same drawings, the same
+   ground. A chest reveal and a photograph keep the well they are drawn for.
+   Dark is untouched. */
+:root[data-theme='light'] .plant-frame .rarity-square,
+:root[data-theme='light'] .inv-frame .rarity-square {
   background: transparent;
 }
 
