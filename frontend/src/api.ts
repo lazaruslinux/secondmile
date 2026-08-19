@@ -157,6 +157,11 @@ export interface FeedItem {
   // False as well when the owner keeps their routes to themselves, so no map
   // is drawn and nothing is asked for.
   has_route: boolean
+  // How much the session climbed, in feet whatever this account reads. Absent
+  // altogether when the owner keeps their routes back, because a climb is read
+  // off the ground a walk crossed rather than off the body that crossed it, and
+  // null on a workout whose export never said.
+  elevation_gain_ft?: number | null
   source: Source
   own: boolean
   // Own rows only. What the workout was worth, in converted miles.

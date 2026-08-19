@@ -30,6 +30,20 @@ export function distanceValue(miles: number, units: Units): string {
   return toDisplayDistance(miles, units).toFixed(2)
 }
 
+// How much a workout climbed, which the server stores in feet the way it
+// stores distance in miles. Whole numbers only: a climb is read at a glance
+// beside the other figures on a card, and a foot either way is not a fact
+// anybody is checking.
+export const FEET_PER_METRE = 3.28084
+
+export function elevationUnit(units: Units): string {
+  return units === 'metric' ? 'm' : 'ft'
+}
+
+export function elevationValue(feet: number, units: Units): string {
+  return String(Math.round(units === 'metric' ? feet / FEET_PER_METRE : feet))
+}
+
 // The same figure to one decimal, for a total read at a glance rather than
 // compared: the totals beside it on the identity band are written that way, and
 // two decimals in a line of one-decimal numbers reads as a different kind of

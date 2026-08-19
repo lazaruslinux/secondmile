@@ -39,6 +39,10 @@ FRIEND_ROW_KEYS = {
     "active_kcal",
     "medals",
     "has_route",
+    # Beside the route because the route's own switch governs it: the climb is
+    # read off the ground a session crossed rather than off the body that
+    # crossed it.
+    "elevation_gain_ft",
     # The words, the pictures, and the video are on a friend's row in full: a
     # post is something somebody chose to write, not something read off their
     # body.

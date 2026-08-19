@@ -152,6 +152,22 @@ family, and is the tool to reach for after an upgrade that adds one. The second
 draws route lines for workouts that have no line yet, from any payloads the
 ingest log still holds. Both are safe to run twice.
 
+A workout export also carries a sample per minute of the session and a few
+whole-session summaries, and the sync path has only stored them since the
+release that added the workout_samples table. There is one more command for
+what came before it, run once and for every account rather than for one:
+
+```
+docker compose exec backend python manage.py backfill-samples
+```
+
+It replays every payload the ingest log still holds, matches each entry to the
+workout it made, and fills in only what is missing: a workout that already has
+its minutes is left alone, and a summary already answered keeps its answer. Safe
+to run twice, and worth running before strip-ingest-log below. History older
+than the 90 day window has no detail left to find, which is a limit rather than
+a failure.
+
 The ingest log keeps each sync's payload for 90 days and strips the GPS route
 arrays before storing, so routes exist only in their own trimmed table. On an
 instance that predates this behavior, run backfill-routes first if any history

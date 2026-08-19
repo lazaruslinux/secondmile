@@ -8,7 +8,18 @@ from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app import activity, gear, history, models, progress, push, routemaps, security, throttle
+from app import (
+    activity,
+    gear,
+    history,
+    models,
+    progress,
+    push,
+    routemaps,
+    samples,
+    security,
+    throttle,
+)
 from app.config import (
     BACKFILL_WINDOW_DAYS,
     INGEST_LOG_RETENTION_DAYS,
@@ -152,7 +163,7 @@ async def ingest(
     # a choice somebody made on an old activity.
     default_pair = gear.default_pair(db, user.id)
 
-    imported = skipped = flagged = routes = 0
+    imported = skipped = flagged = routes = minutes = 0
     # What the phone gets told about below, gathered from the rows that were
     # genuinely born here: a skipped duplicate is old news, never announced.
     arrivals: list[dict] = []
@@ -210,6 +221,11 @@ async def ingest(
             flagged += 1
         if routemaps.store_route(db, workout.id, item.route):
             routes += 1
+        # The rest of what the entry said, on the row that was just born and on
+        # no other. A duplicate above never reaches this line, which is what
+        # keeps a re-synced session from being described twice: the same reason
+        # the arrivals list is gathered here rather than from the parse.
+        minutes += samples.record(db, workout, item.entry)
 
     # In the same transaction as the workouts above, and worth nothing beside
     # them: the day rows are written for the screens that print them.
@@ -228,15 +244,17 @@ async def ingest(
             received_at=security.now_utc(),
             payload=payload,
             # The log keeps what the response has no room for: why entries were
-            # dropped, how many routes were drawn, and how many days of steps
-            # were written. None of the three is in the response, whose shape
-            # is a frozen contract and which the phone does nothing with. A
+            # dropped, how many routes were drawn, how many minutes of detail
+            # were kept, and how many days of steps were written. None of the
+            # four is in the response, whose shape is a frozen contract and
+            # which the phone does nothing with. A
             # sync that quietly drops half an export is otherwise impossible to
             # diagnose after the fact.
             result={
                 **result,
                 "ignored_detail": ignored,
                 "routes_stored": routes,
+                "samples_stored": minutes,
                 "step_days": step_days,
             },
         )

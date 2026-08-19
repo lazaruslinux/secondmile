@@ -40,6 +40,11 @@ from app.security import now_utc
 # nothing is not a feed. Pace is not on it either, and deliberately: pace is
 # distance over time, both of which stay, so a toggle for it would promise a
 # privacy it could not keep.
+#
+# Still three, although the route one now governs two things. Everything read
+# off the ground a session crossed rides with the line itself, the climb
+# included, because a separate switch for each of them would be a settings
+# screen making a promise the first one already made.
 HIDEABLE = ("avg_hr", "active_kcal", "route")
 
 RENOWN_PER_KIND = {"cheer": RENOWN_CHEER, "note": RENOWN_NOTE}
@@ -693,7 +698,8 @@ def feed_row(
     null would say the workout carried no heart rate, which is a different thing
     from being asked not to look. The route is hidden by has_route reading
     false, so no map is drawn and nothing asks for the line the endpoint would
-    refuse anyway.
+    refuse anyway, and the climb goes with it: how much a walk went uphill is a
+    fact about the ground it crossed rather than a number about a body.
 
     Own rows carry everything whatever the list says. Hiding a number from
     yourself is not a privacy setting, and the experience a workout earned is
@@ -734,6 +740,17 @@ def feed_row(
         row["avg_hr"] = round(workout.avg_hr, 1) if workout.avg_hr is not None else None
     if "active_kcal" not in kept_back:
         row["active_kcal"] = round(workout.active_kcal, 1)
+    if "route" not in kept_back:
+        # Governed by the route toggle rather than by one of its own. How much a
+        # session climbed is a fact about the ground it crossed, so somebody who
+        # has asked that their line not be shown has not agreed to say where it
+        # went uphill either. Null on a workout whose export never said, which is
+        # every workout that arrived before the column existed.
+        row["elevation_gain_ft"] = (
+            round(workout.elevation_gain_ft, 1)
+            if workout.elevation_gain_ft is not None
+            else None
+        )
     if own:
         row["xp"] = round(converted_miles(workout.activity, workout.distance_mi), 2)
         # Own rows only, and only so the edit panel can open its picker on the

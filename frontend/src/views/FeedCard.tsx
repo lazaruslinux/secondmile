@@ -32,6 +32,8 @@ import {
 import {
   convertedValue,
   distanceValue,
+  elevationUnit,
+  elevationValue,
   formatClock,
   formatPace,
   formatStart,
@@ -511,7 +513,9 @@ function MediaStrip({
 // friend's alike, so it is written down once. A figure the person hiding it kept
 // back does not arrive at all, so it simply is not drawn: there is no empty slot
 // and nothing saying something is missing, because a card announcing what it
-// will not show is a worse answer than a card that reads whole.
+// will not show is a worse answer than a card that reads whole. The climb is
+// left out on the same terms and on one more: a treadmill mile climbed nothing,
+// so an indoor card saying so would be printing a zero as if it meant something.
 function StatRow({ item, units }: { item: FeedItem; units: Units }) {
   return (
     <div className="stat-row">
@@ -544,6 +548,15 @@ function StatRow({ item, units }: { item: FeedItem; units: Units }) {
           <span className="stat-value">
             {Math.round(item.avg_hr)}
             <span className="stat-unit">bpm</span>
+          </span>
+        </div>
+      )}
+      {!item.indoor && typeof item.elevation_gain_ft === 'number' && (
+        <div className="stat">
+          <span className="label">Elev. gain</span>
+          <span className="stat-value">
+            {elevationValue(item.elevation_gain_ft, units)}
+            <span className="stat-unit">{elevationUnit(units)}</span>
           </span>
         </div>
       )}

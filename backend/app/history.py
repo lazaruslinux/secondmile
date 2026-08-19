@@ -3,9 +3,10 @@
 Two things, and they are the two halves of one promise. For
 DELETED_WORKOUT_RETENTION_DAYS the row is only hidden, and the Activity tab's
 Deleted list can hand it back whole. After that the pictures, the video, the route
-line, the words and everything said about it are purged, and what is left is a
-tombstone: the workout row itself, kept forever so the sync dedupe key on it
-goes on refusing the same session when the phone offers it again.
+line, the minute-by-minute detail, the words and everything said about it are
+purged, and what is left is a tombstone: the workout row itself, kept forever so
+the sync dedupe key on it goes on refusing the same session when the phone
+offers it again.
 
 The purge runs on the account's own next sync, the way the ingest log is
 pruned, so nothing here needs a scheduler to be true.
@@ -71,10 +72,10 @@ def purge_expired(db: Session, user_id: int) -> int:
     with no scheduled job in the install.
 
     Everything with a size goes: the pictures and the video with their files,
-    the route line, the title and the post, and every cheer and note written on
-    it. What stays is the row, which is a couple of dozen bytes and is the only
-    thing standing between a catch-up export and importing the whole workout
-    again. Renown is not touched: words that were given were given, and the
+    the route line, the per-minute samples, the title and the post, and every
+    cheer and note written on it. What stays is the row, which is a couple of
+    dozen bytes and is the only thing standing between a catch-up export and
+    importing the whole workout again. Renown is not touched: words that were given were given, and the
     total they earned is stored on the giver rather than counted from here.
 
     Answers with how many workouts it emptied. Does not commit.
@@ -94,6 +95,7 @@ def purge_expired(db: Session, user_id: int) -> int:
                     | models.Workout.id.in_(select(models.WorkoutPhoto.workout_id))
                     | models.Workout.id.in_(select(models.WorkoutVideo.workout_id))
                     | models.Workout.id.in_(select(models.WorkoutRoute.workout_id))
+                    | models.Workout.id.in_(select(models.WorkoutSample.workout_id))
                     | models.Workout.id.in_(select(models.Encouragement.workout_id))
                 ),
             )
@@ -128,6 +130,13 @@ def purge_expired(db: Session, user_id: int) -> int:
         db.execute(
             delete(models.WorkoutRoute).where(
                 models.WorkoutRoute.workout_id == workout.id
+            )
+        )
+        # The minute-by-minute record of the session, which outlived the export
+        # payload it was read out of and would otherwise outlive the session too.
+        db.execute(
+            delete(models.WorkoutSample).where(
+                models.WorkoutSample.workout_id == workout.id
             )
         )
         db.execute(

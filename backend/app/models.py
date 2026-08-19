@@ -304,6 +304,18 @@ class Workout(Base):
     indoor: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=text("false")
     )
+    # What the export said about the session beyond the numbers above, read at
+    # sync and null on everything that arrived before these columns existed.
+    # Every one of them is something to look at: no medal, no conversion, no
+    # flag and no total reads any of them, and the two-lane law is why. The
+    # climb is in feet and the temperature in Fahrenheit whatever the phone
+    # sent, on the same terms distance is stored in miles: the export declares
+    # its own units because it follows its owner's locale, and the screen
+    # converts on the way out.
+    elevation_gain_ft: Mapped[float | None] = mapped_column(Float, nullable=True)
+    max_hr: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    temperature_f: Mapped[float | None] = mapped_column(Float, nullable=True)
+    humidity_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
     # Which shoes this was done in, or null. Maintenance and nothing else: no
     # medal, no conversion and no total reads it, and only a walk or a run may
     # carry one. Nulled rather than cascaded when a pair is deleted, so deleting
@@ -380,6 +392,43 @@ class WorkoutRoute(Base):
         ForeignKey("workouts.id", ondelete="CASCADE"), primary_key=True
     )
     points: Mapped[list] = mapped_column(JSONType, nullable=False)
+
+
+class WorkoutSample(Base):
+    __tablename__ = "workout_samples"
+    # One row per minute of a session, so the same minute can only be described
+    # once however many times its export arrives. A duplicate sync is refused
+    # here the way a duplicate workout is refused on the table above.
+    __table_args__ = (UniqueConstraint("workout_id", "minute", name="uq_workout_sample"),)
+
+    # The per-minute detail an export carries, kept because the payload it was
+    # read out of is pruned at INGEST_LOG_RETENTION_DAYS and this is the only
+    # copy that outlives it. A table of its own rather than columns anywhere,
+    # for the reason the route line is one: nothing in the history views reads
+    # it, and the history is read on every page.
+    #
+    # Nothing here earns anything. Every column is a fact about a minute that
+    # already happened, drawn on a details screen and read by no medal, no
+    # conversion, and no total.
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workout_id: Mapped[int] = mapped_column(
+        ForeignKey("workouts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # Whole minutes from the first sample the export carried, counted from
+    # zero. Not a timestamp: the arrays are per minute and a card draws them
+    # against each other rather than against a clock, and an index is the one
+    # reading that survives an export whose dates cannot be read at all.
+    minute: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Each of these is null when the export said nothing about it for that
+    # minute, which is the common case: the arrays start and stop at their own
+    # moments and a phone that lost its strap sends heart rate for half a walk.
+    distance_mi: Mapped[float | None] = mapped_column(Float, nullable=True)
+    hr_min: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    hr_avg: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    hr_max: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Steps in the minute, which is cadence for a walk or a run: the export
+    # carries no per-minute cadence array of its own.
+    steps: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class IngestLog(Base):

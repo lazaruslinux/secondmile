@@ -133,6 +133,32 @@ MIN_WORKOUT_HR = 20.0
 MAX_WORKOUT_HR = 300.0
 
 
+# And the same kind of bounds on the detail an export carries beside those six
+# numbers. Nothing here rejects a workout: a reading past one of these is
+# dropped to nothing on its own and the session keeps everything else it said,
+# because the detail is something to look at rather than something that earns.
+# Generous for the same reason the bounds above are, which is that a false
+# refusal on a real effort is worse than a stored oddity nobody minds.
+#
+# One sample per minute, so this is a full day of them. A workout longer than
+# that is already past MAX_WORKOUT_DURATION_S; what the cap really bounds is an
+# export whose arrays repeat, and it costs one slice rather than a table of rows
+# nothing will ever draw.
+MAX_WORKOUT_SAMPLES = 1440
+# Two miles in a minute is a hundred and twenty miles an hour, and a thousand
+# steps in one is five times what a sprinter turns over.
+MAX_SAMPLE_DISTANCE_MI = 2.0
+MAX_SAMPLE_STEPS = 1000
+# Everest is a little under thirty thousand feet from the sea, and this is a
+# climb no ride in a day has ever added up to.
+MAX_WORKOUT_ELEVATION_FT = 100000.0
+# Weather, in the units the columns are stored in. Past either end of this is a
+# sensor reading its own housing rather than the air somebody ran through.
+MIN_WORKOUT_TEMP_F = -100.0
+MAX_WORKOUT_TEMP_F = 150.0
+MAX_WORKOUT_HUMIDITY_PCT = 100.0
+
+
 # How far one raw mile of each activity carries the marker, in Miles. Effort
 # equivalence rather than distance: an hour of swimming is not an hour of
 # cycling, and the world is priced in effort. These live in code and not in the

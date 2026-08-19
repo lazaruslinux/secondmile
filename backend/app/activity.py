@@ -124,6 +124,12 @@ class ParsedWorkout:
     # than parsed here so the pairing of a workout with its own trace is made
     # once, in the one place that reads the export.
     route: object | None = None
+    # The whole entry this was read out of, on the same terms as the trace
+    # above. An export says far more about a session than the six numbers a
+    # workout row keeps, and app.samples reads the rest of it; carrying the
+    # entry is what lets both the sync path and the backfill command pair a
+    # workout with its own detail without matching it up a second time.
+    entry: dict | None = None
 
 
 @dataclass
@@ -160,7 +166,7 @@ def is_indoor(name: str | None) -> bool:
 def _raw_quantity(value) -> float | None:
     """The number out of a measurement, which may be bare or wrapped in a dict.
 
-    May be non-finite. Deciding what to do about that is _quantity's job and
+    May be non-finite. Deciding what to do about that is quantity's job and
     _unusable's; this only reads.
     """
     if isinstance(value, dict):
@@ -186,8 +192,12 @@ def _raw_quantity(value) -> float | None:
     return None
 
 
-def _quantity(value) -> float | None:
+def quantity(value) -> float | None:
     """The number out of a measurement, or None if there is not a usable one.
+
+    Public because app.samples reads the same measurement shape out of the
+    per-minute arrays an export carries, and a second reader of it would answer
+    differently the first time this one is fixed.
 
     Not finite reads as not there. JSON is allowed to write NaN and Infinity as
     bare literals and Python's parser accepts both, a NaN compares false against
@@ -208,7 +218,13 @@ def _unusable(value) -> bool:
     return number is not None and not math.isfinite(number)
 
 
-def _units(value, default: str) -> str:
+def unit_of(value, default: str) -> str:
+    """The units a measurement declares, lower-cased, or the caller's default.
+
+    Public alongside quantity above, and for the same reason: the phone follows
+    its owner's locale on every number it sends, not only the four this file
+    stores.
+    """
     if isinstance(value, dict):
         raw = value.get("units") or value.get("unit") or default
         return str(raw).strip().lower()
@@ -222,18 +238,18 @@ def to_miles(value) -> float:
     a swim that happened, and the calories from it still count. Dropping the
     whole workout over one absent field would lose more than it protects.
     """
-    qty = _quantity(value)
+    qty = quantity(value)
     if qty is None or qty < 0:
         return 0.0
-    return qty * _MILES_PER.get(_units(value, "mi"), 1.0)
+    return qty * _MILES_PER.get(unit_of(value, "mi"), 1.0)
 
 
 def to_kcal(value) -> float:
     """An energy measurement in kilocalories. Unknown or missing reads as zero."""
-    qty = _quantity(value)
+    qty = quantity(value)
     if qty is None or qty < 0:
         return 0.0
-    return qty * _KCAL_PER.get(_units(value, "kcal"), 1.0)
+    return qty * _KCAL_PER.get(unit_of(value, "kcal"), 1.0)
 
 
 def ensure_aware(value: dt.datetime) -> dt.datetime:
@@ -275,7 +291,7 @@ def duration_seconds(entry: dict) -> int:
     that matches a stored payload back to its workout row asks the same question
     of the same entry.
     """
-    duration = _quantity(entry.get("duration"))
+    duration = quantity(entry.get("duration"))
     return max(0, round(duration)) if duration is not None else 0
 
 
@@ -376,7 +392,7 @@ def parse_payload(payload) -> tuple[list[ParsedWorkout], list[dict]]:
             heart = entry.get("heartRate")
         if heart is None:
             heart = entry.get("averageHeartRate")
-        avg_hr = _quantity(heart)
+        avg_hr = quantity(heart)
         distance = entry.get("distance")
         energy = entry.get("activeEnergyBurned") or entry.get("activeEnergy")
         if any(_unusable(item) for item in (entry.get("duration"), distance, energy, heart)):
@@ -410,16 +426,19 @@ def parse_payload(payload) -> tuple[list[ParsedWorkout], list[dict]]:
                 avg_hr=avg_hr if avg_hr and MIN_WORKOUT_HR <= avg_hr <= MAX_WORKOUT_HR else None,
                 indoor=is_indoor(name if isinstance(name, str) else None),
                 route=entry.get(ROUTE_KEY),
+                entry=entry,
             )
         )
     return parsed, ignored
 
 
-def _metric_key(name: str | None) -> str:
-    """A metric's name with everything but its letters and digits taken out.
+def plain_name(name: str | None) -> str:
+    """A name with everything but its letters and digits taken out.
 
     One spelling to match against, so "step_count", "Step Count" and "steps"
-    are the same question rather than three.
+    are the same question rather than three. Read here for the names in the
+    metrics array and in app.samples for the keys on a workout entry, which the
+    export tool has spelled several ways over its versions.
     """
     return re.sub(r"[^a-z0-9]", "", (name or "").lower())
 
@@ -483,7 +502,7 @@ def parse_metrics(payload) -> tuple[dict[dt.date, DayMetrics], list[dict]]:
             ignored.append({"metric": index, "reason": "entry is not an object"})
             continue
         name = entry.get("name") or entry.get("identifier")
-        key = _metric_key(name if isinstance(name, str) else None)
+        key = plain_name(name if isinstance(name, str) else None)
         if key in _STEP_NAMES:
             counting = True
         elif key in _STEP_DISTANCE_NAMES:
@@ -498,7 +517,7 @@ def parse_metrics(payload) -> tuple[dict[dt.date, DayMetrics], list[dict]]:
         # Declared once per metric and allowed to be said again on a sample,
         # because the phone follows its owner's locale and this app stores
         # miles. A count has no units and never reads them.
-        units = _units(entry, "mi")
+        units = unit_of(entry, "mi")
         for point in points:
             if not isinstance(point, dict):
                 ignored.append({"metric": index, "name": name, "reason": "sample is not an object"})
@@ -507,7 +526,7 @@ def parse_metrics(payload) -> tuple[dict[dt.date, DayMetrics], list[dict]]:
             if when is None:
                 ignored.append({"metric": index, "name": name, "reason": "unreadable date"})
                 continue
-            qty = _quantity(point)
+            qty = quantity(point)
             if qty is None or qty < 0:
                 # Dropped on its own rather than taking the day with it. The
                 # rest of the samples still describe a day that happened.
@@ -517,7 +536,7 @@ def parse_metrics(payload) -> tuple[dict[dt.date, DayMetrics], list[dict]]:
             if counting:
                 reading.steps += qty
             else:
-                reading.distance_mi += qty * _MILES_PER.get(_units(point, units), 1.0)
+                reading.distance_mi += qty * _MILES_PER.get(unit_of(point, units), 1.0)
     return days, ignored
 
 

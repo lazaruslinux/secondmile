@@ -7,6 +7,7 @@
     python manage.py recompute-progress <username>
     python manage.py backfill-badges <username>
     python manage.py backfill-routes <username>
+    python manage.py backfill-samples
     python manage.py strip-ingest-log
     python manage.py bug-reports [--limit N]
     python manage.py seed-demo
@@ -24,7 +25,7 @@ import sys
 from sqlalchemy import delete, select
 
 from app import activity as activity_rules
-from app import grove, medals, models, progress, routemaps, security
+from app import grove, medals, models, progress, routemaps, samples, security
 from app.config import INGEST_LOG_RETENTION_DAYS, check_deploy_config
 from app.db import SessionLocal
 from app.routers.auth import create_invite
@@ -311,6 +312,95 @@ def cmd_backfill_routes(args: argparse.Namespace) -> None:
         print(f"  routes newly written: {written}")
         print(f"  workouts still without one: {len(missing)}")
         print(f"  routes held now: {total}")
+    finally:
+        db.close()
+
+
+def cmd_backfill_samples(args: argparse.Namespace) -> None:
+    """Read the per-minute detail every stored sync is still carrying.
+
+    The workout_samples table and the four summary columns beside it arrived in
+    0034, so every workout imported before that release has none of it. The
+    detail itself is not lost yet: it is sitting in the ingest log, in the
+    payloads posted over the last INGEST_LOG_RETENTION_DAYS, and this replays
+    them before the prune takes them. Every account rather than one, because it
+    is a one-time pass run by whoever has a shell on the server, and older
+    history than the log holds is simply gone: honest rather than complete, the
+    same limit migration 0027 wrote down about the indoor column.
+
+    A stored payload is parsed exactly the way the sync endpoint parses it, and
+    each entry is matched to its workout on the dedupe key the sync itself
+    writes: the account, the parsed start time and the whole-second duration.
+    That triple is the unique constraint on workouts, so a match is exact.
+
+    Only what is missing is filled. A workout that already has its minutes is
+    left alone entirely, and a summary column that already holds a number keeps
+    it, so running this twice is the same as running it once and running it
+    after a parsing fix picks up only what the fix newly answers. Nothing else
+    is touched: no workout, progress, medal, or route is written here.
+    """
+    db = _session()
+    try:
+        # Keyed the way a payload names a workout. Aware timestamps compare and
+        # hash by instant, so a payload written in local time still finds its
+        # row.
+        rows = {
+            (workout.user_id, workout.start_ts, workout.duration_s): workout
+            for workout in db.execute(
+                select(models.Workout).where(
+                    # Never a deleted one. Its detail would be describing a
+                    # session its owner has taken back, and writing it in from
+                    # the log would undo the deletion one table at a time.
+                    models.Workout.deleted_at.is_(None)
+                )
+            ).scalars()
+        }
+        described = set(
+            db.execute(select(models.WorkoutSample.workout_id).distinct()).scalars()
+        )
+        # What was already described before this run started, kept apart from
+        # the set above because that one grows as rows are written and the
+        # count at the end is about what was left alone.
+        already = frozenset(described)
+
+        replayed = written = 0
+        matched: set[int] = set()
+        for user_id, payload in db.execute(
+            select(models.IngestLog.user_id, models.IngestLog.payload).order_by(
+                models.IngestLog.id
+            )
+        ):
+            replayed += 1
+            parsed, _ = activity_rules.parse_payload(payload)
+            for item in parsed:
+                workout = rows.get((user_id, item.start_ts, item.duration_s))
+                if workout is None:
+                    continue
+                matched.add(workout.id)
+                details = samples.parse(item.entry)
+                if workout.elevation_gain_ft is None:
+                    workout.elevation_gain_ft = details.elevation_gain_ft
+                if workout.max_hr is None:
+                    workout.max_hr = details.max_hr
+                if workout.temperature_f is None:
+                    workout.temperature_f = details.temperature_f
+                if workout.humidity_pct is None:
+                    workout.humidity_pct = details.humidity_pct
+                if workout.id in described:
+                    continue
+                count = samples.store(db, workout.id, details.minutes)
+                if count:
+                    # Marked here so a later payload carrying the same session,
+                    # which every overlapping export window does, does not try
+                    # to describe a minute of it twice.
+                    described.add(workout.id)
+                    written += count
+        db.commit()
+
+        print(f"Replayed {replayed} stored syncs.")
+        print(f"  workouts matched: {len(matched)}")
+        print(f"  samples written: {written}")
+        print(f"  workouts skipped as already detailed: {len(matched & already)}")
     finally:
         db.close()
 
@@ -662,6 +752,11 @@ def main() -> None:
     )
     routes.add_argument("username")
     routes.set_defaults(func=cmd_backfill_routes)
+
+    detail = sub.add_parser(
+        "backfill-samples", help="read the per-minute detail stored syncs still carry"
+    )
+    detail.set_defaults(func=cmd_backfill_samples)
 
     strip = sub.add_parser(
         "strip-ingest-log", help="remove stored GPS traces and drop syncs past retention"
