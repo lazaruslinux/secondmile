@@ -7,7 +7,7 @@ accounts, workout sync, the Activity tab, the profile with its levels and
 medals, the grove with its chests and seeds, and a feed shared with friends work
 today, and the rest is being built on top of them.
 
-Current version: **0.2.0**. Releases are tagged in git, and each tag's GitHub
+Current version: **0.2.1**. Releases are tagged in git, and each tag's GitHub
 release carries the notes for it.
 
 ## What it does

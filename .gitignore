@@ -63,3 +63,6 @@ Thumbs.db
 frontend/src/assets/grove-custom/*
 !frontend/src/assets/grove-custom/.gitkeep
 CLAUDE-archive.md
+
+# Deploy helpers are staged outside the repo; they carry instance specifics.
+deploy-*.sh
