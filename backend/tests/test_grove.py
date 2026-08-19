@@ -673,7 +673,10 @@ def test_the_mustard_tree_levels_like_a_rare_and_is_never_rolled():
 
 
 def test_only_the_mustard_seed_explains_anything_about_itself():
-    assert species.BY_ID["mustard"].reveal == "You will only ever receive one."
+    assert (
+        species.BY_ID["mustard"].reveal
+        == "Everyone's first chest holds a mustard seed. There are 12 more seeds to find."
+    )
     assert [row.id for row in species.BY_ID.values() if row.reveal] == ["mustard"]
 
 

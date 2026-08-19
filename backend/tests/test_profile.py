@@ -1207,7 +1207,7 @@ def test_a_non_friend_reaches_neither_the_strip_nor_the_pictures_on_it(
     assert refused.json() == {"detail": "No such photo."}
 
 
-def test_a_friend_profile_shows_ten_workouts_newest_first(signed_in, db_session, friend):
+def test_a_friend_profile_shows_four_workouts_newest_first(signed_in, db_session, friend):
     other, _ = friend
     made = [
         add_workout(db_session, other.id, NOW - dt.timedelta(hours=hours_back))
@@ -1215,10 +1215,10 @@ def test_a_friend_profile_shows_ten_workouts_newest_first(signed_in, db_session,
     ]
 
     rows = signed_in.get(f"/api/profile/{other.id}").json()["workouts"]
-    assert len(rows) == 10
-    # The ten it kept are the ten most recent, newest first; the two oldest are
-    # simply not there, and there is no cursor to go and ask for them.
-    assert [row["workout_id"] for row in rows] == [row.id for row in made[:10]]
+    assert len(rows) == 4
+    # The four it kept are the four most recent, newest first; the older ones
+    # are simply not there, and there is no cursor to go and ask for them.
+    assert [row["workout_id"] for row in rows] == [row.id for row in made[:4]]
     stamps = [row["start_ts"] for row in rows]
     assert stamps == sorted(stamps, reverse=True)
 

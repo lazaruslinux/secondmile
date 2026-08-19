@@ -593,8 +593,8 @@ def roll_loot(
     there is no such thing as an item worth nothing. A wish falls to water by
     the same rule, once there is nothing left anywhere to wish for.
 
-    The first chest an account ever opens ignores all of it. That is never
-    explained anywhere, and this is the only line that knows about it.
+    The first chest an account ever opens ignores all of it. The reveal tells
+    the player as much, and this is the only line of code that knows it.
     """
     if first_ever:
         seed = species.BY_ID[species.FIRST_CHEST_SPECIES]

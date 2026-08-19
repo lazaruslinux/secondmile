@@ -418,10 +418,10 @@ def read_avatar(
 # Somebody else's profile
 # --------------------------------------------------------------------------
 
-# How much of a friend's history the screen carries. Ten rather than the feed's
+# How much of a friend's history the screen carries. Four rather than the feed's
 # twenty because this is a glance at how somebody is doing rather than their
 # history, and there is no cursor here to ask for more.
-FRIEND_WORKOUTS = 10
+FRIEND_WORKOUTS = 4
 
 # How many pictures the strip across the profile holds. Six because that is
 # what one workout may carry, which makes it one number rather than two.

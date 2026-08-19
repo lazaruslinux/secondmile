@@ -498,8 +498,8 @@ def test_the_first_chest_an_account_opens_holds_the_mustard_seed(
     assert body["kind"] == "seed"
     # It rolls in the rare slot like any other seed there.
     assert body["rarity"] == "rare"
-    # The one rule the game explains, said here and nowhere else.
-    assert body["reveal"] == "You will only ever receive one."
+    # The one thing the game explains about itself, said here and nowhere else.
+    assert body["reveal"] == "Everyone's first chest holds a mustard seed. There are 12 more seeds to find."
 
     # And never again, however many chests follow.
     later = [open_one(signed_in, db_session, member.id) for _ in range(6)]

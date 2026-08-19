@@ -16,9 +16,9 @@ Miles, an uncommon forty, a rare a hundred. Level one is maturity. Level
 thirty three is as far as anything goes, and there it is gilded and finished.
 
 The mustard tree is the exception in every way but one. It comes out of the
-first chest an account ever opens and nowhere else, and the reveal explains that
-single mechanical fact and nothing more: why it is the one seed like that stays
-unsaid.
+first chest an account ever opens and nowhere else, and the reveal states two
+mechanical facts, that gift and the twelve left to find, and nothing more: why
+it is the one seed like that stays unsaid.
 """
 
 from dataclasses import dataclass
@@ -44,7 +44,7 @@ MAX_LEVEL = 33
 
 # The one line the game explains about itself, said at the reveal and nowhere
 # else. What it means is still never said.
-MUSTARD_REVEAL = "You will only ever receive one."
+MUSTARD_REVEAL = "Everyone's first chest holds a mustard seed. There are 12 more seeds to find."
 
 
 @dataclass(frozen=True)
