@@ -2,12 +2,13 @@
 
 A self-hosted fitness app with a game inside it. Miles you actually walk, run,
 cycle, or swim sync from your phone and become experience, medals, and things
-growing in a plot on a profile you build over months. The game is early:
-accounts, workout sync, the Almanac, the profile with its levels and medals,
-the plot with its chests and seeds, and a feed shared with friends work today,
-and the rest is being built on top of them.
+growing in a grove on a profile you build over months. The game is early:
+accounts, workout sync, the Activity tab, the profile with its levels and
+medals, the grove with its chests and seeds, and a feed shared with friends work
+today, and the rest is being built on top of them.
 
-Current version: **0.1.1**. Releases are tagged in git.
+Current version: **0.1.1**. Releases are tagged in git, and each tag's GitHub
+release carries the notes for it.
 
 ## What it does
 
@@ -17,10 +18,16 @@ Current version: **0.1.1**. Releases are tagged in git.
   idempotent, so overlapping export windows never double-count a workout.
   Syncing is the only way a workout arrives, so there is one way in and every
   row can say where it came from.
-- **Keeps the Almanac.** A history of everything you have done, grouped by
+- **Counts steps without paying for them.** A second, optional export brings in
+  your daily step count and your walking and running distance. Steps are shown
+  on your profile and in the tally on the landing page, and they earn nothing at
+  all: no experience, no level, no chest, no growth, no medal.
+- **Keeps the Activity tab.** A history of everything you have done, grouped by
   week, with totals per activity. Workouts with impossible numbers (a four
   minute mile, a fifty mile walk) are imported but flagged rather than
   trusted.
+- **Tracks the shoes.** Add a pair on your profile and pick it on a workout,
+  and the miles add up on that pair until you retire it.
 - **Turns those miles into a profile.** Experience is the distance itself, and
   each activity converts at its own rate, so an hour in the pool is not an hour
   on a bike and a swimmer is never shortchanged. The levels are the race
@@ -29,29 +36,38 @@ Current version: **0.1.1**. Releases are tagged in git.
   medals you have chosen sit in fixed slots around it. Weekly and lifetime
   totals are worn on the profile. There are no leaderboards of raw miles and
   there never will be: profiles celebrate, they do not rank.
-- **Keeps an endless list of things to earn.** Twenty-four medals: seven for a
-  single walk or run that covers a mile, two miles, 5K, 10K, half marathon,
-  marathon, or ultra distance, four for a big week, two for setting out before
-  six in the morning or after eight at night, four for a long ride, three for a
-  long swim, and four lifetime milestones at 100, 250, 500, and 1000 converted
-  Miles. Feet are feet, so a walk earns at every distance a run does. All but
-  the four lifetime medals repeat, and each is counted on the profile, so a
-  medal earned five times says so.
+- **Keeps an endless list of things to earn.** Thirty-two medals in eight
+  families: seven for a single walk or run that covers a mile, two miles, 5K,
+  10K, half marathon, marathon, or 50K, four for a big week, two for setting out
+  before six in the morning or after eight at night, four for a long ride, three
+  for a long swim, and then three lifetime ladders of four rungs each, one for
+  every mile covered, one for every mile ridden, and one for every mile swum.
+  Every threshold is raw miles on the ground rather than converted ones. Feet
+  are feet, so a walk earns at every distance a run does. All but the twelve
+  lifetime medals repeat, and each is counted on the profile, so a medal earned
+  five times says so; every fifty of the same one adds a star, up to thirty
+  three.
 - **Drops chests on a ladder you can count.** Chests cost 5K, then 10K, then a
   half, a marathon, an ultra, and then the ladder starts again. Converted miles
   from every activity are the fuel, a long run climbs several steps at once,
   what is left over carries, and nothing ever expires or decays.
-- **Fills a plot rather than an album.** Every chest holds one of three things,
-  and all three are tools: a seed to plant, water to pour into one plant, or a
-  boost potion to spend on a friend. Plantings grow from every workout you log,
-  all of them at once, with nothing to tend and no timers; swimming brings extra
-  water. Everything levels on the XP your miles convert to, is grown at level
-  one, and is fully grown at the last one. Nothing can wither and nothing can be
-  bought.
+- **Fills a grove rather than an album.** Every chest holds one of four things,
+  and all four are tools: a seed to plant, water to pour into one plant, a boost
+  potion to spend on a friend, or an unmarked seed you turn into any species you
+  have not found yet. Plantings grow from every workout you log, all of them at
+  once, with nothing to tend and no timers; swimming brings extra water.
+  Everything levels on the XP your miles convert to, is grown at level one, and
+  is fully grown at the last one. Nothing can wither and nothing can be bought.
+- **Bears fruit, and turns calories into manna.** A grown plant bears fruit as
+  the converted miles add up, every plant at once, and one button brings the lot
+  in. The active calories in a workout become manna, which either feeds a plant
+  for a richer harvest, yours or a friend's, or is handed to a friend as it is.
+  Manna never buys growth, and gathered fruit is only ever something to give
+  away.
 - **Gives you something to give away.** Water can be poured into a friend's
-  plot as easily as your own. A potion is quieter: it says nothing to the
-  friend you spend it on, and their next workout simply brings them a chest they did
-  not earn, with your name on it in their letter.
+  grove as easily as your own. A boost potion is encouragement rather than a
+  secret: spend it on a friend and their own screen says the next chest their
+  miles were already going to earn opens a step rarer, with your name on it.
 - **Keeps a small circle.** An instance is a private club rather than a general
   app: everybody on it was invited by somebody, so members can look each other
   up by name and see a card with a face, a bio, and the month they joined, and
@@ -80,6 +96,20 @@ Current version: **0.1.1**. Releases are tagged in git.
   instead. Either way a new account has to verify its email address before it
   can sign in, and an instance with no mail server configured writes the
   verification link to the backend log instead of sending it.
+- **Installs on a phone, and says when a sync lands.** The app installs to a
+  Home Screen as a web app, and one notification goes out when a sync brings new
+  workouts. The push is your own server's: it stays off until the server is
+  given a VAPID keypair, and then each person turns on the devices they want it
+  on. An iPhone needs the site on its Home Screen first, which is the platform's
+  rule rather than this app's.
+- **Light or dark, per device.** The switch is in Settings, and the browser
+  remembers it rather than the account: a phone in bed and a desktop by a window
+  are not the same room.
+- **Explains the phone side inside the app.** Settings opens a setup guide with
+  screenshots, naming every field the export app asks for and what to set it to.
+- **Takes bug reports from inside the app.** The bottom of Settings has a box
+  that sends what went wrong, along with the screen it happened on, straight to
+  whoever runs the instance.
 
 ## Where it is going
 
@@ -186,7 +216,7 @@ Two of them decide how people get accounts:
   never confirm a password.
 - Suspicious workouts are flagged, never silently trusted: impossible paces
   and days that blow past the configured distance caps are marked in the
-  Almanac.
+  Activity tab.
 - Uploaded profile pictures are refused above 5 MB before anything decodes
   them, then decoded to prove they really are images, then re-encoded from
   their pixels to a 512 by 512 webp. The original bytes are never stored or
@@ -225,12 +255,6 @@ npm run dev
 Tests run against SQLite so they need no running database. CI runs ruff,
 pytest, pip-audit, the frontend typecheck and build, and npm audit on every
 push.
-
-## Development
-
-This project was developed with Claude Code. The AI wrote the code; the
-design, the decisions, the corrections, and the testing on real data are
-human.
 
 ## License
 

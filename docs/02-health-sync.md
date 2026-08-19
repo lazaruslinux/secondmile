@@ -7,6 +7,10 @@ it.
 
 ## Setting it up
 
+The app carries this walkthrough too, with screenshots and every field named the
+way Health Auto Export names it: open Settings and follow the link to the setup
+guide. What is below is the short version of the same thing.
+
 1. Log in to secondmile, open Settings, and generate your ingest token. Copy
    it now; the server stores only a hash, so it is shown once. You can
    rotate it here any time, which invalidates the old one.
@@ -18,6 +22,8 @@ it.
    - Headers: `Authorization: Bearer <your token>`
    - Data type: Workouts
    - Format: JSON
+   - Include Workout Metrics: on, which is what carries the calories and the
+     heart rate.
    - Include Route Data: on, if you want the map line on your workout
      cards. It is optional; everything else works the same without it.
 
@@ -26,11 +32,18 @@ it.
 
 4. Optionally, add a second automation with the same URL, method, headers and
    format, and the data type Health Metrics; under Select Health Metrics turn
-   everything off and pick Step Count and Walking + Running Distance. Health
-   Auto Export takes one data type per automation, which is the only reason
-   there are two. This one earns nothing and only feeds the step counts on the
-   screens: see Steps below. Everything the app rewards arrives through the
-   workouts automation alone.
+   everything off and pick Step Count and Walking + Running Distance. Set its
+   Time Grouping to Day and its Date Range to Previous 7 Days, so it sends one
+   finished figure per day rather than every raw sample. Health Auto Export
+   takes one data type per automation, which is the only reason there are two.
+   This one earns nothing and only feeds the step counts on the screens: see
+   Steps below. Everything the app rewards arrives through the workouts
+   automation alone.
+
+Your account accepts workouts from up to 14 days before the day it was created,
+so one manual export brings in the days before you joined. The window is
+anchored to your signup and never moves, and anything older than it is refused
+and counted rather than treated as an error.
 
 Only walking, running, cycling, and swimming workouts are imported; other
 types in the export are counted in the response but ignored.
@@ -48,16 +61,18 @@ unmarked unless their sync is still inside the ingest log's 90 day window.
   re-running an automation never double-counts anything. The response says
   how many workouts were imported and how many were skipped as already
   known.
-- The raw payload of every ingest call is kept in the database, so if a
+- The payload of every ingest call is kept in the database for 90 days, so if a
   parsing bug ever drops a field, the history can be replayed after the fix
-  instead of being lost.
+  instead of being lost. Its GPS route arrays are taken out before it is
+  stored: they are already drawn into a table of their own, and they are the
+  one part of an export that says where you live.
 - Workouts with impossible numbers (a sub four minute mile, cycling past the
-  configured daily cap) are imported but flagged, and the Almanac shows the
+  configured daily cap) are imported but flagged, and the Activity tab shows the
   flag. Nothing is rejected; the flags exist so bad data never silently
   becomes progress.
 - Every imported workout is credited to your profile straight away: experience
   toward your level, converted miles toward the next chest on the ladder,
-  growth for everything planted in your plot, and whatever medals it has just
+  growth for everything planted in your grove, and whatever medals it has just
   earned: the race distance if the walk or run covered one, the ride or swim
   distance if it was one of those, the hour of the day if it was early or late,
   the week's own medal once the miles add up, and a lifetime milestone the
@@ -75,7 +90,7 @@ distance.
 
 Neither of them earns anything. Miles are the work put into a recorded
 activity, so steps are worth no experience, no level, no chest, no growth in
-your plot and no medal, and they are in no miles total on any screen. They are
+your grove and no medal, and they are in no miles total on any screen. They are
 stored and shown: your step count for the week on your own profile, a count in
 the recap letter, and the instance-wide tally on the landing page. What steps
 should become is an open question, and nothing is built toward an answer.
@@ -114,19 +129,19 @@ What is stored is never the trace as it arrived:
 - A route is never a reason a workout fails to import. If the trace is
   missing, malformed, or unreadable, the workout lands as usual with no line.
 
-Turning route data on later does not lose the earlier maps. The raw payload of
-every sync is kept, so the lines for workouts already in your history can be
-drawn from it:
+Turning route data on later does not fill in the maps behind you. A sync that
+sent no trace left none anywhere, and a stored payload has its route arrays
+taken out before it is written, so there is nothing to read them back from.
+Switch it on and the lines start with your next sync.
 
-    docker compose exec backend python manage.py backfill-routes yourname
-
-It only fills in workouts that have no line yet, and it changes nothing else,
-so running it twice is the same as running it once.
+An instance old enough to hold payloads from before that stripping began still
+has the traces inside them, and its administrator can draw those lines once with
+`manage.py backfill-routes`. See [01-self-hosting.md](01-self-hosting.md).
 
 ## The only way in
 
 Syncing is the only way a workout arrives. There is no form to type one into,
-so anything that never reached Apple Health does not reach the Almanac either.
+so anything that never reached Apple Health does not reach your history either.
 
 An older version did have that form, and the workouts it wrote are still in the
 history, still counted, and still marked as entered by hand. Where a workout

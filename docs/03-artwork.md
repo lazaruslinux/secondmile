@@ -413,7 +413,7 @@ missing file costs a picture rather than a screen.
   seedling is how growth shows. Make each stage plainly bigger than the last,
   and let a rare tree tower over a common bush.
 - **They are drawn small.** Roughly 88 pixels tall in the plot, 36 to 52 in the
-  band across the top of the profile, and 72 in the satchel and a chest reveal.
+  band across the top of the profile, and 72 in the inventory and a chest reveal.
   Silhouettes read at that size; fine detail does not.
 - **Distinct at a glance.** Thirteen species share one plot, so shape carries
   more than colour: a vine on a wire, an arching bramble, a flat olive crown, a
@@ -478,7 +478,7 @@ has its own, this file comes out and the drawings replace it.
 The three things a chest holds that are not a seed. They live beside the plants
 because they are used on them, and each reads one file named after its kind, so
 swapping any of them is the same one-file swap as everything else here. A file
-that is not there costs the picture and nothing else: the satchel row and the
+that is not there costs the picture and nothing else: the inventory row and the
 chest reveal both still read. The file names are the item kinds the code and the
 API use, which is why the potion's file is `oil.svg`: the picture and the word
 on screen changed, the kind did not.
@@ -490,14 +490,14 @@ on screen changed, the kind did not.
 | `wish.svg` | The unmarked seed, spent on any species the grove is missing | Epic |
 
 Drawn in the same 64 by 64 viewBox as the plants, and shown at 72 pixels in the
-satchel and in a chest reveal. Unlike a plant, none of them stands on a floor:
+inventory and in a chest reveal. Unlike a plant, none of them stands on a floor:
 each is centred in its square, so draw them to fill the box rather than to sit
 on the bottom of it. In a chest reveal the picture is what is pressed to find
 out what the thing is for, so give it enough shape to look pressable.
 
 The potion and the wish are drawn inside a rarity frame, so the two pixels
 around the square are the frame's rather than the drawing's; water is the one
-thing in the satchel with no rarity, and it is drawn in a plain square. The
+thing in the inventory with no rarity, and it is drawn in a plain square. The
 rarity of a tool is fixed by what it is rather than rolled, so a wish is always
 epic and the potion is always legendary. The two are both purple and have to
 read apart at 72 pixels: the wish is a muted epic teardrop with stars, the potion

@@ -121,23 +121,26 @@ docker compose exec backend python manage.py recompute-progress theirname
 ```
 
 This clears that account's experience, level, chest ladder, earned chests, the
-growth in its plot, and its medals, and builds them all again from the
-workouts. The workouts themselves are never touched, so nothing anybody
+growth in its grove, its manna, and its medals, and builds them all again from
+the workouts. The workouts themselves are never touched, so nothing anybody
 actually did is at risk. Medals come back with the dates of the runs and weeks
 that earned them, so running this is also how a history that predates a medal
-family earns it.
+family earns it. Manna comes back as what the surviving workouts are worth, less
+what has already been spent and plus what friends gave.
 
-Nothing anybody chose is rebuilt either. What is in the satchel, what has been
-planted, and every anointing given or received stay exactly as they are, and a
-chest that came out of somebody else's potion is left alone with them.
+Nothing anybody chose is rebuilt either. What is in the inventory, what has been
+planted, and every anointing given or received stay exactly as they are. A boost
+potion raises a chest the miles had already earned rather than dropping one of
+its own, so every chest goes and comes back off the ladder; an anointing already
+spent stays spent, and the chest it lifted comes back unlifted.
 
 Replaying the same workouts produces the same chests in the same order, because
 the ladder is fixed. Chests that were already opened do come back closed,
 though, and opening them again hands out items all over again. Take a dump
-first, and do not run this casually on an account with a full satchel.
+first, and do not run this casually on an account with a full inventory.
 
 There are two narrower commands for the cases where a rebuild is more than you
-need. Neither touches chests, the plot, or experience:
+need. Neither touches chests, the grove, or experience:
 
 ```
 docker compose exec backend python manage.py backfill-badges theirname
