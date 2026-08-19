@@ -950,7 +950,7 @@ export function EditPanel<T extends EditableWorkout>({
       )}
 
       <div className="choice">
-        <button type="submit" className="primary" disabled={busy}>
+        <button type="submit" className="secondary" disabled={busy}>
           Save
         </button>
         <button type="button" className="secondary" disabled={saving} onClick={onClose}>

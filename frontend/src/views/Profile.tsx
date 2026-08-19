@@ -443,7 +443,7 @@ export default function Profile({
                 <div className="choice">
                   <button
                     type="button"
-                    className="primary"
+                    className="secondary"
                     disabled={badgeBusy}
                     onClick={() => void saveBadges()}
                   >

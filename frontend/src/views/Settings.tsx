@@ -385,7 +385,7 @@ export default function Settings({
               </p>
             )}
 
-            <button type="submit" className="primary" disabled={savingEmail}>
+            <button type="submit" className="secondary" disabled={savingEmail}>
               {email ? 'Change email' : 'Add email'}
             </button>
           </form>
@@ -428,7 +428,7 @@ export default function Settings({
               </p>
             )}
 
-            <button type="submit" className="primary" disabled={savingPassword}>
+            <button type="submit" className="secondary" disabled={savingPassword}>
               Change password
             </button>
           </form>
@@ -535,7 +535,7 @@ export default function Settings({
             </p>
           )}
 
-          <button type="button" className="primary" onClick={askRotate} disabled={rotating}>
+          <button type="button" className="secondary" onClick={askRotate} disabled={rotating}>
             {tokenStatus?.exists ? 'Rotate token' : 'Create token'}
           </button>
 
@@ -770,7 +770,7 @@ export default function Settings({
               </p>
             )}
 
-            <button type="submit" className="primary" disabled={sendingReport}>
+            <button type="submit" className="secondary" disabled={sendingReport}>
               Send report
             </button>
           </form>

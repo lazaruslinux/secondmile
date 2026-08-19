@@ -357,7 +357,7 @@ export default function Recap({ recap, units, onDismiss }: Props) {
         </div>
 
         <footer className="overlay-foot">
-          <button type="button" className="primary" onClick={onDismiss}>
+          <button type="button" className="secondary" onClick={onDismiss}>
             Done
           </button>
         </footer>

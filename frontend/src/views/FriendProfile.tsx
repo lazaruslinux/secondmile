@@ -223,7 +223,7 @@ function MemberProfile({
           Accept
         </button>
       ) : card.friendship === 'invited_by_me' ? (
-        <button type="button" className="primary" disabled>
+        <button type="button" className="secondary" disabled>
           Invite sent
         </button>
       ) : (

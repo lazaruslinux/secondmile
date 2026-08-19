@@ -7,9 +7,10 @@
    the block below, so there is one place to keep the two in step; the handful
    of hexes written anywhere else either hold on both grounds or belong to the
    landing page, which never flips. Cards sit on the ground with
-   gutters of it between them, labels are small and shouty, numbers are large
-   and quiet, and crimson is the only colour that is not black, white, or grey.
-   Nothing moves: no transitions, no animations, no shadows. */
+   gutters of it between them, labels are small and quiet, numbers are large
+   and bold, and crimson is the only colour that is not black, white, or grey.
+   Nothing moves: no transitions, no animations, no shadows, and a hover on a
+   desktop swaps a colour on the spot rather than easing into it. */
 
 /* The typefaces, bundled rather than fetched. Nothing in this app loads from
    another origin, so a font cannot be an exception: a Google Fonts link would
@@ -18,9 +19,11 @@
    the licence travels with the files in assets/fonts/OFL.txt.
 
    Two widths, one family. Barlow carries the words; Barlow Semi Condensed
-   carries the numbers, which is what --font-nums is for. Latin and Latin
-   Extended only: the other subsets Google serves are weight this app would
-   ship to every reader and never draw. */
+   carries the numbers, which is what --font-nums is for. Five weights of the
+   wide cut and two of the narrow, each one set somewhere in the app: nothing
+   is bundled that is never drawn. Latin and Latin Extended only: the other
+   subsets Google serves are weight this app would ship to every reader and
+   never draw. */
 @font-face {
   font-family: 'Barlow';
   font-style: normal;
@@ -35,6 +38,38 @@
   font-weight: 400;
   font-display: block;
   src: url('./assets/fonts/barlow-400-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Barlow';
+  font-style: normal;
+  font-weight: 500;
+  font-display: block;
+  src: url('./assets/fonts/barlow-500-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Barlow';
+  font-style: normal;
+  font-weight: 500;
+  font-display: block;
+  src: url('./assets/fonts/barlow-500-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Barlow';
+  font-style: normal;
+  font-weight: 600;
+  font-display: block;
+  src: url('./assets/fonts/barlow-600-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Barlow';
+  font-style: normal;
+  font-weight: 600;
+  font-display: block;
+  src: url('./assets/fonts/barlow-600-latin.woff2') format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
@@ -67,6 +102,22 @@
   font-weight: 800;
   font-display: block;
   src: url('./assets/fonts/barlow-800-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Barlow Semi Condensed';
+  font-style: normal;
+  font-weight: 600;
+  font-display: block;
+  src: url('./assets/fonts/barlow-sc-600-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Barlow Semi Condensed';
+  font-style: normal;
+  font-weight: 600;
+  font-display: block;
+  src: url('./assets/fonts/barlow-sc-600-latin.woff2') format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
@@ -208,6 +259,10 @@ html {
     'Helvetica Neue',
     Arial,
     sans-serif;
+  /* Every weight this sheet asks for is bundled above, so nothing here needs
+     faking. Off, so a weight that was never bundled reads as the wrong weight
+     rather than as a browser's smeared guess at one. */
+  font-synthesis: none;
   /* The density lever. Nearly every size in this sheet is in rem, so the root
      scales the type and the padding together, which is the whole point: a
      screen fits more because everything on it got tighter, not because the
@@ -215,7 +270,7 @@ html {
      exception and are written in px further down, so they do not follow.
      Line height does as much work as the size does: a page of text at 1.4
      takes about a fifteenth less room than the same page at 1.5. */
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.4;
   color: var(--text);
   background: var(--bg);
@@ -236,8 +291,12 @@ h1,
 h2,
 h3 {
   margin: 0 0 0.4rem;
-  font-weight: 700;
   letter-spacing: -0.01em;
+}
+
+h1,
+h2 {
+  font-weight: 700;
 }
 
 h1 {
@@ -248,8 +307,11 @@ h2 {
   font-size: 1.05rem;
 }
 
+/* A step back from the two above it in weight as well as in size: an h3 names
+   a block inside a card rather than the card or the screen. */
 h3 {
   font-size: 0.95rem;
+  font-weight: 600;
 }
 
 p {
@@ -264,10 +326,10 @@ code {
    large quiet number. */
 .label {
   display: block;
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.09em;
   color: var(--muted);
 }
 
@@ -463,10 +525,10 @@ code {
 }
 
 .tab-label {
-  font-size: 10px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.09em;
 }
 
 /* The wide-screen navigation, which lives in the top bar. Below 900px the bar
@@ -497,10 +559,10 @@ code {
 }
 
 .topnav-label {
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.09em;
 }
 
 /* The buttons on the right of a view heading, side by side. */
@@ -548,10 +610,10 @@ textarea {
   font: inherit;
   /* Sixteen pixels exactly, in px, and never smaller. Safari on iOS zooms the
      whole page in when you tap a field set below 16px, and then leaves you
-     there. The density lever on the root is 15px, which fields would otherwise
-     inherit, so this has to be stated rather than left to cascade: the same
-     reason the thumb targets below are in px. It reads a shade larger than the
-     body text, which is the ordinary price of not being zoomed. */
+     there. The density lever on the root sits at 16px today, so a field would
+     inherit the right size anyway; it is written out because the lever is
+     there to be moved and a field must not follow it down: the same reason the
+     thumb targets below are in px. */
   font-size: 16px;
   color: var(--text);
   background: var(--bg);
@@ -600,7 +662,7 @@ button:disabled {
 .primary,
 .secondary {
   font-size: 0.8125rem;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -648,7 +710,7 @@ button:disabled {
   border: 1px solid var(--line);
   color: var(--text);
   font-size: 0.8125rem;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -698,7 +760,7 @@ button:disabled {
 }
 
 .warning {
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text);
 }
 
@@ -800,7 +862,7 @@ button:disabled {
 }
 
 .guide-field-value {
-  font-weight: 700;
+  font-weight: 600;
   text-align: right;
 }
 
@@ -957,7 +1019,7 @@ button:disabled {
   border-radius: 0;
   color: var(--text);
   font-size: 0.8125rem;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -993,8 +1055,8 @@ button:disabled {
 
 .medal-row .badge {
   flex: 0 0 auto;
-  width: 1.9rem;
-  height: 1.9rem;
+  width: 2.2rem;
+  height: 2.2rem;
 }
 
 /* The same room for the stars the strip on You leaves. */
@@ -1007,14 +1069,14 @@ button:disabled {
   flex: 1 1 auto;
   min-width: 0;
   font-size: 0.8rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 /* The day it last came, which is what makes the list read as recent rather
    than as a ranking. */
 .medal-when {
   font-size: 0.75rem;
-  font-weight: 700;
+  font-weight: 500;
   color: var(--muted);
   white-space: nowrap;
 }
@@ -1030,8 +1092,8 @@ button:disabled {
 
 .challenge .badge {
   flex: 0 0 auto;
-  width: 2.4rem;
-  height: 2.4rem;
+  width: 2.6rem;
+  height: 2.6rem;
 }
 
 .challenge-text {
@@ -1041,7 +1103,7 @@ button:disabled {
 .challenge-name {
   margin: 0;
   font-size: 0.8rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .challenge-progress {
@@ -1108,7 +1170,7 @@ button:disabled {
 
 .streak-band-name {
   font-size: 1.05rem;
-  font-weight: 700;
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
 
@@ -1127,22 +1189,22 @@ button:disabled {
 
 .streak-value {
   font-size: 2.25rem;
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1;
-  letter-spacing: -0.03em;
-  /* Full width, unlike every other number: this one stands alone, so
-     there is no column for a narrower cut to line it up with and
-     narrowing it would only make it smaller. */
+  letter-spacing: -0.01em;
+  /* The narrow cut every other number wears, and tabular with it, so the word
+     beside it keeps its place as a streak ticks over. */
+  font-family: var(--font-nums);
   font-variant-numeric: tabular-nums;
   color: var(--accent);
 }
 
 .streak-unit {
   font-size: 0.8rem;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text);
+  letter-spacing: 0.09em;
+  color: var(--muted);
 }
 
 .streak-days {
@@ -1162,10 +1224,10 @@ button:disabled {
 }
 
 .streak-letter {
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.09em;
   color: var(--muted);
 }
 
@@ -1237,7 +1299,7 @@ button:disabled {
 .feed-name {
   margin: 0;
   font-size: 0.95rem;
-  font-weight: 700;
+  font-weight: 600;
   /* As the summary's name: nothing chosen by a person is guaranteed to have a
      space in it, and a card is narrower than the longest one somebody can type. */
   overflow-wrap: anywhere;
@@ -1281,7 +1343,7 @@ button:disabled {
 .feed-title {
   margin: 0.75rem 0 0.7rem;
   font-size: 1rem;
-  font-weight: 700;
+  font-weight: 600;
   /* A title is typed, so it can be a hundred characters with no space in it.
      The post under it already breaks this way. */
   overflow-wrap: anywhere;
@@ -1301,7 +1363,7 @@ button:disabled {
 }
 
 .stat-value {
-  font-size: 1.125rem;
+  font-size: 1.25rem;
   font-weight: 700;
   line-height: 1.15;
   letter-spacing: -0.02em;
@@ -1312,7 +1374,7 @@ button:disabled {
 .stat-unit {
   margin-left: 0.15rem;
   font-size: 0.75rem;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--muted);
 }
 
@@ -1330,9 +1392,9 @@ button:disabled {
 
 .feed-xp {
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.09em;
   color: var(--accent);
 }
 
@@ -1354,16 +1416,16 @@ button:disabled {
    strip stays a strip. Stars are not drawn at this size and none are asked for. */
 .feed-badge .badge {
   flex: 0 0 auto;
-  width: 1.75rem;
-  height: 1.75rem;
+  width: 2rem;
+  height: 2rem;
 }
 
 .feed-badge-label {
-  font-size: 10px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text);
+  letter-spacing: 0.09em;
+  color: var(--muted);
 }
 
 /* What was written on a workout, own or a friend's. Line breaks are kept: what
@@ -1373,6 +1435,10 @@ button:disabled {
 .feed-post {
   margin: 0.7rem 0 1.1rem;
   font-size: 0.95rem;
+  /* Looser than the app's 1.4, because this is the one thing on a card that is
+     read as sentences rather than glanced at. Labels, figures and buttons keep
+     the tighter leading the rest of the sheet is set at. */
+  line-height: 1.5;
   white-space: pre-line;
   overflow-wrap: anywhere;
 }
@@ -1528,7 +1594,7 @@ button:disabled {
   border: none;
   color: var(--accent);
   font-size: 0.8125rem;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -1559,10 +1625,10 @@ button:disabled {
   background: transparent;
   color: var(--muted);
   border: 1px solid var(--line);
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.09em;
 }
 
 /* The route a workout drew. The card surface shows through behind it: the shape
@@ -1758,10 +1824,10 @@ button:disabled {
 
 .encourage-note-who {
   display: block;
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.09em;
   color: var(--muted);
 }
 
@@ -1776,6 +1842,8 @@ button:disabled {
 .encourage-note-body {
   display: block;
   font-size: 0.9rem;
+  /* Somebody's words, so the post's leading rather than the app's. */
+  line-height: 1.5;
   overflow-wrap: anywhere;
 }
 
@@ -1818,7 +1886,7 @@ button:disabled {
   border: 1px solid var(--line);
   color: var(--muted);
   font-size: 0.8rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .dash-select-on,
@@ -1876,7 +1944,7 @@ button:disabled {
   border: 1px solid var(--line);
   color: var(--muted);
   font-size: 0.8rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .filter-chip-on {
@@ -1973,7 +2041,7 @@ button:disabled {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .list-head .tag {
@@ -2042,7 +2110,7 @@ button:disabled {
 
 .totals-activity {
   min-width: 4.5rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .totals-week {
@@ -2094,7 +2162,7 @@ button:disabled {
 }
 
 .deleted-name {
-  font-weight: 700;
+  font-weight: 600;
 }
 
 /* The countdown, in the accent because it is the part of the row with a
@@ -2102,7 +2170,7 @@ button:disabled {
 .deleted-left {
   color: var(--accent);
   font-size: 0.8125rem;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -2123,7 +2191,7 @@ button:disabled {
 .tag-flag {
   border-color: var(--accent);
   color: var(--text);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 /* What the server marked about a workout's numbers, on the card the numbers are
@@ -2315,12 +2383,14 @@ button:disabled {
 }
 
 /* Three medals, not four, so each one is drawn bigger than it used to be: three
-   at 2.75rem overlapping come to about 105px, which is the width four at
-   2.25rem came to and still sits well inside the 8rem frame they hang from. */
+   at 3rem overlapping by 0.95rem come to about 114px, which sits inside the
+   8rem, or 128px, of the frame they hang from. The desktop block at the foot of
+   this file steps both the medals and the overlap up together, and the same sum
+   has to come out under the same 128px there. */
 .medal-nest-item {
   position: relative;
-  width: 2.75rem;
-  height: 2.75rem;
+  width: 3rem;
+  height: 3rem;
   flex: 0 0 auto;
   /* The pad in the frame colour is what keeps two overlapping medals apart. */
   padding: 2px;
@@ -2330,7 +2400,7 @@ button:disabled {
 
 /* Roughly a third of a circle sits under the one before it. */
 .medal-nest-item + .medal-nest-item {
-  margin-left: -0.85rem;
+  margin-left: -0.95rem;
 }
 
 /* The ends of the arc ride a little higher than its middle. */
@@ -2347,12 +2417,12 @@ button:disabled {
 
 /* The summary card's picture is smaller, so its medals are too. */
 .summary-frame .medal-nest-item {
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 2.5rem;
+  height: 2.5rem;
 }
 
 .summary-frame .medal-nest-item + .medal-nest-item {
-  margin-left: -0.7rem;
+  margin-left: -0.8rem;
 }
 
 /* An empty slot is an invitation, so it stays visible against the picture
@@ -2446,10 +2516,10 @@ button:disabled {
 }
 
 .level-tag {
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.09em;
   color: var(--accent);
 }
 
@@ -2458,12 +2528,12 @@ button:disabled {
    one keeps its place beside it and drops below when the screen is narrow. */
 .level-number {
   font-size: 2.5rem;
-  font-weight: 800;
-  /* Full width, unlike every other number: this one stands alone, so
-     there is no column for a narrower cut to line it up with and
-     narrowing it would only make it smaller. */
+  font-weight: 600;
+  /* The narrow cut every other number wears, and tabular with it, so the line
+     beside it keeps its place as the level changes. */
+  font-family: var(--font-nums);
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.01em;
   line-height: 1;
   color: var(--accent);
 }
@@ -2513,17 +2583,17 @@ button:disabled {
 }
 
 .count-value {
-  font-size: 1rem;
+  font-size: 1.1rem;
   font-weight: 700;
   font-family: var(--font-nums);
   font-variant-numeric: tabular-nums;
 }
 
 .count-label {
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.09em;
   color: var(--muted);
 }
 
@@ -2568,7 +2638,7 @@ button:disabled {
 }
 
 .chip-value {
-  font-size: 0.95rem;
+  font-size: 1.05rem;
   font-weight: 700;
   letter-spacing: -0.02em;
   font-family: var(--font-nums);
@@ -2578,7 +2648,7 @@ button:disabled {
 .chip-unit {
   margin-left: 0.12rem;
   font-size: 0.7rem;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--muted);
 }
 
@@ -2655,7 +2725,7 @@ button:disabled {
   flex: 1 1 auto;
   min-width: 0;
   font-size: 0.9rem;
-  font-weight: 700;
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
 
@@ -2730,7 +2800,7 @@ button:disabled {
 .file-field input::file-selector-button {
   font: inherit;
   font-size: 0.8125rem;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   cursor: pointer;
@@ -2808,15 +2878,15 @@ button:disabled {
 }
 
 .stats thead th {
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.09em;
   color: var(--muted);
 }
 
 .stats tbody th {
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .stats tfoot th,
@@ -2888,8 +2958,8 @@ button:disabled {
 /* Slightly tighter than the app's usual caption, because MARATHON has to fit a
    fifth of a phone screen. */
 .medal-tile-name {
-  font-size: 10px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--muted);
@@ -2927,7 +2997,7 @@ button:disabled {
 
 .medal-earn-name {
   margin: 0;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .medal-earn-detail {
@@ -3091,8 +3161,8 @@ button:disabled {
   border-radius: 3px;
   background: var(--accent);
   color: var(--text);
-  font-size: 9px;
-  font-weight: 800;
+  font-size: 10px;
+  font-weight: 700;
   line-height: 1.3;
 }
 
@@ -3100,8 +3170,8 @@ button:disabled {
    Marathon is the long one and sets the size: eight capitals have to sit inside
    a fifth of a phone. */
 .chest-step-label {
-  font-size: 10px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.02em;
   text-align: right;
@@ -3279,7 +3349,7 @@ button:disabled {
 }
 
 .recap-line-label {
-  font-weight: 700;
+  font-weight: 600;
 }
 
 /* When the numbers above were last brought in. Quiet: it is the date on the
@@ -3309,10 +3379,10 @@ button:disabled {
 
 .recap-note-who {
   margin: 0;
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.09em;
   color: var(--muted);
 }
 
@@ -3375,7 +3445,7 @@ button:disabled {
 
 .recap-activity-name {
   margin: 0;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .recap-activity-stats {
@@ -3490,8 +3560,8 @@ button:disabled {
 .rarity-tab {
   display: block;
   padding: 0.15rem 0.2rem;
-  font-size: 10px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 600;
   line-height: 1.4;
   letter-spacing: 0.06em;
   text-align: center;
@@ -3753,14 +3823,14 @@ button:disabled {
 }
 
 .grove-area-label {
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.09em;
 }
 
 .grove-area-value {
-  font-size: 1rem;
+  font-size: 1.1rem;
   font-weight: 700;
   font-family: var(--font-nums);
   font-variant-numeric: tabular-nums;
@@ -3813,7 +3883,7 @@ button:disabled {
 }
 
 .manna-band-value {
-  font-size: 1.15rem;
+  font-size: 1.25rem;
   font-weight: 700;
   font-family: var(--font-nums);
   font-variant-numeric: tabular-nums;
@@ -4089,7 +4159,7 @@ button:disabled {
   right: 0.1rem;
   bottom: 0;
   font-size: 0.75rem;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.1;
   /* Written on the artwork rather than on the card, so it stays the light of a
      dark ground under both themes along with the ground itself. */
@@ -4188,7 +4258,7 @@ button:disabled {
 .item-name {
   margin: 0;
   font-size: 0.95rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .item-line {
@@ -4702,6 +4772,71 @@ button:disabled {
     align-items: start;
     gap: 1rem;
   }
+
+  /* The medals take the room a desktop has. Three nest medals at 3.25rem
+     overlapping by 1rem come to 124px, which still sits inside the 128px the
+     8rem frame is drawn at; the rows, the challenge and the pill on a feed card
+     step up with them so no medal on this screen is the small one. */
+  .medal-nest-item {
+    width: 3.25rem;
+    height: 3.25rem;
+  }
+
+  .medal-nest-item + .medal-nest-item {
+    margin-left: -1rem;
+  }
+
+  /* The summary card's frame is 6rem, so its three stop at 2.6rem: 124.8px
+     less two 14.4px overlaps is exactly the 96px the frame is drawn at. */
+  .summary-frame .medal-nest-item {
+    width: 2.6rem;
+    height: 2.6rem;
+  }
+
+  .summary-frame .medal-nest-item + .medal-nest-item {
+    margin-left: -0.9rem;
+  }
+
+  .medal-row .badge {
+    width: 2.4rem;
+    height: 2.4rem;
+  }
+
+  .challenge .badge {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  .feed-badge .badge {
+    width: 2.2rem;
+    height: 2.2rem;
+  }
+}
+
+/* Hover, on the machines that have a pointer to hover with. Nothing moves and
+   nothing fades: a colour swaps on the spot and swaps back, which is the flat
+   shell the rest of this sheet is drawn as. A phone never matches the query, so
+   none of this can stick to a control after it is tapped.
+
+   The filter chips, the sort pills and the sections in the top bar are left out
+   on purpose. Each of them already says which one is on by turning crimson, and
+   a hover written here would outrank that and grey out the very one being
+   pointed at. */
+@media (hover: hover) and (pointer: fine) {
+  .secondary:hover,
+  .icon-button:hover {
+    border-color: var(--line-strong);
+    background: var(--panel);
+  }
+
+  .row-link:hover {
+    background: var(--panel);
+  }
+
+  .primary:hover {
+    background: color-mix(in srgb, var(--accent) 85%, #000);
+    border-color: color-mix(in srgb, var(--accent) 85%, #000);
+  }
 }
 
 /* ------------------------------------------------------------------------ */
@@ -4906,9 +5041,9 @@ button:disabled {
    different width and the labels under it would twitch for a second. */
 .landing-stat-value {
   font-size: clamp(1.8rem, 5.4vw, 2.6rem);
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   font-family: var(--font-nums);
   font-variant-numeric: tabular-nums;
 }
@@ -4945,7 +5080,7 @@ button:disabled {
 .landing-alpha {
   margin: 1.6rem 0 0;
   color: var(--landing-alpha);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .landing-section {
@@ -5066,7 +5201,7 @@ button:disabled {
 
 .gear-name {
   margin: 0;
-  font-weight: 700;
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
 

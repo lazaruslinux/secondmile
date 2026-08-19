@@ -300,7 +300,7 @@ export default function EditProfile({ profile, onAvatarChanged, onSaved, onClose
             )}
 
             <div className="choice">
-              <button type="submit" className="primary" disabled={saving}>
+              <button type="submit" className="secondary" disabled={saving}>
                 Save
               </button>
               <button type="button" className="secondary" onClick={onClose}>

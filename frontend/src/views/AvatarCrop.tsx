@@ -394,7 +394,7 @@ export default function AvatarCrop({ file, busy, error, onUse, onCancel }: Props
 
           <button
             type="button"
-            className="primary"
+            className="secondary"
             disabled={busy || frame === null}
             onClick={send}
           >

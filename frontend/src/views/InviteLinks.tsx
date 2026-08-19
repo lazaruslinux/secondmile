@@ -121,7 +121,7 @@ export default function InviteLinks() {
 
         <button
           type="button"
-          className="primary"
+          className="secondary"
           disabled={linkBusy}
           onClick={() => void changeLinks(async () => void (await mintInviteLink()))}
         >
