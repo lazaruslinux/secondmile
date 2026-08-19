@@ -581,10 +581,11 @@ export interface SpeciesCatalog {
 export interface Planting {
   id: number
   species: string
-  // The planted form is what a plot is read in. name is the older single-name
-  // shape and is only read when plant_name is not there.
-  plant_name?: string | null
+  // The seed form is what a plot is read in: a plant is named for its species
+  // and nothing on screen adds bush, tree, or palm to it. The grown form and
+  // the older single-name shape still arrive and are no longer read.
   seed_name?: string | null
+  plant_name?: string | null
   name?: string | null
   rarity: Rarity
   planted_at: string
@@ -666,6 +667,9 @@ export interface FriendPlanting {
   id: number
   species: string
   name?: string
+  // The seed form, which is what a plant is named by on screen. The grown form
+  // still arrives and is no longer read.
+  seed_name?: string | null
   plant_name?: string | null
   rarity?: Rarity | string
   // How many levels it has put on, which is how a plant is doing and so what

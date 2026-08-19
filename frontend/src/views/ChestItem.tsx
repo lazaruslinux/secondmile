@@ -71,7 +71,7 @@ export default function ChestItem({ item, onPlanted }: Props) {
       {/* A seed is drawn as what it grows into, framed in its rarity. A tool is
           drawn as itself, in a frame of its own. */}
       {seed && item.species !== null && (
-        <RarityFrame rarity={item.rarity} className="item-frame">
+        <RarityFrame rarity={item.rarity} label={itemTabLabel(item)} className="item-frame">
           <PlantArt
             species={item.species}
             name={itemName(item)}

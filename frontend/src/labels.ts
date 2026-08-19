@@ -216,16 +216,28 @@ export function personName(person: Pick<Person, 'username'> & { display_name?: s
 }
 
 // A species has two names, and which one is right depends on where it is said.
-// In the hand it is a seed; in the ground it is what it grew into. Servers that
-// send only one name still read correctly: the seed form adds the word itself
-// when the name it was given does not already carry it.
+// In the hand it is a seed; in the ground it is called by the species itself.
+// The grown form the server also sends is no longer said anywhere on screen: a
+// plant is named for what it is, and nothing adds bush, tree, or palm to it.
+// Servers that send only one name still read correctly: the seed form adds the
+// word itself when the name it was given does not already carry it.
 export function seedName(item: SatchelItem): string {
   const shown = speciesName(item.species ?? '', item.seed_name ?? item.name)
   return /seed$/i.test(shown) ? shown : `${shown} seed`
 }
 
+// The name without the word seed on the end of it, which is the species and
+// nothing else.
+function dropSeedWord(shown: string): string {
+  return shown.replace(/\s*seeds?$/i, '').trim() || shown
+}
+
+// Taken off the seed name rather than off the id, so a plant reads as Grape and
+// Fig and Date rather than as grapevine and fig_bush and dates, and so the same
+// species is named the same way in the hand and in the ground. A row that
+// arrived with no seed name falls back to the tidied id.
 export function plantingName(row: Planting | FriendPlanting): string {
-  return speciesName(row.species, row.plant_name ?? row.name)
+  return dropSeedWord(speciesName(row.species, row.seed_name))
 }
 
 // Said under anything that has reached the last level, and nowhere else: every
@@ -253,8 +265,7 @@ export function plantStateLine(
 // hand already ends in the word seed and the square is plainly a seed, so the
 // word is dropped and what is left is the one thing the tab is there to say.
 export function seedSpecies(item: SatchelItem): string {
-  const shown = seedName(item)
-  return shown.replace(/\s*seeds?$/i, '').trim() || shown
+  return dropSeedWord(seedName(item))
 }
 
 const RARITY_NAMES: Record<Rarity, string> = {
@@ -305,15 +316,17 @@ export function itemRarity(item: SatchelItem): Rarity | string {
   return KIND_RARITY[item.kind] ?? item.rarity
 }
 
-// What the tab under an item's square says. The colour is already the rarity,
-// so the tab is free to name the thing itself wherever the rarity alone cannot
-// tell two squares apart: twelve seeds are twelve species, and water has no
-// rarity to name in the first place. Everything else is one square of its own
-// and keeps the rarity word.
+// What the tab under an item's square says: the name of the thing in the
+// square, and never a word about how rare it is. The colour is the whole of
+// what says that. A seed is named for its species; the tools are named for what
+// they are. A seed with no species left to name says nothing and lets the frame
+// fall back.
 export function itemTabLabel(item: SatchelItem): string | undefined {
-  if (item.kind === 'seed' && item.species) return seedSpecies(item)
-  if (item.kind === 'water') return KIND_NAMES.water
-  return undefined
+  if (item.kind === 'seed') return item.species ? seedSpecies(item) : undefined
+  // The potion's tab is the one word for what it does. Its full name is still
+  // said under the square, where there is room for both halves.
+  if (item.kind === 'oil') return 'Boost'
+  return KIND_NAMES[item.kind]
 }
 
 // The boost potion is named for what it does. The kind stays 'oil' everywhere

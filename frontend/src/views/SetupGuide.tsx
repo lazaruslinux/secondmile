@@ -200,7 +200,7 @@ export default function SetupGuide({ onBack }: Props) {
           <h3>What it does</h3>
           <p className="guide-note">
             Walks, runs, rides, and swims arrive through this one, and everything you earn
-            is earned here: experience, levels, chests, growth in your plot, and medals.
+            is earned here: experience, levels, chests, growth in your grove, and medals.
           </p>
           <p className="guide-note">
             In Health Auto Export, open Automations, add an automation, and name it

@@ -862,7 +862,9 @@ export default function FriendProfile({
                 const name = plantingName(row)
                 const tile = (
                   <>
-                    <RarityFrame rarity={row.rarity ?? ''} className="plant-frame">
+                    {/* The tab under the square is where the plant is named, so
+                        there is no second line saying it again. */}
+                    <RarityFrame rarity={row.rarity ?? ''} label={name} className="plant-frame">
                       <PlantArt
                         species={row.species}
                         name={name}
@@ -871,7 +873,6 @@ export default function FriendProfile({
                         className="plant-picture"
                       />
                     </RarityFrame>
-                    <span className="plant-name">{name}</span>
                     {/* A progress element rather than a div with a width on it:
                         the content security policy allows no inline styles, and
                         this one reads correctly to a screen reader as well.

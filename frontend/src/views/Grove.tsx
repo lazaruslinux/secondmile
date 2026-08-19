@@ -286,18 +286,20 @@ export default function Grove({ userId }: Props) {
               const { into, step: span } = levelProgress(row)
               const carrying = borne.get(row.id) ?? []
               const fed = row.fed ?? 0
+              const name = plantingName(row)
               return (
                 <li key={row.id} className="plant">
-                  <RarityFrame rarity={row.rarity} className="plant-frame">
+                  {/* The tab under the square is where the plant is named, so
+                      there is no second line saying it again. */}
+                  <RarityFrame rarity={row.rarity} label={name} className="plant-frame">
                     <PlantArt
                       species={row.species}
-                      name={plantingName(row)}
+                      name={name}
                       stage={plantStage(row)}
                       gilded={row.gilded}
                       className="plant-picture"
                     />
                   </RarityFrame>
-                  <p className="plant-name">{plantingName(row)}</p>
                   {/* A progress element rather than a div with a width on it:
                       the content security policy allows no inline styles, and
                       this one reads correctly to a screen reader as well. The

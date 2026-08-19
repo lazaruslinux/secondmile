@@ -3620,11 +3620,6 @@ button:disabled {
   height: 5.5rem;
 }
 
-.plant-name {
-  margin: 0;
-  font-size: 0.95rem;
-}
-
 .plant-growth {
   margin: 0;
   font-size: 0.78rem;
@@ -4048,12 +4043,25 @@ button:disabled {
    past a phone viewport, so the width is pinned both ways. */
 .item-frame {
   flex-shrink: 0;
+  width: 5rem;
+  min-width: 5rem;
 }
 
 .item-frame .rarity-square {
   width: 5rem;
   min-width: 5rem;
   height: 5rem;
+}
+
+/* The square here is the same 80px an inventory square gets, so its tab wears
+   the inventory's own size; UNMARKED SEED fits where 11px would run past the
+   pinned width. The ellipsis is the guard for any longer name that ever comes. */
+.item-frame .rarity-tab {
+  font-size: 9px;
+  letter-spacing: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .item-thumb {
