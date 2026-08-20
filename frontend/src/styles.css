@@ -5907,3 +5907,29 @@ button:disabled {
   border: 1px solid var(--line);
   border-radius: 10px;
 }
+
+
+/* Arcade on the landing: the page carries the same dim-hall light as the app.
+   Eyebrows and the masthead take the red, the screenshot strip reads as lit
+   cabinet screens. */
+:root[data-theme='arcade'] .landing-bar {
+  border-bottom-color: #262c4a;
+  box-shadow: 0 1px 0 rgba(85, 208, 255, 0.14), 0 8px 20px -16px rgba(85, 208, 255, 0.55);
+}
+
+:root[data-theme='arcade'] .landing-eyebrow {
+  text-shadow: 0 0 10px rgba(239, 53, 80, 0.5);
+}
+
+:root[data-theme='arcade'] .landing-section {
+  border-bottom-color: #262c4a;
+}
+
+:root[data-theme='arcade'] .landing-shots img {
+  border-color: #262c4a;
+  box-shadow: 0 0 16px -8px rgba(85, 208, 255, 0.5);
+}
+
+:root[data-theme='arcade'] .landing-alpha {
+  text-shadow: 0 0 10px rgba(224, 181, 66, 0.35);
+}
