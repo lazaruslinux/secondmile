@@ -187,6 +187,10 @@
   --grove-basket: #b08d57;
   /* The alpha notice on the landing page, in the mustard that is not gold. */
   --landing-alpha: #e0b542;
+  /* The chip in the top bar. Magenta on purpose, because it is not a design
+     colour: crimson means an error, mustard is the medals chip, gold is
+     gilded. It is temporary signage, and it dies with alpha.ts. */
+  --alpha-chip: #ff4fa8;
   --radius: 4px;
   --gap: 0.45rem;
   /* The top bar's own height, written out of the parts that make it: the
@@ -241,6 +245,7 @@
   --grove-season: #1f7a4d;
   --grove-basket: #7a5c2e;
   --landing-alpha: #8f6f14;
+  --alpha-chip: #b3126e;
 }
 
 * {
@@ -431,6 +436,32 @@ code {
 .wordmark-large {
   font-size: 1.8rem;
   text-align: center;
+}
+
+/* The name and the alpha chip, held together as the bar's left-hand child. */
+.topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+/* Small enough to sit inside the wordmark's line: nothing here may push the bar
+   past --topbar-h, which every sticky offset is measured from. No vertical
+   margin, for the same reason, and the 44px floor every other button carries is
+   dropped, which is what would have grown the bar. */
+.alpha-chip {
+  min-height: 0;
+  background: transparent;
+  border: 1px solid var(--alpha-chip);
+  color: var(--alpha-chip);
+  text-transform: uppercase;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  padding: 0.14rem 0.35rem;
+  border-radius: var(--radius);
+  cursor: pointer;
 }
 
 .page,

@@ -14,9 +14,11 @@ import {
   type RecapState,
   type Units,
 } from './api.ts'
+import { ALPHA } from './alpha.ts'
 import { setInstanceTimezone } from './format.ts'
 import { recapHasNews } from './recap.ts'
 import ActivityView from './views/Activity.tsx'
+import AlphaNotice from './views/AlphaNotice.tsx'
 import Landing from './views/Landing.tsx'
 import Login from './views/Login.tsx'
 import FriendProfile from './views/FriendProfile.tsx'
@@ -88,6 +90,9 @@ export default function App() {
     null,
   )
   const [verifyNote, setVerifyNote] = useState('')
+  // Whether the chip's notice is up. Nothing remembers it: the chip stays in
+  // the bar for as long as the alpha does, and reading it is never owed twice.
+  const [alphaOpen, setAlphaOpen] = useState(false)
   const [recap, setRecap] = useState<RecapState | null>(null)
   // Bumped whenever something outside a view changes what it shows, which so
   // far means chests opened from the recap.
@@ -278,7 +283,21 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <span className="wordmark">secondmile</span>
+        {/* The name and the chip are one thing on the left, so the bar still
+            has two children to push apart and the sections stay on the right. */}
+        <span className="topbar-brand">
+          <span className="wordmark">secondmile</span>
+          {ALPHA && (
+            <button
+              type="button"
+              className="alpha-chip"
+              aria-haspopup="dialog"
+              onClick={() => setAlphaOpen(true)}
+            >
+              alpha
+            </button>
+          )}
+        </span>
         {/* The same five sections as the bottom bar. Only one of the two is
             ever on screen: this one from 900px up, the bar below it. */}
         <nav className="topnav" aria-label="Sections">
@@ -299,6 +318,8 @@ export default function App() {
           })}
         </nav>
       </header>
+
+      {alphaOpen && <AlphaNotice onClose={() => setAlphaOpen(false)} />}
 
       {/* Nothing to read is not worth interrupting anyone for, so the letter
           only appears when it says something. */}

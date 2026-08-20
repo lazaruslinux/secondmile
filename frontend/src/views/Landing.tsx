@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { ALPHA, ALPHA_NOTICE } from '../alpha.ts'
 import { getStatus, welcomeAvatarUrl, type Welcome as WelcomeData } from '../api.ts'
 import heroDark from '../assets/landing-hero-dark.png'
 import heroLight from '../assets/landing-hero-light.png'
@@ -166,12 +167,7 @@ export default function Landing({ onEnter, invite }: Props) {
 
         {/* Said before the account rather than found afterwards: this is what
             makes the promises above honest while they are still being built. */}
-        <p className="landing-alpha">
-          This project is currently in closed Alpha testing and is in active development.
-          Features may change, evolve, or go away entirely. A lot of the artwork is
-          temporary. You may experience bugs and sync issues. Please use the bug report
-          feature, and have fun.
-        </p>
+        {ALPHA && <p className="landing-alpha">{ALPHA_NOTICE}</p>}
       </section>
 
       {/* First, because it answers what a person actually has to do, said
