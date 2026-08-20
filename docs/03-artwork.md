@@ -13,7 +13,7 @@ whole of what a commission would cover.
 
 | Group | Files | What they are | Where they appear |
 | --- | --- | --- | --- |
-| Medals | 24 | One face per medal in the catalogue | You screen, Home rail, feed and Activity chips, avatar slots |
+| Medals | 32 | One face per medal in the catalogue | You screen, Home rail, feed and Activity chips, avatar slots |
 | Avatar borders | 6 | One per level tier, `border-t1` to `border-t6` | Around every avatar, every screen |
 | Flourishes | 3 | The growth earned by encouraging people, `f1` to `f3` | Over the border, on every avatar |
 | Interface icons | 18 | Tab bar, cheer, gear, pencil, play, eye, chest ladder marker, week diamond, running shoe, and the five sport marks | Chrome, everywhere |
@@ -22,15 +22,17 @@ whole of what a commission would cover.
 | Loose pieces | 5 | Chest, gilding overlay, boost potion, water, unmarked seed | Inventory squares, chest reveals, finished plants |
 | Landing hero | 2 | The four sports in four strips, one drawing per ground, `landing-hero-dark` and `landing-hero-light` | The top of the landing page |
 
-Ninety-eight files in total, all under `frontend/src/assets/`.
+One hundred and six files in total, all under `frontend/src/assets/`.
 
-Every border file also has a `-light` twin beside it, such
+Every `border-t` file also has a `-light` twin beside it, such
 as `border-t3-light.svg`, which is the same drawing with its palette turned over
 for the light ground. Those twins are generated from the originals rather than
 drawn, so they are not counted above and a commission does not cover them: draw
-the original and the twin is regenerated from whatever arrives.
+the original and the twin is regenerated from whatever arrives. Nothing else in
+the register has a twin any more: the medals and the flourishes are pixel art
+that reads on every ground, and their twins are retired and deleted.
 
-There are two chest drawings on purpose. `grove/chest.svg` is a picture loaded
+There are two chest drawings on purpose. `grove/chest.png` is a picture loaded
 by URL with its own colours, used for an inventory square. `icons/chest.svg` is
 placed straight into the page and drawn in `currentColor`, which is what lets
 each marker on the chest ladder take the colour of its own rarity tier. They can
@@ -79,10 +81,13 @@ Two constraints apply to every SVG here:
   The app loads nothing from outside its own origin. Embed anything you need,
   and use generic font families for text.
 
-The interface ships dark by default with a light appearance the reader can
-choose, and the art wells behind plants, medals, and chest reveals stay
-near-black on both grounds. Every file here is drawn to sit on that near-black
-card; interface icons are the exception, since they take the page's own colour.
+The interface ships dark by default, with a light appearance and an arcade one
+the reader can choose instead. Arcade is a skin over the dark ground rather than
+a ground of its own, so anything drawn twice is drawn for light and dark and
+nothing has to be drawn a third time. The art wells behind plants, medals, and
+chest reveals stay near-black on every appearance. Every file here is drawn to
+sit on that near-black card; interface icons are the exception, since they take
+the page's own colour.
 The placeholder art follows the palette at the bottom of this page; yours does
 not have to, as long as it reads on black. Art drawn only in pale greys will
 wash out on the light ground wherever it sits outside a well, which is what the
@@ -110,7 +115,7 @@ both.
 | `diamond.svg` | The week strip on Home, one diamond per day |
 | `cheer.svg` | The cheer button under a friend's workout on Home |
 | `play.svg` | The mark over a video's poster in a workout's media strip |
-| `chest.png` | The markers along the chest ladder on You |
+| `chest.svg` | The markers along the chest ladder on You |
 | `sport-walk.svg` | Beside the word Walk, wherever a walk is named |
 | `sport-run.svg` | Beside the word Run, wherever a run is named |
 | `sport-cycle.svg` | Beside the word Cycle, wherever a ride is named |
@@ -226,12 +231,13 @@ and either one can change without the other:
 | `flourish-f2.png` | 2 |
 | `flourish-f3.png` | 3 |
 
-The same rules as the borders apply: a `viewBox` and nothing else, drawn over
-the whole square, **middle left empty** so nobody's face is covered. The
-placeholder art is a vine that starts in one corner at stage 1, crosses the
-foot of the frame and climbs both sides at stage 2, and closes over the top at
-stage 3, so the stages read as one plant growing rather than three drawings.
-Keep the covered length increasing from file to file for the same reason.
+These are pixel art rather than SVG, drawn to the same spec as the grove plants
+below: native 48 by 48, nothing anti-aliased, transparent background. They are
+laid over the whole square with the **middle left empty** so nobody's face is
+covered. The placeholder is a vine that starts low in one corner at stage 1,
+climbs the side of the frame at stage 2, and carries on over the top at stage 3,
+so the stages read as one plant growing rather than three drawings. Keep the
+covered length increasing from file to file for the same reason.
 
 They are drawn everywhere a border is: the You banner, the summary card on
 Home, friends' cards in the feed, and the friends list. Each is shown as small
@@ -499,11 +505,11 @@ width on the wide end; a layer or a seam does not. An SVG has to carry
 fitted to the height and left floating in the middle of the strip. A `.png` or a
 `.webp` stretches on its own.
 
-Every plant in the band is dropped by a seventh of its height, which puts the
-ground line each drawing carries at 58 just under the soil's top edge and is
-what makes the row share one floor. So the top of the strip has to be solid
-across its whole width: a feathered or broken edge lets those lines show through
-and the plants go back to floating on dashes of their own.
+Every plant in the band is dropped by a seventh of its height, which tucks the
+foot of each drawing just under the soil's top edge and is what makes the row
+share one floor. So the top of the strip has to be solid across its whole width:
+a feathered or broken edge lets those lines show through and the plants go back
+to floating on dashes of their own.
 
 ### The gild
 
@@ -512,15 +518,15 @@ and the plants go back to floating on dashes of their own.
 A plant that reaches the last level is fully grown and gilded, and stays that
 way. One file is laid over the grown drawing wherever it appears, in the plot
 and in the band across the top of the profile, so every species shares the same
-treatment for now: a plain gold ring in the same 64 by 64 viewBox, centred on
-the picture, with nothing solid in the middle to hide the plant behind it.
+treatment for now: a plain gold ring on a 64 by 64 viewBox, centred on the
+picture, with nothing solid in the middle to hide the plant behind it.
 
 Gilded artwork per species is a later pass and is not built. When each species
 has its own, this file comes out and the drawings replace it.
 
 ### The tools
 
-`frontend/src/assets/grove/water.svg`, `oil.png`, and `wish.png`
+`frontend/src/assets/grove/water.png`, `oil.png`, and `wish.png`
 
 The three things a chest holds that are not a seed. They live beside the plants
 because they are used on them, and each reads one file named after its kind, so
@@ -536,10 +542,10 @@ on screen changed, the kind did not.
 | `oil.png` | The boost potion, used to anoint a friend | Legendary |
 | `wish.png` | The unmarked seed, spent on any species the grove is missing | Epic |
 
-Drawn in the same 64 by 64 viewBox as the plants, and shown at 72 pixels in the
-inventory and in a chest reveal. Unlike a plant, none of them stands on a floor:
-each is centred in its square, so draw them to fill the box rather than to sit
-on the bottom of it. In a chest reveal the picture is what is pressed to find
+Drawn to the plants' own pixel spec, native 48 by 48, and shown at 72 pixels in
+the inventory and in a chest reveal. Unlike a plant, none of them stands on a
+floor: each is centred in its square, so draw them to fill the box rather than
+to sit on the bottom of it. In a chest reveal the picture is what is pressed to find
 out what the thing is for, so give it enough shape to look pressable.
 
 The potion and the wish are drawn inside a rarity frame, so the two pixels
@@ -552,12 +558,12 @@ a bright stoppered flask.
 
 ### The chest
 
-`frontend/src/assets/grove/chest.svg`
+`frontend/src/assets/grove/chest.png`
 
 An unopened chest, which sits on the inventory grid alongside the tools and is
 read the same way: one file named after its kind, swapped on its own. Chests
 stack onto one square whatever step of the ladder dropped them, so this drawing
-carries no tier colour and is framed in no rarity. Same 64 by 64 viewBox,
+carries no tier colour and is framed in no rarity. The same pixel spec again,
 centred rather than standing on a floor, and still shut: what is inside is the
 whole of what opening it is for.
 
@@ -595,8 +601,9 @@ frontend build, so nothing in `assets` affects it.
 ## What is not a file yet
 
 The interface itself, the buttons, the colours, the type, is plain CSS in
-`frontend/src/styles.css`, not artwork. The whole palette is ten custom
-properties at the top of that file:
+`frontend/src/styles.css`, not artwork. Every colour in it is a custom property
+in the block at the top of that file, and these ten are the ones the rest is
+built out of. The values are the dark ground's:
 
 | Property | Value | What it is |
 | --- | --- | --- |
@@ -611,11 +618,16 @@ properties at the top of that file:
 | `--rarity-epic` | `#a06cd5` | The epic frame and its tab, and the Marathon chest |
 | `--rarity-legendary` | `#e0762e` | The legendary frame and its tab, and the Ultra chest |
 
-There is one theme and it is dark. Changing the ten values above is the whole of
-a recolour; `--accent` on its own is the quickest way to make the app look like
-something else. The four rarity colours are read on a near-black card and
-printed on in black, so a replacement has to work both ways round: each of the
-four clears 5:1 against the card behind it and 5:1 against the black type on it.
+There are three appearances: dark, which is the default and the values above;
+light, which sets its own further down the same file; and arcade, a dark-hall
+skin that sets its own again. A recolour means changing a value in each block
+that defines it. `--accent` is the quickest way to make the app look like
+something else, and it is defined twice rather than three times: light inherits
+the crimson on purpose, because it is the brand rather than a ground.
+
+The four rarity colours are read on a near-black card and printed on in black,
+so a replacement has to work both ways round: each of the four clears 5:1
+against the card behind it and 5:1 against the black type on it.
 The legendary orange is deliberately not a second gold, so that a legendary tab
 is never mistaken for the rare one or for the gild on a finished plant.
 

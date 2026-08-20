@@ -4,13 +4,62 @@ A self-hosted fitness app with a game inside it. Miles you actually walk, run,
 cycle, or swim sync from your phone and become experience, medals, and things
 growing in a grove on a profile you build over months. The game is early:
 accounts, workout sync, the Activity tab, the profile with its levels and
-medals, the grove with its chests and seeds, and a feed shared with friends work
-today, and the rest is being built on top of them.
+medals, the grove with its chests and seeds, the screen behind a single workout,
+and a feed shared with friends all work today, and the rest is being built on top
+of them. The app says so rather than hiding it: there is an alpha chip in the
+top bar and a line at the foot of every page, and most of the artwork is
+placeholder.
 
 Current version: **0.2.1**. Releases are tagged in git, and each tag's GitHub
 release carries the notes for it.
 
-## What it does
+## Screenshots
+
+| Home, light | Home, dark | You, light | You, arcade |
+| --- | --- | --- | --- |
+| ![The home feed in light mode](frontend/src/assets/shot-light-home.webp) | ![The home feed in dark mode](frontend/src/assets/shot-dark-home.webp) | ![The You screen in light mode](frontend/src/assets/shot-light-you.webp) | ![The You screen in arcade mode](frontend/src/assets/shot-arcade-you.webp) |
+
+| Grove, light | Grove, arcade | Workout details, arcade |
+| --- | --- | --- |
+| ![The grove in light mode](frontend/src/assets/shot-light-grove.webp) | ![The grove in arcade mode](frontend/src/assets/shot-arcade-grove.webp) | ![A workout details view in arcade mode](frontend/src/assets/shot-arcade-details.webp) |
+
+These are real screens from a running instance, so the personal details in them
+are blurred: names, faces, and the maps under the routes.
+
+## Features
+
+### The feed, and encouraging people
+
+- **Keeps a small circle.** An instance is a private club rather than a general
+  app: everybody on it was invited by somebody, so members can look each other
+  up by name and see a card with a face, a bio, and the month they joined, and
+  nothing else without a friendship. Friends are mutual, there are no
+  suggestions, and no count of anybody's friends. The home
+  feed carries your workouts and your friends', and never anybody else's. A
+  friend's card shows the whole
+  workout: the distance, the time, the pace, the calories, the heart rate, the
+  climb, the medal, and the route line. A workout carries what you took of it as
+  well: up to six photos and videos between them, one of which may be a video of
+  about a minute, re-encoded by the server so nothing keeps the camera, the
+  date, or the place it was shot in. Tapping a route line opens it on a map
+  your own server draws, from a tile archive you install or do without. Settings has
+  switches for the heart rate, the
+  calories, and the route, and anything switched off is left out of what the
+  server sends rather than hidden by the app. You can hype a workout without
+  words or write a comment on it, and
+  nothing in the app ever suggests what to say. Comments sit on the workout
+  they were written about: anyone who can see the workout can read them, and
+  only the owner's friends can write one.
+- **Keeps score of encouragement, and of nothing else.** Hyping a workout,
+  writing a comment, watering a friend's plant, spending a boost potion on them,
+  feeding their grove, and handing over manna or fruit all earn renown. No screen
+  and no API response ever carries the number: it shows up as growth wrapped
+  around your avatar border, in three stages, and nowhere else. Inside a week one
+  pair earns once per kind, so two accounts hyping each other all evening earn
+  one hype's worth between them. Everything after still arrives and is still
+  worth as much to whoever receives it; it just pays the sender nothing.
+
+### The earning lane
 
 - **Syncs your workouts.** An ingest endpoint accepts workout exports from
   Health Auto Export on iPhone: walking, running, cycling, and swimming, with
@@ -39,11 +88,11 @@ release carries the notes for it.
 - **Keeps an endless list of things to earn.** Thirty-two medals in eight
   families: seven for a single walk or run that covers a mile, two miles, 5K,
   10K, half marathon, marathon, or 50K, four for a big week, two for setting out
-  before six in the morning or after eight at night, four for a long ride, three
-  for a long swim, and then three lifetime ladders of four rungs each, one for
-  every mile covered, one for every mile ridden, and one for every mile swum.
-  Every threshold is raw miles on the ground rather than converted ones. Feet
-  are feet, so a walk earns at every distance a run does. All but the twelve
+  between four and six in the morning or after eight at night, four for a long
+  ride, three for a long swim, and then three lifetime ladders of four rungs
+  each, one for every mile covered, one for every mile ridden, and one for every
+  mile swum. Every threshold is raw miles on the ground rather than converted
+  ones. Feet are feet, so a walk earns at every distance a run does. All but the twelve
   lifetime medals repeat, and each is counted on the profile, so a medal earned
   five times says so; every fifty of the same one adds a star, up to thirty
   three.
@@ -51,6 +100,9 @@ release carries the notes for it.
   half, a marathon, an ultra, and then the ladder starts again. Converted miles
   from every activity are the fuel, a long run climbs several steps at once,
   what is left over carries, and nothing ever expires or decays.
+
+### The grove
+
 - **Fills a grove rather than an album.** Every chest holds one of four things,
   and all four are tools: a seed to plant, water to pour into one plant, a boost
   potion to spend on a friend, or an unmarked seed you turn into any species you
@@ -68,26 +120,46 @@ release carries the notes for it.
   grove as easily as your own. A boost potion is encouragement rather than a
   secret: spend it on a friend and their own screen says the next chest their
   miles were already going to earn opens a step rarer, with your name on it.
-- **Keeps a small circle.** An instance is a private club rather than a general
-  app: everybody on it was invited by somebody, so members can look each other
-  up by name and see a card with a face, a bio, and the month they joined, and
-  nothing else without a friendship. Friends are mutual, there are no
-  suggestions, and no count of anybody's friends. The home
-  feed carries your workouts and your friends', and never anybody else's. A
-  friend's card shows the whole
-  workout: the distance, the time, the pace, the calories, the heart rate, the
-  medal, and the route line. A workout carries what you took of it as well:
-  up to six photos and videos between them, one of which may be a video of
-  about a minute, re-encoded by the server so nothing keeps the camera, the
-  date, or the place it was shot in. Tapping a route line opens it on a map
-  your own server draws, from a tile archive you install or do without. Settings has
-  switches for the heart rate, the
-  calories, and the route, and anything switched off is left out of what the
-  server sends rather than hidden by the app. You can hype a workout without
-  words or write a comment on it, and
-  nothing in the app ever suggests what to say. Comments sit on the workout
-  they were written about: anyone who can see the workout can read them, and
-  only the owner's friends can write one.
+
+### One workout, in full
+
+- **Opens the session behind the card.** Tap a card on the feed or a row in the
+  Activity tab and the workout opens on a screen of its own. It splits the
+  session by mile or kilometre and names the fastest whole one, counts the
+  minutes spent in each of the five heart rate zones, and draws the minutes
+  themselves as a stack of lanes over one time axis: heart rate, pace, calories,
+  and cadence on a walk or a run. Each lane keeps its own scale and they share
+  one cursor. Tap a split and it lights up along the route line; drag the cursor
+  and a dot walks the same line beside the reading.
+- **Says what a card has no room for.** Average cadence and stride length on a
+  walk or a run, elevation, the air the session happened in and what it felt like
+  when that air was hot, the pair of shoes it was done in with everything they
+  have covered, and what the session put in the manna bank. The detail is read
+  off the export and shown, and nothing worked out from a workout reads a word of
+  it: no level, no chest, no medal, no growth. The manna line reports what the
+  session's own calories were already worth.
+- **Keeps the owner's switches all the way down.** The heart rate switch takes
+  the per-minute beats, the session's highest, and the zones with it; the
+  calories switch takes the per-minute calories; the route switch takes the climb
+  along with the line. Your own copy always carries everything, because hiding a
+  number from yourself is not a privacy setting.
+
+### Appearances
+
+- **Three of them, per device.** Light, Dark, and Arcade. The switch is in
+  Settings, and the browser remembers it rather than the account: a phone in bed
+  and a desktop by a window are not the same room. The landing page and an invite
+  link carry the same switch, so the first screen anybody sees is already on the
+  ground they picked.
+- **The artwork is placeholder, and every piece is swappable.** The grove plants,
+  the medal faces, the growth around a border, and the things in the inventory
+  are 48 by 48 pixel art; the avatar borders, the soil, and the gilding are still
+  SVG. Each is a file addressed by name, so replacing one is dropping a file in
+  and rebuilding, with no code to edit. See
+  [docs/03-artwork.md](docs/03-artwork.md).
+
+### Running it for other people
+
 - **Multi-user from day one.** Accounts are invite-only out of the box: the
   server admin creates invites from the command line, and any member can mint a
   single-use invite link from the Friends screen, which opens a welcome page
@@ -102,9 +174,6 @@ release carries the notes for it.
   given a VAPID keypair, and then each person turns on the devices they want it
   on. An iPhone needs the site on its Home Screen first, which is the platform's
   rule rather than this app's.
-- **Light or dark, per device.** The switch is in Settings, and the browser
-  remembers it rather than the account: a phone in bed and a desktop by a window
-  are not the same room.
 - **Explains the phone side inside the app.** Settings opens a setup guide with
   screenshots, naming every field the export app asks for and what to set it to.
 - **Takes bug reports from inside the app.** The bottom of Settings has a box

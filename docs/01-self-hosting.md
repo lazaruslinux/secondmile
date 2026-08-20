@@ -168,6 +168,13 @@ to run twice, and worth running before strip-ingest-log below. History older
 than the 90 day window has no detail left to find, which is a limit rather than
 a failure.
 
+The calories a minute burned were added to those rows one release later, and the
+rule above governs them too: a workout that already has its minutes is left
+alone entirely. Sessions stored before that release therefore carry no
+per-minute calories, and their details screen draws no energy lane while
+everything else on it is unaffected. Nothing rebuilds them, because nothing
+derived from a workout ever read them.
+
 The ingest log keeps each sync's payload for 90 days and strips the GPS route
 arrays before storing, so routes exist only in their own trimmed table. On an
 instance that predates this behavior, run backfill-routes first if any history

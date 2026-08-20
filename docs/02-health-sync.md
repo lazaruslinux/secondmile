@@ -22,8 +22,8 @@ guide. What is below is the short version of the same thing.
    - Headers: `Authorization: Bearer <your token>`
    - Data type: Workouts
    - Format: JSON
-   - Include Workout Metrics: on, which is what carries the calories and the
-     heart rate.
+   - Include Workout Metrics: on. It carries the calories and the heart rate,
+     and the per-minute detail the workout's own screen is drawn from.
    - Include Route Data: on, if you want the map line on your workout
      cards. It is optional; everything else works the same without it.
 
@@ -81,6 +81,31 @@ unmarked unless their sync is still inside the ingest log's 90 day window.
   you next open the app, so the recap waiting for you was already written.
   Each activity converts at its own rate, which is why a mile swum is worth
   more than a mile cycled.
+
+## The detail behind a workout
+
+An export says more about a session than the numbers on its card, and tapping a
+card opens a screen for the rest of it. Four arrays are read, one reading a
+minute: how far the minute covered, how many steps it took, what the heart was
+doing, and the active calories it burned. Four whole-session figures are read
+beside them: how much the session climbed, the highest beat it saw, the
+temperature, and the humidity.
+
+That is what the splits, the zones, the graph and the line about the air are
+drawn from. Two things worth knowing about it:
+
+- There is no cadence array in an export, whatever a watch shows on its own
+  screen. Steps in the minute is the reading that stands in for it, which is the
+  same number on a walk or a run, so cadence is only ever drawn for those two.
+- Nothing is fetched from a weather service, here or anywhere. The temperature
+  and the humidity are whatever the export sent with the session, and a session
+  that carried neither says nothing about the air.
+
+None of it earns anything. No experience, no chest, no medal, no growth and no
+manna reads a single one of these readings: they exist to be looked at. A
+reading that is missing, malformed, or past what a body and a day produce is
+dropped to nothing, field by field, and a workout never fails to import because
+its arrays were odd.
 
 ## Steps
 
