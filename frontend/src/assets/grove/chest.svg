@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" fill="none">
-  <!-- Placeholder chest: a banded box with a lid, still shut. Swap this file
-       for real artwork; nothing in the code names the shapes inside it. -->
-  <path d="M10 30h44v22a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2z" fill="#4a3a26" stroke="#c9a24a" stroke-width="2" stroke-linejoin="round"/>
-  <path d="M10 30a22 22 0 0 1 44 0z" fill="#5c4830" stroke="#c9a24a" stroke-width="2" stroke-linejoin="round"/>
-  <path d="M10 32h44" stroke="#c9a24a" stroke-width="2" opacity="0.6"/>
-  <path d="M27 26h10v14H27z" fill="#3a2e1e" stroke="#c9a24a" stroke-width="2" stroke-linejoin="round"/>
-  <circle cx="32" cy="35" r="2.5" fill="#e0c274"/>
-</svg>

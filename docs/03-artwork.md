@@ -110,7 +110,7 @@ both.
 | `diamond.svg` | The week strip on Home, one diamond per day |
 | `cheer.svg` | The cheer button under a friend's workout on Home |
 | `play.svg` | The mark over a video's poster in a workout's media strip |
-| `chest.svg` | The markers along the chest ladder on You |
+| `chest.png` | The markers along the chest ladder on You |
 | `sport-walk.svg` | Beside the word Walk, wherever a walk is named |
 | `sport-run.svg` | Beside the word Run, wherever a run is named |
 | `sport-cycle.svg` | Beside the word Cycle, wherever a ride is named |
@@ -520,21 +520,21 @@ has its own, this file comes out and the drawings replace it.
 
 ### The tools
 
-`frontend/src/assets/grove/water.svg`, `oil.svg`, and `wish.svg`
+`frontend/src/assets/grove/water.svg`, `oil.png`, and `wish.png`
 
 The three things a chest holds that are not a seed. They live beside the plants
 because they are used on them, and each reads one file named after its kind, so
 swapping any of them is the same one-file swap as everything else here. A file
 that is not there costs the picture and nothing else: the inventory row and the
 chest reveal both still read. The file names are the item kinds the code and the
-API use, which is why the potion's file is `oil.svg`: the picture and the word
+API use, which is why the potion's file is `oil.png`: the picture and the word
 on screen changed, the kind did not.
 
 | File | What it is | Rarity |
 | --- | --- | --- |
-| `water.svg` | Water, poured onto one plant | none |
-| `oil.svg` | The boost potion, used to anoint a friend | Legendary |
-| `wish.svg` | The unmarked seed, spent on any species the grove is missing | Epic |
+| `water.png` | Water, poured onto one plant | none |
+| `oil.png` | The boost potion, used to anoint a friend | Legendary |
+| `wish.png` | The unmarked seed, spent on any species the grove is missing | Epic |
 
 Drawn in the same 64 by 64 viewBox as the plants, and shown at 72 pixels in the
 inventory and in a chest reveal. Unlike a plant, none of them stands on a floor:

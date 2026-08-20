@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" fill="none">
-  <!-- Placeholder wish: a seed with a star on it, spent on any species the
-       grove is missing. Swap this file for real artwork; nothing in the code
-       names the shapes inside it. -->
-  <path d="M32 53c-10 0-16-7-16-16 0-10 7-20 16-26 9 6 16 16 16 26 0 9-6 16-16 16z" fill="#5a3f7a" stroke="#a06cd5" stroke-width="2" stroke-linejoin="round"/>
-  <path d="M26 44c-2-6 0-14 6-21" stroke="#c9a6ea" stroke-width="2.5" stroke-linecap="round" opacity="0.7"/>
-  <path d="M54 6 55.8 10.2 60 12 55.8 13.8 54 18 52.2 13.8 48 12 52.2 10.2Z" fill="#e6d3f5"/>
-  <path d="M12 22 13.1 24.9 16 26 13.1 27.1 12 30 10.9 27.1 8 26 10.9 24.9Z" fill="#c9a6ea"/>
-</svg>

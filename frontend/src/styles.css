@@ -2901,6 +2901,11 @@ button:disabled {
   image-rendering: pixelated;
 }
 
+/* The inventory items are drawn at a native 48x48 like the plants. */
+.item-art {
+  image-rendering: pixelated;
+}
+
 .badge img {
   display: block;
   width: 100%;
