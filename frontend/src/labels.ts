@@ -425,10 +425,10 @@ export function feedHint(cost: number, cap: number): string {
   return `Spend ${cost.toLocaleString()} manna for +1 fruit next harvest? (Max +${cap} per plant)`
 }
 
-// What one plant is carrying, said under it. Both numbers come from the server
+// What one plant is carrying, said under it. The number comes from the server
 // already joined, so nothing here counts anything.
 export function fedLine(fed: number): string {
-  return `Fed, ${fed} more next harvest`
+  return `+${fed} next harvest`
 }
 
 export function readyLine(label: string): string {

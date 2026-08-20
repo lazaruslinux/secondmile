@@ -331,11 +331,13 @@ export default function Grove({ userId }: Props) {
                     </p>
                   ))}
                   {fed > 0 && <p className="plant-fed">{fedLine(fed)}</p>}
-                  {row.mature && (
+                  {/* Gone at the cap rather than disabled: a full plant is a
+                      finished state, not a wait. Short manna stays a wait. */}
+                  {row.mature && fed < feedCap && (
                     <button
                       type="button"
                       className="secondary plant-feed"
-                      disabled={busy || fed >= feedCap || manna < feedCost}
+                      disabled={busy || manna < feedCost}
                       onClick={() => {
                         setNote('')
                         setStepError('')
