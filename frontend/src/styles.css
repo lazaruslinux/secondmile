@@ -5654,3 +5654,11 @@ button:disabled {
    figure in it. */
 /* The mark is small and the button around it is not: this is tapped with a
    thumb. Pulled back by its own padding so the mark lines up with the card. */
+
+/* The quickest whole split of a session, marked where the eye is already
+   reading: the pace itself, in the one colour this screen uses. Nothing is said
+   in colour alone, because the line under the list names the same split in
+   words. */
+.split-fastest {
+  color: var(--accent);
+}

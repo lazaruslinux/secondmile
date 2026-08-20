@@ -13,6 +13,7 @@ import {
   distanceValue,
   elevationUnit,
   elevationValue,
+  FEET_PER_METRE,
   fillClass,
   formatClock,
   formatPace,
@@ -49,6 +50,21 @@ const ZONE_NAMES = ['Recovery', 'Endurance', 'Tempo', 'Threshold', 'Anaerobic']
 // The floor a splits bar never goes under, so the slowest split of a session
 // still reads as a bar rather than as nothing at all.
 const SPLIT_FLOOR = 30
+
+// How far short of a whole unit a split may fall and still be a whole one. The
+// distances are summed out of four-decimal minutes, so the last hundredth of a
+// mile arrives a rounding away from where arithmetic would put it.
+const WHOLE_SPLIT = 0.0005
+
+// Feet in a mile, for the one figure on this screen that is read in feet rather
+// than in the distance the account is set to.
+const FEET_PER_MILE = 5280
+
+// Where the heat index is worth saying. The regression below is fitted for warm
+// air and says nothing useful under it, and a feels-like within a degree or two
+// of the thermometer is the thermometer said twice.
+const HEAT_FLOOR_F = 80
+const HEAT_MARGIN_F = 2
 
 // A lane's own coordinates. The height is also its height on the page, in
 // pixels, so nothing about the vertical scale changes with the width of the
@@ -163,6 +179,35 @@ function secondsPerUnit(split: Split, units: Units): number {
   return distance > 0 ? split.seconds / distance : 0
 }
 
+// Whether a split is a whole mile or kilometre rather than the tail a session
+// ended on.
+function isWhole(split: Split, units: Units): boolean {
+  return split.miles >= unitInMiles(units) - WHOLE_SPLIT
+}
+
+// The quickest whole split of the session, or null where there are fewer than
+// two whole ones. The tail is never it: a finish two tenths long is quicker per
+// mile than any mile of the session on most runs, and calling that the fastest
+// mile would be naming a mile nobody ran. One split on its own is not a
+// comparison either, so it is left unmarked.
+function fastestSplit(splits: Split[], units: Units): Split | null {
+  const whole = splits.filter((split) => isWhole(split, units))
+  if (whole.length < 2) return null
+  return whole.reduce((best, split) =>
+    secondsPerUnit(split, units) < secondsPerUnit(best, units) ? split : best,
+  )
+}
+
+// The fastest split said in words, under the list that marks it. On foot the
+// pace drops its /mi, because the sentence has already named the unit twice; a
+// ride keeps its mph, which is the whole of what that number means.
+function fastestLine(split: Split, activity: Activity, units: Units): string {
+  const pace = formatPace(activity, split.miles, split.seconds, units)
+  const said = activity === 'cycle' ? pace : pace.split(' ')[0]
+  const word = units === 'metric' ? 'kilometer' : 'mile'
+  return `Fastest ${word}: ${said} (${unitName(units)} ${split.ordinal})`
+}
+
 // Where one split sits in the range this workout actually ran: the quickest
 // fills its row, the slowest keeps the floor, and everything between is spread
 // evenly across the gap. Measuring every bar against the quickest split made a
@@ -215,22 +260,83 @@ function cadenceOf(minutes: WorkoutMinute[]): number | null {
   return total / counted.length
 }
 
+// Every step the session counted. Nought where the export carried no step
+// array at all, which is every ride and every swim and some walks.
+function stepsOf(minutes: WorkoutMinute[]): number {
+  return minutes.reduce((sum, row) => sum + (typeof row.steps === 'number' ? row.steps : 0), 0)
+}
+
+// How far one step carried, averaged over the whole session: the distance the
+// card says divided by the steps underneath it. Feet on an imperial account and
+// metres on a metric one, which are the two units a stride is ever quoted in,
+// and to the place each is read at: tenths of a foot, hundredths of a metre.
+function strideText(miles: number, steps: number, units: Units): string {
+  const feet = (miles * FEET_PER_MILE) / steps
+  return units === 'metric' ? (feet / FEET_PER_METRE).toFixed(2) : feet.toFixed(1)
+}
+
+// What the air felt like, from what it was: the NOAA Rothfusz regression, in
+// the Fahrenheit and whole per-cent it was fitted on. It is what a weather
+// service means by feels like, and it is a fit rather than a measurement, so it
+// is only ever quoted here in whole degrees.
+//
+// The two corrections are the National Weather Service's own, at the edges the
+// fit is worst on: dry air, where it overstates the heat, and the humid low
+// eighties, where it understates it.
+function heatIndexF(temperature: number, humidity: number): number {
+  const t = temperature
+  const r = humidity
+  let index =
+    -42.379 +
+    2.04901523 * t +
+    10.14333127 * r -
+    0.22475541 * t * r -
+    0.00683783 * t * t -
+    0.05481717 * r * r +
+    0.00122874 * t * t * r +
+    0.00085282 * t * r * r -
+    0.00000199 * t * t * r * r
+  if (r < 13 && t <= 112) {
+    index -= ((13 - r) / 4) * Math.sqrt((17 - Math.abs(t - 95)) / 17)
+  } else if (r > 85 && t <= 87) {
+    index += ((r - 85) / 10) * ((87 - t) / 5)
+  }
+  return index
+}
+
+// A temperature in the unit the account reads. Fahrenheit is what the server
+// stores, the way it stores distance in miles, so the conversion happens here
+// on the way out.
+function degreesText(fahrenheit: number, units: Units): string {
+  const degrees = units === 'metric' ? ((fahrenheit - 32) * 5) / 9 : fahrenheit
+  return `${Math.round(degrees)}${units === 'metric' ? '°C' : '°F'}`
+}
+
 // The air a session happened in, as one line rather than two figures: the
-// temperature in the unit the account reads, and the humidity beside it.
-// Fahrenheit is what the server stores, the way it stores distance in miles, so
-// the conversion happens here on the way out. Either half stands on its own
-// where the export carried only one of them, and neither leaves the line empty
-// so the caller can drop the figure whole.
+// temperature in the unit the account reads, and the humidity beside it. Either
+// half stands on its own where the export carried only one of them, and neither
+// leaves the line empty so the caller can drop the figure whole.
+//
+// Warm wet air gets a third clause, because on a day like that the thermometer
+// is not what the session was run in. It needs both readings and it is left off
+// unless it has something to add: cool air, dry air, and air the fit puts
+// within a degree or two of the thermometer all say nothing.
 function weatherLine(details: Details, units: Units): string {
+  const temperature = details.temperature_f
+  const humidity = details.humidity_pct
   const parts: string[] = []
-  if (typeof details.temperature_f === 'number') {
-    const degrees = units === 'metric' ? ((details.temperature_f - 32) * 5) / 9 : details.temperature_f
-    parts.push(`${Math.round(degrees)}${units === 'metric' ? '°C' : '°F'}`)
+  if (typeof temperature === 'number') {
+    parts.push(degreesText(temperature, units))
   }
-  if (typeof details.humidity_pct === 'number') {
-    parts.push(`${Math.round(details.humidity_pct)}% Humidity`)
+  if (typeof humidity === 'number') {
+    parts.push(`${Math.round(humidity)}% Humidity`)
   }
-  return parts.join(', ')
+  const line = parts.join(', ')
+  if (line === '' || typeof temperature !== 'number' || typeof humidity !== 'number') return line
+  if (temperature < HEAT_FLOOR_F) return line
+  const feels = heatIndexF(temperature, humidity)
+  if (feels - temperature < HEAT_MARGIN_F) return line
+  return `${line} · Feels like ${degreesText(feels, units)}`
 }
 
 // A split's pace as a bar, spread across the range of the workout it belongs
@@ -664,7 +770,9 @@ export default function WorkoutDetails({ item, gear, units, onBack }: Props) {
   const paces = splits.map((split) => secondsPerUnit(split, units)).filter((pace) => pace > 0)
   const fastest = paces.length > 0 ? Math.min(...paces) : 0
   const slowest = paces.length > 0 ? Math.max(...paces) : 0
-  const step = unitInMiles(units)
+  // The quickest whole split, which the bars alone do not name: the tail is in
+  // the range above and is never the one marked.
+  const quickest = fastestSplit(splits, units)
 
   const ceiling =
     typeof details.zone_max === 'number' && details.zone_max > 0 ? details.zone_max : null
@@ -680,12 +788,30 @@ export default function WorkoutDetails({ item, gear, units, onBack }: Props) {
   const paced = item.activity === 'walk' || item.activity === 'run'
   const cadence = paced ? cadenceOf(minutes) : null
 
+  // How long a stride was, on the two sports it is a stride on. It needs both
+  // halves of the division, so a session whose export carried no steps has none
+  // and the figure is not drawn.
+  const steps = paced ? stepsOf(minutes) : 0
+  const stride =
+    steps > 0 && item.distance_mi > 0 ? strideText(item.distance_mi, steps, units) : null
+
   const weather = weatherLine(details, units)
 
   // What it was done in, where the row names a pair and the list handed down
   // holds it. A row that carries no pair, and a screen that was handed no
   // list, both resolve to nothing and draw no line at all.
   const shoes = gear.find((pair) => pair.id === item.gear_id)
+  // Everything the pair has covered, this session included. The server works it
+  // out on every read of the gear list and it arrives on the list handed down,
+  // so nothing is fetched for it here. Whole units, the way the You screen
+  // writes it: this is wear on a shoe rather than a figure anybody is measuring
+  // themselves against.
+  const odometer =
+    shoes && shoes.miles > 0
+      ? `${Math.round(toDisplayDistance(shoes.miles, units)).toLocaleString()} ${unitName(
+          units,
+        )} total`
+      : ''
 
   // The highest beat the session saw, from the summary the export sent, and the
   // top of the heart rate lane's own axis, which is the highest reading it can
@@ -742,6 +868,9 @@ export default function WorkoutDetails({ item, gear, units, onBack }: Props) {
           {cadence !== null && (
             <Figure label="Avg cadence" value={String(Math.round(cadence))} unit="spm" />
           )}
+          {stride !== null && (
+            <Figure label="Stride" value={stride} unit={units === 'metric' ? 'm' : 'ft'} />
+          )}
           {/* The air, as one line. It is a sentence rather than a number, so it
               takes the width of the row instead of being set smaller than the
               figures beside it. */}
@@ -749,14 +878,16 @@ export default function WorkoutDetails({ item, gear, units, onBack }: Props) {
         </div>
 
         {/* The pair it was done in, named the way every other pair in the app
-            is named. One quiet line and no figure: the miles on a pair are
-            read on the You screen, and nothing about shoes is a score. */}
+            is named, with what is on them beside it. One quiet line and no
+            figure: nothing about shoes is a score, and the odometer is here
+            because a session is where somebody wonders how far a pair has
+            gone. */}
         {shoes && (
           <p className="hint details-gear">
             <span className="sport-icon sport-icon-small">
               <Icon name="shoe" />
             </span>
-            {gearName(shoes)}
+            {odometer === '' ? gearName(shoes) : `${gearName(shoes)} · ${odometer}`}
           </p>
         )}
 
@@ -773,7 +904,8 @@ export default function WorkoutDetails({ item, gear, units, onBack }: Props) {
           <ul className="split-list">
             {splits.map((split) => {
               const pace = secondsPerUnit(split, units)
-              const whole = split.miles >= step - 0.0005
+              const whole = isWhole(split, units)
+              const best = quickest !== null && split.ordinal === quickest.ordinal
               return (
                 <li key={split.ordinal} className="split-row">
                   {/* A last split that ended part way through says how far it
@@ -785,7 +917,10 @@ export default function WorkoutDetails({ item, gear, units, onBack }: Props) {
                       ? split.ordinal
                       : `${distanceValue(split.miles, units)} ${unitName(units)}`}
                   </span>
-                  <span className="split-pace">
+                  {/* The quickest whole split is marked on its own pace, which
+                      is the figure the mark is about. Colour and nothing else,
+                      because the line under the list names it in words. */}
+                  <span className={best ? 'split-pace split-fastest' : 'split-pace'}>
                     {formatPace(item.activity, split.miles, split.seconds, units)}
                   </span>
                   <SplitBar percent={splitShare(pace, fastest, slowest)} />
@@ -796,6 +931,9 @@ export default function WorkoutDetails({ item, gear, units, onBack }: Props) {
               )
             })}
           </ul>
+          {quickest !== null && (
+            <p className="hint">{fastestLine(quickest, item.activity, units)}</p>
+          )}
         </section>
       )}
 
