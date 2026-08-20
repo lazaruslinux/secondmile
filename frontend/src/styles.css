@@ -3896,6 +3896,12 @@ button:disabled {
   max-width: 100%;
 }
 
+/* The committed plant set is drawn at a native 48 by 48 and scales crisp, while
+   the owner's painted overlay keeps smooth scaling. */
+.plant-art img.pixel {
+  image-rendering: pixelated;
+}
+
 /* The gild lies over anything fully grown, one file for every species until
    each has artwork of its own. It is drawn on top and never resizes the plant
    underneath it. */

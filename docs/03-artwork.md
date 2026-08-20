@@ -354,10 +354,15 @@ and is not built.
 
 ## Grove plants
 
-`frontend/src/assets/grove/<species>-s1.svg`, `-s2.svg`, `-s3.svg`
+`frontend/src/assets/grove/<species>-s1.png`, `-s2.png`, `-s3.png`
 
 Three drawings per species, one per stage of growth. Thirteen species, so
-thirty nine files:
+thirty nine files. The committed set is pixel art: each file is a PNG drawn on a
+native 48 by 48 canvas and blown up square-edged by the browser. Like everything
+else in this register it is placeholder art, drawn to hold the shape until real
+art arrives, and the pixel spec below is what a replacement has to follow.
+
+The three stages:
 
 | Stage | File ends | What it shows |
 | --- | --- | --- |
@@ -376,19 +381,19 @@ The species and the file each one reads:
 
 | Species | Rarity | Files |
 | --- | --- | --- |
-| Strawberry bush | Common | `strawberry-s1.svg`, `-s2`, `-s3` |
-| Banana tree | Common | `banana-s1.svg`, `-s2`, `-s3` |
-| Raspberry bush | Common | `raspberry-s1.svg`, `-s2`, `-s3` |
-| Blueberry bush | Common | `blueberry-s1.svg`, `-s2`, `-s3` |
-| Blackberry bush | Uncommon | `blackberry-s1.svg`, `-s2`, `-s3` |
-| Mango tree | Uncommon | `mango-s1.svg`, `-s2`, `-s3` |
-| Grapevine | Uncommon | `grapevine-s1.svg`, `-s2`, `-s3` |
-| Fig bush | Uncommon | `fig-bush-s1.svg`, `-s2`, `-s3` |
-| Olives | Rare | `olive-s1.svg`, `-s2`, `-s3` |
-| Dates | Rare | `dates-s1.svg`, `-s2`, `-s3` |
-| Coffee | Rare | `coffee-s1.svg`, `-s2`, `-s3` |
-| Pomegranate | Rare | `pomegranate-s1.svg`, `-s2`, `-s3` |
-| Mustard | Rare | `mustard-s1.svg`, `-s2`, `-s3` |
+| Strawberry bush | Common | `strawberry-s1.png`, `-s2`, `-s3` |
+| Banana tree | Common | `banana-s1.png`, `-s2`, `-s3` |
+| Raspberry bush | Common | `raspberry-s1.png`, `-s2`, `-s3` |
+| Blueberry bush | Common | `blueberry-s1.png`, `-s2`, `-s3` |
+| Blackberry bush | Uncommon | `blackberry-s1.png`, `-s2`, `-s3` |
+| Mango tree | Uncommon | `mango-s1.png`, `-s2`, `-s3` |
+| Grapevine | Uncommon | `grapevine-s1.png`, `-s2`, `-s3` |
+| Fig bush | Uncommon | `fig-bush-s1.png`, `-s2`, `-s3` |
+| Olives | Rare | `olive-s1.png`, `-s2`, `-s3` |
+| Dates | Rare | `dates-s1.png`, `-s2`, `-s3` |
+| Coffee | Rare | `coffee-s1.png`, `-s2`, `-s3` |
+| Pomegranate | Rare | `pomegranate-s1.png`, `-s2`, `-s3` |
+| Mustard | Rare | `mustard-s1.png`, `-s2`, `-s3` |
 
 The mustard was the first species finished (2026-08-11) and its three
 paintings are the reference for what a finished species looks like: 512 by
@@ -397,7 +402,7 @@ the custom layer above rather than in the repository, and the committed files
 here are the placeholders every fresh build falls back to.
 
 The species ids are in `backend/app/species.py`. An id written with an
-underscore reads as a hyphen here, so `fig_bush` is `fig-bush-s1.svg`. A species
+underscore reads as a hyphen here, so `fig_bush` is `fig-bush-s1.png`. A species
 with no file draws nothing at all and the rest of the row is unaffected, so a
 missing file costs a picture rather than a screen.
 
@@ -405,9 +410,9 @@ missing file costs a picture rather than a screen.
 
 - **Draw them standing on the same floor.** Every plant is bottom aligned
   wherever it appears, so leave no empty space under it and keep the ground at
-  the same height in all thirty nine files. The placeholder art puts it at 58
-  in a 64 by 64 viewBox, and the band across the top of a profile stands the
-  whole row on that line: see the ground below.
+  the same height in all thirty nine files. The placeholder set stands them on
+  the same row near the foot of the canvas, and the band across the top of a
+  profile stands the whole row on that line: see the ground below.
 - **Scale is the story.** The three stages are read side by side down the plot
   and along the band on the profile, and a grown olive tree standing next to a
   seedling is how growth shows. Make each stage plainly bigger than the last,
@@ -418,6 +423,34 @@ missing file costs a picture rather than a screen.
 - **Distinct at a glance.** Thirteen species share one plot, so shape carries
   more than colour: a vine on a wire, an arching bramble, a flat olive crown, a
   round pomegranate crown, banana paddles, a date palm's bare trunk and fronds.
+
+### The pixel spec
+
+The plants are the one group here drawn as pixel art. A replacement has to be
+drawn the same way or it will not sit with the rest of the row:
+
+- **Native 48 by 48.** Draw at that size, one drawn pixel to one image pixel,
+  and save it that size. The app does the enlarging.
+- **Nothing anti-aliased.** The app draws these with the CSS
+  `image-rendering: pixelated`, so every edge is enlarged square. Soft edges and
+  half-transparent pixels come out as fringe rather than as smoothing, so turn
+  the editor's smoothing off. The background is fully transparent, not a matte
+  in the colour of the well behind it.
+- **Three or four shades a hue.** A base, a light and a shadow, and one more at
+  most. Any more than that turns to mush at the size these are read.
+- **A warm near-black ring.** Outline the whole silhouette in one warm
+  near-black rather than pure black or a colour per part. That ring is what
+  holds a plant together on both grounds.
+- **It has to read twice.** In the dark appearance a plant stands on the
+  near-black art well; in the light one the square behind it is transparent and
+  the same drawing stands on a pale card. Look at both before calling one done.
+- **PNG, or webp.** Pixel art is not a job for an SVG, so the presentation
+  attribute rule at the top of this page does not reach the plants. It still
+  holds for every SVG in the app: the icons, borders, medals, ground and gild
+  are all bound by it.
+
+A file in the custom layer below is exempt from all of this. Those are paintings
+rather than pixel art, and the app scales them smoothly on purpose.
 
 ### Work in progress: the custom layer
 

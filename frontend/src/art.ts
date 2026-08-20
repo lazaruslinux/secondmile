@@ -67,15 +67,29 @@ const icons = byName(
   }) as Record<string, string>,
 )
 
-// One species at one of its three stages. Files are named with hyphens,
-// strawberry-s1.svg through mustard-s3.svg, while the ids the server sends may
-// use underscores. A species whose id carries a word the files do not, such as
-// a mustard tree against mustard-s3.svg, falls back to its first word, so a
-// naming difference costs a picture rather than the screen.
-export function groveArt(species: string, stage: number): string | null {
+// The two names one species at one of its three stages can read, in the order
+// they are tried. Files are named with hyphens, strawberry-s1.png through
+// mustard-s3.png, while the ids the server sends may use underscores. A species
+// whose id carries a word the files do not, such as a mustard tree against
+// mustard-s3.png, falls back to its first word, so a naming difference costs a
+// picture rather than the screen.
+function groveNames(species: string, stage: number): [string, string] {
   const name = species.toLowerCase().replace(/_/g, '-')
   const step = `-s${Math.min(3, Math.max(1, Math.round(stage)))}`
-  return groveFile(name + step) ?? groveFile(name.split('-')[0] + step)
+  return [name + step, name.split('-')[0] + step]
+}
+
+export function groveArt(species: string, stage: number): string | null {
+  const [name, fallback] = groveNames(species, stage)
+  return groveFile(name) ?? groveFile(fallback)
+}
+
+// Whether the picture groveArt found is the owner's rather than the committed
+// one. The two are scaled differently, so whoever draws it has to know which it
+// got.
+export function groveArtCustom(species: string, stage: number): boolean {
+  const [name, fallback] = groveNames(species, stage)
+  return groveCustom.has(groveFile(name) ? name : fallback)
 }
 
 // The one gild treatment, laid over anything fully grown. Every species shares

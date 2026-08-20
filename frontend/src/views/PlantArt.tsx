@@ -1,4 +1,4 @@
-import { gildArt, groveArt } from '../art.ts'
+import { gildArt, groveArt, groveArtCustom } from '../art.ts'
 import { speciesName } from '../labels.ts'
 
 interface Props {
@@ -27,6 +27,9 @@ export default function PlantArt({
   labelled = false,
 }: Props) {
   const art = groveArt(species, stage)
+  // The committed set is pixel art and is scaled up square-edged. The owner's
+  // own paintings are not pixel art and keep smooth scaling.
+  const pixel = art !== null && !groveArtCustom(species, stage)
   const name = speciesName(species, given)
   // One placeholder file for every species. Real gilded artwork per species is
   // a later pass, and this comes off when it lands.
@@ -35,7 +38,7 @@ export default function PlantArt({
   return (
     <span className={className ? `plant-art ${className}` : 'plant-art'} title={name}>
       {art ? (
-        <img src={art} alt={labelled ? name : ''} />
+        <img className={pixel ? 'pixel' : undefined} src={art} alt={labelled ? name : ''} />
       ) : (
         <span className="plant-blank" aria-hidden="true" />
       )}
