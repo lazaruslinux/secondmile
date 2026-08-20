@@ -24,7 +24,7 @@ whole of what a commission would cover.
 
 Ninety-eight files in total, all under `frontend/src/assets/`.
 
-Every border, flourish and medal file also has a `-light` twin beside it, such
+Every border and flourish file also has a `-light` twin beside it, such
 as `border-t3-light.svg`, which is the same drawing with its palette turned over
 for the light ground. Those twins are generated from the originals rather than
 drawn, so they are not counted above and a commission does not cover them: draw
@@ -239,7 +239,7 @@ as 40 pixels across in the feed, so keep the shapes bold enough to read there.
 
 ## Medals
 
-`frontend/src/assets/badges/*.svg`
+`frontend/src/assets/badges/*.png`
 
 The whole reward system is thirty-two medals, drawn on the You screen as one list,
 again down the rail on Home as the few earned most recently, and again as a chip
@@ -255,38 +255,38 @@ the file names are the mapping's, and it lives in `frontend/src/art.ts`.
 
 | Id | File | Earned by |
 | --- | --- | --- |
-| `race_1mi` | `race-1mi.svg` | One walk or run of 1 mile or more |
-| `race_2mi` | `race-2mi.svg` | One walk or run of 2 miles or more |
-| `race_5k` | `race-5k.svg` | One walk or run of 3.1 miles or more |
-| `race_10k` | `race-10k.svg` | One walk or run of 6.2 miles or more |
-| `race_half` | `race-half.svg` | One walk or run of 13.1 miles or more |
-| `race_marathon` | `race-marathon.svg` | One walk or run of 26.2 miles or more |
-| `race_ultra` | `race-ultra.svg` | One walk or run of 31.1 miles or more |
-| `weekly_10` | `weekly-10.svg` | Ten miles inside one week, any activity |
-| `weekly_15` | `weekly-15.svg` | Fifteen miles inside one week |
-| `weekly_25` | `weekly-25.svg` | Twenty-five miles inside one week |
-| `weekly_40` | `weekly-40.svg` | Forty miles inside one week |
-| `early_riser` | `time-early-riser.svg` | A walk or run of a mile or more started between four and six in the morning |
-| `night_owl` | `time-night-owl.svg` | A walk or run of a mile or more started between eight at night and four in the morning |
-| `cycle_10` | `cycle-10.svg` | One ride of 10 miles or more |
-| `cycle_25` | `cycle-25.svg` | One ride of 25 miles or more |
-| `cycle_50` | `cycle-50.svg` | One ride of 50 miles or more |
-| `cycle_100` | `cycle-100.svg` | One ride of 100 miles or more |
-| `swim_half` | `swim-half.svg` | One swim of half a mile or more |
-| `swim_1` | `swim-1.svg` | One swim of a mile or more |
-| `swim_2` | `swim-2.svg` | One swim of 2 miles or more |
-| `lifetime_100` | `lifetime-100.svg` | 100 miles covered in total, any activity, earned once |
-| `lifetime_250` | `lifetime-250.svg` | 250 miles covered in total, earned once |
-| `lifetime_500` | `lifetime-500.svg` | 500 miles covered in total, earned once |
-| `lifetime_1000` | `lifetime-1000.svg` | 1000 miles covered in total, earned once |
-| `cycle_lifetime_100` | `cycle-lifetime-100.svg` | 100 miles ridden in total, earned once |
-| `cycle_lifetime_250` | `cycle-lifetime-250.svg` | 250 miles ridden in total, earned once |
-| `cycle_lifetime_500` | `cycle-lifetime-500.svg` | 500 miles ridden in total, earned once |
-| `cycle_lifetime_1000` | `cycle-lifetime-1000.svg` | 1000 miles ridden in total, earned once |
-| `swim_lifetime_10` | `swim-lifetime-10.svg` | 10 miles swum in total, earned once |
-| `swim_lifetime_25` | `swim-lifetime-25.svg` | 25 miles swum in total, earned once |
-| `swim_lifetime_50` | `swim-lifetime-50.svg` | 50 miles swum in total, earned once |
-| `swim_lifetime_100` | `swim-lifetime-100.svg` | 100 miles swum in total, earned once |
+| `race_1mi` | `race-1mi.png` | One walk or run of 1 mile or more |
+| `race_2mi` | `race-2mi.png` | One walk or run of 2 miles or more |
+| `race_5k` | `race-5k.png` | One walk or run of 3.1 miles or more |
+| `race_10k` | `race-10k.png` | One walk or run of 6.2 miles or more |
+| `race_half` | `race-half.png` | One walk or run of 13.1 miles or more |
+| `race_marathon` | `race-marathon.png` | One walk or run of 26.2 miles or more |
+| `race_ultra` | `race-ultra.png` | One walk or run of 31.1 miles or more |
+| `weekly_10` | `weekly-10.png` | Ten miles inside one week, any activity |
+| `weekly_15` | `weekly-15.png` | Fifteen miles inside one week |
+| `weekly_25` | `weekly-25.png` | Twenty-five miles inside one week |
+| `weekly_40` | `weekly-40.png` | Forty miles inside one week |
+| `early_riser` | `time-early-riser.png` | A walk or run of a mile or more started between four and six in the morning |
+| `night_owl` | `time-night-owl.png` | A walk or run of a mile or more started between eight at night and four in the morning |
+| `cycle_10` | `cycle-10.png` | One ride of 10 miles or more |
+| `cycle_25` | `cycle-25.png` | One ride of 25 miles or more |
+| `cycle_50` | `cycle-50.png` | One ride of 50 miles or more |
+| `cycle_100` | `cycle-100.png` | One ride of 100 miles or more |
+| `swim_half` | `swim-half.png` | One swim of half a mile or more |
+| `swim_1` | `swim-1.png` | One swim of a mile or more |
+| `swim_2` | `swim-2.png` | One swim of 2 miles or more |
+| `lifetime_100` | `lifetime-100.png` | 100 miles covered in total, any activity, earned once |
+| `lifetime_250` | `lifetime-250.png` | 250 miles covered in total, earned once |
+| `lifetime_500` | `lifetime-500.png` | 500 miles covered in total, earned once |
+| `lifetime_1000` | `lifetime-1000.png` | 1000 miles covered in total, earned once |
+| `cycle_lifetime_100` | `cycle-lifetime-100.png` | 100 miles ridden in total, earned once |
+| `cycle_lifetime_250` | `cycle-lifetime-250.png` | 250 miles ridden in total, earned once |
+| `cycle_lifetime_500` | `cycle-lifetime-500.png` | 500 miles ridden in total, earned once |
+| `cycle_lifetime_1000` | `cycle-lifetime-1000.png` | 1000 miles ridden in total, earned once |
+| `swim_lifetime_10` | `swim-lifetime-10.png` | 10 miles swum in total, earned once |
+| `swim_lifetime_25` | `swim-lifetime-25.png` | 25 miles swum in total, earned once |
+| `swim_lifetime_50` | `swim-lifetime-50.png` | 50 miles swum in total, earned once |
+| `swim_lifetime_100` | `swim-lifetime-100.png` | 100 miles swum in total, earned once |
 
 The medal ids are in `backend/app/medals.py`, in the catalogue near the top of
 the file. The catalogue is thirty-two and fixed: it gains a medal by gaining a
@@ -351,6 +351,20 @@ top of it rather than around it.
 The stars take the interface's own type colour rather than a colour of their
 own. Anything finer, a colour that shifts as they mount up, is a later art pass
 and is not built.
+
+### The pixel set (2026-08-20)
+
+The thirty-two faces are now 48x48 pixel-art PNGs in the same language as the
+grove plants, and they are still placeholders for the commissioned pass. One
+file per medal serves every ground: the `-light` twins are retired and deleted,
+because the plates read on dark, light and any future ground alike. A
+replacement must follow the grove's pixel spec (native 48x48, three or four
+shades a hue, one warm near-black outline ring, transparent background, no
+anti-aliasing; the app draws them with image-rendering: pixelated). Family is
+carried by the motif: a crimson ribbon on the race plates, the red week tab on
+the weekly plates, laurel sprigs on lifetime, waves on every swim, a chainring
+on every cycle, and the two time-of-day plates carry a sun and a stamped
+crescent instead of a figure.
 
 ## Grove plants
 

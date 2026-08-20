@@ -49,7 +49,7 @@ const borders = byName(
 )
 
 const badges = byName(
-  import.meta.glob('./assets/badges/*.svg', {
+  import.meta.glob('./assets/badges/*.{png,webp,svg}', {
     eager: true,
     query: '?url',
     import: 'default',

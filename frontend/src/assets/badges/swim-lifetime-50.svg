@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" fill="none">
-  <path d="M18 15 q3.5 -4 7 0 t7 0 t7 0" stroke="#dc143c" stroke-width="2.5" stroke-linecap="round"/>
-  <path d="M21 20 q3 -3.5 6 0 t6 0" stroke="#3a3a41" stroke-width="1.5" stroke-linecap="round"/>
-  <rect x="4" y="22" width="56" height="30" rx="6" fill="#17171b" stroke="#c9c9cf" stroke-width="2.5"/>
-  <rect x="9" y="27" width="46" height="20" rx="2" fill="#0d0d0f" stroke="#3a3a41" stroke-width="1.5"/>
-  <text x="32" y="34.5" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="17" font-weight="700" letter-spacing="1" fill="#f4f4f5">50</text>
-  <text x="32" y="44" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="6" font-weight="700" letter-spacing="1.4" fill="#9a9aa0">SWUM</text>
-</svg>

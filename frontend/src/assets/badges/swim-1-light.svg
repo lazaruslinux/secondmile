@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" fill="none">
-  <circle cx="32" cy="32" r="29" fill="#ffffff" stroke="#55555f" stroke-width="3"/>
-  <circle cx="32" cy="32" r="24" fill="#d2d2d8" stroke="#3a3a41" stroke-width="1.5"/>
-  <text x="32" y="27" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="17" font-weight="700" fill="#26262b">1 MI</text>
-  <path d="M11 40 q5.25 -5 10.5 0 t10.5 0 t10.5 0 t10.5 0" stroke="#dc143c" stroke-width="2.5" stroke-linecap="round"/>
-  <path d="M13 48 q4.75 -4.5 9.5 0 t9.5 0 t9.5 0" stroke="#3a3a41" stroke-width="2" stroke-linecap="round"/>
-</svg>
