@@ -283,12 +283,12 @@
    kept to those two colours. A dim hall, not a midway. */
 :root[data-theme='arcade']:not(:has(.landing, .gate)) .card {
   border-color: #262c4a;
-  box-shadow: 0 0 18px -14px rgba(85, 208, 255, 0.6);
+  box-shadow: 0 0 20px -6px rgba(85, 208, 255, 0.45);
 }
 
 :root[data-theme='arcade']:not(:has(.landing, .gate)) .topbar {
   border-bottom-color: #262c4a;
-  box-shadow: 0 1px 0 rgba(85, 208, 255, 0.1);
+  box-shadow: 0 1px 0 rgba(85, 208, 255, 0.14), 0 8px 20px -16px rgba(85, 208, 255, 0.55);
 }
 
 :root[data-theme='arcade']:not(:has(.landing, .gate)) .tabbar {
@@ -296,11 +296,11 @@
 }
 
 :root[data-theme='arcade']:not(:has(.landing, .gate)) .tab-current {
-  text-shadow: 0 0 9px rgba(239, 53, 80, 0.48);
+  text-shadow: 0 0 10px rgba(239, 53, 80, 0.6);
 }
 
 :root[data-theme='arcade']:not(:has(.landing, .gate)) .wordmark {
-  text-shadow: 0 0 10px rgba(239, 53, 80, 0.42);
+  text-shadow: 0 0 12px rgba(239, 53, 80, 0.55);
 }
 
 * {
@@ -841,8 +841,8 @@ button:disabled {
    lit edge on a white card reads as a smudge, so it gets the tint and no more.
    Dark is the root's own block, hence the :not rather than a list. */
 :root:not([data-theme='light']) .appearance-arcade {
-  box-shadow: 0 0 10px -4px rgba(239, 53, 80, 0.45);
-  text-shadow: 0 0 8px rgba(239, 53, 80, 0.35);
+  box-shadow: 0 0 12px -2px rgba(239, 53, 80, 0.55);
+  text-shadow: 0 0 8px rgba(239, 53, 80, 0.45);
 }
 
 .choice-current {
