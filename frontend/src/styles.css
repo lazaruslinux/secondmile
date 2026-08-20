@@ -1842,7 +1842,9 @@ button:disabled {
   padding: 0.28rem 0;
 }
 
-.split-row + .split-row {
+/* On the item rather than on the row, because on a workout that drew a line the
+   row inside it is a button and the items are what stay siblings. */
+.split-list li + li {
   border-top: 1px solid var(--line);
 }
 
@@ -5661,4 +5663,75 @@ button:disabled {
    words. */
 .split-fastest {
   color: var(--accent);
+}
+
+/* A split of a workout that drew a line is the way to find that mile on the map
+   above, so the row itself is the control: stripped back the way the route box
+   is, and reading exactly as it did before it became one. The layout stays the
+   row's own; only what a button brings with it is taken back off. */
+.split-row-open {
+  width: 100%;
+  min-height: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: inherit;
+  text-align: left;
+}
+
+/* The row whose mile is picked out on the map. The well is what every other
+   chosen thing in the app sits in, and the mark on the map is the real answer:
+   this only says which row it came from. */
+.split-row-on {
+  background: var(--well);
+}
+
+/* The marks on the route: a stretch of it picked out, and the dot the graph's
+   cursor drives along it. They are drawn in the coordinates the line was fitted
+   into, over the picture when there is one and into the sketch when there is
+   not, which is why the overlay is cropped exactly as the picture under it is.
+
+   The ends of a route are trimmed before it is ever stored, so a share of the
+   way along what is drawn is a share of the way along a little less than the
+   session. Near enough in the middle, out by the trim at either end. */
+.route-map {
+  position: relative;
+}
+
+.route-over {
+  position: absolute;
+  inset: 0;
+}
+
+/* The stretch is the accent again, thicker, with the card's own colour cased
+   around it so it reads as picked out rather than as a fatter line. */
+.route-trail-edge {
+  fill: none;
+  stroke: var(--surface);
+  stroke-width: 8px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.route-trail {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 5px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.route-dot {
+  fill: var(--accent);
+  stroke: var(--surface);
+  stroke-width: 2px;
+  vector-effect: non-scaling-stroke;
+}
+
+/* What the session put in the grove, under what it was done in. The gear line's
+   own room, because it is the same kind of quiet line and they stack. */
+.details-manna {
+  margin: var(--gap) 0 0;
 }

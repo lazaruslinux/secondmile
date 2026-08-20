@@ -1026,7 +1026,8 @@ export function getWorkoutRoute(workoutId: number): Promise<WorkoutRoute> {
 //
 // The three beats are absent altogether, rather than null, on a friend's copy
 // of a workout whose owner keeps their heart rate back. Null means the minute
-// carried none, which is a different thing.
+// carried none, which is a different thing. The minute's calories go the same
+// way, under the toggle that governs the figure on the card.
 export interface WorkoutMinute {
   // Whole minutes from the first sample the export carried, counted from zero.
   // Minutes the phone was not recording are simply not here.
@@ -1036,6 +1037,9 @@ export interface WorkoutMinute {
   hr_min?: number | null
   hr_avg?: number | null
   hr_max?: number | null
+  // Active calories in the minute. Null on a minute that carried none, and on
+  // every minute of a workout stored before the server read the array.
+  active_kcal?: number | null
 }
 
 // Everything one workout says beyond the six numbers on its card. The two

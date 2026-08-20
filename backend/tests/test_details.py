@@ -88,6 +88,7 @@ def test_an_accepted_friend_receives_the_minutes_and_the_summaries_beside_them(
         "hr_min": 100,
         "hr_avg": 120,
         "hr_max": 140,
+        "active_kcal": 10.0,
     }
     assert body["max_hr"] == 168
     assert body["temperature_f"] == 78.5
@@ -121,7 +122,7 @@ def test_the_owner_receives_every_field_the_workout_carries(
 
 
 # --------------------------------------------------------------------------
-# What the two toggles take with them
+# What the three toggles take with them
 # --------------------------------------------------------------------------
 
 
@@ -154,6 +155,30 @@ def test_hiding_the_heart_rate_takes_every_beat_and_both_zone_fields_with_it(
     # steps it took are the same class of reading as the distance on the card.
     assert [row["distance_mi"] for row in body["minutes"]] == [0.05, 0.05, 0.05]
     assert [row["steps"] for row in body["minutes"]] == [110, 111, 112]
+    # The calories are their own toggle and this one was not thrown.
+    assert [row["active_kcal"] for row in body["minutes"]] == [10.0, 10.0, 10.0]
+
+
+def test_hiding_the_calories_takes_the_minutes_own_calories_with_them(
+    signed_in, ingest_token, db_session, member
+):
+    """A session's calories said sixty times over is the same fact about the
+    same body, so the toggle that governs the figure on the card governs the
+    lane behind it. Read as text as well as keys, for the reason the beats
+    are: a reading carried under another name would pass a key check."""
+    assert post(signed_in, ingest_token, export(entry())).json()["imported"] == 1
+    workout_id = the_workout_id(db_session)
+    other, other_client = sign_in(db_session, "mate")
+    befriend(db_session, member, other)
+    hide(signed_in, "active_kcal")
+
+    kept_back = details(other_client, workout_id)
+    body = kept_back.json()
+    assert all("active_kcal" not in row for row in body["minutes"])
+    assert "10.0" not in kept_back.text
+    # The beats and the distance are untouched: the toggles govern their own.
+    assert [row["hr_avg"] for row in body["minutes"]] == [120, 121, 122]
+    assert [row["distance_mi"] for row in body["minutes"]] == [0.05, 0.05, 0.05]
 
 
 def test_your_own_copy_carries_the_beats_and_the_zones_whatever_you_have_hidden(
@@ -164,12 +189,13 @@ def test_your_own_copy_carries_the_beats_and_the_zones_whatever_you_have_hidden(
     assert post(signed_in, ingest_token, export(entry())).json()["imported"] == 1
     workout_id = the_workout_id(db_session)
     give_birthdate(signed_in, BORN)
-    hide(signed_in, "avg_hr", "route")
+    hide(signed_in, "avg_hr", "active_kcal", "route")
 
     body = details(signed_in, workout_id).json()
     assert body["max_hr"] == 168
     assert body["zone_max"] == 220 - AGE
     assert body["minutes"][0]["hr_avg"] == 120
+    assert body["minutes"][0]["active_kcal"] == 10.0
     assert body["elevation_gain_ft"] == 142.0
 
 

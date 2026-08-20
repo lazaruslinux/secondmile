@@ -429,6 +429,11 @@ class WorkoutSample(Base):
     # Steps in the minute, which is cadence for a walk or a run: the export
     # carries no per-minute cadence array of its own.
     steps: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Active calories in the minute, which is the same measurement the workout
+    # row carries for the whole session, said one minute at a time. Nothing
+    # earns from it here either: the manna a workout is worth is converted from
+    # the summary column on the workout and never from these.
+    active_kcal: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
 class IngestLog(Base):

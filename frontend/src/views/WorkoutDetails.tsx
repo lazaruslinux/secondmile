@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent } from 'react'
+import { useEffect, useRef, useState, type PointerEvent, type RefObject } from 'react'
 import {
   errorText,
   getWorkoutDetails,
@@ -24,9 +24,10 @@ import {
 } from '../format.ts'
 import { gearName } from '../gear.ts'
 import { activityIcon, ACTIVITY_NAMES, defaultHeadline, personName } from '../labels.ts'
+import { loadRoute } from '../route.ts'
 import { Figure } from './FeedCard.tsx'
 import Icon from './Icon.tsx'
-import RouteLine from './RouteLine.tsx'
+import RouteLine, { type RouteMarker } from './RouteLine.tsx'
 
 // What the screen says where the charts would be, for a workout whose export
 // never carried the arrays behind them. Every figure that does exist is still
@@ -59,6 +60,12 @@ const WHOLE_SPLIT = 0.0005
 // Feet in a mile, for the one figure on this screen that is read in feet rather
 // than in the distance the account is set to.
 const FEET_PER_MILE = 5280
+
+// What a workout's calories are worth in manna, mirrored from the server so the
+// card can name it: one for one, rounded up to the next multiple of this. The
+// rounding is per workout rather than over a total, which is what makes the
+// same history come to the same manna however it is added up.
+const MANNA_STEP = 5
 
 // Where the heat index is worth saying. The regression below is fitted for warm
 // air and says nothing useful under it, and a feels-like within a degree or two
@@ -171,6 +178,37 @@ function splitsOf(minutes: WorkoutMinute[], units: Units): Split[] {
   return out
 }
 
+// Where each split begins and ends, as shares of the distance the session
+// covered. The route is one line and a split is a stretch of miles, so a split
+// is found on the line by how far along the session it fell.
+function spansOf(splits: Split[]): { from: number; to: number }[] {
+  const total = splits.reduce((sum, split) => sum + split.miles, 0)
+  if (!(total > 0)) return splits.map(() => ({ from: 0, to: 0 }))
+  let far = 0
+  return splits.map((split) => {
+    const from = far / total
+    far += split.miles
+    return { from, to: far / total }
+  })
+}
+
+// How far along the session each minute had come by the middle of it, as a
+// share of the whole. The graph names a minute at its middle, so the dot on the
+// line stands where the session was halfway through that minute.
+function placesOf(minutes: WorkoutMinute[]): Map<number, number> {
+  const covered = (row: WorkoutMinute) =>
+    typeof row.distance_mi === 'number' && row.distance_mi > 0 ? row.distance_mi : 0
+  const total = minutes.reduce((sum, row) => sum + covered(row), 0)
+  const places = new Map<number, number>()
+  if (!(total > 0)) return places
+  let far = 0
+  for (const row of minutes) {
+    places.set(row.minute, (far + covered(row) / 2) / total)
+    far += covered(row)
+  }
+  return places
+}
+
 // How long one split took per display unit, which is what the bars are scaled
 // on and what makes a cycle's fastest split the fastest one here too: fewer
 // seconds a mile is quicker, whichever way the pace itself is written.
@@ -275,6 +313,12 @@ function strideText(miles: number, steps: number, units: Units): string {
   return units === 'metric' ? (feet / FEET_PER_METRE).toFixed(2) : feet.toFixed(1)
 }
 
+// What one workout put in the bank. Nothing recorded, or a negative reading
+// from a confused sensor, is worth nothing rather than a free step.
+function mannaFor(kcal: number): number {
+  return kcal > 0 ? Math.ceil(kcal / MANNA_STEP) * MANNA_STEP : 0
+}
+
 // What the air felt like, from what it was: the NOAA Rothfusz regression, in
 // the Fahrenheit and whole per-cent it was fitted on. It is what a weather
 // service means by feels like, and it is a fit rather than a measurement, so it
@@ -350,7 +394,7 @@ function SplitBar({ percent }: { percent: number }) {
   )
 }
 
-type LaneKey = 'hr' | 'pace' | 'cadence'
+type LaneKey = 'hr' | 'pace' | 'cadence' | 'energy'
 
 // One lane of the graph: a series already turned into plot coordinates, the
 // three labels that go beside it, and what it read at each minute. The readings
@@ -390,6 +434,12 @@ function paceText(seconds: number, activity: Activity, units: Units): string {
 // naming /mi three times on one axis says nothing the readout does not.
 function paceLabel(seconds: number, activity: Activity, units: Units): string {
   return paceText(seconds, activity, units).split(' ')[0]
+}
+
+// Calories a minute, in whole ones. The reading arrives to a tenth and nobody
+// reads a minute of a walk to a tenth of a calorie.
+function kcalLabel(kcal: number): string {
+  return String(Math.round(kcal))
 }
 
 // The lanes a workout has anything to draw, in the order they are stacked. A
@@ -502,6 +552,37 @@ function lanesOf(
     })
   }
 
+  // Calories, as the export counted them a minute at a time. Its own lane
+  // rather than a share of the figure at the top of the screen: that figure is
+  // the whole session, and this is where the work in it actually went. A
+  // friend's copy carries none of it when the owner keeps their calories back,
+  // and a lane with nothing to draw is not drawn.
+  const burning = minutes.filter(
+    (row) => typeof row.active_kcal === 'number' && row.active_kcal > 0,
+  )
+  if (burning.length > 1) {
+    const kcal = burning.map((row) => row.active_kcal ?? 0)
+    const low = Math.min(...kcal)
+    const high = Math.max(...kcal)
+    const at = (value: number) => laneY(value, low, high, false)
+    lanes.push({
+      key: 'energy',
+      chip: 'Energy',
+      name: 'Energy',
+      summary: `Energy over ${burning.length} minutes, ${kcalLabel(low)} to ${kcalLabel(
+        high,
+      )} calories a minute`,
+      line: burning
+        .map((row, index) => `${atX(row.minute).toFixed(1)},${at(kcal[index]).toFixed(1)}`)
+        .join(' '),
+      band: '',
+      labels: [kcalLabel(high), kcalLabel((low + high) / 2), kcalLabel(low)],
+      said: new Map<number, string>(
+        burning.map((row) => [row.minute, `${kcalLabel(row.active_kcal ?? 0)} kcal`]),
+      ),
+    })
+  }
+
   return lanes
 }
 
@@ -516,24 +597,32 @@ function lanesOf(
 // rule's x and the readout's words are set as attributes and text content
 // through refs. The content security policy allows no inline styles, so a
 // position worked out per pointer event has nowhere else to go, and a render a
-// frame is not what React is for either.
+// frame is not what React is for either. The dot on the map above is moved the
+// same way and for the same reason.
 function LaneGraph({
   minutes,
   activity,
   units,
   ceiling,
   paced,
+  places,
+  marker,
 }: {
   minutes: WorkoutMinute[]
   activity: Activity
   units: Units
   ceiling: number
   paced: boolean
+  // How far along the session each minute is, for the dot on the route line.
+  // Empty on a workout with no line to put one on.
+  places: Map<number, number>
+  marker: RefObject<RouteMarker | null>
 }) {
   const [shown, setShown] = useState<Record<LaneKey, boolean>>({
     hr: true,
     pace: true,
     cadence: true,
+    energy: true,
   })
   const plots = useRef(new Map<LaneKey, SVGSVGElement>())
   const rules = useRef(new Map<LaneKey, SVGLineElement>())
@@ -550,6 +639,7 @@ function LaneGraph({
     for (const rule of rules.current.values()) {
       rule.setAttribute('visibility', 'hidden')
     }
+    marker.current?.clear()
     if (readout.current) readout.current.textContent = CURSOR_HINT
   }
 
@@ -570,6 +660,11 @@ function LaneGraph({
       rule.setAttribute('x2', x)
       rule.setAttribute('visibility', 'visible')
     }
+    // And where on the route the session had reached by then, where there is a
+    // line to say. A minute the phone was not recording has no place on it, and
+    // the dot waits there rather than jumping to an end of the line.
+    const place = places.get(minute)
+    if (place !== undefined) marker.current?.at(place)
     // A row is a whole minute rather than an instant, so the reading is named
     // at the middle of the minute it came out of rather than at either end.
     const parts = [formatClock(minute * MINUTE_S + MINUTE_S / 2)]
@@ -704,10 +799,19 @@ export default function WorkoutDetails({ item, gear, units, onBack }: Props) {
   const [details, setDetails] = useState<Details | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
+  // Which split is picked out on the map, by its place in the list. Null is
+  // none, which is where every workout starts and where a second tap on the
+  // same row puts it back.
+  const [chosen, setChosen] = useState<number | null>(null)
+  // Whether there is a line to pick anything out on. A workout whose route is
+  // hidden, missing, or too short to draw has none, and the rows stay rows.
+  const [lined, setLined] = useState(false)
+  const marker = useRef<RouteMarker | null>(null)
 
   useEffect(() => {
     let live = true
     setLoading(true)
+    setChosen(null)
     getWorkoutDetails(item.workout_id)
       .then((found) => {
         if (!live) return
@@ -724,6 +828,22 @@ export default function WorkoutDetails({ item, gear, units, onBack }: Props) {
       live = false
     }
   }, [item.workout_id])
+
+  // The points, asked for here as well as by the drawing below. They are kept
+  // for the life of the page and the two callers share one request, so this
+  // costs the server nothing; what it buys is knowing whether there is a line
+  // before a row offers to find a mile on one.
+  useEffect(() => {
+    setLined(false)
+    if (!item.has_route) return
+    let live = true
+    void loadRoute(item.workout_id).then((found) => {
+      if (live) setLined(found !== null)
+    })
+    return () => {
+      live = false
+    }
+  }, [item.has_route, item.workout_id])
 
   const head = (
     <div className="view-head">
@@ -773,6 +893,11 @@ export default function WorkoutDetails({ item, gear, units, onBack }: Props) {
   // The quickest whole split, which the bars alone do not name: the tail is in
   // the range above and is never the one marked.
   const quickest = fastestSplit(splits, units)
+  // Where each split and each minute fall along the session, which is how each
+  // of them is found on the route line. Worked out only where there is a line
+  // to find anything on.
+  const spans = lined ? spansOf(splits) : []
+  const places = lined ? placesOf(minutes) : new Map<number, number>()
 
   const ceiling =
     typeof details.zone_max === 'number' && details.zone_max > 0 ? details.zone_max : null
@@ -796,6 +921,12 @@ export default function WorkoutDetails({ item, gear, units, onBack }: Props) {
     steps > 0 && item.distance_mi > 0 ? strideText(item.distance_mi, steps, units) : null
 
   const weather = weatherLine(details, units)
+
+  // What this session put in the bank. Own workouts only: manna is a private
+  // economy, and what a friend's session earned them is their business the way
+  // the balance behind it is. Nought is not a line, so a workout that recorded
+  // no calories says nothing rather than saying none.
+  const manna = item.own && typeof item.active_kcal === 'number' ? mannaFor(item.active_kcal) : 0
 
   // What it was done in, where the row names a pair and the list handed down
   // holds it. A row that carries no pair, and a screen that was handed no
@@ -891,9 +1022,25 @@ export default function WorkoutDetails({ item, gear, units, onBack }: Props) {
           </p>
         )}
 
+        {/* What the session put in the grove, under what it was done in. One
+            quiet line and no figure, for the reason the shoes are one: it is
+            already banked, there is nothing to do about it here, and this is
+            the screen where somebody wonders what a session was worth. */}
+        {manna > 0 && (
+          <p className="hint details-manna">{`Manna earned: +${manna.toLocaleString()}`}</p>
+        )}
+
         {/* The card's own map, in the place the card puts it. The line is the
-            way into the full map, the same as it is on the feed. */}
-        {item.has_route && <RouteLine workoutId={item.workout_id} />}
+            way into the full map, the same as it is on the feed. The split
+            somebody tapped is picked out on it, and the graph's cursor moves a
+            dot along it. */}
+        {item.has_route && (
+          <RouteLine
+            workoutId={item.workout_id}
+            highlight={chosen === null ? null : (spans[chosen] ?? null)}
+            marker={marker}
+          />
+        )}
       </article>
 
       {minutes.length === 0 && <p className="hint">{NO_MINUTES}</p>}
@@ -902,12 +1049,13 @@ export default function WorkoutDetails({ item, gear, units, onBack }: Props) {
         <section className="card">
           <h2 className="label">Splits</h2>
           <ul className="split-list">
-            {splits.map((split) => {
+            {splits.map((split, index) => {
               const pace = secondsPerUnit(split, units)
               const whole = isWhole(split, units)
               const best = quickest !== null && split.ordinal === quickest.ordinal
-              return (
-                <li key={split.ordinal} className="split-row">
+              const marked = chosen === index
+              const figures = (
+                <>
                   {/* A last split that ended part way through says how far it
                       actually went, in the place the whole ones say which one
                       they are: a row reading quicker than the one above it is
@@ -927,6 +1075,28 @@ export default function WorkoutDetails({ item, gear, units, onBack }: Props) {
                   <span className="split-hr">
                     {split.avgHr === null ? '' : `${Math.round(split.avgHr)} bpm`}
                   </span>
+                </>
+              )
+              // A workout that drew a line gets rows that are the way to find a
+              // mile on it, stripped back to read exactly as they did before
+              // they became controls. A workout with no line keeps plain rows:
+              // a control that would do nothing is not offered.
+              return (
+                <li key={split.ordinal}>
+                  {lined ? (
+                    <button
+                      type="button"
+                      className={
+                        marked ? 'split-row split-row-open split-row-on' : 'split-row split-row-open'
+                      }
+                      aria-pressed={marked}
+                      onClick={() => setChosen(marked ? null : index)}
+                    >
+                      {figures}
+                    </button>
+                  ) : (
+                    <div className="split-row">{figures}</div>
+                  )}
                 </li>
               )
             })}
@@ -934,6 +1104,7 @@ export default function WorkoutDetails({ item, gear, units, onBack }: Props) {
           {quickest !== null && (
             <p className="hint">{fastestLine(quickest, item.activity, units)}</p>
           )}
+          {lined && <p className="hint">Tap a split to see it on the map.</p>}
         </section>
       )}
 
@@ -943,6 +1114,8 @@ export default function WorkoutDetails({ item, gear, units, onBack }: Props) {
         units={units}
         ceiling={charted}
         paced={paced}
+        places={places}
+        marker={marker}
       />
 
       {ceiling !== null && inZones > 0 && (

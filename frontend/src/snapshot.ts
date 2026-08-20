@@ -7,11 +7,8 @@
 import { MapLibreMap } from 'maplibre-gl'
 import type { RoutePoint } from './api.ts'
 import { addRoute, basemapStyle, corners, setRoute } from './mapgl.ts'
+import { SHOT_PADDING } from './route.ts'
 import type { Theme } from './theme.ts'
-
-// Rendered at the thumbnail's own proportions, a little roomier than the
-// modal's padding so the shape survives being cropped to a narrower card.
-const PADDING = 48
 
 // Long enough for tiles off a cold archive, short enough that a card is not
 // waiting on a picture that is never coming.
@@ -117,7 +114,7 @@ async function shoot(points: RoutePoint[], theme: Theme): Promise<string | null>
     addRoute(map, points)
     drawn = true
   }
-  map.fitBounds(corners(points), { padding: PADDING, animate: false })
+  map.fitBounds(corners(points), { padding: SHOT_PADDING, animate: false })
   // A route that lands on the view already showing would otherwise leave the
   // map idle already and the wait below with nothing to wait for.
   map.triggerRepaint()

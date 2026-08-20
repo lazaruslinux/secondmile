@@ -89,15 +89,19 @@ def zone_ceiling(db: Session, owner_id: int, birthdate) -> tuple[int | None, str
     return None, None
 
 
-def _minute_row(sample: models.WorkoutSample, hearts: bool) -> dict:
+def _minute_row(sample: models.WorkoutSample, hearts: bool, calories: bool) -> dict:
     """One minute of a session, as the screen receives it.
 
     The beats are left out altogether rather than sent as nulls when the owner
     keeps them back, which is the rule feed_row states: a null would say the
     minute carried no heart rate, and being asked not to look is a different
-    thing. How far a minute went and how many steps it took are never held
-    back. They are the same class of reading as the distance already on the
-    card, and the splits are drawn from them.
+    thing. The minute's own calories go the same way, under the toggle that
+    already governs the figure on the card: a session's calories said sixty
+    times over is the same fact about the same body.
+
+    How far a minute went and how many steps it took are never held back. They
+    are the same class of reading as the distance already on the card, and the
+    splits are drawn from them.
     """
     row = {
         "minute": sample.minute,
@@ -112,6 +116,12 @@ def _minute_row(sample: models.WorkoutSample, hearts: bool) -> dict:
         row["hr_min"] = sample.hr_min
         row["hr_avg"] = sample.hr_avg
         row["hr_max"] = sample.hr_max
+    if calories:
+        # One place. A minute of a walk is a few calories and the lane is drawn
+        # off these, so a whole number would draw a staircase.
+        row["active_kcal"] = (
+            round(sample.active_kcal, 1) if sample.active_kcal is not None else None
+        )
     return row
 
 
@@ -132,10 +142,12 @@ def workout_details(
     rules are feed_row's rather than new ones. The heart rate toggle takes
     every beat with it: the per-minute readings, the session's highest, and
     both zone fields, because a ladder drawn from somebody's age with their
-    minutes hung on it is the heart rate said another way. The route toggle
-    takes the climb, because how much a session went uphill is a fact about the
-    ground it crossed. The weather is neither: what the air was like is a fact
-    about the afternoon rather than about a body, and it rides on every copy.
+    minutes hung on it is the heart rate said another way. The calories toggle
+    takes the per-minute calories for the same reason. The route toggle takes
+    the climb, because how much a session went uphill is a fact about the
+    ground it crossed. The weather is none of them: what the air was like is a
+    fact about the afternoon rather than about a body, and it rides on every
+    copy.
 
     Own copies carry everything whatever the list says, for the reason a card
     does: hiding a number from yourself is not a privacy setting.
@@ -167,6 +179,7 @@ def workout_details(
 
     kept_back = () if own else tuple(str(field) for field in (hidden or []))
     hearts = "avg_hr" not in kept_back
+    calories = "active_kcal" not in kept_back
     minutes = (
         db.execute(
             select(models.WorkoutSample)
@@ -182,7 +195,7 @@ def workout_details(
         # Empty rather than absent for a workout whose export carried no
         # arrays, which is every workout synced before the table existed. The
         # screen draws its figures and says so in one line.
-        "minutes": [_minute_row(sample, hearts) for sample in minutes],
+        "minutes": [_minute_row(sample, hearts, calories) for sample in minutes],
         "temperature_f": (
             round(workout.temperature_f, 1) if workout.temperature_f is not None else None
         ),

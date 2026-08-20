@@ -140,6 +140,7 @@ def test_the_arrays_and_the_summaries_are_read_off_a_whole_entry():
     assert [row.hr_min for row in detail.minutes] == [100, 101, 102]
     assert [row.hr_avg for row in detail.minutes] == [120, 121, 122]
     assert [row.hr_max for row in detail.minutes] == [140, 141, 142]
+    assert [row.active_kcal for row in detail.minutes] == [10.0, 10.0, 10.0]
 
     assert detail.elevation_gain_ft == 142.0
     assert detail.max_hr == 168
@@ -177,6 +178,34 @@ def test_a_metric_phone_is_converted_into_the_units_the_columns_hold():
     assert round(detail.elevation_gain_ft, 1) == 328.1
     assert round(detail.temperature_f, 1) == 68.0
     assert round(detail.minutes[0].distance_mi, 4) == 0.0621
+
+
+def test_only_the_active_energy_array_is_read_and_never_the_basal_one():
+    """An entry carries both. Basal is the body ticking over, which it would be
+    doing on the sofa, and it is not what a session burned: the line the
+    workout row's own calories are drawn on is the line drawn here."""
+    detail = samples.parse(
+        entry(
+            minutes=2,
+            activeEnergy=[point(9.5, index, "kcal") for index in range(2)],
+            basalEnergy=[point(1.4, index, "kcal") for index in range(2)],
+        )
+    )
+    assert [row.active_kcal for row in detail.minutes] == [9.5, 9.5]
+
+    # And a phone that counts in kilojoules is converted on the way in, the way
+    # a metric distance is.
+    metric = samples.parse(entry(minutes=1, activeEnergy=[point(41.84, 0, "kJ")]))
+    assert round(metric.minutes[0].active_kcal, 1) == 10.0
+
+
+def test_an_export_that_writes_the_array_under_the_summary_name_is_still_read():
+    """The two spellings are the same measurement. Some versions of the export
+    send the minutes under the name the whole-session figure uses."""
+    named = entry(minutes=2)
+    del named["activeEnergy"]
+    named["activeEnergyBurned"] = [point(7.0, index, "kcal") for index in range(2)]
+    assert [row.active_kcal for row in samples.parse(named).minutes] == [7.0, 7.0]
 
 
 def test_the_highest_beat_falls_back_to_the_duplicate_summary():
@@ -222,6 +251,7 @@ def test_samples_with_no_readable_dates_keep_the_order_they_arrived_in():
                 {"qty": 0.03, "units": "mi"},
             ],
             stepCount=[],
+            activeEnergy=[],
             heartRateData=[],
         )
     )
@@ -236,6 +266,7 @@ def test_a_reading_no_body_produced_is_dropped_on_its_own():
             minutes=1,
             walkingAndRunningDistance=[point(40.0, 0)],
             stepCount=[point(-12, 0, "count")],
+            activeEnergy=[point(4000.0, 0, "kcal")],
             heartRateData=[beats(0, 900, 1000, 1100)],
             elevationUp={"qty": -30.0, "units": "ft"},
             maxHeartRate={"qty": 4000.0, "units": "count/min"},
@@ -245,7 +276,7 @@ def test_a_reading_no_body_produced_is_dropped_on_its_own():
         )
     )
     only = detail.minutes[0]
-    assert (only.distance_mi, only.steps) == (None, None)
+    assert (only.distance_mi, only.steps, only.active_kcal) == (None, None, None)
     assert (only.hr_min, only.hr_avg, only.hr_max) == (None, None, None)
     assert detail.elevation_gain_ft is None
     assert detail.max_hr is None
@@ -294,6 +325,7 @@ def test_the_detail_is_written_for_a_workout_that_was_just_born(
     assert workout.temperature_f == 78.5
     assert workout.humidity_pct == 44.0
     assert [row.minute for row in rows_for(db_session, workout.id)] == [0, 1, 2]
+    assert [row.active_kcal for row in rows_for(db_session, workout.id)] == [10.0, 10.0, 10.0]
     logged = db_session.query(models.IngestLog).one()
     assert logged.result["samples_stored"] == 3
 

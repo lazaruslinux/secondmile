@@ -157,6 +157,9 @@ MAX_WORKOUT_SAMPLES = 1440
 # steps in one is five times what a sprinter turns over.
 MAX_SAMPLE_DISTANCE_MI = 2.0
 MAX_SAMPLE_STEPS = 1000
+# A minute of the hardest work a body does is somewhere near thirty calories,
+# so this is three times what an athlete produces flat out.
+MAX_SAMPLE_KCAL = 100.0
 # Everest is a little under thirty thousand feet from the sea, and this is a
 # climb no ride in a day has ever added up to.
 MAX_WORKOUT_ELEVATION_FT = 100000.0

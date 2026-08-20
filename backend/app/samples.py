@@ -28,9 +28,10 @@ from dataclasses import dataclass, field
 from sqlalchemy.orm import Session
 
 from app import models
-from app.activity import parse_start, plain_name, quantity, to_miles, unit_of
+from app.activity import parse_start, plain_name, quantity, to_kcal, to_miles, unit_of
 from app.config import (
     MAX_SAMPLE_DISTANCE_MI,
+    MAX_SAMPLE_KCAL,
     MAX_SAMPLE_STEPS,
     MAX_WORKOUT_ELEVATION_FT,
     MAX_WORKOUT_HR,
@@ -60,6 +61,10 @@ _PER_MINUTE = {
     # Only the array. The entry's "heartRate" is a summary object of three
     # numbers for the whole session and is read further down as one.
     "heart": frozenset({"heartratedata"}),
+    # Active calories only. An entry carries a basal array beside this one and
+    # it is the body ticking over rather than the session, which is the same
+    # line the workout row's own calories are drawn on.
+    "energy": frozenset({"activeenergy", "activeenergyburned"}),
 }
 
 # Everything is stored in feet, and the export declares its own units because
@@ -96,6 +101,7 @@ class Sample:
     hr_avg: int | None = None
     hr_max: int | None = None
     steps: int | None = None
+    active_kcal: float | None = None
 
 
 @dataclass
@@ -160,6 +166,19 @@ def _sample_distance(item: dict) -> float | None:
     return miles if miles <= MAX_SAMPLE_DISTANCE_MI else None
 
 
+def _sample_energy(item: dict) -> float | None:
+    """The active calories one minute burned, or None if it did not say.
+
+    The phone declares its own units here the way it does everywhere else, and
+    a locale that counts in kilojoules is converted on the way in.
+    """
+    qty = quantity(item)
+    if qty is None or qty < 0:
+        return None
+    kcal = to_kcal(item)
+    return kcal if kcal <= MAX_SAMPLE_KCAL else None
+
+
 def _heart_rate(fields: dict, name: str) -> int | None:
     """One of a heart rate sample's three numbers, rounded to a whole beat."""
     reading = _bounded(fields.get(name), MIN_WORKOUT_HR, MAX_WORKOUT_HR)
@@ -214,6 +233,9 @@ def _minutes(entry: dict) -> list[Sample]:
                 if row.steps is None:
                     steps = _bounded(item, 0.0, MAX_SAMPLE_STEPS)
                     row.steps = round(steps) if steps is not None else None
+            elif name == "energy":
+                if row.active_kcal is None:
+                    row.active_kcal = _sample_energy(item)
             elif row.hr_avg is None and row.hr_min is None and row.hr_max is None:
                 fields = _keyed(item)
                 row.hr_min = _heart_rate(fields, "min")
@@ -301,6 +323,7 @@ def store(db: Session, workout_id: int, minutes: list[Sample]) -> int:
                 hr_avg=row.hr_avg,
                 hr_max=row.hr_max,
                 steps=row.steps,
+                active_kcal=row.active_kcal,
             )
             for row in minutes
         ]
