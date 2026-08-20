@@ -2,6 +2,13 @@ import { useEffect, useState } from 'react'
 import { ALPHA, ALPHA_NOTICE } from '../alpha.ts'
 import { getStatus, welcomeAvatarUrl, type Welcome as WelcomeData } from '../api.ts'
 import heroDark from '../assets/landing-hero-dark.png'
+import shotArcadeYou from '../assets/shot-arcade-you.webp'
+import shotArcadeGrove from '../assets/shot-arcade-grove.webp'
+import shotArcadeDetails from '../assets/shot-arcade-details.webp'
+import shotDarkHome from '../assets/shot-dark-home.webp'
+import shotLightHome from '../assets/shot-light-home.webp'
+import shotLightGrove from '../assets/shot-light-grove.webp'
+import shotLightYou from '../assets/shot-light-you.webp'
 import heroLight from '../assets/landing-hero-light.png'
 import { ACTIVITY_ICONS, ACTIVITY_NAMES, ACTIVITY_ORDER } from '../labels.ts'
 import { applyTheme, rememberTheme, type Theme, useTheme } from '../theme.ts'
@@ -60,9 +67,11 @@ export default function Landing({ onEnter, invite }: Props) {
           <button
             type="button"
             className="secondary landing-appearance"
-            onClick={() => chooseTheme(theme === 'light' ? 'dark' : 'light')}
+            onClick={() =>
+              chooseTheme(theme === 'light' ? 'dark' : theme === 'dark' ? 'arcade' : 'light')
+            }
           >
-            Appearance: {theme === 'light' ? 'Light' : 'Dark'}
+            Appearance: {theme === 'light' ? 'Light' : theme === 'arcade' ? 'Arcade' : 'Dark'}
           </button>
           <button type="button" className="link" onClick={() => onEnter(false)}>
             Sign in
@@ -292,6 +301,29 @@ export default function Landing({ onEnter, invite }: Props) {
           </p>
         </section>
       )}
+
+      {/* Real screens near the door, softly blurred where a life shows
+          through. A strip rather than a grid: thumbed sideways like the app
+          itself. */}
+      <section className="landing-section">
+        <p className="label landing-eyebrow">Appearance</p>
+        <h2>Three looks. Every device picks its own.</h2>
+        <ul className="landing-shots">
+          {[
+            [shotArcadeYou, 'The You screen in arcade mode'],
+            [shotArcadeGrove, 'The grove in arcade mode'],
+            [shotArcadeDetails, 'A workout details view in arcade mode'],
+            [shotDarkHome, 'The home feed in dark mode'],
+            [shotLightHome, 'The home feed in light mode'],
+            [shotLightGrove, 'The grove in light mode'],
+            [shotLightYou, 'The You screen in light mode'],
+          ].map(([src2, alt]) => (
+            <li key={alt}>
+              <img src={src2} alt={alt} loading="lazy" />
+            </li>
+          ))}
+        </ul>
+      </section>
 
       <footer className="landing-foot">
         {/* No repository link while the repository is private: a link to a page

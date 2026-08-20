@@ -256,7 +256,7 @@
    rarities and the two message boxes among them. The signed out pages are cut
    out by the :not below and keep the dark ground: the landing hero is drawn
    once per ground and there is no arcade twin of it. */
-:root[data-theme='arcade']:not(:has(.landing, .gate)) {
+:root[data-theme='arcade'] {
   color-scheme: dark;
   --bg: #070709;
   --surface: #121218;
@@ -281,25 +281,25 @@
 /* What the skin does past colour: a cyan edge on the panels and a red one on
    the two words that are lit. Held to where it is felt rather than seen, and
    kept to those two colours. A dim hall, not a midway. */
-:root[data-theme='arcade']:not(:has(.landing, .gate)) .card {
+:root[data-theme='arcade'] .card {
   border-color: #262c4a;
   box-shadow: 0 0 20px -6px rgba(85, 208, 255, 0.45);
 }
 
-:root[data-theme='arcade']:not(:has(.landing, .gate)) .topbar {
+:root[data-theme='arcade'] .topbar {
   border-bottom-color: #262c4a;
   box-shadow: 0 1px 0 rgba(85, 208, 255, 0.14), 0 8px 20px -16px rgba(85, 208, 255, 0.55);
 }
 
-:root[data-theme='arcade']:not(:has(.landing, .gate)) .tabbar {
+:root[data-theme='arcade'] .tabbar {
   border-top-color: #262c4a;
 }
 
-:root[data-theme='arcade']:not(:has(.landing, .gate)) .tab-current {
+:root[data-theme='arcade'] .tab-current {
   text-shadow: 0 0 10px rgba(239, 53, 80, 0.6);
 }
 
-:root[data-theme='arcade']:not(:has(.landing, .gate)) .wordmark {
+:root[data-theme='arcade'] .wordmark {
   text-shadow: 0 0 12px rgba(239, 53, 80, 0.55);
 }
 
@@ -4090,12 +4090,12 @@ button:disabled {
    still over the plant and one soft pass of light across it. The plot only.
    The satchel squares and a chest reveal are the same drawings without the
    cabinet around them, and they are left alone. The overlay takes no taps. */
-:root[data-theme='arcade']:not(:has(.landing, .gate)) .plant-frame .rarity-square {
+:root[data-theme='arcade'] .plant-frame .rarity-square {
   position: relative;
   overflow: hidden;
 }
 
-:root[data-theme='arcade']:not(:has(.landing, .gate)) .plant-frame .rarity-square::after {
+:root[data-theme='arcade'] .plant-frame .rarity-square::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -5836,4 +5836,69 @@ button:disabled {
    own room, because it is the same kind of quiet line and they stack. */
 .details-manna {
   margin: var(--gap) 0 0;
+}
+
+
+/* Arcade: the parts inside a card each carry a whisper of their own light. */
+:root[data-theme='arcade'] .primary {
+  box-shadow: 0 0 12px -6px rgba(239, 53, 80, 0.55);
+}
+
+:root[data-theme='arcade'] .secondary {
+  box-shadow: 0 0 10px -6px rgba(85, 208, 255, 0.4);
+}
+
+:root[data-theme='arcade'] .chip-miles {
+  box-shadow: 0 0 12px -6px var(--chip-miles);
+}
+
+:root[data-theme='arcade'] .chip-activities {
+  box-shadow: 0 0 12px -6px var(--chip-activities);
+}
+
+:root[data-theme='arcade'] .chip-level {
+  box-shadow: 0 0 12px -6px var(--chip-level);
+}
+
+:root[data-theme='arcade'] .chip-medals {
+  box-shadow: 0 0 12px -6px var(--chip-medals);
+}
+
+:root[data-theme='arcade'] .grove-area-manna {
+  box-shadow: 0 0 12px -6px var(--grove-manna);
+}
+
+:root[data-theme='arcade'] .grove-area-season {
+  box-shadow: 0 0 12px -6px var(--grove-season);
+}
+
+:root[data-theme='arcade'] .grove-area-basket {
+  box-shadow: 0 0 12px -6px var(--grove-basket);
+}
+
+:root[data-theme='arcade'] .diamond-on {
+  filter: drop-shadow(0 0 4px rgba(239, 53, 80, 0.55));
+}
+
+/* The looks strip near the door: thumbed sideways, one phone at a time. */
+.landing-shots {
+  display: flex;
+  gap: 0.6rem;
+  margin: 0.9rem 0 0;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.4rem;
+}
+
+.landing-shots li {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+}
+
+.landing-shots img {
+  display: block;
+  width: 216px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
 }
