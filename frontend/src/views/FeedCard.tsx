@@ -516,13 +516,17 @@ export function Figure({
   label,
   value,
   unit,
+  wide,
 }: {
   label: string
   value: string
   unit?: string
+  // For a value that is a line rather than a number: it takes the width of the
+  // row instead of being set smaller than the figures beside it.
+  wide?: boolean
 }) {
   return (
-    <span className="stat">
+    <span className={wide ? 'stat stat-wide' : 'stat'}>
       <span className="label">{label}</span>
       <span className="stat-value">
         {value}

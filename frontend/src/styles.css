@@ -1394,6 +1394,14 @@ button:disabled {
   min-width: 0;
 }
 
+/* A figure whose value is a line rather than a number. The weather reads "91°F,
+   21% Humidity", which is three times the width of a distance, so it takes the
+   whole row and stays the size every other figure is set in: a value shrunk to
+   fit its cell reads as a lesser figure than the ones beside it. */
+.stat-wide {
+  grid-column: 1 / -1;
+}
+
 .stat-value {
   font-size: 1.25rem;
   font-weight: 700;
@@ -1741,15 +1749,15 @@ button:disabled {
 }
 
 /* The details screen
-   The same workout, said minute by minute: the splits it was run in, the heart
-   rate over the whole of it, and how long was spent in each band of effort.
+   The same workout, said minute by minute: the splits it was run in, the graph
+   of what the minutes held, and how long was spent in each band of effort.
 
-   Three drawings, all of them hand-drawn from the numbers the server sent and
-   none of them a library. Each is one measurement of one session, so there is
-   one axis, no legend, and nothing to hover: what a value actually was is in
-   the splits table and in the figures at the top of the screen, which is where
-   a number is read. Crimson is the one colour, the way it is everywhere else,
-   and it is the only thing about them that is not black, white or grey. */
+   Every drawing here is hand-drawn from the numbers the server sent and none of
+   them is a library. Each lane of the graph is one measurement, so each keeps
+   its own axis and there is no legend: what the lanes share is the minutes
+   underneath them and the one cursor that reads all of them at once. Crimson is
+   the one colour, the way it is everywhere else, and it is the only thing about
+   them that is not black, white or grey. */
 
 /* What a walk or a run was done in, under its figures and above its map. One
    quiet grey line carrying the shoe's own mark, with room above it so it is
@@ -1802,9 +1810,11 @@ button:disabled {
   white-space: nowrap;
 }
 
-/* The quickest split fills its row and everything slower is shorter in
-   proportion, which is what makes the shape of the page the shape of the
-   effort. Thin, because it is a comparison rather than a picture. */
+/* The bars are spread across the range this workout actually ran: the quickest
+   split fills its row, the slowest keeps about a third of it, and the rest are
+   spaced evenly between. Measured against the quickest alone, five miles within
+   a few seconds of each other all drew as one full bar. Thin, because it is a
+   comparison rather than a picture. */
 .split-track {
   height: 4px;
   min-width: 1rem;
@@ -1827,25 +1837,65 @@ button:disabled {
   white-space: nowrap;
 }
 
-/* The heart rate over the session. The axis is written in the page's own type
-   beside the drawing rather than inside it, so it stays the size the rest of
-   the screen is read at whatever width the plot is stretched to. */
-.hr-chart {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.45rem;
+/* The graph: the heart rate, the pace and the cadence as three lanes over one
+   run of minutes. Each lane has its own scale and its own labels, because a
+   beat, a pace and a step count are three measurements and there is no honest
+   axis all three sit on. The axis column is the same width in every lane, which
+   is what makes the plots line up under one another and what lets the cursor be
+   one rule at one x across the whole stack. */
+.lane-graph {
   margin-top: 0.5rem;
 }
 
-/* Three rungs: the highest beat the session saw, the middle of the range, and
-   the lowest. The height is the plot's own less the room its line keeps at each
-   end, plus one line of type, and the top is pulled up half a line, so each
-   label sits centred on the rule it names rather than hanging off it. */
-.hr-axis {
+/* What the cursor is reading, in one line above the lanes rather than in a
+   bubble over them: a tooltip under a thumb is covered by the thumb. It holds
+   its row whether or not anything is being read, so the lanes do not jump when
+   a thumb lands on them. */
+.lane-readout {
+  margin: 0.35rem 0;
+  min-height: 1.15rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-family: var(--font-nums);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* A drag across the lanes reads them and a drag down the page still scrolls it,
+   which is what pan-y buys: taking the whole gesture would trap a thumb on a
+   chart that is a third of the screen. */
+.lane-stack {
+  touch-action: pan-y;
+}
+
+.lane + .lane {
+  margin-top: 0.5rem;
+}
+
+.lane-name {
+  margin: 0 0 0.1rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.lane-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+}
+
+/* Three rungs a lane: the top of what it held, the middle, and the bottom. The
+   height is the plot's own less the room its line keeps at each end, plus one
+   line of type, and the top is pulled up half a line, so each label sits
+   centred on the rule it names rather than hanging off it. The width is fixed
+   rather than fitted, so every lane's plot starts at the same x. */
+.lane-axis {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  height: calc(144px + 0.7rem);
+  width: 3.1rem;
+  height: calc(104px + 0.7rem);
   margin-top: calc(3px - 0.35rem);
   font-size: 0.7rem;
   line-height: 1;
@@ -1859,13 +1909,13 @@ button:disabled {
 /* Only the width stretches: the height is the height the coordinates were drawn
    at, so nothing about the vertical scale changes with the column, and every
    stroke below keeps its own weight whatever the width does to it. */
-.hr-plot {
+.lane-plot {
   flex: 1 1 auto;
   min-width: 0;
-  height: 150px;
+  height: 110px;
 }
 
-.hr-grid {
+.lane-grid {
   stroke: var(--line);
   stroke-width: 1px;
   vector-effect: non-scaling-stroke;
@@ -1873,14 +1923,15 @@ button:disabled {
 
 /* The range each minute covered, behind the line through their averages. Faint
    enough that the line is what is read and the band is what it is read
-   against. */
-.hr-band {
+   against. The heart rate lane is the only one that has one: nothing else in an
+   export carries a low and a high for the minute. */
+.lane-band {
   fill: var(--accent);
   opacity: 0.16;
   stroke: none;
 }
 
-.hr-line {
+.lane-line {
   fill: none;
   stroke: var(--accent);
   stroke-width: 2px;
@@ -1889,11 +1940,22 @@ button:disabled {
   vector-effect: non-scaling-stroke;
 }
 
-/* Zones. Five bands of one hue, darkest at the top, which is the arrangement a
-   sequential reading asks for: the bands are ordered, so the colour is ordered
-   with them rather than being five colours that mean five things. What each
-   band is is carried by its own name and by the minutes beside it, so nothing
-   here depends on telling one crimson from another. */
+/* The one cursor, at the same minute in every lane showing. Its x is written
+   straight onto the line as an attribute: a position worked out per pointer
+   event has nowhere else to go under a policy that allows no inline styles. */
+.lane-cursor {
+  stroke: var(--text);
+  stroke-width: 1px;
+  opacity: 0.45;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Zones. Five bands of one hue, hardest at the top and darkest with it, which
+   is the arrangement a sequential reading asks for: the bands are ordered, so
+   the colour is ordered with them rather than being five colours that mean five
+   things. What each band is is carried by its own name, the beats it covers and
+   the minutes beside it, so nothing here depends on telling one crimson from
+   another. */
 .zone-list {
   list-style: none;
   margin: 0.5rem 0 0;
@@ -1902,15 +1964,31 @@ button:disabled {
 
 .zone-row {
   display: grid;
-  grid-template-columns: 1.6rem minmax(0, 1fr) auto;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.5rem;
   padding: 0.28rem 0;
 }
 
+/* The band and what it is for. Each row is its own grid, so the width that
+   makes the five names line up down the page is set here rather than falling
+   out of a shared column. Wide enough for the longest of them. */
 .zone-name {
-  font-size: 0.82rem;
+  min-width: 5.1rem;
+  font-size: 0.78rem;
   font-weight: 600;
+}
+
+/* The beats the band actually covers at this account's ceiling, which is what
+   turns a named band into something a watch face can be read against. */
+.zone-band {
+  min-width: 3.2rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-family: var(--font-nums);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .zone-track {
