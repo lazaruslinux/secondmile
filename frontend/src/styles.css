@@ -464,6 +464,15 @@ code {
   cursor: pointer;
 }
 
+/* The bare words beside the chip, in the same magenta and under the same
+   no-taller-than-the-wordmark rule. */
+.alpha-dev {
+  color: var(--alpha-chip);
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
 /* The end of every signed-in page, at the landing foot's own quiet size. The
    alpha line takes the chip's magenta; the licence line stays muted. */
 .page-foot {

@@ -288,14 +288,17 @@ export default function App() {
         <span className="topbar-brand">
           <span className="wordmark">secondmile</span>
           {ALPHA && (
-            <button
-              type="button"
-              className="alpha-chip"
-              aria-haspopup="dialog"
-              onClick={() => setAlphaOpen(true)}
-            >
-              alpha
-            </button>
+            <>
+              <button
+                type="button"
+                className="alpha-chip"
+                aria-haspopup="dialog"
+                onClick={() => setAlphaOpen(true)}
+              >
+                alpha
+              </button>
+              <span className="alpha-dev">Dev Build</span>
+            </>
           )}
         </span>
         {/* The same five sections as the bottom bar. Only one of the two is
