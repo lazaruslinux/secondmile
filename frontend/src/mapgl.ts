@@ -13,7 +13,7 @@ import { PMTiles, Protocol } from 'pmtiles'
 import { type Flavor, layers, namedFlavor } from '@protomaps/basemaps'
 import type { RoutePoint } from './api.ts'
 import { TILES } from './basemap.ts'
-import type { Theme } from './theme.ts'
+import { ground, type Ground, type Theme } from './theme.ts'
 import 'maplibre-gl/dist/maplibre-gl.css'
 
 setWorkerUrl(workerUrl)
@@ -41,8 +41,10 @@ const CREDIT =
   '<a href="https://github.com/protomaps/basemaps" target="_blank" rel="noreferrer">Protomaps</a> © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>'
 
 // The map is drawn on the ground the app is: a caller says which, because
-// neither of the two builds a map without knowing already.
-const GROUNDS: Record<Theme, Flavor> = {
+// neither of the two builds a map without knowing already. There are two of
+// these and three themes, arcade being dark's skin, so the theme is put through
+// ground() first and the arcade map is the dark map.
+const GROUNDS: Record<Ground, Flavor> = {
   dark: namedFlavor('dark'),
   light: namedFlavor('light'),
 }
@@ -54,10 +56,11 @@ function accent(): string {
 }
 
 export function basemapStyle(theme: Theme): StyleSpecification {
+  const on = ground(theme)
   return {
     version: 8,
     glyphs: GLYPHS,
-    sprite: `${SPRITES}/${theme}`,
+    sprite: `${SPRITES}/${on}`,
     sources: {
       protomaps: {
         type: 'vector',
@@ -67,7 +70,7 @@ export function basemapStyle(theme: Theme): StyleSpecification {
     },
     // Cast because the flavor's layers are typed against its own copy of the
     // style spec, which is the same shape under a different name.
-    layers: layers('protomaps', GROUNDS[theme], { lang: 'en' }),
+    layers: layers('protomaps', GROUNDS[on], { lang: 'en' }),
   } as StyleSpecification
 }
 
@@ -82,7 +85,7 @@ export function bareStyle(theme: Theme): StyleSpecification {
       {
         id: 'ground',
         type: 'background',
-        paint: { 'background-color': GROUNDS[theme].background },
+        paint: { 'background-color': GROUNDS[ground(theme)].background },
       },
     ],
   }

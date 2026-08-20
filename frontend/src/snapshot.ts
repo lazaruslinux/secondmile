@@ -8,7 +8,7 @@ import { MapLibreMap } from 'maplibre-gl'
 import type { RoutePoint } from './api.ts'
 import { addRoute, basemapStyle, corners, setRoute } from './mapgl.ts'
 import { SHOT_PADDING } from './route.ts'
-import type { Theme } from './theme.ts'
+import { ground, type Ground, type Theme } from './theme.ts'
 
 // Long enough for tiles off a cold archive, short enough that a card is not
 // waiting on a picture that is never coming.
@@ -23,25 +23,28 @@ const shots = new Map<string, string | null>()
 const pending = new Map<string, Promise<string | null>>()
 let queue: Promise<unknown> = Promise.resolve()
 
-function key(workoutId: number, theme: Theme): string {
-  return `${theme}:${workoutId}`
+// Keyed by ground rather than by theme, because arcade is drawn on dark's map:
+// the two of them share the one picture instead of taking it twice.
+function key(workoutId: number, on: Ground): string {
+  return `${on}:${workoutId}`
 }
 
 let ready: Promise<MapLibreMap | null> | undefined
 let stand: HTMLDivElement | undefined
 let drawn = false
 // The ground the standing renderer was built on. The flavor is baked into the
-// style the map was made with, so a flip builds another one.
-let ground: Theme | undefined
+// style the map was made with, so a flip builds another one. A flip between
+// dark and arcade is not one: they are the same ground.
+let built: Ground | undefined
 
 // The one map. It is parked off the top of the viewport by class, at the exact
 // size the pictures are taken at, and it stays for the session. Only ever
 // called from inside the queue below, so a rebuild cannot land mid picture.
-function renderer(theme: Theme): Promise<MapLibreMap | null> {
-  if (ground !== theme) {
+function renderer(on: Ground): Promise<MapLibreMap | null> {
+  if (built !== on) {
     const old = ready
     const box = stand
-    ground = theme
+    built = on
     ready = undefined
     stand = undefined
     drawn = false
@@ -60,7 +63,7 @@ function renderer(theme: Theme): Promise<MapLibreMap | null> {
 
     const made = new MapLibreMap({
       container: box,
-      style: basemapStyle(theme),
+      style: basemapStyle(on),
       // Without this the drawing buffer is thrown away after each frame and
       // every picture comes back blank. It costs a little render speed, which
       // is why the modal's map does not ask for it.
@@ -105,8 +108,8 @@ function settled(map: MapLibreMap): Promise<boolean> {
   })
 }
 
-async function shoot(points: RoutePoint[], theme: Theme): Promise<string | null> {
-  const map = await renderer(theme)
+async function shoot(points: RoutePoint[], on: Ground): Promise<string | null> {
+  const map = await renderer(on)
   if (!map) return null
 
   if (drawn) setRoute(map, points)
@@ -130,7 +133,8 @@ export function routeShot(
   points: RoutePoint[],
   theme: Theme,
 ): Promise<string | null> {
-  const at = key(workoutId, theme)
+  const on = ground(theme)
+  const at = key(workoutId, on)
   const held = shots.get(at)
   if (held !== undefined) return Promise.resolve(held)
   const running = pending.get(at)
@@ -141,7 +145,7 @@ export function routeShot(
   const task = queue.then(async () => {
     let shot: string | null = null
     try {
-      shot = await shoot(points, theme)
+      shot = await shoot(points, on)
     } catch {
       // A picture that would not come out is not worth saying anything about:
       // the card still has the line it drew itself.

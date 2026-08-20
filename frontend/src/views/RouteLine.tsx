@@ -12,7 +12,7 @@ import {
   spotAt,
   spotsBetween,
 } from '../route.ts'
-import { type Theme, useTheme } from '../theme.ts'
+import { ground, type Ground, useTheme } from '../theme.ts'
 
 // The renderer is a large thing to carry for a picture that draws itself, so it
 // arrives on the tap and not before.
@@ -71,12 +71,14 @@ export default function RouteLine({
   // A picture is taken on one ground. It is kept with the ground it was drawn
   // on, so a theme flip falls back to the line the card draws itself and asks
   // for another rather than leaving a dark map on a light card.
-  const [shot, setShot] = useState<{ src: string; ground: Theme } | null>(null)
+  const [shot, setShot] = useState<{ src: string; ground: Ground } | null>(null)
   const [open, setOpen] = useState(false)
   const box = useRef<HTMLButtonElement>(null)
   const dot = useRef<SVGCircleElement>(null)
-  const theme = useTheme()
-  const picture = shot?.ground === theme ? shot.src : null
+  // The ground rather than the theme: arcade is drawn on dark's map, so a flip
+  // between those two keeps the picture it already has.
+  const on = ground(useTheme())
+  const picture = shot?.ground === on ? shot.src : null
   const [width, height] = compact ? COMPACT_BOX : FEED_BOX
 
   useEffect(() => {
@@ -106,9 +108,9 @@ export default function RouteLine({
         if (!entries.some((entry) => entry.isIntersecting)) return
         watcher?.disconnect()
         void import('../snapshot.ts')
-          .then((maps) => maps.routeShot(workoutId, points, theme))
+          .then((maps) => maps.routeShot(workoutId, points, on))
           .then((taken) => {
-            if (live && taken) setShot({ src: taken, ground: theme })
+            if (live && taken) setShot({ src: taken, ground: on })
           })
           .catch(() => {
             // The line is already on the card; a picture that never came is
@@ -122,7 +124,7 @@ export default function RouteLine({
       live = false
       watcher?.disconnect()
     }
-  }, [compact, points, picture, theme, workoutId])
+  }, [compact, on, points, picture, workoutId])
 
   // Where every point of the route lands, in the two projections this box is
   // ever drawn in: the map's own once there is a picture to sit on, and the

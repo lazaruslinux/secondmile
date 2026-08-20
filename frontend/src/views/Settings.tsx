@@ -709,7 +709,7 @@ export default function Settings({
       </section>
 
       {/* The same shape as Units above it, and with nothing said under the
-          heading: the two words are the whole of it, and the proof is the
+          heading: the three words are the whole of it, and the proof is the
           screen changing as they are pressed. This browser's choice rather
           than the account's, so no other device follows it. */}
       <section className="settings-group">
@@ -732,6 +732,21 @@ export default function Settings({
               onClick={() => chooseTheme('dark')}
             >
               Dark
+            </button>
+            {/* Carries a class of its own as well: the third chip is tinted in
+                its own red on every ground, so it reads as the odd one out
+                before it is pressed. */}
+            <button
+              type="button"
+              className={
+                theme === 'arcade'
+                  ? 'choice-option appearance-arcade choice-current'
+                  : 'choice-option appearance-arcade'
+              }
+              aria-pressed={theme === 'arcade'}
+              onClick={() => chooseTheme('arcade')}
+            >
+              Arcade
             </button>
           </div>
         </div>

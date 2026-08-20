@@ -248,6 +248,61 @@
   --alpha-chip: #b3126e;
 }
 
+/* Arcade. The same shell as the dark ground with the room swapped: colour and
+   surface, and nothing else. No layout moves, no word changes, and not one
+   piece of artwork is redrawn. The grounds are solid near blacks on purpose,
+   because a soft dark gradient bands on a phone and those bands read as
+   scanlines nobody drew. Every token not named here keeps its dark value, the
+   rarities and the two message boxes among them. The signed out pages are cut
+   out by the :not below and keep the dark ground: the landing hero is drawn
+   once per ground and there is no arcade twin of it. */
+:root[data-theme='arcade']:not(:has(.landing, .gate)) {
+  color-scheme: dark;
+  --bg: #070709;
+  --surface: #121218;
+  --line: #26262f;
+  --line-strong: #3a3a46;
+  --text: #e8ecff;
+  --muted: #9aa2cc;
+  --accent: #ef3550;
+  --well: #101016;
+  --on-well: #e8ecff;
+  --panel: #15151c;
+  --slot: #101014;
+  --chip-miles: #55d0ff;
+  --chip-activities: #4ee6a8;
+  --chip-level: #a06bff;
+  --chip-medals: #ffc94d;
+  --grove-manna: #ffc94d;
+  --grove-season: #4ee6a8;
+  --grove-basket: #a06bff;
+}
+
+/* What the skin does past colour: a cyan edge on the panels and a red one on
+   the two words that are lit. Held to where it is felt rather than seen, and
+   kept to those two colours. A dim hall, not a midway. */
+:root[data-theme='arcade']:not(:has(.landing, .gate)) .card {
+  border-color: #262c4a;
+  box-shadow: 0 0 18px -14px rgba(85, 208, 255, 0.5);
+}
+
+:root[data-theme='arcade']:not(:has(.landing, .gate)) .topbar {
+  border-bottom-color: #262c4a;
+  box-shadow: 0 1px 0 rgba(85, 208, 255, 0.08);
+}
+
+:root[data-theme='arcade']:not(:has(.landing, .gate)) .tabbar {
+  border-top-color: #262c4a;
+}
+
+:root[data-theme='arcade']:not(:has(.landing, .gate)) .tab-current {
+  text-shadow: 0 0 9px rgba(239, 53, 80, 0.4);
+}
+
+:root[data-theme='arcade']:not(:has(.landing, .gate)) .wordmark {
+  text-shadow: 0 0 10px rgba(239, 53, 80, 0.35);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -771,6 +826,23 @@ button:disabled {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
+}
+
+/* The third appearance chip, tinted in arcade's own red on every ground so the
+   row says which one of the three is not like the others. Above the current
+   state on purpose: a pressed Arcade chip is drawn like a pressed Light or Dark
+   one, in the accent of whatever ground is up. */
+.appearance-arcade {
+  border-color: rgba(239, 53, 80, 0.55);
+  color: #ef3550;
+}
+
+/* The glow, on the dark grounds only. Light is the default's opposite here: a
+   lit edge on a white card reads as a smudge, so it gets the tint and no more.
+   Dark is the root's own block, hence the :not rather than a list. */
+:root:not([data-theme='light']) .appearance-arcade {
+  box-shadow: 0 0 10px -4px rgba(239, 53, 80, 0.45);
+  text-shadow: 0 0 8px rgba(239, 53, 80, 0.35);
 }
 
 .choice-current {
@@ -4011,6 +4083,29 @@ button:disabled {
 :root[data-theme='light'] .plant-frame .rarity-square,
 :root[data-theme='light'] .inv-frame .rarity-square {
   background: transparent;
+}
+
+/* On the arcade ground the plot squares are read through glass: a scan lying
+   still over the plant and one soft pass of light across it. The plot only.
+   The satchel squares and a chest reveal are the same drawings without the
+   cabinet around them, and they are left alone. The overlay takes no taps. */
+:root[data-theme='arcade']:not(:has(.landing, .gate)) .plant-frame .rarity-square {
+  position: relative;
+  overflow: hidden;
+}
+
+:root[data-theme='arcade']:not(:has(.landing, .gate)) .plant-frame .rarity-square::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      rgba(120, 210, 255, 0.07) 0 1px,
+      rgba(0, 0, 0, 0) 1px 3px
+    ),
+    linear-gradient(105deg, transparent 38%, rgba(120, 210, 255, 0.05) 50%, transparent 62%);
 }
 
 .plant-picture {
