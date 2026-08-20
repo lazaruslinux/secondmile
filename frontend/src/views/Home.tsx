@@ -6,6 +6,7 @@ import {
   listFeed,
   listGrove,
   type FeedItem,
+  type Gear,
   type Medal,
   type Planting,
   type Profile as ProfileData,
@@ -293,6 +294,10 @@ interface Props {
   // A friend's card goes to their screen. Own cards ignore it, which is what
   // keeps your own rows from being a way back to the screen you came from.
   onOpenPerson: (userId: number) => void
+  // A card's title and its figures go to the screen behind it, own and
+  // friend's alike. The shoes go with it: this screen is already holding the
+  // list, and the screen behind the card has no call of its own for it.
+  onOpenWorkout: (item: FeedItem, gear: Gear[]) => void
 }
 
 export default function Home({
@@ -303,6 +308,7 @@ export default function Home({
   onOpenGrove,
   onOpenProfile,
   onOpenPerson,
+  onOpenWorkout,
 }: Props) {
   // Coming back to the tab draws what was here before and asks the server again
   // underneath, so switching tabs is not a blank screen every time.
@@ -640,6 +646,7 @@ export default function Home({
             onChanged={cardChanged}
             onDeleted={cardDeleted}
             onOpenPerson={onOpenPerson}
+            onOpenDetails={(row) => onOpenWorkout(row, profile.gear ?? [])}
           />
         ))}
 

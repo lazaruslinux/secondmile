@@ -18,6 +18,7 @@ from app.routers import (
     auth,
     bugreport,
     chests,
+    details,
     fellowship,
     gear,
     grove,
@@ -194,6 +195,9 @@ def read_status() -> dict:
 app.include_router(auth.router, prefix="/api")
 app.include_router(ingest.router, prefix="/api")
 app.include_router(workouts.router, prefix="/api")
+# Behind the workout router and under the same prefix: one more path on a
+# workout, kept in a module of its own for the reason its docstring gives.
+app.include_router(details.router, prefix="/api")
 app.include_router(settings.router, prefix="/api")
 app.include_router(profile.router, prefix="/api")
 app.include_router(chests.router, prefix="/api")

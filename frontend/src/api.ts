@@ -1019,6 +1019,52 @@ export function getWorkoutRoute(workoutId: number): Promise<WorkoutRoute> {
   return getJson<WorkoutRoute>(`/workouts/${workoutId}/route`)
 }
 
+// One minute of a session, as the details screen reads it. Every measurement is
+// optional because the arrays behind them are independent of each other: a
+// phone that lost its strap sends heart rate for half a walk and distance for
+// all of it.
+//
+// The three beats are absent altogether, rather than null, on a friend's copy
+// of a workout whose owner keeps their heart rate back. Null means the minute
+// carried none, which is a different thing.
+export interface WorkoutMinute {
+  // Whole minutes from the first sample the export carried, counted from zero.
+  // Minutes the phone was not recording are simply not here.
+  minute: number
+  distance_mi: number | null
+  steps: number | null
+  hr_min?: number | null
+  hr_avg?: number | null
+  hr_max?: number | null
+}
+
+// Everything one workout says beyond the six numbers on its card. The two
+// toggles that govern a feed row govern this the same way: the heart rate one
+// takes every beat and both zone fields, and the route one takes the climb.
+// The weather rides on every copy.
+export interface WorkoutDetails {
+  workout_id: number
+  // Empty for a workout whose export carried no arrays, which is every workout
+  // synced before the server kept them.
+  minutes: WorkoutMinute[]
+  temperature_f: number | null
+  humidity_pct: number | null
+  max_hr?: number | null
+  elevation_gain_ft?: number | null
+  // The top of the zone ladder, and what it was read from: an age worked out
+  // from the owner's birthdate, or the highest beat their history holds. Null
+  // for an account with neither, and the screen draws no zones at all.
+  zone_max?: number | null
+  zone_basis?: 'age' | 'observed' | null
+}
+
+// The screen behind a card, for a workout this account can already see: its own
+// or an accepted friend's. Anybody else is answered the same 404 a workout that
+// does not exist gets.
+export function getWorkoutDetails(workoutId: number): Promise<WorkoutDetails> {
+  return getJson<WorkoutDetails>(`/workouts/${workoutId}/details`)
+}
+
 // One note somebody wrote on a workout, as anybody looking at it reads it.
 export interface WorkoutNote {
   // The writer, as the same little card a workout carries: enough to draw their

@@ -509,6 +509,29 @@ function MediaStrip({
   )
 }
 
+// One figure: a small label over a large number, with its unit tucked in beside
+// it where there is one. Exported because the details screen prints more of
+// them than a card does and they have to read as the same figures.
+export function Figure({
+  label,
+  value,
+  unit,
+}: {
+  label: string
+  value: string
+  unit?: string
+}) {
+  return (
+    <span className="stat">
+      <span className="label">{label}</span>
+      <span className="stat-value">
+        {value}
+        {unit !== undefined && <span className="stat-unit">{unit}</span>}
+      </span>
+    </span>
+  )
+}
+
 // What a workout was, in numbers. Every card says it the same way, own and
 // friend's alike, so it is written down once. A figure the person hiding it kept
 // back does not arrive at all, so it simply is not drawn: there is no empty slot
@@ -516,51 +539,57 @@ function MediaStrip({
 // will not show is a worse answer than a card that reads whole. The climb is
 // left out on the same terms and on one more: a treadmill mile climbed nothing,
 // so an indoor card saying so would be printing a zero as if it meant something.
-function StatRow({ item, units }: { item: FeedItem; units: Units }) {
-  return (
-    <div className="stat-row">
-      <div className="stat">
-        <span className="label">Distance</span>
-        <span className="stat-value">
-          {distanceValue(item.distance_mi, units)}
-          <span className="stat-unit">{unitName(units)}</span>
-        </span>
-      </div>
-      <div className="stat">
-        <span className="label">Time</span>
-        <span className="stat-value">{formatClock(item.duration_s)}</span>
-      </div>
-      <div className="stat">
-        <span className="label">Pace</span>
-        <span className="stat-value">
-          {formatPace(item.activity, item.distance_mi, item.duration_s, units)}
-        </span>
-      </div>
+//
+// The row is also one of the two ways into the details screen, where the screen
+// holding the card offers one. Stripped back to nothing when it is a button, so
+// a card reads exactly as it did before the numbers became a control.
+function StatRow({
+  item,
+  units,
+  onOpen,
+}: {
+  item: FeedItem
+  units: Units
+  onOpen?: () => void
+}) {
+  const figures = (
+    <>
+      <Figure
+        label="Distance"
+        value={distanceValue(item.distance_mi, units)}
+        unit={unitName(units)}
+      />
+      <Figure label="Time" value={formatClock(item.duration_s)} />
+      <Figure
+        label="Pace"
+        value={formatPace(item.activity, item.distance_mi, item.duration_s, units)}
+      />
       {typeof item.active_kcal === 'number' && (
-        <div className="stat">
-          <span className="label">Calories</span>
-          <span className="stat-value">{Math.round(item.active_kcal)}</span>
-        </div>
+        <Figure label="Calories" value={String(Math.round(item.active_kcal))} />
       )}
       {typeof item.avg_hr === 'number' && (
-        <div className="stat">
-          <span className="label">Avg. HR</span>
-          <span className="stat-value">
-            {Math.round(item.avg_hr)}
-            <span className="stat-unit">bpm</span>
-          </span>
-        </div>
+        <Figure label="Avg. HR" value={String(Math.round(item.avg_hr))} unit="bpm" />
       )}
       {!item.indoor && typeof item.elevation_gain_ft === 'number' && (
-        <div className="stat">
-          <span className="label">Elev. gain</span>
-          <span className="stat-value">
-            {elevationValue(item.elevation_gain_ft, units)}
-            <span className="stat-unit">{elevationUnit(units)}</span>
-          </span>
-        </div>
+        <Figure
+          label="Elev. gain"
+          value={elevationValue(item.elevation_gain_ft, units)}
+          unit={elevationUnit(units)}
+        />
       )}
-    </div>
+    </>
+  )
+
+  if (!onOpen) return <div className="stat-row">{figures}</div>
+  return (
+    <button
+      type="button"
+      className="stat-row stat-row-open"
+      aria-label="Open this activity"
+      onClick={onOpen}
+    >
+      {figures}
+    </button>
   )
 }
 
@@ -1026,6 +1055,12 @@ interface Props {
   // your own screen the long way round, and the cards on a profile do not lead
   // to another one, which is where this arrives undefined.
   onOpenPerson?: (userId: number) => void
+  // Opens the screen behind the card: the splits, the heart rate, and the
+  // zones. The title and the row of figures are the way in and nothing else on
+  // the card is, so the pencil, the pictures, the map, the hype button and the
+  // people in the comments all still do what they did. Undefined where the
+  // screen holding the card has nowhere to send anybody, which is the letter.
+  onOpenDetails?: (item: FeedItem) => void
 }
 
 // One event in the feed. This account's own workouts read as they always have,
@@ -1041,6 +1076,7 @@ export default function FeedCard({
   note,
   gear,
   onOpenPerson,
+  onOpenDetails,
 }: Props) {
   const [editing, setEditing] = useState(false)
   const { user } = item
@@ -1062,6 +1098,17 @@ export default function FeedCard({
     <span className="sport-icon">
       <Icon name={activityIcon(item.activity, item.indoor)} />
     </span>
+  )
+  // The headline is the other way into the details screen. Stripped back like
+  // the identity controls beside it, so the line reads exactly as it did before
+  // it became a control, and the mark stays outside it: a sport is not a link.
+  const open = onOpenDetails ? () => onOpenDetails(item) : undefined
+  const named = open ? (
+    <button type="button" className="feed-title-open" onClick={open}>
+      {headline}
+    </button>
+  ) : (
+    headline
   )
   const post = (item.post ?? '').trim()
   const photos = item.photos ?? []
@@ -1116,7 +1163,7 @@ export default function FeedCard({
         ) : (
           <h2 className="feed-title">
             {mark}
-            {headline}
+            {named}
           </h2>
         )}
 
@@ -1124,7 +1171,7 @@ export default function FeedCard({
             does not say the same thing twice. */}
         {!editing && post !== '' && <p className="feed-post">{post}</p>}
 
-        <StatRow item={item} units={units} />
+        <StatRow item={item} units={units} onOpen={open} />
 
 
         {/* Under the numbers it is about, and worded as the sentence it is: a
@@ -1211,14 +1258,14 @@ export default function FeedCard({
 
       <h2 className="feed-title">
         {mark}
-        {headline}
+        {named}
       </h2>
 
       {/* What they wrote and what they pointed a camera at, theirs to share,
           and sharing it is what putting it here was. */}
       {post !== '' && <p className="feed-post">{post}</p>}
 
-      <StatRow item={item} units={units} />
+      <StatRow item={item} units={units} onOpen={open} />
 
 
       {item.has_route && <RouteLine workoutId={item.workout_id} />}

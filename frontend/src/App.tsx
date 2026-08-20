@@ -7,6 +7,8 @@ import {
   getStatus,
   setUnauthorizedHandler,
   verifyEmail,
+  type FeedItem,
+  type Gear,
   type HiddenField,
   type Me,
   type RecapState,
@@ -27,6 +29,7 @@ import Recap from './views/Recap.tsx'
 import Settings from './views/Settings.tsx'
 import SetupGuide from './views/SetupGuide.tsx'
 import Welcome from './views/Welcome.tsx'
+import WorkoutDetails from './views/WorkoutDetails.tsx'
 
 // The one address this app reads: /welcome/<code>, where a link somebody was
 // sent lands. Everything else is still which screen is on rather than where
@@ -40,8 +43,18 @@ function welcomeCode(): string {
 // which of them is on screen, and the URL has nothing to say about it yet.
 // Settings is not a tab; it is reached from the You screen. Neither is a
 // friend's profile, which is reached from the feed and from the Friends screen,
-// nor the phone setup guide, which is reached from Settings.
-type View = 'home' | 'activity' | 'grove' | 'friends' | 'you' | 'settings' | 'guide' | 'friend'
+// nor the phone setup guide, which is reached from Settings, nor the screen
+// behind a workout card, which is reached from wherever that card was drawn.
+type View =
+  | 'home'
+  | 'activity'
+  | 'grove'
+  | 'friends'
+  | 'you'
+  | 'settings'
+  | 'guide'
+  | 'friend'
+  | 'workout'
 
 const TABS: { id: View; label: string; icon: string }[] = [
   { id: 'home', label: 'Home', icon: 'tab-home' },
@@ -66,6 +79,14 @@ export default function App() {
   // Whose profile is open and which screen it was opened from, so Back goes
   // back to the feed or to the Friends screen rather than always to one of them.
   const [friend, setFriend] = useState<{ id: number; from: View } | null>(null)
+  // Which workout's details are open and which screen it was opened from, the
+  // same way a profile is held. The row itself rather than an id: the card it
+  // was opened from already has one, and there is no endpoint that serves a
+  // single feed row on its own. The shoes ride along for the same reason: the
+  // screen that opened the card is holding the list already.
+  const [opened, setOpened] = useState<{ item: FeedItem; gear: Gear[]; from: View } | null>(
+    null,
+  )
   const [verifyNote, setVerifyNote] = useState('')
   const [recap, setRecap] = useState<RecapState | null>(null)
   // Bumped whenever something outside a view changes what it shows, which so
@@ -176,6 +197,14 @@ export default function App() {
     setView('friend')
   }
 
+  // The account's own shoes come with the row, from whichever screen was
+  // holding them. A friend's profile hands over none, and a friend's row
+  // carries no pair to name anyway, so its details screen draws no shoe line.
+  function openWorkout(item: FeedItem, gear: Gear[] = []) {
+    setOpened({ item, gear, from: view })
+    setView('workout')
+  }
+
   // Coming off a friend's screen when the friendship has just ended. The feed
   // and the friends list both held that person, so both are asked again on the
   // way back rather than drawing somebody who is no longer there.
@@ -185,16 +214,22 @@ export default function App() {
     setView(from)
   }
 
-  // Which of the five sections the navigation points at. Three screens hang off
+  // Which of the five sections the navigation points at. Four screens hang off
   // a tab rather than being one: Settings and the setup guide behind it sit
-  // under You, and a friend's profile sits under whichever screen opened it, so
-  // none of them leaves the bar blank.
+  // under You, and a friend's profile and a workout's details sit under
+  // whichever screen opened them, so none of them leaves the bar blank.
+  //
+  // Applied twice, because a workout opened from a friend's profile is under
+  // whatever that profile was opened from. One more hop than that is not
+  // reachable: nothing on the details screen opens anything.
+  function sectionOf(which: View): View {
+    if (which === 'settings' || which === 'guide') return 'you'
+    if (which === 'friend') return friend?.from ?? 'home'
+    return which
+  }
+
   const section: View =
-    view === 'settings' || view === 'guide'
-      ? 'you'
-      : view === 'friend'
-        ? (friend?.from ?? 'home')
-        : view
+    view === 'workout' ? sectionOf(opened?.from ?? 'home') : sectionOf(view)
 
   if (checkingSession) return <p className="notice">Loading.</p>
 
@@ -285,10 +320,16 @@ export default function App() {
             onOpenGrove={() => setView('grove')}
             onOpenProfile={() => setView('you')}
             onOpenPerson={openFriend}
+            onOpenWorkout={openWorkout}
           />
         )}
         {view === 'activity' && (
-          <ActivityView userId={me.id} units={me.units} onOpenPerson={openFriend} />
+          <ActivityView
+            userId={me.id}
+            units={me.units}
+            onOpenPerson={openFriend}
+            onOpenWorkout={openWorkout}
+          />
         )}
         {view === 'grove' && <Grove userId={me.id} />}
         {view === 'friends' && <Friends userId={me.id} onOpenPerson={openFriend} />}
@@ -310,7 +351,20 @@ export default function App() {
             units={me.units}
             onBack={() => setView(friend.from)}
             onRemoved={() => friendRemoved(friend.from)}
+            onOpenWorkout={openWorkout}
             selfPreview={friend.id === me.id}
+          />
+        )}
+        {/* Keyed by the workout, for the same reason a profile is: opening a
+            second one is a fresh screen rather than one still holding the
+            first one's minutes. */}
+        {view === 'workout' && opened !== null && (
+          <WorkoutDetails
+            key={opened.item.workout_id}
+            item={opened.item}
+            gear={opened.gear}
+            units={me.units}
+            onBack={() => setView(opened.from)}
           />
         )}
         {view === 'settings' && (

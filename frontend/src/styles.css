@@ -1340,6 +1340,22 @@ button:disabled {
   color: var(--muted);
 }
 
+/* The headline is one of the two ways into the screen behind a card, stripped
+   back exactly like the name above it so the line reads as a title rather than
+   as a link. The sport's mark stays outside it: a sport is not a destination. */
+.feed-title-open {
+  display: inline;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
 .feed-title {
   margin: 0.75rem 0 0.7rem;
   font-size: 1rem;
@@ -1353,6 +1369,22 @@ button:disabled {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 0.5rem;
+}
+
+/* The figures are the other way in, and the wider of the two: a row of numbers
+   is a thumb-sized target where a line of type is not. Stripped back to the
+   grid it already was, so nothing about the card looks pressable that was not
+   already being read. The focus outline is the app's own and is left alone. */
+.stat-row-open {
+  width: 100%;
+  min-height: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
 }
 
 .stat {
@@ -1706,6 +1738,219 @@ button:disabled {
 
 .route-map-small .route-line {
   stroke-width: 2px;
+}
+
+/* The details screen
+   The same workout, said minute by minute: the splits it was run in, the heart
+   rate over the whole of it, and how long was spent in each band of effort.
+
+   Three drawings, all of them hand-drawn from the numbers the server sent and
+   none of them a library. Each is one measurement of one session, so there is
+   one axis, no legend, and nothing to hover: what a value actually was is in
+   the splits table and in the figures at the top of the screen, which is where
+   a number is read. Crimson is the one colour, the way it is everywhere else,
+   and it is the only thing about them that is not black, white or grey. */
+
+/* What a walk or a run was done in, under its figures and above its map. One
+   quiet grey line carrying the shoe's own mark, with room above it so it is
+   not read as a sixth figure. The map below sets its own room and keeps it. */
+.details-gear {
+  margin: var(--gap) 0 0;
+}
+
+/* Splits. A table without a table's rules: the ordinal, the pace, the bar, and
+   what the heart was doing, in four columns that line up down the page. The
+   pace and the beats are figures rather than words, so they are set in the
+   narrow width and tabular, and a column of them reads as a column. */
+.split-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+}
+
+.split-row {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.28rem 0;
+}
+
+.split-row + .split-row {
+  border-top: 1px solid var(--line);
+}
+
+.split-ordinal {
+  min-width: 1.1rem;
+  color: var(--muted);
+  font-family: var(--font-nums);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* The last split of a session usually ended part way through, and it says how
+   far it actually went in the place the whole ones say which one they are. */
+.split-part {
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.split-pace {
+  font-family: var(--font-nums);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* The quickest split fills its row and everything slower is shorter in
+   proportion, which is what makes the shape of the page the shape of the
+   effort. Thin, because it is a comparison rather than a picture. */
+.split-track {
+  height: 4px;
+  min-width: 1rem;
+  border-radius: 2px;
+  background: var(--line);
+}
+
+.split-fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.split-hr {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-family: var(--font-nums);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The heart rate over the session. The axis is written in the page's own type
+   beside the drawing rather than inside it, so it stays the size the rest of
+   the screen is read at whatever width the plot is stretched to. */
+.hr-chart {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  margin-top: 0.5rem;
+}
+
+/* Three rungs: the highest beat the session saw, the middle of the range, and
+   the lowest. The height is the plot's own less the room its line keeps at each
+   end, plus one line of type, and the top is pulled up half a line, so each
+   label sits centred on the rule it names rather than hanging off it. */
+.hr-axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: calc(144px + 0.7rem);
+  margin-top: calc(3px - 0.35rem);
+  font-size: 0.7rem;
+  line-height: 1;
+  color: var(--muted);
+  font-family: var(--font-nums);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Only the width stretches: the height is the height the coordinates were drawn
+   at, so nothing about the vertical scale changes with the column, and every
+   stroke below keeps its own weight whatever the width does to it. */
+.hr-plot {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 150px;
+}
+
+.hr-grid {
+  stroke: var(--line);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+/* The range each minute covered, behind the line through their averages. Faint
+   enough that the line is what is read and the band is what it is read
+   against. */
+.hr-band {
+  fill: var(--accent);
+  opacity: 0.16;
+  stroke: none;
+}
+
+.hr-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Zones. Five bands of one hue, darkest at the top, which is the arrangement a
+   sequential reading asks for: the bands are ordered, so the colour is ordered
+   with them rather than being five colours that mean five things. What each
+   band is is carried by its own name and by the minutes beside it, so nothing
+   here depends on telling one crimson from another. */
+.zone-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+}
+
+.zone-row {
+  display: grid;
+  grid-template-columns: 1.6rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.28rem 0;
+}
+
+.zone-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.zone-track {
+  height: 10px;
+  border-radius: 2px;
+  background: var(--line);
+}
+
+.zone-fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+}
+
+.zone-fill-1 {
+  background: color-mix(in srgb, var(--accent) 35%, var(--surface));
+}
+
+.zone-fill-2 {
+  background: color-mix(in srgb, var(--accent) 50%, var(--surface));
+}
+
+.zone-fill-3 {
+  background: color-mix(in srgb, var(--accent) 65%, var(--surface));
+}
+
+.zone-fill-4 {
+  background: color-mix(in srgb, var(--accent) 82%, var(--surface));
+}
+
+.zone-fill-5 {
+  background: var(--accent);
+}
+
+.zone-minutes {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-family: var(--font-nums);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 /* Encouragement

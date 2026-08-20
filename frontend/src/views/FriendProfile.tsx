@@ -261,6 +261,10 @@ interface Props {
   // Ending a friendship takes the screen with it: what is behind this one is a
   // feed and a list that no longer hold this person.
   onRemoved: () => void
+  // The screen behind one of their cards, from its title and its figures. The
+  // only thing on this screen that leads anywhere else: a card here still opens
+  // no profile, because the way to this one is the feed and the friends list.
+  onOpenWorkout: (item: FeedItem) => void
   // The owner looking at themselves through the friend lens. The payload is
   // the same one a friend gets; this only hides the verbs, because nothing
   // here may be done to yourself.
@@ -274,6 +278,7 @@ export default function FriendProfile({
   units,
   onBack,
   onRemoved,
+  onOpenWorkout,
   selfPreview = false,
 }: Props) {
   const [profile, setProfile] = useState<FriendProfileData | MemberCard | null>(null)
@@ -929,6 +934,7 @@ export default function FriendProfile({
               units={units}
               avatarVersion={null}
               onChanged={rowChanged}
+              onOpenDetails={onOpenWorkout}
             />
           ))
         )}

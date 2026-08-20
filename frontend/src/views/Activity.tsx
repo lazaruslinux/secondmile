@@ -157,9 +157,18 @@ interface Props {
   units: Units
   // Whoever wrote on one of these workouts, from the notes under the card.
   onOpenPerson: (userId: number) => void
+  // The screen behind a card, from its title and its figures. The shoes go
+  // with it: this screen is already holding the list, and the screen behind
+  // the card has no call of its own for it.
+  onOpenWorkout: (item: FeedItem, gear: Gear[]) => void
 }
 
-export default function ActivityView({ userId, units, onOpenPerson }: Props) {
+export default function ActivityView({
+  userId,
+  units,
+  onOpenPerson,
+  onOpenWorkout,
+}: Props) {
   // Coming back to the tab draws what was here before and asks the server again
   // underneath, so switching tabs is not a blank screen every time.
   const [workouts, setWorkouts] = useState<Workout[]>(() => cache.get(userId)?.workouts ?? [])
@@ -457,6 +466,7 @@ export default function ActivityView({ userId, units, onOpenPerson }: Props) {
         onDeleted={cardDeleted}
         note={flagNotes(workout.flags)}
         onOpenPerson={onOpenPerson}
+        onOpenDetails={(row) => onOpenWorkout(row, gear)}
       />
     )
   }
