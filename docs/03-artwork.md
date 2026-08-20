@@ -24,7 +24,7 @@ whole of what a commission would cover.
 
 Ninety-eight files in total, all under `frontend/src/assets/`.
 
-Every border and flourish file also has a `-light` twin beside it, such
+Every border file also has a `-light` twin beside it, such
 as `border-t3-light.svg`, which is the same drawing with its palette turned over
 for the light ground. Those twins are generated from the originals rather than
 drawn, so they are not counted above and a commission does not cover them: draw
@@ -212,7 +212,7 @@ number of files has to match the length of that list.
 
 ## Border flourishes
 
-`frontend/src/assets/borders/flourish-f1.svg` through `flourish-f3.svg`
+`frontend/src/assets/borders/flourish-f1.png` through `flourish-f3.png`
 
 Growth that wraps the border, drawn on top of whichever tier the player has.
 Where the border is earned by covering miles, the flourish is earned by
@@ -222,9 +222,9 @@ and either one can change without the other:
 | File | Stage |
 | --- | --- |
 | none | 0, a bare border |
-| `flourish-f1.svg` | 1 |
-| `flourish-f2.svg` | 2 |
-| `flourish-f3.svg` | 3 |
+| `flourish-f1.png` | 1 |
+| `flourish-f2.png` | 2 |
+| `flourish-f3.png` | 3 |
 
 The same rules as the borders apply: a `viewBox` and nothing else, drawn over
 the whole square, **middle left empty** so nobody's face is covered. The

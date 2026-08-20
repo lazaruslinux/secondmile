@@ -41,7 +41,7 @@ function groveFile(name: string): string | null {
 }
 
 const borders = byName(
-  import.meta.glob('./assets/borders/*.svg', {
+  import.meta.glob('./assets/borders/*.{png,webp,svg}', {
     eager: true,
     query: '?url',
     import: 'default',

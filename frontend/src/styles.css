@@ -283,12 +283,12 @@
    kept to those two colours. A dim hall, not a midway. */
 :root[data-theme='arcade']:not(:has(.landing, .gate)) .card {
   border-color: #262c4a;
-  box-shadow: 0 0 18px -14px rgba(85, 208, 255, 0.5);
+  box-shadow: 0 0 18px -14px rgba(85, 208, 255, 0.6);
 }
 
 :root[data-theme='arcade']:not(:has(.landing, .gate)) .topbar {
   border-bottom-color: #262c4a;
-  box-shadow: 0 1px 0 rgba(85, 208, 255, 0.08);
+  box-shadow: 0 1px 0 rgba(85, 208, 255, 0.1);
 }
 
 :root[data-theme='arcade']:not(:has(.landing, .gate)) .tabbar {
@@ -296,11 +296,11 @@
 }
 
 :root[data-theme='arcade']:not(:has(.landing, .gate)) .tab-current {
-  text-shadow: 0 0 9px rgba(239, 53, 80, 0.4);
+  text-shadow: 0 0 9px rgba(239, 53, 80, 0.48);
 }
 
 :root[data-theme='arcade']:not(:has(.landing, .gate)) .wordmark {
-  text-shadow: 0 0 10px rgba(239, 53, 80, 0.35);
+  text-shadow: 0 0 10px rgba(239, 53, 80, 0.42);
 }
 
 * {
@@ -2807,6 +2807,7 @@ button:disabled {
    than replacing it: the level is still readable underneath. It keeps to the
    edges of the frame, so it never covers a face. */
 .avatar-flourish {
+  image-rendering: pixelated;
   position: absolute;
   inset: 0;
   z-index: 1;
