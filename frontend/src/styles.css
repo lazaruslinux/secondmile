@@ -464,6 +464,22 @@ code {
   cursor: pointer;
 }
 
+/* The end of every signed-in page, at the landing foot's own quiet size. The
+   alpha line takes the chip's magenta; the licence line stays muted. */
+.page-foot {
+  padding: 1.6rem 0 0.4rem;
+}
+
+.page-foot p {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: 0;
+}
+
+.page-foot .page-foot-alpha {
+  color: var(--alpha-chip);
+}
+
 .page,
 .gate {
   max-width: 34rem;

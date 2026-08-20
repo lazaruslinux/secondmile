@@ -1,8 +1,8 @@
 import { useEffect, useId, useRef } from 'react'
-import { ALPHA_NOTICE } from '../alpha.ts'
+import { ALPHA_LINE } from '../alpha.ts'
 
-// What the chip in the top bar opens: the landing page's notice, in the same
-// words, for somebody who is already inside and never reads that page again.
+// What the chip in the top bar opens: the short alpha line, for somebody who
+// is already inside and never reads the landing page again.
 // The native dialog for the focus trap, inert background and Esc, the same way
 // every other panel in the app is built.
 export default function AlphaNotice({ onClose }: { onClose: () => void }) {
@@ -27,11 +27,11 @@ export default function AlphaNotice({ onClose }: { onClose: () => void }) {
     >
       <section className="overlay-panel">
         <header className="overlay-head">
-          <h2 id={titleId}>Alpha</h2>
+          <h2 id={titleId}>Alpha testing</h2>
         </header>
 
         <div className="item-detail">
-          <p>{ALPHA_NOTICE}</p>
+          <p>{ALPHA_LINE}</p>
         </div>
 
         <footer className="overlay-foot">

@@ -14,7 +14,7 @@ import {
   type RecapState,
   type Units,
 } from './api.ts'
-import { ALPHA } from './alpha.ts'
+import { ALPHA, ALPHA_LINE } from './alpha.ts'
 import { setInstanceTimezone } from './format.ts'
 import { recapHasNews } from './recap.ts'
 import ActivityView from './views/Activity.tsx'
@@ -408,6 +408,13 @@ export default function App() {
         {/* Back goes to Settings rather than to You: the card with the token on
             it is what somebody is reading this alongside. */}
         {view === 'guide' && <SetupGuide onBack={() => setView('settings')} />}
+
+        {/* The end of every page: the alpha line beside the line that names
+            the licence. The licence stays when the alpha ends. */}
+        <footer className="page-foot">
+          {ALPHA && <p className="page-foot-alpha">{ALPHA_LINE}</p>}
+          <p>secondmile. Open source, AGPL-3.0.</p>
+        </footer>
       </main>
 
       <nav className="tabbar" aria-label="Sections">

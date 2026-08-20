@@ -8,3 +8,8 @@ export const ALPHA = true
 
 export const ALPHA_NOTICE =
   'This project is currently in closed Alpha testing and is in active development. Features may change, evolve, or go away entirely. A lot of the artwork is temporary. You may experience bugs and sync issues. Please use the bug report feature, and have fun.'
+
+// The short form, said inside the app: the chip's dialog and the line at the
+// end of every page. His wording.
+export const ALPHA_LINE =
+  'Still in development. Some artwork and features are temporary placeholders and will be replaced.'
