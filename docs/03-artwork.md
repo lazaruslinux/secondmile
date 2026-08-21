@@ -117,7 +117,7 @@ both.
 | `play.svg` | The mark over a video's poster in a workout's media strip |
 | `chest.svg` | The markers along the chest ladder on You |
 | `sport-walk.svg` | Beside the word Walk, wherever a walk is named |
-| `sport-run.svg` | Beside the word Run, wherever a run is named |
+| `sport-run.svg` | Beside the word Run, wherever a run is named. HIS MARK (2026-08-21): a filled winged-shoe silhouette traced from his 2M master, not a placeholder and not part of the commission. Filled where the other three sport marks are line-drawn, which is what keeps it tellable from walk at 14 px |
 | `sport-cycle.svg` | Beside the word Cycle, wherever a ride is named |
 | `sport-swim.svg` | Beside the word Swim, wherever a swim is named |
 | `sport-treadmill.svg` | Instead of the walk or run mark, wherever an indoor one is drawn |
