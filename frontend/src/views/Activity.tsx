@@ -711,29 +711,32 @@ export default function ActivityView({
           })}
         </ul>
 
-        {/* What is ticked and what can be done with it, in the header the
-            ticking was started from. Nothing goes until the dialog says so. */}
-        {selecting && (
-          <div className="dash-acts">
-            {/* The app's delete verb, which is the accent: the same button the
-                confirmation behind it wears. */}
-            <button
-              type="button"
-              className="primary"
-              disabled={picked.size === 0 || removing}
-              onClick={() => {
-                setRemoveError('')
-                setAsking(true)
-              }}
-            >
-              Delete selected ({picked.size})
-            </button>
-            <button type="button" className="secondary" disabled={removing} onClick={stopSelecting}>
-              Cancel
-            </button>
-          </div>
-        )}
       </section>
+
+      {/* What is ticked and what can be done with it. Its own row outside the
+          header so it can ride stuck to the top while the list scrolls: the
+          verbs stay in reach however far down the ticking goes. Nothing goes
+          until the dialog says so. */}
+      {selecting && (
+        <div className="dash-acts">
+          {/* The app's delete verb, which is the accent: the same button the
+              confirmation behind it wears. */}
+          <button
+            type="button"
+            className="primary"
+            disabled={picked.size === 0 || removing}
+            onClick={() => {
+              setRemoveError('')
+              setAsking(true)
+            }}
+          >
+            Delete selected ({picked.size})
+          </button>
+          <button type="button" className="secondary" disabled={removing} onClick={stopSelecting}>
+            Cancel
+          </button>
+        </div>
+      )}
 
       {asking && (
         <ConfirmDelete

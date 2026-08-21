@@ -36,9 +36,9 @@ type ChartKey = 'distance' | 'elevation' | 'pace'
 // screen rather than a fact about a history.
 const OPEN_KEY = 'secondmile.activity.insights.open'
 
-// What the shut band says it holds. One line, and only while it is shut: open,
-// the charts say it themselves.
-const TEASER = 'Twelve weeks of charts and bests.'
+// What the shut band offers. One line, and only while it is shut: open, the
+// charts say it themselves.
+const TEASER = 'Tap to open.'
 
 // The plot's own coordinates, the same ones the minutes behind a workout are
 // drawn in. The height is also its height on the page, in pixels, so nothing
