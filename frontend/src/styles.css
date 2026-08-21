@@ -5387,6 +5387,19 @@ button:disabled {
   font-size: 1.5rem;
 }
 
+/* His winged shoe beside the name, held to the letters' own height. */
+.landing-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.masthead-shoe {
+  height: 1.5rem;
+  width: auto;
+  display: block;
+}
+
 .landing-bar-verbs {
   display: flex;
   align-items: center;

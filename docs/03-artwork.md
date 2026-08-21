@@ -633,18 +633,30 @@ is never mistaken for the rare one or for the gild on a finished plant.
 
 ## The favicon
 
-`frontend/public/favicon.svg` and `frontend/public/apple-touch-icon.png`
+`frontend/public/favicon.png` and `frontend/public/apple-touch-icon.png`
 
-The browser-tab mark: his pick of the offered set, the shoe over the 2M
-monogram, crimson on a black rounded square. The letters are Barlow 800
-converted to paths, so the mark renders identically with no font installed.
-The PNG is the same drawing squared off at 180 pixels for an iPhone home
-screen. These live in `public/` rather than `assets/` because the page names
-them by URL before the bundle loads; they are not counted in the register
-above.
+HIS ART, NOT A PLACEHOLDER (2026-08-21, the register's first real piece):
+a crimson winged shoe over water, a dark crimson cross behind, "2M" in
+Barlow 800 white beneath, on a black rounded square. Master is a 512 px
+PNG he painted (kept outside the repo); favicon.png is it at 64,
+apple-touch-icon.png at 180. The earlier generated favicon.svg (shoe over
+a crimson 2M, Barlow paths) is deleted; it lives in git history if ever
+wanted. These live in `public/` rather than `assets/` because the page
+names them by URL before the bundle loads; not counted in the placeholder
+register above, and NOT part of the commission.
 
 `frontend/public/icon-192.png` and `frontend/public/icon-512.png` are the same
-favicon rendered square for the web app manifest, which is what an installed
+mark squared for the web app manifest, which is what an installed
 home-screen app and its notifications wear. Derived, not drawn: regenerate
-from `favicon.svg` (rsvg-convert at 192 and 512) whenever the favicon changes,
-and do not count them in the commission either.
+from his master PNG (resize to 192; 512 is the master's own size) whenever
+the mark changes, and do not count them in the commission either.
+
+## The masthead shoe
+
+`frontend/src/assets/masthead-shoe.png`
+
+HIS ART, NOT A PLACEHOLDER (2026-08-21): the winged shoe alone on a
+transparent ground with its pale glow baked in, cut from the same master
+set as the favicon. Sits left of the wordmark on the landing and welcome
+mastheads at the letters' own height (`.masthead-shoe`, 1.5rem). Stored at
+128 px from his 512 px original. Not part of the commission.

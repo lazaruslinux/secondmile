@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { errorText, getWelcome, type Welcome as WelcomeData } from '../api.ts'
+import mastheadShoe from '../assets/masthead-shoe.png'
 import Landing from './Landing.tsx'
 
 interface Props {
@@ -36,7 +37,10 @@ export default function Welcome({ code, onJoin, onSignIn }: Props) {
     return (
       <div className="landing">
         <header className="landing-bar">
-          <span className="wordmark">secondmile</span>
+          <span className="landing-brand">
+            <img className="masthead-shoe" src={mastheadShoe} alt="" />
+            <span className="wordmark">secondmile</span>
+          </span>
           <button type="button" className="link" onClick={onSignIn}>
             Sign in
           </button>

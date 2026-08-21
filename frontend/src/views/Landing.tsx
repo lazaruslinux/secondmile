@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { ALPHA, ALPHA_NOTICE } from '../alpha.ts'
 import { getStatus, welcomeAvatarUrl, type Welcome as WelcomeData } from '../api.ts'
 import heroDark from '../assets/landing-hero-dark.png'
+import mastheadShoe from '../assets/masthead-shoe.png'
 import shotArcadeYou from '../assets/shot-arcade-you.webp'
 import shotArcadeGrove from '../assets/shot-arcade-grove.webp'
 import shotArcadeDetails from '../assets/shot-arcade-details.webp'
@@ -58,7 +59,11 @@ export default function Landing({ onEnter, invite }: Props) {
   return (
     <div className="landing">
       <header className="landing-bar">
-        <span className="wordmark">secondmile</span>
+        <span className="landing-brand">
+          {/* The name says everything the mark says, so the mark is decor. */}
+          <img className="masthead-shoe" src={mastheadShoe} alt="" />
+          <span className="wordmark">secondmile</span>
+        </span>
         <div className="landing-bar-verbs">
           {/* Named for the ground it is on rather than the one it would move
               to, so somebody reading it learns where they are before they
