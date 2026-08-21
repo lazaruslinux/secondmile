@@ -109,6 +109,14 @@ function weekKeyOf(iso: string): string {
   return weekStartKey(zonedDay(iso))
 }
 
+// What a workout is called on screen: what its owner named it, or what the app
+// calls a workout nobody named. Read by the list's rows and by the tick over a
+// card, so the two say the same thing about the same workout.
+function headlineOf(workout: Workout): string {
+  const given = (workout.title ?? '').trim()
+  return given === '' ? defaultHeadline(workout.activity, workout.start_ts) : given
+}
+
 // Flags are machine words in the database; a person reading their own history
 // deserves the sentence version.
 function flagNotes(flags: WorkoutFlags): string {
@@ -344,8 +352,9 @@ export default function ActivityView({
   function chooseShape(next: Shape) {
     setShape(next)
     rememberShape(next)
-    // Select mode belongs to the list; the cards are for reading.
-    if (next === 'cards') stopSelecting()
+    // What is ticked survives the swap: both shapes tick the same workouts, and
+    // a shape changed halfway through a tidy-up is a different way of looking
+    // at the same list rather than a reason to start again.
   }
 
   function stopSelecting() {
@@ -472,6 +481,44 @@ export default function ActivityView({
     )
   }
 
+  // The same card with the ticking over it: the whole card is the target, the
+  // mark sits in the corner the pencil is gone from, and the card underneath is
+  // inert, so nothing on it can be opened, tapped, or tabbed to by mistake
+  // while what is being chosen is the card itself. Nothing about the card is
+  // drawn differently, which is the point: it is the workout you were reading a
+  // moment ago, with a tick on it.
+  function pickableCard(workout: Workout) {
+    const ticked = picked.has(workout.workout_id)
+    return (
+      <div className="card-pick" key={workout.workout_id}>
+        {/* Inert rather than merely covered: a control under a button is still
+            reachable by a keyboard, and none of these are anybody's way
+            anywhere while the cards are being ticked. */}
+        <div inert>
+          <FeedCard
+            item={workout}
+            units={units}
+            avatarVersion={avatarVersion}
+            gear={gear}
+            onChanged={cardChanged}
+            onDeleted={cardDeleted}
+            note={flagNotes(workout.flags)}
+            selecting
+          />
+        </div>
+        <button
+          type="button"
+          className={ticked ? 'card-pick-hit card-pick-on' : 'card-pick-hit'}
+          aria-pressed={ticked}
+          aria-label={`Select ${headlineOf(workout)}`}
+          onClick={() => pick(workout.workout_id)}
+        >
+          <span className={ticked ? 'list-tick list-tick-on' : 'list-tick'} aria-hidden="true" />
+        </button>
+      </div>
+    )
+  }
+
   // One row of the list: what it was, when, and its figures, and nothing that
   // has to be fetched. Pressing it unfolds the whole card underneath, pencil
   // and all; pressing it again folds it away. Whole row is the hit target in
@@ -479,8 +526,7 @@ export default function ActivityView({
   function row(workout: Workout) {
     const open = opened === workout.workout_id
     const ticked = picked.has(workout.workout_id)
-    const given = (workout.title ?? '').trim()
-    const headline = given === '' ? defaultHeadline(workout.activity, workout.start_ts) : given
+    const headline = headlineOf(workout)
     const flagged = flagNotes(workout.flags) !== ''
     return (
       <li key={workout.workout_id} className="list-item">
@@ -571,24 +617,23 @@ export default function ActivityView({
             </button>
           </div>
 
-          {/* The way into tidying up, offered by the list only: the cards are
-              for reading one workout at a time. */}
-          {shape === 'list' && (
-            <button
-              type="button"
-              className={selecting ? 'dash-select dash-select-on' : 'dash-select'}
-              aria-pressed={selecting}
-              onClick={() => {
-                if (selecting) stopSelecting()
-                else {
-                  setSelecting(true)
-                  setOpened(null)
-                }
-              }}
-            >
-              Select
-            </button>
-          )}
+          {/* The way into tidying up, offered by both shapes: a card is as much
+              a workout as a row is, and the one you can see is the one you want
+              to be rid of. */}
+          <button
+            type="button"
+            className={selecting ? 'dash-select dash-select-on' : 'dash-select'}
+            aria-pressed={selecting}
+            onClick={() => {
+              if (selecting) stopSelecting()
+              else {
+                setSelecting(true)
+                setOpened(null)
+              }
+            }}
+          >
+            Select
+          </button>
 
           {/* Absent at zero: a pill reading Deleted (0) would put the idea in
               front of somebody who has never deleted anything. */}
@@ -826,7 +871,9 @@ export default function ActivityView({
                 naming one, writing about it, and adding pictures happen here as
                 well. The list draws the row and unfolds the very same card. */}
             {shape === 'cards' ? (
-              group.workouts.map((workout) => card(workout))
+              group.workouts.map((workout) =>
+                selecting ? pickableCard(workout) : card(workout),
+              )
             ) : (
               <ul className="activity-list">{group.workouts.map((workout) => row(workout))}</ul>
             )}

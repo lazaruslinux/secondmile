@@ -36,6 +36,10 @@ type ChartKey = 'distance' | 'elevation' | 'pace'
 // screen rather than a fact about a history.
 const OPEN_KEY = 'secondmile.activity.insights.open'
 
+// What the shut band says it holds. One line, and only while it is shut: open,
+// the charts say it themselves.
+const TEASER = 'Twelve weeks of charts and bests.'
+
 // The plot's own coordinates, the same ones the minutes behind a workout are
 // drawn in. The height is also its height on the page, in pixels, so nothing
 // about the vertical scale changes with the width of the column: only the
@@ -400,14 +404,20 @@ export default function Insights({ units }: Props) {
     <section className="card insights">
       {/* One line, and grey until it is opened: the history under it is what
           this tab is for, and this is a drawer beside it rather than a second
-          screen in front of it. */}
+          screen in front of it. The caret is what says it opens at all, and
+          the line under it is what says what is behind it; shut, a bare word in
+          a box is a rectangle nobody presses. */}
       <button
         type="button"
         className={open ? 'insight-head insight-head-open' : 'insight-head'}
         aria-expanded={open}
         onClick={toggle}
       >
-        <span className="label">Insights</span>
+        <span className="insight-head-words">
+          <span className="label">Insights</span>
+          {!open && <span className="insight-teaser">{TEASER}</span>}
+        </span>
+        <Icon name="caret" />
       </button>
 
       {open && (

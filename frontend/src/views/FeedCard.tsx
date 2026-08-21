@@ -1065,6 +1065,11 @@ interface Props {
   // people in the comments all still do what they did. Undefined where the
   // screen holding the card has nowhere to send anybody, which is the letter.
   onOpenDetails?: (item: FeedItem) => void
+  // Whether the screen holding this card is ticking cards rather than reading
+  // them. The card's own controls stand down while it is: it is a thing being
+  // chosen, and the tick and the target for it belong to the screen holding it,
+  // exactly as they do for a row of the list.
+  selecting?: boolean
 }
 
 // One event in the feed. This account's own workouts read as they always have,
@@ -1081,8 +1086,12 @@ export default function FeedCard({
   gear,
   onOpenPerson,
   onOpenDetails,
+  selecting = false,
 }: Props) {
   const [editing, setEditing] = useState(false)
+  // A panel left open when the ticking started is put away with the pencil that
+  // opens it, and is still open underneath when the ticking stops.
+  const editable = editing && !selecting
   const { user } = item
   const activityName = ACTIVITY_NAMES[item.activity]
   const given = (item.title ?? '').trim()
@@ -1143,20 +1152,24 @@ export default function FeedCard({
           </div>
           {/* The owner's way in, and only the words and the media are behind
               it. What was covered, how long it took, and when it happened are
-              editable nowhere. */}
-          <button
-            type="button"
-            className="icon-button feed-edit"
-            aria-label="Edit activity"
-            aria-expanded={editing}
-            title="Edit activity"
-            onClick={() => setEditing((open) => !open)}
-          >
-            <Icon name="pencil" />
-          </button>
+              editable nowhere. Gone while the cards are being ticked: the
+              corner it sits in is where the tick goes, and a card being chosen
+              is not a card being edited. */}
+          {!selecting && (
+            <button
+              type="button"
+              className="icon-button feed-edit"
+              aria-label="Edit activity"
+              aria-expanded={editing}
+              title="Edit activity"
+              onClick={() => setEditing((open) => !open)}
+            >
+              <Icon name="pencil" />
+            </button>
+          )}
         </header>
 
-        {editing ? (
+        {editable ? (
           <EditPanel
             item={item}
             gear={gear}
@@ -1173,7 +1186,7 @@ export default function FeedCard({
 
         {/* This and the media are in the panel while it is open, so the card
             does not say the same thing twice. */}
-        {!editing && post !== '' && <p className="feed-post">{post}</p>}
+        {!editable && post !== '' && <p className="feed-post">{post}</p>}
 
         <StatRow item={item} units={units} onOpen={open} />
 
@@ -1185,7 +1198,7 @@ export default function FeedCard({
 
         {item.has_route && <RouteLine workoutId={item.workout_id} />}
 
-        {!editing && (
+        {!editable && (
           <MediaStrip workoutId={item.workout_id} photos={photos} videos={videos} />
         )}
 

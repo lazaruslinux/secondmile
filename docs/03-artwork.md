@@ -16,7 +16,7 @@ whole of what a commission would cover.
 | Medals | 32 | One face per medal in the catalogue | You screen, Home rail, feed and Activity chips, avatar slots |
 | Avatar borders | 6 | One per level tier, `border-t1` to `border-t6` | Around every avatar, every screen |
 | Flourishes | 3 | The growth earned by encouraging people, `f1` to `f3` | Over the border, on every avatar |
-| Interface icons | 18 | Tab bar, cheer, gear, pencil, play, eye, chest ladder marker, week diamond, running shoe, and the five sport marks | Chrome, everywhere |
+| Interface icons | 19 | Tab bar, cheer, gear, pencil, play, eye, caret, chest ladder marker, week diamond, running shoe, and the five sport marks | Chrome, everywhere |
 | Plants | 39 | Thirteen species at three growth stages each | The plot, and the reveal when a seed is found |
 | Ground | 1 | The strip of soil a grove stands on, `ground` | The floor of the band across the top of both profiles |
 | Loose pieces | 5 | Chest, gilding overlay, boost potion, water, unmarked seed | Inventory squares, chest reveals, finished plants |
@@ -123,6 +123,7 @@ both.
 | `sport-treadmill.svg` | Instead of the walk or run mark, wherever an indoor one is drawn |
 | `shoe.svg` | Gear: the Shoes heading on both profiles and the shoe picker in a card's edit panel (feed cards carry no gear) |
 | `eye.svg` | The View public profile button on the You screen |
+| `caret.svg` | The Insights header on Activity, pointing down at the shut band and turned over when it is open |
 
 Three rules on top of the two above, because these files are placed straight
 into the page:
@@ -152,6 +153,11 @@ screen readers wherever they are drawn.
 shoes rather than a sport: it stands for gear, it sits next to a walk mark on
 the same card, and the two have to be told apart at a glance. The placeholder is
 a side-on running shoe with laces and a lugged sole.
+
+`caret.svg` is a direction rather than a thing, so it is drawn once and turned
+by the stylesheet: the file points down, and the header that is open rotates it
+half a turn on the spot. The placeholder is a plain chevron in the same weight
+of line as the rest of this set.
 
 `sport-treadmill.svg` is the fifth of that set and the odd one out: it is not a
 sport but a place, drawn instead of the walk or run mark when the export named

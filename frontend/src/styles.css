@@ -828,20 +828,18 @@ button:disabled {
   letter-spacing: 0.06em;
 }
 
-/* The third appearance chip, tinted in arcade's own red on every ground so the
-   row says which one of the three is not like the others. Above the current
-   state on purpose: a pressed Arcade chip is drawn like a pressed Light or Dark
-   one, in the accent of whatever ground is up. */
+/* The third appearance chip: arcade's own red on the word only, the border
+   left to the chip's ordinary state so a border means selected, nothing else.
+   Above the current state on purpose: a pressed Arcade chip is drawn like a
+   pressed Light or Dark one, in the accent of whatever ground is up. */
 .appearance-arcade {
-  border-color: rgba(239, 53, 80, 0.55);
   color: #ef3550;
 }
 
-/* The glow, on the dark grounds only. Light is the default's opposite here: a
-   lit edge on a white card reads as a smudge, so it gets the tint and no more.
-   Dark is the root's own block, hence the :not rather than a list. */
+/* The word's glow, on the dark grounds only. Light is the default's opposite
+   here: a lit word on a white card reads as a smudge, so it gets the tint and
+   no more. Dark is the root's own block, hence the :not rather than a list. */
 :root:not([data-theme='light']) .appearance-arcade {
-  box-shadow: 0 0 12px -2px rgba(239, 53, 80, 0.55);
   text-shadow: 0 0 8px rgba(239, 53, 80, 0.45);
 }
 
@@ -2441,22 +2439,55 @@ button:disabled {
   margin-bottom: 0.75rem;
 }
 
-/* The one line that opens it: a button stripped back to the caption it holds,
-   the same way a card's stat row is, so the whole line is the target and none
-   of it looks like a fifth place to go. */
+/* The one line that opens it: a button stripped back to the words it holds and
+   the caret that says they open. The caret is the whole of the affordance, so
+   it is not optional: without it this is a rectangle with a word in it, and
+   nobody presses one of those. */
 .insight-head {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
   width: 100%;
-  padding: 0;
+  padding: 0.35rem 0.15rem;
   background: transparent;
   border: none;
   border-radius: 0;
+  color: var(--muted);
   text-align: left;
 }
 
+.insight-head-words {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+/* What is behind the line, said once and only while it is shut. Open, the
+   charts say it themselves and a caption repeating them is furniture. */
+.insight-teaser {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.insight-head .icon {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+/* Open, the line is the heading of what is under it rather than an offer, so it
+   and its caret come up to the page's own colour. The caption sets its own grey
+   and has to be told twice. */
+.insight-head-open,
 .insight-head-open .label {
   color: var(--text);
+}
+
+/* Pointing at what it does: down at a drawer that opens downward, up at one
+   that is open. Turned on the spot, because nothing in this shell moves. */
+.insight-head-open .icon {
+  transform: rotate(180deg);
 }
 
 /* Three rungs a chart: the top of what it held, the middle, and the floor. The
@@ -2588,6 +2619,38 @@ button:disabled {
 
 .list-tick-on {
   background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* The same tick over a card, because a card is as much a workout as a row is.
+   The card is drawn exactly as it always is and the ticking sits on top of it:
+   the whole card is the target, which is the rule the rows keep as well, and
+   the mark goes in the corner the pencil stands down from. */
+.card-pick {
+  position: relative;
+}
+
+.card-pick + .card-pick {
+  margin-top: 0.65rem;
+}
+
+/* Over the whole card, and the only control on it while the ticking runs. The
+   border is transparent until it is ticked, when it turns the accent the list's
+   own ticked row turns: the card's border sits directly under this one, so what
+   is read is the card's edge going crimson. */
+.card-pick-hit {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 0.6rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+}
+
+.card-pick-on {
   border-color: var(--accent);
 }
 
@@ -5450,7 +5513,8 @@ button:disabled {
     background: var(--panel);
   }
 
-  .row-link:hover {
+  .row-link:hover,
+  .insight-head:hover {
     background: var(--panel);
   }
 
