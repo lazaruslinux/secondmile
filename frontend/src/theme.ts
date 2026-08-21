@@ -53,11 +53,30 @@ const CHROME: Record<Theme, string> = {
   arcade: '#070709',
 }
 
+// A link may name the ground it wants opened on (?appearance=arcade), which is
+// how a page elsewhere can point at the arcade without owning this browser's
+// storage. The name is kept like a chosen one and then taken off the address,
+// so reloads and later choices answer to the person rather than the link.
+function linkedTheme(): Theme | null {
+  try {
+    const url = new URL(window.location.href)
+    const asked = url.searchParams.get('appearance')
+    if (asked !== 'light' && asked !== 'dark' && asked !== 'arcade') return null
+    url.searchParams.delete('appearance')
+    history.replaceState(null, '', url)
+    return asked
+  } catch {
+    return null
+  }
+}
+
 // The theme the app is being drawn on right now. Kept here beside the element
 // it is written to, because the stylesheet is not the only thing that reads it:
 // some of the artwork exists twice, once per ground, and the components drawing
 // it have to be told when the ground moves under them.
-let current: Theme = rememberedTheme()
+const linked = linkedTheme()
+if (linked !== null) rememberTheme(linked)
+let current: Theme = linked ?? rememberedTheme()
 const watchers = new Set<() => void>()
 
 export function applyTheme(theme: Theme): void {
