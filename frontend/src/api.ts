@@ -213,6 +213,51 @@ export interface Week {
   total_active_kcal: number
 }
 
+// One bucket of the Insights band: a week or a calendar month of one sport,
+// sent whether anything happened in it or not, because a quiet week is part of
+// the shape rather than a gap in it.
+export interface InsightBucket {
+  // yyyy-mm-dd: the Monday of the week, or the first of the month.
+  start: string
+  miles: number
+  // Feet, added up over the workouts that recorded a climb. A workout that
+  // recorded none adds nothing rather than adding zero.
+  elevation_ft: number
+  // The time that covered those miles, which is what the bucket's average pace
+  // is worked out from. A workout the export gave no distance for spends none
+  // of them.
+  seconds: number
+}
+
+// The four distances a pace best is read at. Qualified for by covering at least
+// the distance, and won on the whole workout's own average: nothing estimates a
+// split out of a longer session.
+export type PrTier = '5k' | '10k' | 'half' | 'marathon'
+
+export interface InsightRecords {
+  // The furthest single workout.
+  longest: { miles: number; start_ts: string } | null
+  // Null for a tier nothing has qualified for yet.
+  tiers: Record<PrTier, { miles: number; seconds: number; start_ts: string } | null>
+  best_week: { start: string; miles: number } | null
+  biggest_climb: { elevation_ft: number; start_ts: string } | null
+}
+
+export interface SportInsights {
+  // Twelve of each, oldest first, ending at the week and the month in progress.
+  weekly: InsightBucket[]
+  monthly: InsightBucket[]
+  prs: InsightRecords
+  // The month in progress and the one before it, both counted only as far into
+  // the month as today, so the two are a fair pair mid-month.
+  month_now: { start: string; miles: number }
+  month_prior: { start: string; miles: number }
+}
+
+// Keyed by the sports this account has actually done, so a band with nothing in
+// it is an empty object rather than four sports of zeroes.
+export type Insights = Partial<Record<Activity, SportInsights>>
+
 export interface IngestTokenStatus {
   exists: boolean
   rotated_at: string | null
@@ -1091,6 +1136,13 @@ export function getWorkoutNotes(workoutId: number): Promise<WorkoutNote[]> {
 // straddling a page boundary cannot be added up from the rows on screen.
 export function listWeeks(): Promise<Week[]> {
   return getJson<Week[]>('/workouts/weeks')
+}
+
+// This account's own trends and bests, per sport. Self only, the way the weekly
+// totals are: there is no parameter to point it at anybody else, and no
+// friendship opens it.
+export function getInsights(): Promise<Insights> {
+  return getJson<Insights>('/workouts/insights')
 }
 
 // The parts of a workout the person who did it types in themselves. A field

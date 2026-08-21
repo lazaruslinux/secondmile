@@ -2426,6 +2426,124 @@ button:disabled {
   flex: 1 1 12rem;
 }
 
+/* Insights: the band above the history, shut until it is asked for and shut
+   again on a device it was last left shut on. The history under it is what this
+   tab is for, so this is a drawer beside it rather than a second screen in
+   front of it. Everything in it is a reading of rows that are already there:
+   nothing here is earned, spent, or anybody else's. */
+.insights {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+
+/* The one line that opens it: a button stripped back to the caption it holds,
+   the same way a card's stat row is, so the whole line is the target and none
+   of it looks like a fifth place to go. */
+.insight-head {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  text-align: left;
+}
+
+.insight-head-open .label {
+  color: var(--text);
+}
+
+/* Three rungs a chart: the top of what it held, the middle, and the floor. The
+   height is the plot's own less the room the top rung keeps, plus one line of
+   type, and the top is pulled up half a line, so each label sits centred on the
+   rule it names rather than hanging off it. The width is fixed rather than
+   fitted, so every chart's plot starts at the same x and one cursor crosses all
+   of them. */
+.insight-axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 3.1rem;
+  height: calc(106px + 0.7rem);
+  margin-top: calc(3px - 0.35rem);
+  font-size: 0.7rem;
+  line-height: 1;
+  color: var(--muted);
+  font-family: var(--font-nums);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Only the width stretches, exactly as the lanes behind a workout do: the
+   height is the height the coordinates were drawn at, so nothing about the
+   vertical scale changes with the column. */
+.insight-plot {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 110px;
+}
+
+/* One bucket, one bar, standing on the floor of the box. The width is in screen
+   pixels rather than in the drawing's own units, so a bar is the same thin bar
+   however far the plot is stretched; the round cap is what gives it its top,
+   and its foot is cut square by the edge of the box. */
+.insight-bar {
+  stroke: var(--accent);
+  stroke-width: 8px;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Three of the twelve buckets named, under the plots and lined up with them:
+   the axis column's width plus the gap the chart body keeps. The readout above
+   names whichever one is under the thumb, so the rest are not printed. */
+.insight-ticks {
+  display: flex;
+  justify-content: space-between;
+  margin-left: calc(3.1rem + 0.45rem);
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-family: var(--font-nums);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The bests, in the figure vocabulary every other number in the app is read in.
+   A best nobody has set draws no tile rather than a tile saying nothing. */
+.insight-prs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.insight-pr {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+/* When it was set, under the figure and a size down from it. */
+.insight-when {
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+/* Where the month stands, in one grey sentence. It is a reading of two months
+   and is said the same way whichever of them is the larger. */
+.insight-month {
+  margin: 0;
+}
+
 /* The list view: one row per workout, no maps and no photographs, built for
    running an eye down a year of them. */
 .activity-list {

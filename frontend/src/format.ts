@@ -141,6 +141,28 @@ export function formatDayKey(key: string): string {
   })
 }
 
+// The same key short enough for a tick under a chart: Apr 6. Read in UTC for
+// the reason formatDayKey is.
+export function formatShortDayKey(key: string): string {
+  const [year, month, day] = key.split('-').map(Number)
+  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString(undefined, {
+    timeZone: 'UTC',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+// The month a yyyy-mm-dd key falls in, named and nothing else: August. Read in
+// UTC for the reason formatDayKey is, that a key is already a date in the
+// instance's zone and converting it again could move it into the month before.
+export function formatMonthKey(key: string): string {
+  const [year, month, day] = key.split('-').map(Number)
+  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString(undefined, {
+    timeZone: 'UTC',
+    month: 'long',
+  })
+}
+
 // A date short enough for a rail row: Aug 6. No year, because the only place
 // this is read is a list of what was earned lately.
 export function formatShortDate(iso: string): string {

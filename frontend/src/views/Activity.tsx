@@ -38,6 +38,7 @@ import {
 } from '../labels.ts'
 import FeedCard, { ConfirmDelete } from './FeedCard.tsx'
 import Icon from './Icon.tsx'
+import Insights from './Insights.tsx'
 
 // Twenty at a time, which is the feed's page as well: the cards view draws the
 // same card the feed does, and fifty of them at once is a page that keeps
@@ -744,6 +745,12 @@ export default function ActivityView({
           </ul>
         </section>
       )}
+
+      {/* Above the history and shut until it is asked for. This tab is only
+          ever your own, so what is in it is only ever your own: the band reads
+          the endpoint that answers for the account holding the session and for
+          nobody else. */}
+      <Insights units={units} />
 
       <section>
         <h2>History</h2>

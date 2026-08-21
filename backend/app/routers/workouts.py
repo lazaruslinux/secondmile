@@ -84,6 +84,18 @@ SORT_ORDERS = ("asc", "desc")
 # and plenty of rows never carried a heart rate.
 NULLABLE_SORTS = ("pace", "avg_hr")
 
+# How far back the Insights band reads. Twelve weeks is a season and twelve
+# months is a year, which is as far as a trend on a phone is worth drawing. A
+# bucket with nothing in it is sent all the same: a quiet week is part of the
+# shape rather than a gap in it.
+INSIGHT_BUCKETS = 12
+
+# The distances a best is read at, in miles, shortest first. A workout
+# qualifies for a tier by covering at least it, and what is shown is that whole
+# workout's own average pace: nothing here estimates a split out of a longer
+# session, so a marathon's first 5K is not claimed to have been anything.
+PR_TIERS = (("5k", 3.1), ("10k", 6.2), ("half", 13.1), ("marathon", 26.2))
+
 
 def _serialize(
     workout: models.Workout,
@@ -1197,3 +1209,182 @@ def weekly_totals(
             }
         )
     return result
+
+
+def _months_back(latest: dt.date, count: int) -> list[dt.date]:
+    """The first of each of the last count months, oldest first, ending at latest.
+
+    Stepped by taking the day before a first, which lands in the month before it
+    whatever length either of them is.
+    """
+    months = [latest]
+    while len(months) < count:
+        months.insert(0, (months[0] - dt.timedelta(days=1)).replace(day=1))
+    return months
+
+
+def _bucket_totals(rows: list[models.Workout], starts: list[dt.date], start_of) -> list[dict]:
+    """One entry per bucket, oldest first, whether anything happened in it or not.
+
+    The seconds are the time that actually covered the miles, so a session the
+    export gave no distance for spends none of them: a bucket's pace is its own
+    distance over its own time, and a pool swim recorded without a distance
+    would otherwise slow down the week it happened in.
+
+    A climb that was never recorded is not a climb of nothing, so a null is left
+    out of the total rather than added to it as zero.
+    """
+    totals = {start: {"miles": 0.0, "elevation_ft": 0.0, "seconds": 0} for start in starts}
+    for row in rows:
+        bucket = totals.get(start_of(row.start_ts))
+        if bucket is None:
+            continue
+        bucket["miles"] += row.distance_mi
+        if row.distance_mi > 0:
+            bucket["seconds"] += row.duration_s
+        if row.elevation_gain_ft is not None:
+            bucket["elevation_ft"] += row.elevation_gain_ft
+    return [
+        {
+            "start": start.isoformat(),
+            "miles": round(totals[start]["miles"], 2),
+            "elevation_ft": round(totals[start]["elevation_ft"], 1),
+            "seconds": totals[start]["seconds"],
+        }
+        for start in starts
+    ]
+
+
+def _month_miles(rows: list[models.Workout], first: dt.date, through: int) -> dict:
+    """One calendar month's distance, counted only as far into it as through.
+
+    Both sides of the comparison this feeds are cut at the same day of the
+    month, because a month eleven days old against the whole of the month before
+    it is not a reading of anything.
+    """
+    miles = sum(
+        row.distance_mi
+        for row in rows
+        if activity_rules.month_start(row.start_ts) == first
+        and activity_rules.local_day(row.start_ts).day <= through
+    )
+    return {"start": first.isoformat(), "miles": round(miles, 2)}
+
+
+def _records(rows: list[models.Workout]) -> dict:
+    """One sport's bests, each of them null where nothing qualifies.
+
+    The rows arrive oldest first, so every tie here is settled by the workout
+    that got there first, which is the one that actually set the mark.
+    """
+    measured = [row for row in rows if row.distance_mi > 0 and row.duration_s > 0]
+    longest = max(measured, key=lambda row: row.distance_mi, default=None)
+
+    tiers: dict[str, dict | None] = {}
+    for name, floor in PR_TIERS:
+        qualifiers = [row for row in measured if row.distance_mi >= floor]
+        best = min(qualifiers, key=lambda row: row.duration_s / row.distance_mi, default=None)
+        tiers[name] = (
+            None
+            if best is None
+            else {
+                "miles": round(best.distance_mi, 2),
+                "seconds": best.duration_s,
+                "start_ts": best.start_ts.isoformat(),
+            }
+        )
+
+    climbed = [row for row in rows if (row.elevation_gain_ft or 0.0) > 0]
+    biggest = max(climbed, key=lambda row: row.elevation_gain_ft or 0.0, default=None)
+
+    # Every week the account has in this sport rather than the twelve on screen:
+    # a best is a best, and the week it was set in may be a year back.
+    weeks: dict[dt.date, float] = {}
+    for row in rows:
+        monday = activity_rules.week_start(row.start_ts)
+        weeks[monday] = weeks.get(monday, 0.0) + row.distance_mi
+    best_week = max(sorted(weeks.items()), key=lambda item: item[1], default=None)
+
+    return {
+        "longest": (
+            None
+            if longest is None
+            else {
+                "miles": round(longest.distance_mi, 2),
+                "start_ts": longest.start_ts.isoformat(),
+            }
+        ),
+        "tiers": tiers,
+        "best_week": (
+            None
+            if best_week is None or best_week[1] <= 0
+            else {"start": best_week[0].isoformat(), "miles": round(best_week[1], 2)}
+        ),
+        "biggest_climb": (
+            None
+            if biggest is None
+            else {
+                "elevation_ft": round(biggest.elevation_gain_ft or 0.0, 1),
+                "start_ts": biggest.start_ts.isoformat(),
+            }
+        ),
+    }
+
+
+@router.get("/insights")
+def insights(
+    db: Session = Depends(get_db),
+    user: models.User = Depends(security.current_user),
+) -> dict:
+    """This account's own trends and bests, per sport, and nobody else's.
+
+    Self only, the way the weekly totals are: the friend fence is drawn around
+    single workouts, and a year of somebody's weeks added up says more about
+    their days than any one card does. There is no parameter here to point it at
+    another account, because there is no reading of this that belongs to
+    anybody but its owner.
+
+    Grouped exactly as /weeks groups: in the instance timezone, in Python rather
+    than in the database, so a week means the same Monday in the Almanac and
+    here whichever engine is underneath. Deleted workouts are out of it, and an
+    indoor session counts like any other, which is what the weekly totals
+    already do with one.
+
+    Only the sports this account has actually done appear. Display and nothing
+    else: every number here is a reading of rows that were already there, and
+    nothing in it is earned or spent.
+    """
+    rows = list(
+        db.execute(
+            select(models.Workout)
+            .where(
+                models.Workout.user_id == user.id,
+                models.Workout.deleted_at.is_(None),
+            )
+            .order_by(models.Workout.start_ts, models.Workout.id)
+        ).scalars()
+    )
+    today = activity_rules.local_day(security.now_utc())
+    weeks = [
+        activity_rules.week_of(today) - dt.timedelta(weeks=offset)
+        for offset in reversed(range(INSIGHT_BUCKETS))
+    ]
+    months = _months_back(activity_rules.month_of(today), INSIGHT_BUCKETS)
+
+    by_sport: dict[str, list[models.Workout]] = {}
+    for row in rows:
+        by_sport.setdefault(row.activity, []).append(row)
+
+    # In the order every screen lists the four in, so two accounts' answers are
+    # shaped the same however their histories arrived.
+    return {
+        name: {
+            "weekly": _bucket_totals(by_sport[name], weeks, activity_rules.week_start),
+            "monthly": _bucket_totals(by_sport[name], months, activity_rules.month_start),
+            "prs": _records(by_sport[name]),
+            "month_now": _month_miles(by_sport[name], months[-1], today.day),
+            "month_prior": _month_miles(by_sport[name], months[-2], today.day),
+        }
+        for name in ACTIVITIES
+        if name in by_sport
+    }

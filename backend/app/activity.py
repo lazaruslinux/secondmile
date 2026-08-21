@@ -614,6 +614,11 @@ def over_daily_cap(db: Session, user_id: int, activity: str, start_ts: dt.dateti
     return float(total) > daily_cap_mi(activity)
 
 
+def local_day(moment: dt.datetime) -> dt.date:
+    """The local calendar day a moment falls on."""
+    return moment.astimezone(SERVER_TZ).date()
+
+
 def week_of(day: dt.date) -> dt.date:
     """The Monday of the week a local calendar day falls in."""
     return day - dt.timedelta(days=day.weekday())
@@ -621,4 +626,14 @@ def week_of(day: dt.date) -> dt.date:
 
 def week_start(moment: dt.datetime) -> dt.date:
     """The Monday of the local week a moment falls in."""
-    return week_of(moment.astimezone(SERVER_TZ).date())
+    return week_of(local_day(moment))
+
+
+def month_of(day: dt.date) -> dt.date:
+    """The first of the month a local calendar day falls in."""
+    return day.replace(day=1)
+
+
+def month_start(moment: dt.datetime) -> dt.date:
+    """The first of the local month a moment falls in."""
+    return month_of(local_day(moment))

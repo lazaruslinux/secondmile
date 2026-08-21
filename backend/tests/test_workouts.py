@@ -13,13 +13,18 @@ import os
 import pathlib
 import subprocess
 import tempfile
+from zoneinfo import ZoneInfo
 
 import pytest
+from fastapi.testclient import TestClient
 from PIL import Image
 
+from app import activity as activity_rules
 from app import models, progress, security
 from app.activity import converted_miles
 from app.config import MAX_PHOTO_BYTES
+from app.main import app as fastapi_app
+from conftest import make_user
 
 pytest.importorskip("PIL")
 
@@ -36,6 +41,7 @@ def stored(
     avg_hr=None,
     source="sync",
     indoor=False,
+    elevation_ft=None,
 ) -> models.Workout:
     """One workout written straight in and credited, the way a sync would.
 
@@ -53,6 +59,7 @@ def stored(
         active_kcal=active_kcal,
         avg_hr=avg_hr,
         indoor=indoor,
+        elevation_gain_ft=elevation_ft,
         source=source,
         flags={},
         created_at=security.now_utc(),
@@ -1033,3 +1040,260 @@ def test_the_video_endpoints_need_a_session(client):
     assert client.get("/api/workouts/1/videos/1").status_code == 401
     assert client.get("/api/workouts/1/videos/1/poster").status_code == 401
     assert client.delete("/api/workouts/1/videos/1").status_code == 401
+
+
+# --------------------------------------------------------------------------
+# The Insights band
+# --------------------------------------------------------------------------
+# Twelve weeks, twelve months, and the bests behind them, read for the person
+# whose history it is and for nobody else. Nothing here is earned or spent:
+# every number in the band is a reading of rows that were already there.
+
+
+def test_insights_bucket_a_history_into_weeks_and_months(signed_in, db_session, member):
+    """Twelve of each, oldest first, and a bucket with nothing in it is still one.
+
+    The week in progress is the last of them, so the band reads left to right
+    the way a season does. Indoor sessions count exactly as the weekly totals
+    count them, a climb nobody recorded is left out of the total rather than
+    added as zero, and a workout with no distance spends none of the seconds a
+    pace is worked out from.
+    """
+    monday = _monday_of_this_week()
+    stored(
+        db_session,
+        member.id,
+        start=f"{monday.isoformat()}T06:00:00+00:00",
+        duration=1800,
+        miles=3.0,
+        elevation_ft=100.0,
+    )
+    stored(
+        db_session,
+        member.id,
+        start=f"{(monday + dt.timedelta(days=1)).isoformat()}T06:00:00+00:00",
+        duration=1200,
+        miles=2.0,
+    )
+    stored(
+        db_session,
+        member.id,
+        start=f"{(monday + dt.timedelta(days=2)).isoformat()}T06:00:00+00:00",
+        duration=600,
+        miles=1.0,
+        indoor=True,
+    )
+    # A session the export gave no distance for: its climb counts and its
+    # minutes do not, because they covered nothing to be a pace over.
+    stored(
+        db_session,
+        member.id,
+        start=f"{(monday + dt.timedelta(days=2)).isoformat()}T07:00:00+00:00",
+        duration=900,
+        miles=0.0,
+        elevation_ft=20.0,
+    )
+    stored(
+        db_session,
+        member.id,
+        start=f"{(monday - dt.timedelta(weeks=1)).isoformat()}T06:00:00+00:00",
+        duration=3000,
+        miles=5.0,
+    )
+
+    band = signed_in.get("/api/workouts/insights").json()
+    # Only the sports this account has actually done.
+    assert set(band) == {"run"}
+
+    weekly = band["run"]["weekly"]
+    assert len(weekly) == 12
+    assert weekly[0]["start"] == (monday - dt.timedelta(weeks=11)).isoformat()
+    assert weekly[-1] == {
+        "start": monday.isoformat(),
+        "miles": 6.0,
+        "elevation_ft": 120.0,
+        "seconds": 3600,
+    }
+    assert weekly[-2] == {
+        "start": (monday - dt.timedelta(weeks=1)).isoformat(),
+        "miles": 5.0,
+        "elevation_ft": 0.0,
+        "seconds": 3000,
+    }
+    assert weekly[-3] == {
+        "start": (monday - dt.timedelta(weeks=2)).isoformat(),
+        "miles": 0.0,
+        "elevation_ft": 0.0,
+        "seconds": 0,
+    }
+
+    monthly = band["run"]["monthly"]
+    assert len(monthly) == 12
+    assert monthly[-1] == {
+        "start": security.now_utc().date().replace(day=1).isoformat(),
+        "miles": 11.0,
+        "elevation_ft": 120.0,
+        "seconds": 6600,
+    }
+    # Eleven months back from the month in progress, which is where a year of
+    # them starts.
+    assert monthly[0]["start"] == "2025-05-01"
+
+
+def test_insights_bucket_in_the_instance_timezone(signed_in, db_session, member, monkeypatch):
+    """A week and a month both mean what the instance's clock says they mean.
+
+    Two in the morning UTC is seven the previous evening in an instance running
+    seven hours behind, so the same instant falls in a different month and a
+    different week depending on which clock reads it. The band is grouped in the
+    instance zone, the same as the weekly totals in the Almanac, or the two
+    disagree about one evening a week.
+    """
+    monkeypatch.setattr(activity_rules, "SERVER_TZ", ZoneInfo("America/Phoenix"))
+
+    # The first of April, UTC, which is the last evening of March locally.
+    stored(db_session, member.id, start="2026-04-01T02:00:00+00:00", duration=2400, miles=4.0)
+    # A Monday morning, UTC, which is the Sunday evening before it locally, and
+    # so the week before as well.
+    stored(db_session, member.id, start="2026-04-06T02:00:00+00:00", duration=1200, miles=2.0)
+
+    band = signed_in.get("/api/workouts/insights").json()["run"]
+    months = {row["start"]: row["miles"] for row in band["monthly"]}
+    assert months["2026-03-01"] == 4.0
+    assert months["2026-04-01"] == 2.0
+    weeks = {row["start"]: row["miles"] for row in band["weekly"]}
+    # Both of them sit in the week that starts the Monday before the first.
+    assert weeks["2026-03-30"] == 6.0
+    assert weeks["2026-04-06"] == 0.0
+
+
+def test_insights_read_a_tier_best_only_from_a_workout_that_covered_it(
+    signed_in, db_session, member
+):
+    """A tier is qualified for by distance and won on pace, in that order.
+
+    The fastest thing in this history is three miles, and three miles is short
+    of the shortest tier, so it is nobody's best: the alternative is estimating
+    a 5K out of the first part of a run, which this app does not do.
+    """
+    # Five minutes a mile, and short of the 5K floor.
+    stored(db_session, member.id, start="2026-04-13T06:00:00+00:00", duration=900, miles=3.0)
+    # Twelve and a half minutes a mile, and over it.
+    stored(db_session, member.id, start="2026-04-13T08:00:00+00:00", duration=2400, miles=3.2)
+    # Ten minutes a mile over ten kilometres, which takes both tiers it clears.
+    stored(db_session, member.id, start="2026-04-14T06:00:00+00:00", duration=3900, miles=6.5)
+
+    prs = signed_in.get("/api/workouts/insights").json()["run"]["prs"]
+    assert prs["tiers"]["5k"]["miles"] == 6.5
+    assert prs["tiers"]["5k"]["seconds"] == 3900
+    assert prs["tiers"]["5k"]["start_ts"].startswith("2026-04-14T06:00:00")
+    assert prs["tiers"]["10k"]["miles"] == 6.5
+    # Nothing here went half that far, and a best nobody set is nothing rather
+    # than the nearest thing to it.
+    assert prs["tiers"]["half"] is None
+    assert prs["tiers"]["marathon"] is None
+    assert prs["longest"]["miles"] == 6.5
+    assert prs["longest"]["start_ts"].startswith("2026-04-14T06:00:00")
+    # No export here carried a climb, so there is no biggest one.
+    assert prs["biggest_climb"] is None
+
+
+def test_insights_name_the_best_week_and_the_biggest_climb(signed_in, db_session, member):
+    """Both are read over the whole history rather than over the twelve weeks on
+    screen: a best is a best, and the week it was set in may be a year back."""
+    monday = _monday_of_this_week()
+    long_ago = monday - dt.timedelta(weeks=30)
+    stored(
+        db_session,
+        member.id,
+        start=f"{long_ago.isoformat()}T06:00:00+00:00",
+        duration=3600,
+        miles=6.0,
+        elevation_ft=1200.0,
+    )
+    stored(
+        db_session,
+        member.id,
+        start=f"{(long_ago + dt.timedelta(days=2)).isoformat()}T06:00:00+00:00",
+        duration=2400,
+        miles=4.0,
+        elevation_ft=300.0,
+    )
+    stored(
+        db_session,
+        member.id,
+        start=f"{monday.isoformat()}T06:00:00+00:00",
+        duration=1800,
+        miles=3.0,
+    )
+
+    prs = signed_in.get("/api/workouts/insights").json()["run"]["prs"]
+    assert prs["best_week"] == {"start": long_ago.isoformat(), "miles": 10.0}
+    assert prs["biggest_climb"]["elevation_ft"] == 1200.0
+    assert prs["biggest_climb"]["start_ts"].startswith(long_ago.isoformat())
+
+
+def test_insights_compare_a_month_at_the_same_point_of_the_month_before(
+    signed_in, db_session, member
+):
+    """Halfway through April against the first half of March, not against all of it.
+
+    The comparison is read mid-month, so the month before it is cut at the same
+    day of the month. A fortnight against a whole month is a sentence that would
+    say somebody had fallen behind on every month of their life until its last
+    day.
+    """
+    stored(db_session, member.id, start="2026-04-05T06:00:00+00:00", duration=2400, miles=4.0)
+    stored(db_session, member.id, start="2026-03-05T06:00:00+00:00", duration=1800, miles=3.0)
+    # After the day of the month it is today, so it is not part of the same
+    # stretch of March and is left out of the comparison.
+    stored(db_session, member.id, start="2026-03-25T06:00:00+00:00", duration=6000, miles=10.0)
+
+    band = signed_in.get("/api/workouts/insights").json()["run"]
+    assert band["month_now"] == {"start": "2026-04-01", "miles": 4.0}
+    assert band["month_prior"] == {"start": "2026-03-01", "miles": 3.0}
+    # The bar chart still shows the whole of March, which is what makes the cut
+    # above a reading of the comparison rather than of the month.
+    months = {row["start"]: row["miles"] for row in band["monthly"]}
+    assert months["2026-03-01"] == 13.0
+
+
+def test_insights_are_read_by_their_owner_and_by_nobody_else(signed_in, db_session, member):
+    """Self only, and being a friend does not change it.
+
+    The fence around the feed is drawn around single workouts. A year of
+    somebody's weeks added up says more about their days than any one card does,
+    so there is no parameter here to point the band at another account and no
+    friendship that opens it.
+    """
+    stored(db_session, member.id, start="2026-04-13T06:00:00+00:00", duration=3600, miles=9.0)
+
+    mate = make_user(db_session, "mate", "mate-password-1")
+    db_session.add(
+        models.Friendship(
+            requester_id=member.id,
+            addressee_id=mate.id,
+            status="accepted",
+            created_at=security.now_utc(),
+        )
+    )
+    db_session.commit()
+
+    other = TestClient(fastapi_app)
+    assert (
+        other.post(
+            "/api/auth/login", json={"username": "mate", "password": "mate-password-1"}
+        ).status_code
+        == 204
+    )
+    # Their own band, which is empty, rather than the one they are friends with.
+    assert other.get("/api/workouts/insights").json() == {}
+    assert signed_in.get("/api/workouts/insights").json()["run"]["prs"]["longest"]["miles"] == 9.0
+    # And nobody at all without a session.
+    assert TestClient(fastapi_app).get("/api/workouts/insights").status_code == 401
+
+
+def test_insights_of_an_empty_account(signed_in):
+    """No sport done, no sport keyed: an account with nothing in it gets an empty
+    band rather than four sports of zeroes to draw."""
+    assert signed_in.get("/api/workouts/insights").json() == {}
