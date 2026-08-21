@@ -4,6 +4,7 @@ Nothing here creates a workout. They arrive on the sync path and only there, so
 one account has one way in and every row can say where it came from.
 """
 
+import bisect
 import datetime as dt
 import os
 
@@ -91,9 +92,11 @@ NULLABLE_SORTS = ("pace", "avg_hr")
 INSIGHT_BUCKETS = 12
 
 # The distances a best is read at, in miles, shortest first. A workout
-# qualifies for a tier by covering at least it, and what is shown is that whole
-# workout's own average pace: nothing here estimates a split out of a longer
-# session, so a marathon's first 5K is not claimed to have been anything.
+# qualifies for a tier by covering at least it, and what is answered is the
+# fastest stretch of that distance anywhere inside it: a personal best for a 5K
+# is the quickest 5K a body has actually run, whether it ran it as a race or in
+# the middle of a ten-miler. Where the per-minute rows exist that stretch is
+# found in them; where they do not, the session's own average stands in.
 PR_TIERS = (("5k", 3.1), ("10k", 6.2), ("half", 13.1), ("marathon", 26.2))
 
 
@@ -1271,26 +1274,121 @@ def _month_miles(rows: list[models.Workout], first: dt.date, through: int) -> di
     return {"start": first.isoformat(), "miles": round(miles, 2)}
 
 
-def _records(rows: list[models.Workout]) -> dict:
+def _sample_track(minutes: list[tuple[int, float | None]]) -> tuple[list[float], list[float]]:
+    """One workout's per-minute distances as a line of time against ground covered.
+
+    Answers two lists of the same length: the minute each turn of the line falls
+    on, and the miles covered by then. Between two of them the pace is steady,
+    which is the only reading a per-minute array supports and is what lets a
+    stretch end part way through a minute.
+
+    A minute the export said nothing about covers no ground and still takes its
+    minute, and so does a minute missing from the table altogether: a session
+    took the time it took whether the phone was recording or not.
+    """
+    times: list[float] = []
+    covered: list[float] = []
+    so_far = 0.0
+    end: int | None = None
+    for minute, distance in minutes:
+        if end is None or minute > end:
+            # The first turn, or the one that opens a gap. Either way the line
+            # starts again here at whatever has been covered so far.
+            times.append(float(minute))
+            covered.append(so_far)
+        so_far += distance or 0.0
+        times.append(float(minute + 1))
+        covered.append(so_far)
+        end = minute + 1
+    return times, covered
+
+
+def _best_effort(times: list[float], covered: list[float], distance_mi: float) -> float | None:
+    """The shortest time this line covers a distance in, in seconds.
+
+    None where it never covers it at all, which is a workout whose export
+    carried only part of the session: the answer then belongs to the caller's
+    fallback rather than to a stretch of ground the phone never described.
+
+    Both passes together are the whole of the problem. Pace is steady inside a
+    minute, so a stretch that could be shortened by sliding it is shortened
+    until one of its ends lands on a minute boundary: every fastest stretch
+    therefore starts on one or finishes on one, and the two passes try each.
+    """
+    if len(covered) < 2 or covered[-1] - covered[0] < distance_mi:
+        return None
+    best: float | None = None
+
+    # Starting on a boundary: the moment the distance is reached, which is
+    # inside the minute that reaches it.
+    for index, start_at in enumerate(covered):
+        stop = bisect.bisect_left(covered, start_at + distance_mi)
+        if stop >= len(covered):
+            # Nothing this far along covers it either, the line being ordered.
+            break
+        # The turn before it is short of the target, or bisect would have
+        # stopped there, so the minute between them covers ground to divide.
+        part = (start_at + distance_mi - covered[stop - 1]) / (covered[stop] - covered[stop - 1])
+        finish = times[stop - 1] + part * (times[stop] - times[stop - 1])
+        seconds = (finish - times[index]) * 60.0
+        if best is None or seconds < best:
+            best = seconds
+
+    # Finishing on a boundary: the moment the stretch would have had to start.
+    for index, stop_at in enumerate(covered):
+        target = stop_at - distance_mi
+        if target < covered[0]:
+            continue
+        start = bisect.bisect_right(covered, target) - 1
+        span = covered[start + 1] - covered[start] if start + 1 < len(covered) else 0.0
+        part = (target - covered[start]) / span if span > 0 else 0.0
+        began = times[start] + part * (times[start + 1] - times[start]) if span > 0 else times[start]
+        seconds = (times[index] - began) * 60.0
+        if best is None or seconds < best:
+            best = seconds
+
+    return best
+
+
+def _records(rows: list[models.Workout], tracks: dict[int, tuple[list[float], list[float]]]) -> dict:
     """One sport's bests, each of them null where nothing qualifies.
 
     The rows arrive oldest first, so every tie here is settled by the workout
     that got there first, which is the one that actually set the mark.
+
+    A tier's best is the fastest stretch of that distance in any workout long
+    enough to hold one, read out of the per-minute rows where they reach that
+    far and out of the session's own average where they do not. The two are
+    compared as they are: both are answers to the same question, and a workout
+    that was only ever summarised should not be kept out of a record for it.
     """
     measured = [row for row in rows if row.distance_mi > 0 and row.duration_s > 0]
     longest = max(measured, key=lambda row: row.distance_mi, default=None)
 
     tiers: dict[str, dict | None] = {}
     for name, floor in PR_TIERS:
-        qualifiers = [row for row in measured if row.distance_mi >= floor]
-        best = min(qualifiers, key=lambda row: row.duration_s / row.distance_mi, default=None)
+        best_seconds: float | None = None
+        best_row: models.Workout | None = None
+        for row in measured:
+            if row.distance_mi < floor:
+                continue
+            track = tracks.get(row.id)
+            seconds = _best_effort(*track, floor) if track is not None else None
+            if seconds is None:
+                # The whole session's pace over the tier's distance. It is what
+                # the workout averaged rather than what its fastest stretch did,
+                # and for an export that carried no arrays it is everything
+                # there is to say.
+                seconds = row.duration_s * (floor / row.distance_mi)
+            if best_seconds is None or seconds < best_seconds:
+                best_seconds, best_row = seconds, row
         tiers[name] = (
             None
-            if best is None
+            if best_row is None or best_seconds is None
             else {
-                "miles": round(best.distance_mi, 2),
-                "seconds": best.duration_s,
-                "start_ts": best.start_ts.isoformat(),
+                "seconds": round(best_seconds, 1),
+                "start_ts": best_row.start_ts.isoformat(),
+                "workout_id": best_row.id,
             }
         )
 
@@ -1364,6 +1462,29 @@ def insights(
             .order_by(models.Workout.start_ts, models.Workout.id)
         ).scalars()
     )
+    # The per-minute rows behind the workouts long enough to hold the shortest
+    # tier, which are the only ones a fastest stretch can be read out of. Three
+    # columns in one query rather than one query a workout, joined rather than
+    # asked for by a list of ids: a long history is more ids than a statement
+    # should carry.
+    minutes: dict[int, list[tuple[int, float | None]]] = {}
+    for workout_id, minute, distance in db.execute(
+        select(
+            models.WorkoutSample.workout_id,
+            models.WorkoutSample.minute,
+            models.WorkoutSample.distance_mi,
+        )
+        .join(models.Workout, models.Workout.id == models.WorkoutSample.workout_id)
+        .where(
+            models.Workout.user_id == user.id,
+            models.Workout.deleted_at.is_(None),
+            models.Workout.distance_mi >= PR_TIERS[0][1],
+        )
+        .order_by(models.WorkoutSample.workout_id, models.WorkoutSample.minute)
+    ):
+        minutes.setdefault(workout_id, []).append((minute, distance))
+    tracks = {workout_id: _sample_track(rows_) for workout_id, rows_ in minutes.items()}
+
     today = activity_rules.local_day(security.now_utc())
     weeks = [
         activity_rules.week_of(today) - dt.timedelta(weeks=offset)
@@ -1381,7 +1502,7 @@ def insights(
         name: {
             "weekly": _bucket_totals(by_sport[name], weeks, activity_rules.week_start),
             "monthly": _bucket_totals(by_sport[name], months, activity_rules.month_start),
-            "prs": _records(by_sport[name]),
+            "prs": _records(by_sport[name], tracks),
             "month_now": _month_miles(by_sport[name], months[-1], today.day),
             "month_prior": _month_miles(by_sport[name], months[-2], today.day),
         }

@@ -2572,10 +2572,26 @@ button:disabled {
   border-radius: var(--radius);
 }
 
+/* The pace under the time on a tier's tile: the same record said the other way
+   round, in the unit the account reads distances in. Quieter than the time,
+   because the time is the record and the pace is what it works out to. */
+.insight-pace {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-family: var(--font-nums);
+  font-variant-numeric: tabular-nums;
+}
+
 /* When it was set, under the figure and a size down from it. */
 .insight-when {
   color: var(--muted);
   font-size: 0.7rem;
+}
+
+/* The band is a column with a gap of its own, so a heading inside it needs no
+   margin under it as well. */
+.insights h2 {
+  margin-bottom: 0;
 }
 
 /* The list view: one row per workout, no maps and no photographs, built for

@@ -229,16 +229,20 @@ export interface InsightBucket {
   seconds: number
 }
 
-// The four distances a pace best is read at. Qualified for by covering at least
-// the distance, and won on the whole workout's own average: nothing estimates a
-// split out of a longer session.
+// The four distances a best is read at. Qualified for by covering at least the
+// distance, and won by the fastest stretch of it anywhere inside a workout: the
+// quickest 5K a body ran, whether it ran it as a race or in the middle of a
+// ten-miler.
 export type PrTier = '5k' | '10k' | 'half' | 'marathon'
 
 export interface InsightRecords {
   // The furthest single workout.
   longest: { miles: number; start_ts: string } | null
-  // Null for a tier nothing has qualified for yet.
-  tiers: Record<PrTier, { miles: number; seconds: number; start_ts: string } | null>
+  // How long that stretch took, the workout it was found in, and when that
+  // workout was. Null for a tier nothing has qualified for yet. The pace is not
+  // sent: it is these seconds over the tier's own distance, which the screen
+  // reads in the unit the account is set to.
+  tiers: Record<PrTier, { seconds: number; start_ts: string; workout_id: number } | null>
   best_week: { start: string; miles: number } | null
   biggest_climb: { elevation_ft: number; start_ts: string } | null
 }

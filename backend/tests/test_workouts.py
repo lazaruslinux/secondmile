@@ -1050,6 +1050,19 @@ def test_the_video_endpoints_need_a_session(client):
 # every number in the band is a reading of rows that were already there.
 
 
+def sampled(db_session, workout: models.Workout, distances: list[float]) -> None:
+    """One row a minute behind a workout, the way a sync writes them.
+
+    Distance only: the tier records are the one thing that reads these rows for
+    anything but the details screen, and a heart rate would say nothing here.
+    """
+    for minute, distance in enumerate(distances):
+        db_session.add(
+            models.WorkoutSample(workout_id=workout.id, minute=minute, distance_mi=distance)
+        )
+    db_session.commit()
+
+
 def test_insights_bucket_a_history_into_weeks_and_months(signed_in, db_session, member):
     """Twelve of each, oldest first, and a bucket with nothing in it is still one.
 
@@ -1170,24 +1183,34 @@ def test_insights_bucket_in_the_instance_timezone(signed_in, db_session, member,
 def test_insights_read_a_tier_best_only_from_a_workout_that_covered_it(
     signed_in, db_session, member
 ):
-    """A tier is qualified for by distance and won on pace, in that order.
+    """A tier is qualified for by distance, and the time answered is the tier's own.
 
     The fastest thing in this history is three miles, and three miles is short
-    of the shortest tier, so it is nobody's best: the alternative is estimating
-    a 5K out of the first part of a run, which this app does not do.
+    of the shortest tier, so it is nobody's best: a 5K best has to come from a
+    session that actually covered a 5K.
+
+    None of these carried per-minute rows, so each qualifier is read at its own
+    average pace over the tier's distance, which is everything an export that
+    only summarised the session has to say about a stretch inside it.
     """
     # Five minutes a mile, and short of the 5K floor.
     stored(db_session, member.id, start="2026-04-13T06:00:00+00:00", duration=900, miles=3.0)
     # Twelve and a half minutes a mile, and over it.
     stored(db_session, member.id, start="2026-04-13T08:00:00+00:00", duration=2400, miles=3.2)
     # Ten minutes a mile over ten kilometres, which takes both tiers it clears.
-    stored(db_session, member.id, start="2026-04-14T06:00:00+00:00", duration=3900, miles=6.5)
+    ten_k = stored(
+        db_session, member.id, start="2026-04-14T06:00:00+00:00", duration=3900, miles=6.5
+    )
 
     prs = signed_in.get("/api/workouts/insights").json()["run"]["prs"]
-    assert prs["tiers"]["5k"]["miles"] == 6.5
-    assert prs["tiers"]["5k"]["seconds"] == 3900
-    assert prs["tiers"]["5k"]["start_ts"].startswith("2026-04-14T06:00:00")
-    assert prs["tiers"]["10k"]["miles"] == 6.5
+    # 3900 seconds for 6.5 miles, said over 3.1 of them.
+    assert prs["tiers"]["5k"] == {
+        "seconds": 1860.0,
+        "start_ts": ten_k.start_ts.isoformat(),
+        "workout_id": ten_k.id,
+    }
+    # And over 6.2 of them, from the same workout.
+    assert prs["tiers"]["10k"]["seconds"] == 3720.0
     # Nothing here went half that far, and a best nobody set is nothing rather
     # than the nearest thing to it.
     assert prs["tiers"]["half"] is None
@@ -1196,6 +1219,101 @@ def test_insights_read_a_tier_best_only_from_a_workout_that_covered_it(
     assert prs["longest"]["start_ts"].startswith("2026-04-14T06:00:00")
     # No export here carried a climb, so there is no biggest one.
     assert prs["biggest_climb"] is None
+
+
+def test_insights_find_the_fastest_stretch_inside_a_longer_workout(
+    signed_in, db_session, member
+):
+    """A personal best is the fastest 5K a body ran, not the fastest 5K it raced.
+
+    A steady ten-miler with twenty quick minutes in the middle of it holds a
+    better 5K than a dedicated one does, and the per-minute rows are where that
+    can be seen. Read at the whole session's average the ten-miler would have
+    answered 1860 seconds and lost to the short one.
+    """
+    dedicated = stored(
+        db_session, member.id, start="2026-04-10T06:00:00+00:00", duration=1600, miles=3.2
+    )
+    long_run = stored(
+        db_session, member.id, start="2026-04-13T06:00:00+00:00", duration=6000, miles=10.0
+    )
+    # Forty slow minutes, twenty quick ones covering exactly a 5K, forty more.
+    sampled(db_session, long_run, [0.08] * 40 + [0.155] * 20 + [0.0925] * 40)
+
+    prs = signed_in.get("/api/workouts/insights").json()["run"]["prs"]
+    assert prs["tiers"]["5k"] == {
+        "seconds": 1200.0,
+        "start_ts": long_run.start_ts.isoformat(),
+        "workout_id": long_run.id,
+    }
+    # The short one is what it would have been without the arrays: 1600 seconds
+    # for 3.2 miles is 1550 for 3.1, and it is beaten by four hundred seconds.
+    assert dedicated.id != prs["tiers"]["5k"]["workout_id"]
+
+
+def test_insights_divide_the_minute_a_stretch_ends_in(signed_in, db_session, member):
+    """The minutes are whole and the answer is not, so the last one is divided.
+
+    Ten minutes at a fifth of a mile, then thirty at 0.12: the quickest 5K
+    starts at the gun, takes the two fast miles in ten minutes, and needs 1.1
+    miles more at 0.12 a minute, which is nine minutes and ten seconds. 600 plus
+    550 is 1150, and only interpolation inside the last minute produces it: to
+    the whole minute it would read 1160.
+    """
+    workout = stored(
+        db_session, member.id, start="2026-04-13T06:00:00+00:00", duration=2400, miles=5.6
+    )
+    sampled(db_session, workout, [0.2] * 10 + [0.12] * 30)
+
+    prs = signed_in.get("/api/workouts/insights").json()["run"]["prs"]
+    assert prs["tiers"]["5k"]["seconds"] == 1150.0
+
+
+def test_insights_compare_a_sampled_best_against_a_summarised_one(
+    signed_in, db_session, member
+):
+    """Both readings answer the same question, so both are allowed to win.
+
+    A sampled ten-miler holding a twenty-minute 5K against a short fast one the
+    export never described minute by minute: 1200 seconds against 3.5 miles in
+    1000, which is 885.7 over 3.1. The summarised one is quicker and it takes
+    the record.
+    """
+    long_run = stored(
+        db_session, member.id, start="2026-04-11T06:00:00+00:00", duration=6000, miles=10.0
+    )
+    sampled(db_session, long_run, [0.08] * 40 + [0.155] * 20 + [0.0925] * 40)
+    sprint = stored(
+        db_session, member.id, start="2026-04-13T06:00:00+00:00", duration=1000, miles=3.5
+    )
+
+    prs = signed_in.get("/api/workouts/insights").json()["run"]["prs"]
+    assert prs["tiers"]["5k"] == {
+        "seconds": 885.7,
+        "start_ts": sprint.start_ts.isoformat(),
+        "workout_id": sprint.id,
+    }
+
+
+def test_insights_fall_back_where_the_samples_stop_short(signed_in, db_session, member):
+    """Arrays that describe a mile of a six-mile run cannot answer for a 5K.
+
+    Exports arrive with the arrays cut short, or with the phone having given up
+    part way. What they hold is not a 5K, so nothing is read out of them and the
+    workout answers at its own average the way an unsampled one does: 3000
+    seconds for 6.0 miles is 1550 for 3.1.
+    """
+    workout = stored(
+        db_session, member.id, start="2026-04-13T06:00:00+00:00", duration=3000, miles=6.0
+    )
+    sampled(db_session, workout, [0.1] * 10)
+
+    prs = signed_in.get("/api/workouts/insights").json()["run"]["prs"]
+    assert prs["tiers"]["5k"] == {
+        "seconds": 1550.0,
+        "start_ts": workout.start_ts.isoformat(),
+        "workout_id": workout.id,
+    }
 
 
 def test_insights_name_the_best_week_and_the_biggest_climb(signed_in, db_session, member):

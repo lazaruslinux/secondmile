@@ -14,6 +14,7 @@ import {
   distanceValue,
   elevationUnit,
   elevationValue,
+  formatClock,
   formatDate,
   formatDayKey,
   formatMonthKey,
@@ -78,6 +79,16 @@ const PR_NAMES: Record<PrTier, string> = {
   '10k': '10K',
   half: 'Half',
   marathon: 'Marathon',
+}
+
+// How far each of them is, in miles, mirrored from the server. The time comes
+// down and the pace is worked out here, so a metric account reads its own
+// figure without the server having to know which one it is.
+const PR_MILES: Record<PrTier, number> = {
+  '5k': 3.1,
+  '10k': 6.2,
+  half: 13.1,
+  marathon: 26.2,
 }
 
 const PR_TIERS = Object.keys(PR_NAMES) as PrTier[]
@@ -594,57 +605,65 @@ export default function Insights({ units }: Props) {
                   history, and nothing in the game reads any of them. A sport
                   that has set none of them gets no row at all. */}
               {anyBest(insights) && (
-                <ul className="insight-prs">
-                  {insights.prs.longest !== null && (
-                    <li className="insight-pr">
-                      <Figure
-                        label="Longest"
-                        value={distanceValue(insights.prs.longest.miles, units)}
-                        unit={unitName(units)}
-                      />
-                      <span className="insight-when">
-                        {formatDate(insights.prs.longest.start_ts)}
-                      </span>
-                    </li>
-                  )}
-                  {PR_TIERS.map((tier) => {
-                    const best = insights.prs.tiers[tier]
-                    if (!best) return null
-                    return (
-                      <li className="insight-pr" key={tier}>
+                <>
+                  <h2 className="label">Personal records</h2>
+                  <ul className="insight-prs">
+                    {insights.prs.longest !== null && (
+                      <li className="insight-pr">
                         <Figure
-                          label={PR_NAMES[tier]}
-                          value={formatPace(sport, best.miles, best.seconds, units)}
+                          label="Longest"
+                          value={distanceValue(insights.prs.longest.miles, units)}
+                          unit={unitName(units)}
                         />
-                        <span className="insight-when">{formatDate(best.start_ts)}</span>
+                        <span className="insight-when">
+                          {formatDate(insights.prs.longest.start_ts)}
+                        </span>
                       </li>
-                    )
-                  })}
-                  {insights.prs.best_week !== null && (
-                    <li className="insight-pr">
-                      <Figure
-                        label="Best week"
-                        value={distanceValue(insights.prs.best_week.miles, units)}
-                        unit={unitName(units)}
-                      />
-                      <span className="insight-when">
-                        {formatDayKey(insights.prs.best_week.start)}
-                      </span>
-                    </li>
-                  )}
-                  {insights.prs.biggest_climb !== null && (
-                    <li className="insight-pr">
-                      <Figure
-                        label="Biggest climb"
-                        value={elevationValue(insights.prs.biggest_climb.elevation_ft, units)}
-                        unit={elevationUnit(units)}
-                      />
-                      <span className="insight-when">
-                        {formatDate(insights.prs.biggest_climb.start_ts)}
-                      </span>
-                    </li>
-                  )}
-                </ul>
+                    )}
+                    {/* The time first, because the time is the record: a 5K is
+                        a distance everybody already knows the length of, and what
+                        is remembered about one is how long it took. The pace
+                        under it is that time over that distance, worked out here
+                        so a metric account reads its own. */}
+                    {PR_TIERS.map((tier) => {
+                      const best = insights.prs.tiers[tier]
+                      if (!best) return null
+                      return (
+                        <li className="insight-pr" key={tier}>
+                          <Figure label={PR_NAMES[tier]} value={formatClock(best.seconds)} />
+                          <span className="insight-pace">
+                            {formatPace(sport, PR_MILES[tier], best.seconds, units)}
+                          </span>
+                          <span className="insight-when">{formatDate(best.start_ts)}</span>
+                        </li>
+                      )
+                    })}
+                    {insights.prs.best_week !== null && (
+                      <li className="insight-pr">
+                        <Figure
+                          label="Best week"
+                          value={distanceValue(insights.prs.best_week.miles, units)}
+                          unit={unitName(units)}
+                        />
+                        <span className="insight-when">
+                          {formatDayKey(insights.prs.best_week.start)}
+                        </span>
+                      </li>
+                    )}
+                    {insights.prs.biggest_climb !== null && (
+                      <li className="insight-pr">
+                        <Figure
+                          label="Biggest climb"
+                          value={elevationValue(insights.prs.biggest_climb.elevation_ft, units)}
+                          unit={elevationUnit(units)}
+                        />
+                        <span className="insight-when">
+                          {formatDate(insights.prs.biggest_climb.start_ts)}
+                        </span>
+                      </li>
+                    )}
+                  </ul>
+                </>
               )}
             </>
           )}
