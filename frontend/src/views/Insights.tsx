@@ -58,8 +58,8 @@ const FLAT_PACE_S = 0.1
 // What the readout says with nothing under the pointer, which is also what
 // holds its row so the charts do not jump when a thumb lands on them.
 const HINT: Record<Span, string> = {
-  weeks: 'Drag across for the reading at a week.',
-  months: 'Drag across for the reading at a month.',
+  weeks: 'Drag across for detailed view.',
+  months: 'Drag across for detailed view.',
 }
 
 const SPANS: { key: Span; word: string }[] = [
@@ -302,27 +302,12 @@ function anyBest(insights: SportInsights): boolean {
   return longest !== null || best_week !== null || biggest_climb !== null
 }
 
-// The month in progress against the month before it at the same point, said
-// plainly and in one direction as readily as the other. No comparison at all
-// where there is nothing behind it to compare with.
-function monthLine(insights: SportInsights, units: Units): string {
-  const now = formatMonthKey(insights.month_now.start)
-  const covered = `${distanceBrief(insights.month_now.miles, units)} ${unitName(units)}`
-  if (!(insights.month_prior.miles > 0)) return `${now} so far: ${covered}.`
-  const prior = formatMonthKey(insights.month_prior.start)
-  const gap = insights.month_now.miles - insights.month_prior.miles
-  const size = distanceBrief(Math.abs(gap), units)
-  if (Number(size) === 0) return `${now} so far: ${covered}, level with ${prior} at this point.`
-  const word = gap > 0 ? 'more' : 'fewer'
-  return `${now} so far: ${covered}, ${size} ${word} than ${prior} at this point.`
-}
-
 interface Props {
   units: Units
 }
 
 // The band above the history: twelve weeks or twelve months of one sport, the
-// bests behind them, and where the month stands.
+// bests behind them.
 //
 // Nothing here is earned or spent and nothing here is anybody else's. It reads
 // what the history already holds, for the person whose history it is.
@@ -651,8 +636,6 @@ export default function Insights({ units }: Props) {
                   )}
                 </ul>
               )}
-
-              <p className="hint insight-month">{monthLine(insights, units)}</p>
             </>
           )}
         </>

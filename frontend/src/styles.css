@@ -1305,8 +1305,11 @@ button:disabled {
 }
 
 .streak-band-week {
-  font-size: 0.85rem;
-  color: var(--muted);
+  /* The week's miles are the band's real news, so they read in full ink at
+     nearly the name's own size rather than as a grey footnote to the streak. */
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
   font-variant-numeric: tabular-nums;
 }
 
@@ -2536,12 +2539,6 @@ button:disabled {
 .insight-when {
   color: var(--muted);
   font-size: 0.7rem;
-}
-
-/* Where the month stands, in one grey sentence. It is a reading of two months
-   and is said the same way whichever of them is the larger. */
-.insight-month {
-  margin: 0;
 }
 
 /* The list view: one row per workout, no maps and no photographs, built for
