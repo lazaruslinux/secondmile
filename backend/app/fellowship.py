@@ -753,6 +753,11 @@ def feed_row(
         )
     if own:
         row["xp"] = round(converted_miles(workout.activity, workout.distance_mi), 2)
+        # Own rows only, and never a friend's: a workout kept off the feeds is
+        # not on the feed a friend is reading, so there is nobody else to tell.
+        # It is here so the Activity tab can mark its own card and open the
+        # panel on the switch as it stands.
+        row["hidden"] = workout.hidden_from_feed
         # Own rows only, and only so the edit panel can open its picker on the
         # pair already assigned. Cards print nothing about gear.
         row["gear_id"] = workout.gear_id

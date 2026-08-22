@@ -169,6 +169,11 @@ export interface FeedItem {
   // Own rows only as well: the assigned pair, read by the edit panel's picker
   // and by nothing else. Cards print nothing about gear.
   gear_id?: number | null
+  // Own rows only, and true on a workout its owner keeps off the feeds. It is
+  // off this account's own feed too, so the only cards that ever carry it are
+  // the Activity tab's, where it draws the mark and opens the panel's switch.
+  // Nothing about what the workout earned changes with it.
+  hidden?: boolean
   // What the person wrote on it and the pictures and video they put with it.
   // Friends' rows carry them too: a post is something deliberately shared. All
   // of them are optional, the same way they are on a workout.
@@ -1159,6 +1164,9 @@ export interface WorkoutEdit {
   // rule above: shoes are a fact about the kit rather than about the miles, so
   // they are changeable on any walk or run however old.
   gear_id?: number | null
+  // Whether to keep it off the feeds. The one field here that is never sent as
+  // null: a yes-or-no has no empty state, and the server refuses one.
+  hidden?: boolean
 }
 
 export async function updateWorkout(workoutId: number, edit: WorkoutEdit): Promise<Workout> {

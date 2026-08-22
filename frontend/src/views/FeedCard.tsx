@@ -611,6 +611,10 @@ export interface EditableWorkout {
   activity?: Activity
   gear?: string | null
   gear_id?: number | null
+  // Whether it is being kept off the feeds. Absent on a row the server has not
+  // said, which reads as on the feeds, because that is what a workout is until
+  // somebody says otherwise.
+  hidden?: boolean
 }
 
 // How long a deleted workout waits under Activity before it is gone for good.
@@ -706,6 +710,8 @@ export function EditPanel<T extends EditableWorkout>({
   const [title, setTitle] = useState(item.title ?? '')
   const [post, setPost] = useState(item.post ?? '')
   const [gearId, setGearId] = useState(item.gear_id ?? null)
+  // Opened on the switch as it stands, so unhiding is the same act as hiding.
+  const [hidden, setHidden] = useState(item.hidden ?? false)
   const [saving, setSaving] = useState(false)
   // Which media call is in flight, so the note can say what is happening. A
   // video is its own value because it is the one that takes a moment.
@@ -742,6 +748,9 @@ export function EditPanel<T extends EditableWorkout>({
         // Only where the picker is drawn. Sending it from a panel that has no
         // picker would take the shoes off a workout nobody asked about.
         ...(picker.length > 0 ? { gear_id: gearId } : {}),
+        // Only when it moved, so saving a title is not also an answer to a
+        // question nobody was asked.
+        ...(hidden !== (item.hidden ?? false) ? { hidden } : {}),
       })
       // Redrawn from what came back rather than from what was typed, so the
       // trimming the server did is what ends up on the card.
@@ -750,6 +759,7 @@ export function EditPanel<T extends EditableWorkout>({
         title: saved.title ?? null,
         post: saved.post ?? null,
         gear_id: saved.gear_id ?? null,
+        hidden: saved.hidden ?? false,
       })
       onClose()
     } catch (err) {
@@ -897,6 +907,26 @@ export function EditPanel<T extends EditableWorkout>({
           </select>
         </label>
       )}
+
+      {/* One workout at a time, which is the only shape this panel has: the
+          list's Select mode deletes a batch and edits none. The switch is the
+          settings' own, because it is the same kind of act. */}
+      <ul className="picker-list">
+        <li>
+          <label className="picker-option">
+            <input
+              type="checkbox"
+              checked={hidden}
+              disabled={busy}
+              onChange={(event) => setHidden(event.target.checked)}
+            />
+            <span>Hide from feed</span>
+          </label>
+        </li>
+      </ul>
+      <p className="hint">
+        Hidden from every feed, yours included. It still counts toward everything.
+      </p>
 
       <div className="feed-edit-photos">
         <p className="label">Photos and video</p>
@@ -1148,7 +1178,13 @@ export default function FeedCard({
           <div className="feed-who">
             <p className="feed-name">{who}</p>
             <p className="feed-when">{when}</p>
-            <p className="feed-source">{SOURCE_NAMES[item.source]}</p>
+            {/* Beside the sync that brought it in, in the quiet tag the list
+                rows wear. Only ever on your own screens: a hidden workout is
+                on no feed, so nobody else has a card of it to mark. */}
+            <p className="feed-source">
+              {SOURCE_NAMES[item.source]}
+              {item.hidden && <span className="tag">Hidden</span>}
+            </p>
           </div>
           {/* The owner's way in, and only the words and the media are behind
               it. What was covered, how long it took, and when it happened are

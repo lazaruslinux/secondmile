@@ -2843,6 +2843,12 @@ button:disabled {
   color: var(--muted);
 }
 
+/* The Hidden mark sits on the end of the line that names the sync, so it needs
+   the gap a line of text does not give it. */
+.feed-source .tag {
+  margin-left: 0.4rem;
+}
+
 .tag-flag {
   border-color: var(--accent);
   color: var(--text);

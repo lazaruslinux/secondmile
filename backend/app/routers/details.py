@@ -135,8 +135,10 @@ def workout_details(
 
     The reach is the feed's, the same as a route line and a photograph: your
     own, and the people you have both agreed to. The same 404 answers a workout
-    that does not exist, a stranger's, and a deleted one, so an id still says
-    nothing about whose history it belongs to.
+    that does not exist, a stranger's, a deleted one, and one its owner has
+    taken off the feeds, so an id still says nothing about whose history it
+    belongs to. The owner opens their own hidden workout as they always did:
+    it is off their friends' feeds rather than out of their own history.
 
     What a friend is told is what the owner said they may be told, and the
     rules are feed_row's rather than new ones. The heart rate toggle takes
@@ -174,7 +176,9 @@ def workout_details(
         raise HTTPException(status.HTTP_404_NOT_FOUND, NO_SUCH_WORKOUT)
     workout, hidden, birthdate = row
     own = workout.user_id == user.id
-    if not own and not fellowship.are_friends(db, user.id, workout.user_id):
+    if not own and (
+        workout.hidden_from_feed or not fellowship.are_friends(db, user.id, workout.user_id)
+    ):
         raise HTTPException(status.HTTP_404_NOT_FOUND, NO_SUCH_WORKOUT)
 
     kept_back = () if own else tuple(str(field) for field in (hidden or []))

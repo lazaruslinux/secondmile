@@ -381,7 +381,9 @@ def workout_route(
     friend's that is being kept back. Nothing here says which of the four it was.
     A deleted workout is a fifth way to the same sentence, its owner included:
     a friend holding an old address gets nothing, and so does the person who
-    deleted it, because the Deleted section draws no map.
+    deleted it, because the Deleted section draws no map. A workout its owner
+    has hidden is a sixth, and that one the owner still walks through: it is
+    off their friends' feeds rather than out of their own history.
 
     The owner's list is read in the same query as the line, so this cannot be
     answered from the line alone by a later edit that forgets to ask.
@@ -390,6 +392,7 @@ def workout_route(
         select(
             models.WorkoutRoute.points,
             models.Workout.user_id,
+            models.Workout.hidden_from_feed,
             models.User.hidden_from_friends,
         )
         .join(models.Workout, models.Workout.id == models.WorkoutRoute.workout_id)
@@ -401,9 +404,11 @@ def workout_route(
     ).first()
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No route for that workout.")
-    points, owner_id, kept_back = row
+    points, owner_id, off_the_feed, kept_back = row
     if owner_id != user.id and (
-        "route" in (kept_back or []) or not fellowship.are_friends(db, user.id, owner_id)
+        off_the_feed
+        or "route" in (kept_back or [])
+        or not fellowship.are_friends(db, user.id, owner_id)
     ):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No route for that workout.")
     return {"points": points}
@@ -434,11 +439,18 @@ def _visible(db: Session, workout_id: int, user_id: int) -> models.Workout:
     The reading gate, as against _owned above, which is the editing one. Same
     404 for everything else, deleted workouts included, so which of the two
     checks refused is not something the answer says.
+
+    A workout its owner has hidden is a stranger's workout to everybody else,
+    on the same sentence: it is off their feed, so nothing on it is theirs to
+    open. The owner walks through, because hiding a workout from yourself is
+    not what the switch is for.
     """
     workout = db.get(models.Workout, workout_id)
     if workout is None or workout.deleted_at is not None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, NO_SUCH_WORKOUT)
-    if workout.user_id != user_id and not fellowship.are_friends(db, user_id, workout.user_id):
+    if workout.user_id != user_id and (
+        workout.hidden_from_feed or not fellowship.are_friends(db, user_id, workout.user_id)
+    ):
         raise HTTPException(status.HTTP_404_NOT_FOUND, NO_SUCH_WORKOUT)
     return workout
 
@@ -628,6 +640,10 @@ class WorkoutWords(BaseModel):
     title: str | None = None
     post: str | None = None
     gear_id: int | None = None
+    # Whether to keep this workout off the feeds. The one field here a null
+    # does not clear: a yes-or-no has no empty state, so a sent null is a bad
+    # request rather than a quiet no.
+    hidden: bool | None = None
 
 
 def _chosen_gear(
@@ -664,7 +680,7 @@ def update_workout(
     db: Session = Depends(get_db),
     user: models.User = Depends(security.current_user),
 ) -> dict:
-    """Title your own workout and write on it."""
+    """Title your own workout, write on it, and say whether it is on the feeds."""
     if throttle.workout_edit_limiter.hit(throttle.user_key(user)):
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many edits just now. Wait a minute.")
     workout = _owned(db, workout_id, user.id)
@@ -676,6 +692,12 @@ def update_workout(
         workout.post = _clean_words(body.post, WORKOUT_POST_MAX_CHARS, "A post")
     if "gear_id" in body.model_fields_set:
         workout.gear_id = _chosen_gear(db, workout, user.id, body.gear_id)
+    if "hidden" in body.model_fields_set:
+        # The one field a null does not clear, because there is nothing to
+        # clear it to. Nothing this writes changes what the workout is worth.
+        if body.hidden is None:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Hidden is yes or no.")
+        workout.hidden_from_feed = body.hidden
     db.commit()
     # The whole row comes back, in the same shape the history sends it, so the
     # card that sent the edit redraws from this without asking again.
@@ -790,21 +812,25 @@ def read_photo(
     The reach is the feed's, the same as a route line: yours, and the people you
     have both agreed to. A post is a deliberate share, so a friend sees all of
     it. The same 404 answers a photo that does not exist, a stranger's, one on a
-    deleted workout, and one the disk has lost; nothing here says which of the
-    four it was.
+    deleted workout, one on a workout its owner has taken off the feeds, and one
+    the disk has lost; nothing here says which of the five it was. The owner
+    reads their own either way.
     """
-    owner_id = db.execute(
-        select(models.Workout.user_id)
+    row = db.execute(
+        select(models.Workout.user_id, models.Workout.hidden_from_feed)
         .join(models.WorkoutPhoto, models.WorkoutPhoto.workout_id == models.Workout.id)
         .where(
             models.WorkoutPhoto.id == photo_id,
             models.WorkoutPhoto.workout_id == workout_id,
             models.Workout.deleted_at.is_(None),
         )
-    ).scalar_one_or_none()
-    if owner_id is None:
+    ).first()
+    if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, NO_SUCH_PHOTO)
-    if owner_id != user.id and not fellowship.are_friends(db, user.id, owner_id):
+    owner_id, off_the_feed = row
+    if owner_id != user.id and (
+        off_the_feed or not fellowship.are_friends(db, user.id, owner_id)
+    ):
         raise HTTPException(status.HTTP_404_NOT_FOUND, NO_SUCH_PHOTO)
     stored = photos.path_for(workout_id, photo_id)
     if not os.path.isfile(stored):
@@ -944,21 +970,25 @@ def _may_watch(db: Session, workout_id: int, video_id: int, user: models.User) -
     """The photo endpoint's reach, said once for the video and its poster.
 
     Yours, and the people you have both agreed to. The same 404 answers a video
-    that does not exist, a stranger's, one on a deleted workout, and one the
-    disk has lost; nothing here says which of the four it was.
+    that does not exist, a stranger's, one on a deleted workout, one on a
+    workout its owner has taken off the feeds, and one the disk has lost;
+    nothing here says which of the five it was.
     """
-    owner_id = db.execute(
-        select(models.Workout.user_id)
+    row = db.execute(
+        select(models.Workout.user_id, models.Workout.hidden_from_feed)
         .join(models.WorkoutVideo, models.WorkoutVideo.workout_id == models.Workout.id)
         .where(
             models.WorkoutVideo.id == video_id,
             models.WorkoutVideo.workout_id == workout_id,
             models.Workout.deleted_at.is_(None),
         )
-    ).scalar_one_or_none()
-    if owner_id is None:
+    ).first()
+    if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, NO_SUCH_VIDEO)
-    if owner_id != user.id and not fellowship.are_friends(db, user.id, owner_id):
+    owner_id, off_the_feed = row
+    if owner_id != user.id and (
+        off_the_feed or not fellowship.are_friends(db, user.id, owner_id)
+    ):
         raise HTTPException(status.HTTP_404_NOT_FOUND, NO_SUCH_VIDEO)
 
 
@@ -1047,9 +1077,13 @@ def encourage(
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST, "You cannot encourage your own workout."
         )
-    if not fellowship.are_friends(db, user.id, workout.user_id):
+    if workout.hidden_from_feed or not fellowship.are_friends(db, user.id, workout.user_id):
         # The same answer a workout that does not exist gets: whose feed an id
-        # belongs to is not something a stranger gets to learn by asking.
+        # belongs to is not something a stranger gets to learn by asking, and a
+        # workout its owner has taken off the feeds is a workout nobody else is
+        # looking at. Nothing already said on it is touched by the refusal: the
+        # hypes and the notes wait in their table and are read again on the day
+        # it comes back.
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such workout.")
 
     note = None

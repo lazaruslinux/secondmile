@@ -467,7 +467,7 @@ def test_a_friend_sees_the_whole_workout_by_default(signed_in, db_session, membe
     }
     # What is on nobody's row but their own, spelled out so a future field
     # cannot quietly join the row.
-    for withheld in ("flags", "pace", "xp", "gear_id"):
+    for withheld in ("flags", "pace", "xp", "gear_id", "hidden"):
         assert withheld not in row
 
 
@@ -476,10 +476,11 @@ def test_your_own_rows_keep_their_experience(signed_in, db_session, member):
     row = signed_in.get("/api/feed").json()[0]
     assert row["own"] is True
     assert row["xp"] == 2.0
-    # The gear id rides with the experience: both are the owner's alone, one
-    # because it is what the workout earned and one because it only ever fills
-    # the owner's own picker.
-    assert set(row) == FRIEND_ROW_KEYS | {"xp", "gear_id"}
+    # The gear id and the hidden switch ride with the experience: all three are
+    # the owner's alone, one because it is what the workout earned, one because
+    # it only ever fills the owner's own picker, and one because a workout kept
+    # off the feeds is on nobody else's screen to say anything about.
+    assert set(row) == FRIEND_ROW_KEYS | {"xp", "gear_id", "hidden"}
 
 
 def test_the_feed_mixes_both_accounts_newest_first(signed_in, db_session, member, mate):

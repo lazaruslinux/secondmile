@@ -337,6 +337,14 @@ class Workout(Base):
     created_at: Mapped[dt.datetime] = mapped_column(
         UtcDateTime, nullable=False, server_default=func.now()
     )
+    # Set when the owner takes this workout off the feeds. Display-only:
+    # nothing earns or stops earning from it, and the feed, the recent list on
+    # a profile and the friend gates are the only readers. It stays in its
+    # owner's own history wearing a mark, and the hypes and notes already on it
+    # are left where they are and read again the moment it is unhidden.
+    hidden_from_feed: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
     # When the owner deleted this, or null for a workout that is simply there.
     # A deleted row is out of every feed, every total and every derivation, and
     # appears only in the Activity tab's own Deleted list until the window in

@@ -355,9 +355,15 @@ export default function Home({
 
   // An edited card is put back where it sat. The cache is written from this
   // state, so what was changed is still there when the tab is come back to.
+  //
+  // One edit takes the card away instead: hiding a workout takes it off every
+  // feed, and this account's own is one of them. It is still in the Activity
+  // tab, marked, and still counts toward everything.
   const cardChanged = useCallback((updated: FeedItem) => {
     setFeed((current) =>
-      current.map((row) => (row.workout_id === updated.workout_id ? updated : row)),
+      updated.hidden
+        ? current.filter((row) => row.workout_id !== updated.workout_id)
+        : current.map((row) => (row.workout_id === updated.workout_id ? updated : row)),
     )
   }, [])
 

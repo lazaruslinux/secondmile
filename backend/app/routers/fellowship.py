@@ -372,9 +372,12 @@ def read_feed(
 
     # Nobody's deleted workouts, the owner's own included: a deletion is a
     # disappearance from every feed at once rather than only from other
-    # people's.
+    # people's. A hidden one goes on the same terms, and for the same reason:
+    # it is off this feed too, and it still counts toward everything.
     stmt = select(models.Workout).where(
-        models.Workout.user_id.in_(visible), models.Workout.deleted_at.is_(None)
+        models.Workout.user_id.in_(visible),
+        models.Workout.deleted_at.is_(None),
+        models.Workout.hidden_from_feed.is_(False),
     )
     if before:
         stmt = stmt.where(models.Workout.start_ts < parse_cursor(before))

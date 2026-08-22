@@ -477,8 +477,14 @@ def _recent_photos(db: Session, user_id: int) -> list[dict]:
         )
         .join(models.Workout, models.Workout.id == models.WorkoutPhoto.workout_id)
         # A picture on a deleted workout is not on the strip: the endpoint that
-        # serves it answers 404 now, so a tile here would draw a hole.
-        .where(models.Workout.user_id == user_id, models.Workout.deleted_at.is_(None))
+        # serves it answers 404 now, so a tile here would draw a hole. One on a
+        # workout taken off the feeds goes the same way and for the same
+        # reason, and this screen is only ever read by a friend.
+        .where(
+            models.Workout.user_id == user_id,
+            models.Workout.deleted_at.is_(None),
+            models.Workout.hidden_from_feed.is_(False),
+        )
         # By id within a stamp, so two pictures uploaded in the same second
         # keep a stable order between reads.
         .order_by(models.WorkoutPhoto.created_at.desc(), models.WorkoutPhoto.id.desc())
@@ -509,13 +515,20 @@ def _friend_workouts(db: Session, user: models.User, viewer_id: int) -> list[dic
     rows is a handful of queries, never one each.
 
     Nothing is kept back when these are somebody's own workouts on their own
-    profile; see _hidden_for.
+    profile; see _hidden_for. A workout taken off the feeds is the exception,
+    and it is out of this list for everybody, the owner reading their own
+    profile included: the feed's rule is the feed's rule wherever the rows are
+    drawn. Its own history still has it.
     """
     hidden = _hidden_for(user, viewer_id)
     rows = list(
         db.execute(
             select(models.Workout)
-            .where(models.Workout.user_id == user.id, models.Workout.deleted_at.is_(None))
+            .where(
+                models.Workout.user_id == user.id,
+                models.Workout.deleted_at.is_(None),
+                models.Workout.hidden_from_feed.is_(False),
+            )
             # By id within a timestamp, the feed's own tie-break, so two
             # workouts sharing a start time keep a stable order between reads.
             .order_by(models.Workout.start_ts.desc(), models.Workout.id.desc())
