@@ -199,20 +199,63 @@ to. The game never explains it, and neither will I.
 ## How it fits together
 
 ```
-phone (Health Auto Export) --- POST /api/ingest ---.
-                                                   |
+iPhone  (Health Auto Export)   ---.
+Android (Health Connect bridge) --+-- POST /api/ingest --.
+                                                         |
 browser --- your reverse proxy (HTTPS) --- [ frontend nginx :8110 ]
-                                                   |
-                                        /api proxied to
-                                                   |
-                                          [ backend FastAPI ]
-                                                   |
-                                            [ PostgreSQL ]
+                                                         |
+                                              /api proxied to
+                                                         |
+                                                [ backend FastAPI ]
+                                                         |
+                                                  [ PostgreSQL ]
 ```
 
 The compose file publishes two localhost-only ports: 8110 for the app and
 8100 for the raw API. Nothing listens on the LAN or the internet until you
 put your own reverse proxy in front of it.
+
+### The path a workout takes
+
+One endpoint accepts a sync, and everything after it is a straight line. It is
+worth reading in order, because most of the design lives in where the seams are
+rather than in any one file.
+
+1. `routers/ingest.py` authenticates a bearer token, refuses an oversized body,
+   and hands the payload on. If the payload is one the Apple reader cannot
+   understand, `healthconnect.py` translates it into the shape that reader
+   expects. That module is the only part of the codebase that knows Android
+   exists.
+2. `activity.py` turns entries into `ParsedWorkout` values: which of the four
+   activities a name means, its numbers converted into miles and kilocalories
+   from whatever units the phone's locale chose, and which soft flags it earns.
+   Anything it cannot read is refused by name rather than guessed at, and the
+   refusals go to the ingest log so a failing sync can be diagnosed after the
+   fact.
+3. Each workout is inserted inside its own savepoint. A duplicate raises against
+   a unique key on (owner, start, duration) and rolls back only that row, so one
+   already-known workout in a thousand does not abort the export. This is the
+   common case, not the edge case: every overlapping sync window is full of them.
+4. `samples.py` reads the per-minute detail off the entry, `routemaps.py` draws
+   the GPS trace and trims both ends of it before storing, and the raw trace is
+   stripped from the payload before the payload is logged.
+5. `progress.py` credits what arrived: experience, levels, medals, chests, and
+   growth in the grove. It credits only workouts that carry no marker row yet, so
+   running it twice cannot double-count, and a deleted workout stays uncredited
+   because it has no marker standing in for it. `manage.py recompute-progress`
+   rebuilds a whole history from the workouts that survive.
+
+### Two rules the code holds to
+
+Anything earned by distance can only ever be earned by distance. Levels, medals,
+chests, and how fast a plant grows read miles and nothing else. Calories become
+a separate currency that is given away or spent on fruit yield, and it never
+touches the earning side. A mechanic that crossed those lanes would be a bug,
+not a feature.
+
+Rewards come from logging miles, never from opening the app. There are no login
+streaks, no countdowns, and nothing expires except the two things meant to be
+given away. Time away from the app costs a user nothing.
 
 ## Quick start
 
@@ -246,8 +289,11 @@ on a database that already has real accounts.
 ## Syncing workouts
 
 See [docs/02-health-sync.md](docs/02-health-sync.md). The short version: the
-Settings screen gives you a bearer token, and you point Health Auto Export at
+Settings screen gives you a bearer token, and you point an exporter app at
 `https://your-domain/api/ingest` with that token in the Authorization header.
+On iOS that is Health Auto Export; on Android it is a Health Connect bridge that
+can attach a custom header. The server reads either shape, and the in-app setup
+guide walks through both.
 
 ## Configuration
 
@@ -306,6 +352,13 @@ backend/     FastAPI application, migrations, tests, manage.py CLI
 frontend/    Vite + React app, served by nginx in production
 docs/        Self-hosting, health sync, and artwork guides
 ```
+
+The backend keeps its domain in plain modules rather than in the routers:
+`activity.py` reads exports, `progress.py` credits them, `grove.py` grows
+things, `samples.py` reads per-minute detail, `healthconnect.py` translates
+Android exports. Routers stay thin, which is what lets the sync path, the
+backfill commands in `manage.py`, and the tests all ask the same questions of
+the same code.
 
 ## Development
 
