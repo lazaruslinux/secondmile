@@ -8,6 +8,7 @@
     python manage.py backfill-badges <username>
     python manage.py backfill-routes <username>
     python manage.py backfill-samples
+    python manage.py backfill-pr-stamps
     python manage.py strip-ingest-log
     python manage.py bug-reports [--limit N]
     python manage.py seed-demo
@@ -25,7 +26,17 @@ import sys
 from sqlalchemy import delete, select
 
 from app import activity as activity_rules
-from app import bests, grove, medals, models, progress, routemaps, samples, security
+from app import (
+    bests,
+    grove,
+    medals,
+    models,
+    progress,
+    routemaps,
+    samples,
+    security,
+    stamps,
+)
 from app.config import INGEST_LOG_RETENTION_DAYS, check_deploy_config
 from app.db import SessionLocal
 from app.routers.auth import create_invite
@@ -453,6 +464,43 @@ def cmd_backfill_best_efforts(args: argparse.Namespace) -> None:
         db.close()
 
 
+def cmd_backfill_pr_stamps(args: argparse.Namespace) -> None:
+    """Give an existing history the standings its cards would have been stamped with.
+
+    workout_pr_stamps arrived in 0038 empty, and every workout imported before
+    that release has none, so its card says nothing extra. This replays each
+    account oldest first and writes what each workout's place was AT THE TIME,
+    which is what a card stamped on the day would have said - not where the
+    workout would stand today.
+
+    Every account, because it is a one-time pass run by whoever has a shell on
+    the server. Run backfill-best-efforts first if it has not been: without the
+    measured stretches every standing falls back to whole-session pace, which is
+    a thinner reading of the same history.
+
+    Safe to run twice on an unchanged history: the same rows in the same order
+    give the same answer. Run it after a workout has been DELETED and it will
+    restate that account's history without it, which is a different thing from
+    what the cards said before. That is the one lever that rewrites a stamp, and
+    it is why this is a command somebody types rather than something that
+    happens on its own. Nothing outside this table is written, and nothing here
+    has ever been earned.
+    """
+    db = _session()
+    try:
+        written = 0
+        people = list(db.execute(select(models.User.id, models.User.username)).all())
+        for user_id, username in people:
+            count = stamps.rebuild(db, user_id)
+            written += count
+            print(f"  {username}: {count}")
+        db.commit()
+        print(f"Stamped {len(people)} accounts.")
+        print(f"  standings written: {written}")
+    finally:
+        db.close()
+
+
 def cmd_strip_ingest_log(args: argparse.Namespace) -> None:
     """Take the GPS traces out of every stored sync, and drop the expired ones.
 
@@ -811,6 +859,12 @@ def main() -> None:
         help="read each workout's fastest race-distance stretches from its per-minute rows",
     )
     efforts.set_defaults(func=cmd_backfill_best_efforts)
+
+    placings = sub.add_parser(
+        "backfill-pr-stamps",
+        help="stamp existing history with the standing each workout held when it arrived",
+    )
+    placings.set_defaults(func=cmd_backfill_pr_stamps)
 
     strip = sub.add_parser(
         "strip-ingest-log", help="remove stored GPS traces and drop syncs past retention"

@@ -39,13 +39,14 @@ const MAX_REPORT = 2000
 // anybody back to, so this line is the whole of what a reporter gets.
 const REPORT_SENT = 'Thank you for your submission.'
 
-// The three switches, in the order the server keeps them. Pace is not among
-// them on purpose: it is distance over time, both of which stay on every card,
-// so a switch for it would promise something it could not keep.
+// The switches, in the order the server keeps them. Pace is not among them on
+// purpose: it is distance over time, both of which stay on every card, so a
+// switch for it would promise something it could not keep.
 const HIDEABLE: { field: HiddenField; label: string }[] = [
   { field: 'avg_hr', label: 'Heart rate' },
   { field: 'active_kcal', label: 'Calories' },
   { field: 'route', label: 'Route map' },
+  { field: 'personal_records', label: 'Personal records' },
 ]
 
 interface Props {

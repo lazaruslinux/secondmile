@@ -8,8 +8,10 @@ import type {
   ItemKind,
   Person,
   Planting,
+  PrTier,
   Rarity,
   SatchelItem,
+  WorkoutRecord,
 } from './api.ts'
 import { zonedHour } from './format.ts'
 
@@ -485,4 +487,39 @@ export function chestTierRarity(tier: string | null | undefined): RarityTier {
 export function chestTierClass(tier: string | null | undefined): string | undefined {
   const step = chestTierRarity(tier)
   return step === 'common' ? undefined : `chest-tier-${step}`
+}
+
+
+// What each race distance is called wherever the app names one: the Personal
+// records tiles on the Insights band and the standing on an activity card. One
+// copy, because two would be two places to rename it.
+export const PR_TIER_NAMES: Record<PrTier, string> = {
+  '5k': '5K',
+  '10k': '10K',
+  half: 'Half',
+  marathon: 'Marathon',
+}
+
+// The first three places, in the words somebody would use out loud. Nothing
+// further down is ever sent: a fourth best is a number rather than a thing to
+// say, which is the rule the server stamps by.
+const PLACES: Record<number, string> = { 1: 'best', 2: '2nd best', 3: '3rd best' }
+
+// One standing as the phrase it is: "best 5K", "2nd best 10K". Empty for a rank
+// nothing is said about, which nothing sends.
+export function standingPhrase(record: WorkoutRecord): string {
+  const place = PLACES[record.rank]
+  return place === undefined ? '' : `${place} ${PR_TIER_NAMES[record.tier]}`
+}
+
+// The same standing as the sentence a card says. `whose` is "your" on your own
+// card and the person's name in the possessive on anybody else's, so the
+// ownership is the only thing that changes between the two.
+//
+// Past tense on purpose. A standing is written the day a workout arrives and is
+// never rewritten, so what a card says is what was true then, not a claim about
+// where the run would place today.
+export function standingLine(record: WorkoutRecord, whose: string): string {
+  const phrase = standingPhrase(record)
+  return phrase === '' ? '' : `This was ${whose} ${phrase}.`
 }

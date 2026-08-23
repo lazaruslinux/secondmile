@@ -19,6 +19,7 @@ from app import (
     routemaps,
     samples,
     security,
+    stamps,
     throttle,
 )
 from app.config import (
@@ -177,6 +178,9 @@ async def ingest(
     # What the phone gets told about below, gathered from the rows that were
     # genuinely born here: a skipped duplicate is old news, never announced.
     arrivals: list[dict] = []
+    # The rows themselves as well as the lines about them: the standings below
+    # are read off the workouts, and an export can carry a week in any order.
+    landed: list[models.Workout] = []
     for item in parsed:
         flags = {}
         if activity.impossible_pace(item.activity, item.duration_s, item.distance_mi):
@@ -236,6 +240,13 @@ async def ingest(
         # keeps a re-synced session from being described twice: the same reason
         # the arrivals list is gathered here rather than from the parse.
         minutes += samples.record(db, workout, item.entry)
+        landed.append(workout)
+
+    # After the whole loop rather than inside it, and after the minutes are
+    # written, which is what the standings are read from: every workout in this
+    # export has to be in the table before any of them can be told what it came
+    # after. Written once and never revisited - see app.stamps.
+    stamped = stamps.stamp(db, user.id, landed)
 
     # In the same transaction as the workouts above, and worth nothing beside
     # them: the day rows are written for the screens that print them.
@@ -271,6 +282,7 @@ async def ingest(
                 "routes_stored": routes,
                 "samples_stored": minutes,
                 "step_days": step_days,
+                "pr_stamps": stamped,
             },
         )
     )

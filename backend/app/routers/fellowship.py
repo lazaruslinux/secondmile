@@ -16,7 +16,7 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app import fellowship, medals, models, progress, security, throttle
+from app import fellowship, medals, models, progress, security, stamps, throttle
 from app.db import get_db
 from app.routers.profile import serialize_member_card
 from app.routers.workouts import parse_cursor, photos_for, routes_for, videos_for
@@ -400,6 +400,7 @@ def read_feed(
     # Asked of the owners on this page, not of the reader: what a row shows is
     # decided by whoever did the workout.
     kept_back = fellowship.hidden_fields(db, {row.user_id for row in rows})
+    placed = stamps.for_workouts(db, [row.id for row in rows])
     return [
         fellowship.feed_row(
             row,
@@ -411,6 +412,7 @@ def read_feed(
             clips.get(row.id, []),
             counts[row.id],
             kept_back.get(row.user_id, ()),
+            placed.get(row.id),
         )
         for row in rows
         if row.user_id in people

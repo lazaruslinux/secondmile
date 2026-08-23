@@ -472,6 +472,31 @@ class WorkoutBestEffort(Base):
     seconds: Mapped[float] = mapped_column(Float, nullable=False)
 
 
+class WorkoutPrStamp(Base):
+    __tablename__ = "workout_pr_stamps"
+    # One row per tier this workout stood in when it arrived, so a run that was
+    # a best 5K and a third best 10K on the same outing says both.
+    __table_args__ = (UniqueConstraint("workout_id", "tier", name="uq_workout_pr_stamp"),)
+
+    # Where this workout stood among its own account's history at the moment it
+    # was imported, in its own sport. Written once and never rewritten, the way
+    # a medal is: what a card said the day it arrived is what it goes on saying,
+    # and a later run that beats it does not reach back and edit it.
+    #
+    # Display and nothing else. No medal, chest, level, plant or total reads
+    # this table, and the two-lane law is untouched: a standing is a reading of
+    # rows that were already there.
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workout_id: Mapped[int] = mapped_column(
+        ForeignKey("workouts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # The tier's name from PR_TIERS, for the reason the best efforts keep theirs.
+    tier: Mapped[str] = mapped_column(String(16), nullable=False)
+    # 1, 2 or 3. Nothing further down is stored: a fourth best is not a thing
+    # worth saying on a card, and not storing it is what keeps the table small.
+    rank: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
 class IngestLog(Base):
     __tablename__ = "ingest_log"
 

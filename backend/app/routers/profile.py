@@ -26,6 +26,7 @@ from app import (
     models,
     progress,
     security,
+    stamps,
     throttle,
 )
 from app.config import MAX_AVATAR_BYTES, MAX_DIAMOND_SPORTS, MAX_DISPLAYED_BADGES, SERVER_TZ
@@ -552,6 +553,7 @@ def _friend_workouts(db: Session, user: models.User, viewer_id: int) -> list[dic
     clips = videos_for(db, rows)
     card = fellowship.people(db, [user.id])[user.id]
     encouragement = fellowship.counts(db, [row.id for row in rows], viewer_id)
+    placed = stamps.for_workouts(db, [row.id for row in rows])
     return [
         feed_row(
             row,
@@ -565,6 +567,7 @@ def _friend_workouts(db: Session, user: models.User, viewer_id: int) -> list[dic
             clips.get(row.id, []),
             encouragement[row.id],
             hidden,
+            placed.get(row.id),
         )
         for row in rows
     ]

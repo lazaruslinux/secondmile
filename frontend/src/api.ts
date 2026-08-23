@@ -7,7 +7,7 @@ export type Units = 'imperial' | 'metric'
 // The three things an account may keep back from its friends. Everything else
 // a friend sees is not optional, and pace is deliberately not on the list: it
 // is distance over time, and both of those stay on every card.
-export type HiddenField = 'avg_hr' | 'active_kcal' | 'route'
+export type HiddenField = 'avg_hr' | 'active_kcal' | 'route' | 'personal_records'
 export type Activity = 'walk' | 'run' | 'cycle' | 'swim'
 // Where a workout came from. Nothing writes 'manual' any more, and history
 // full of it stays readable: a card that cannot name where a row came from
@@ -154,6 +154,11 @@ export interface FeedItem {
   active_kcal?: number | null
   // The medals this workout earned, read the same way as a workout's own.
   medals?: string[]
+  // Where this workout stood in its own account's history when it arrived,
+  // strongest standing first. Absent when it stood nowhere worth saying and
+  // absent as well when its owner keeps their records back, which is why the
+  // card asks whether there is a list rather than how long it is.
+  records?: WorkoutRecord[]
   // False as well when the owner keeps their routes to themselves, so no map
   // is drawn and nothing is asked for.
   has_route: boolean
@@ -239,6 +244,14 @@ export interface InsightBucket {
 // quickest 5K a body ran, whether it ran it as a race or in the middle of a
 // ten-miler.
 export type PrTier = '5k' | '10k' | 'half' | 'marathon'
+
+// One place a workout took at one distance, among its own account's history and
+// on the day it arrived. Never rewritten afterwards, which is why a card can say
+// "This was" and mean it. Only the first three places are ever sent.
+export interface WorkoutRecord {
+  tier: PrTier
+  rank: number
+}
 
 export interface InsightRecords {
   // The furthest single workout.

@@ -23,7 +23,13 @@ import {
   unitName,
 } from '../format.ts'
 import { gearName } from '../gear.ts'
-import { activityIcon, ACTIVITY_NAMES, defaultHeadline, personName } from '../labels.ts'
+import {
+  activityIcon,
+  ACTIVITY_NAMES,
+  defaultHeadline,
+  personName,
+  standingPhrase,
+} from '../labels.ts'
 import { loadRoute } from '../route.ts'
 import { Figure } from './FeedCard.tsx'
 import Icon from './Icon.tsx'
@@ -922,6 +928,12 @@ export default function WorkoutDetails({ item, gear, units, onBack }: Props) {
 
   const weather = weatherLine(details, units)
 
+  // Every standing this one workout holds, not just the strongest: the card has
+  // room for one line and this screen is where the rest of them go. Already in
+  // the order the server settled - better place first, longer distance between
+  // two of the same place - so nothing is sorted here.
+  const standings = (item.records ?? []).map(standingPhrase).filter((phrase) => phrase !== '')
+
   // What this session put in the bank. Own workouts only: manna is a private
   // economy, and what a friend's session earned them is their business the way
   // the balance behind it is. Nought is not a line, so a workout that recorded
@@ -1007,6 +1019,15 @@ export default function WorkoutDetails({ item, gear, units, onBack }: Props) {
               figures beside it. */}
           {weather !== '' && <Figure label="Weather" value={weather} wide />}
         </div>
+
+        {/* Where the session stood in its own history when it arrived, at every
+            distance inside it. One quiet line rather than tiles: the tiles on
+            the Insights band are the account's records, and these are one
+            workout's part in them. Past tense for the reason the card is - a
+            standing is written once and never rewritten. */}
+        {standings.length > 0 && (
+          <p className="hint details-records">{`Personal records: ${standings.join(' · ')}`}</p>
+        )}
 
         {/* The pair it was done in, named the way every other pair in the app
             is named, with what is on them beside it. One quiet line and no

@@ -24,7 +24,7 @@ import {
   toDisplayDistance,
   unitName,
 } from '../format.ts'
-import { ACTIVITY_ICONS, ACTIVITY_NAMES, ACTIVITY_ORDER } from '../labels.ts'
+import { ACTIVITY_ICONS, ACTIVITY_NAMES, ACTIVITY_ORDER, PR_TIER_NAMES } from '../labels.ts'
 import { Figure } from './FeedCard.tsx'
 import Icon from './Icon.tsx'
 
@@ -72,14 +72,10 @@ const SPANS: { key: Span; word: string }[] = [
   { key: 'months', word: 'Months' },
 ]
 
-// What each best is called on its tile. The four distances are the road ones
-// they are named after, and a tier nobody has covered yet draws no tile at all.
-const PR_NAMES: Record<PrTier, string> = {
-  '5k': '5K',
-  '10k': '10K',
-  half: 'Half',
-  marathon: 'Marathon',
-}
+// What each best is called on its tile: the shared names, so a tile and the
+// standing on a card never disagree about what a distance is called. A tier
+// nobody has covered yet draws no tile at all.
+const PR_NAMES = PR_TIER_NAMES
 
 // How far each of them is, in miles, mirrored from the server. The time comes
 // down and the pace is worked out here, so a metric account reads its own

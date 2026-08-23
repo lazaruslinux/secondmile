@@ -2855,6 +2855,18 @@ button:disabled {
   font-weight: 600;
 }
 
+/* Where a workout stood in its own history, on the card the numbers are on.
+   Full ink at the weight the Home week line reads at, because this is a card's
+   real news rather than a footnote to it - but the app's crimson stays off it:
+   accent text on the dark surface is the 3.89:1 that was left as it is, and a
+   sentence is not the place to spend that. */
+.feed-standing {
+  margin: 0.7rem 0 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
 /* What the server marked about a workout's numbers, on the card the numbers are
    on. Quiet, because a flagged workout still counts. */
 .flag-note {
@@ -6157,6 +6169,13 @@ button:disabled {
 /* What the session put in the grove, under what it was done in. The gear line's
    own room, because it is the same kind of quiet line and they stack. */
 .details-manna {
+  margin: var(--gap) 0 0;
+}
+
+/* Every standing the session holds, above the pair it was done in. Quiet here
+   although the card's own line is not: the card says the one thing, and this is
+   the whole list behind it. Third in the stack of quiet lines, same room. */
+.details-records {
   margin: var(--gap) 0 0;
 }
 

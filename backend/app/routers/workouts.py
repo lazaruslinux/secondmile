@@ -33,6 +33,7 @@ from app import (
     photos,
     progress,
     security,
+    stamps,
     throttle,
     videos,
 )
@@ -101,6 +102,7 @@ def _serialize(
     has_route: bool = False,
     photo_ids: list[int] | None = None,
     video_ids: list[int] | None = None,
+    records: list[dict] | None = None,
 ) -> dict:
     """One row of your own history, in the shape the feed sends a workout in.
 
@@ -127,6 +129,8 @@ def _serialize(
             photo_ids or [],
             video_ids or [],
             encouragement,
+            (),
+            records,
         ),
         "flags": workout.flags or {},
     }
@@ -301,6 +305,7 @@ def list_workouts(
     # One card for the whole page: every row here is this account's own.
     person = fellowship.people(db, {user.id})[user.id]
     given = fellowship.counts(db, [row.id for row in rows], user.id)
+    placed = stamps.for_workouts(db, [row.id for row in rows])
     return [
         _serialize(
             row,
@@ -310,6 +315,7 @@ def list_workouts(
             row.id in routed,
             pictures.get(row.id),
             clips.get(row.id),
+            placed.get(row.id),
         )
         for row in rows
     ]
@@ -597,6 +603,7 @@ def restore_workout(
         workout.id in routes_for(db, [workout]),
         photos_for(db, [workout]).get(workout.id),
         videos_for(db, [workout]).get(workout.id),
+        stamps.for_workouts(db, [workout.id]).get(workout.id),
     )
 
 
@@ -702,6 +709,7 @@ def update_workout(
         workout.id in routes_for(db, [workout]),
         photos_for(db, [workout]).get(workout.id),
         videos_for(db, [workout]).get(workout.id),
+        stamps.for_workouts(db, [workout.id]).get(workout.id),
     )
 
 

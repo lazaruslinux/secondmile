@@ -41,11 +41,16 @@ from app.security import now_utc
 # distance over time, both of which stay, so a toggle for it would promise a
 # privacy it could not keep.
 #
-# Still three, although the route one now governs two things. Everything read
-# off the ground a session crossed rides with the line itself, the climb
-# included, because a separate switch for each of them would be a settings
-# screen making a promise the first one already made.
-HIDEABLE = ("avg_hr", "active_kcal", "route")
+# The route one governs two things. Everything read off the ground a session
+# crossed rides with the line itself, the climb included, because a separate
+# switch for each of them would be a settings screen making a promise the first
+# one already made.
+#
+# The fourth is not a number about a body but a sentence about a history: what
+# place a workout took among this account's own. It is visible by default like
+# the rest, and like the rest it never hides anything from the person whose
+# history it is.
+HIDEABLE = ("avg_hr", "active_kcal", "route", "personal_records")
 
 RENOWN_PER_KIND = {"cheer": RENOWN_CHEER, "note": RENOWN_NOTE}
 # What giving away something a chest gave you is worth. The same diminishing
@@ -683,6 +688,7 @@ def feed_row(
     video_ids: list[int],
     encouragement: dict,
     hidden: tuple[str, ...] = (),
+    records: list[dict] | None = None,
 ) -> dict:
     """One feed event.
 
@@ -692,8 +698,8 @@ def feed_row(
     somebody can edit on its own.
 
     A friend sees what you did, in full: the distance, the time, the heart
-    rate, the calories, and the line you ran. What they do not see is what you
-    said they may not. `hidden` is the owner's own list, from HIDEABLE, and a
+    rate, the calories, the line you ran, and where the workout stood in your
+    own history. What they do not see is what you said they may not. `hidden` is the owner's own list, from HIDEABLE, and a
     field on it is left out of the row altogether rather than sent as a null: a
     null would say the workout carried no heart rate, which is a different thing
     from being asked not to look. The route is hidden by has_route reading
@@ -736,6 +742,12 @@ def feed_row(
         "source": workout.source,
         "own": own,
     }
+    # Where this workout stood in its own account's history when it arrived,
+    # strongest standing first. Absent rather than empty when there is nothing
+    # to say, and absent as well when the owner keeps their records back: a card
+    # that carried an empty list would still be saying something about them.
+    if records and "personal_records" not in kept_back:
+        row["records"] = records
     if "avg_hr" not in kept_back:
         row["avg_hr"] = round(workout.avg_hr, 1) if workout.avg_hr is not None else None
     if "active_kcal" not in kept_back:
