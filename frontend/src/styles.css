@@ -5221,6 +5221,30 @@ button:disabled {
   margin-top: 1rem;
 }
 
+/* Unfinished setup: the one thing standing between a new account and the whole
+   app, so it is a card with a button rather than a line of text. Accent rather
+   than mustard, because this is the way forward and not a warning. */
+.sync-setup {
+  order: -3;
+  margin: 0 0 0.9rem;
+  padding: 1rem;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.sync-setup h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1.05rem;
+}
+
+.sync-setup p {
+  margin: 0 0 0.8rem;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
 /* A phone that has stopped posting, said above everything else on Home because
    it explains the emptiness underneath. Mustard rather than crimson: nothing is
    broken and nothing was lost, there is just something to go and do. */
@@ -5454,14 +5478,18 @@ button:disabled {
      columns are pinned to row one, so they are moved down only when the notice
      is actually there: an empty first row would otherwise pay for a gap on
      every ordinary visit. */
-  .sync-stale {
+  .sync-stale,
+  .sync-setup {
     grid-column: 1 / -1;
     grid-row: 1;
   }
 
   .home:has(.sync-stale) .home-left,
   .home:has(.sync-stale) .home-main,
-  .home:has(.sync-stale) .home-right {
+  .home:has(.sync-stale) .home-right,
+  .home:has(.sync-setup) .home-left,
+  .home:has(.sync-setup) .home-main,
+  .home:has(.sync-setup) .home-right {
     grid-row: 2;
   }
 
@@ -5911,6 +5939,34 @@ button:disabled {
   font-size: 0.95rem;
   line-height: 1.55;
   margin: 0.6rem 0 0;
+}
+
+/* The two kinds of sync, each a chip and the sentence that says what it is for.
+   The chips are the same two the Required and Optional headings wear, so the
+   page says "required" one way rather than two. */
+.guide-kinds {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.guide-kinds li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.15rem;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+/* The chip's own left margin is written for sitting after a heading's words. At
+   the head of a row it has nothing to sit after. */
+.guide-kinds .guide-chip {
+  margin-left: 0;
+  flex: none;
 }
 
 .guide-chip {

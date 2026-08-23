@@ -292,6 +292,10 @@ interface Props {
   onOpenActivity: () => void
   onOpenGrove: () => void
   onOpenProfile: () => void
+  // The setup guide, for an account whose phone has never posted anything. The
+  // only way there used to be through Settings, which is the last place
+  // somebody who has not set up sync yet knows to look.
+  onOpenGuide: () => void
   // A friend's card goes to their screen. Own cards ignore it, which is what
   // keeps your own rows from being a way back to the screen you came from.
   onOpenPerson: (userId: number) => void
@@ -308,6 +312,7 @@ export default function Home({
   onOpenActivity,
   onOpenGrove,
   onOpenProfile,
+  onOpenGuide,
   onOpenPerson,
   onOpenWorkout,
 }: Props) {
@@ -420,6 +425,11 @@ export default function Home({
   const syncedAt = profile.last_sync_at ? new Date(profile.last_sync_at) : null
   const syncStale =
     syncedAt !== null && Date.now() - syncedAt.getTime() > 24 * 60 * 60 * 1000
+  // Nothing has ever arrived from this account's phone, which is a different
+  // thing from a phone that has gone quiet and wants saying differently: this
+  // one is unfinished setup rather than something to fix. It clears itself on
+  // the first sync, so nobody is ever asked to dismiss it.
+  const neverSynced = profile.last_sync_at === null || profile.last_sync_at === undefined
   // From the profile, which is where the streak beside it comes from too. It
   // used to be worked out from the first page of the feed, which meant a week
   // whose earlier days had scrolled off the page lost its diamonds, and a
@@ -445,6 +455,19 @@ export default function Home({
       {/* First, because it explains the emptiness under it. Where the three
           columns open up it spans them and pushes them down a row; on a phone
           it is simply the thing above the summary. */}
+      {neverSynced && (
+        <section className="sync-setup">
+          <h2>One more step: connect your phone</h2>
+          <p>
+            secondmile counts the miles your phone already records. Nothing arrives, and
+            nothing is earned, until you point a health export app at your account. It
+            takes about five minutes and is only done once.
+          </p>
+          <button type="button" className="primary" onClick={onOpenGuide}>
+            Open the setup guide
+          </button>
+        </section>
+      )}
       {syncStale && (
         <p className="sync-stale" role="status">
           No workouts have arrived since {formatShortDate(profile.last_sync_at ?? '')}. Open{' '}

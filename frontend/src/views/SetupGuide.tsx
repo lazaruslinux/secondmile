@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 // Which set of instructions is being read. Guessed from the browser and then
 // left alone: the chips are the answer if the guess is wrong, and a guide
 // nobody can switch is worse than one that guesses.
+import { errorText, getIngestTokenStatus, rotateIngestToken } from '../api.ts'
 import { guessPlatform, type Platform } from '../platform.ts'
+import Confirm from './Confirm.tsx'
 import stepsExport from '../assets/guide/steps-automation-export.png'
 import stepsTop from '../assets/guide/steps-automation-top.png'
 import workoutsExport from '../assets/guide/workouts-automation-export.png'
@@ -21,7 +23,7 @@ const SHOT_WIDTH = 1320
 const SHOT_HEIGHT = 2868
 
 const WORKOUT_FIELDS: Field[] = [
-  { name: 'Name', value: 'Secondmile_Workouts' },
+  { name: 'Name', value: 'Anything you like' },
   { name: 'Enabled', value: 'On' },
   { name: 'Notify on Cache Update', value: 'Off' },
   { name: 'Notify When Run', value: 'Off' },
@@ -47,7 +49,7 @@ const WORKOUT_FIELDS: Field[] = [
 ]
 
 const STEP_FIELDS: Field[] = [
-  { name: 'Name', value: 'Secondmile_Steps' },
+  { name: 'Name', value: 'Anything you like' },
   { name: 'Enabled', value: 'On' },
   { name: 'Notify on Cache Update', value: 'Off' },
   { name: 'Notify When Run', value: 'Off' },
@@ -128,6 +130,22 @@ export default function SetupGuide({ onBack }: Props) {
   const [copied, setCopied] = useState<boolean | null>(null)
   const [platform, setPlatform] = useState<Platform>(guessPlatform)
   const apple = platform === 'apple'
+  // Whether this account has a token already, which decides whether the button
+  // below makes one or replaces one. Null while the answer is still coming.
+  const [hasToken, setHasToken] = useState<boolean | null>(null)
+  // The plaintext token, for the one render it exists in. The server keeps only
+  // a hash, so leaving this screen is the end of it.
+  const [freshToken, setFreshToken] = useState('')
+  const [makingToken, setMakingToken] = useState(false)
+  const [tokenError, setTokenError] = useState('')
+  const [confirmingRotate, setConfirmingRotate] = useState(false)
+  const [tokenCopied, setTokenCopied] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    getIngestTokenStatus()
+      .then((status) => setHasToken(status.exists))
+      .catch(() => setHasToken(null))
+  }, [])
 
   async function copy() {
     try {
@@ -137,6 +155,29 @@ export default function SetupGuide({ onBack }: Props) {
       // No clipboard on an insecure origin, or the browser refused. The address
       // is on the screen either way.
       setCopied(false)
+    }
+  }
+
+  async function makeToken() {
+    setMakingToken(true)
+    setTokenError('')
+    try {
+      setFreshToken(await rotateIngestToken())
+      setHasToken(true)
+      setConfirmingRotate(false)
+    } catch (err) {
+      setTokenError(errorText(err))
+    } finally {
+      setMakingToken(false)
+    }
+  }
+
+  async function copyToken() {
+    try {
+      await navigator.clipboard.writeText(`bearer ${freshToken}`)
+      setTokenCopied(true)
+    } catch {
+      setTokenCopied(false)
     }
   }
 
@@ -164,33 +205,42 @@ export default function SetupGuide({ onBack }: Props) {
             </li>
           ))}
         </ul>
-        {apple ? (
-          <>
-            <p className="guide-note">
-              Workouts arrive from Health Auto Export, an iPhone app you install from the
-              App Store. It reads Apple Health and posts what it finds to an address you
-              give it. Setting it up takes about five minutes, and it is done once.
-            </p>
-            <p className="guide-note">
-              Two automations are described below, each field named the way Health Auto
-              Export names it. The first one is the whole game. The second one is optional.
-            </p>
-          </>
-        ) : (
-          <>
-            <p className="guide-note">
-              Workouts arrive from a bridge app that reads Health Connect and posts what it
-              finds to an address you give it. Health Connect Webhook is the one this app is
-              written for: it is free, open source under the same licence as this app, and
-              on the Play Store. Setting it up takes about five minutes, and it is done
-              once.
-            </p>
-            <p className="guide-note">
-              One app, one address, one header. Everything you earn comes through it:
-              experience, levels, chests, growth in your grove, and medals.
-            </p>
-          </>
-        )}
+        <p className="guide-note">
+          A trusted bridge app takes the workouts your phone records and exports them to
+          secondmile's ingest link, shown below.{' '}
+          {apple ? (
+            <>
+              The recommended one is Health Auto Export, on the App Store. Manual exporting
+              is all secondmile needs; automating it so exports run daily or after every
+              workout is a convenience rather than a requirement. Both are paid features of
+              that app, and its App Store listing has the current prices.
+            </>
+          ) : (
+            <>
+              The recommended one is Health Connect Webhook: a free, open source bridge app
+              under the same licence as secondmile, on the Play Store.
+            </>
+          )}{' '}
+          Setting it up takes about five minutes, and is only done once.
+        </p>
+        <p className="guide-note">There are two kinds of sync secondmile accepts.</p>
+
+        <ul className="guide-kinds">
+          <li>
+            <span className="guide-chip">Workouts</span>
+            <span>Required to sync and earn XP on secondmile</span>
+          </li>
+          <li>
+            <span className="guide-chip guide-chip-optional">Steps</span>
+            <span>Visual only, entirely optional</span>
+          </li>
+        </ul>
+
+        <p className="guide-note">
+          This app will ask your phone for permission to read your health data. That
+          permission is required for secondmile to work. Once your data reaches secondmile
+          it is not shared with or sent to anyone else.
+        </p>
       </div>
 
       <section className="settings-group">
@@ -222,52 +272,83 @@ export default function SetupGuide({ onBack }: Props) {
           </div>
 
           <p className="guide-note">
-            {apple ? 'They also need' : 'It also needs'} your sync token. Create it now,
-            before you set anything else up: it is on the Settings screen under Health sync,
-            and when it appears, its Copy button copies the whole bearer line, ready to paste
-            straight into the header value below. The server keeps only a hash of it, so it
-            is shown once and never printed here. If you lose it, rotate it and paste the new
-            line back in.
+            {apple ? 'They also need' : 'It also needs'} your sync token, which is what
+            tells secondmile the workouts are yours. Make it here, then paste the whole
+            line into the header field below.
           </p>
+
+          {/* The token itself rather than directions to it. Making a first one
+              is safe and asks nothing; replacing one revokes the old, so that
+              half goes behind the same guard the Settings card uses. */}
+          {freshToken ? (
+            <div className="endpoint">
+              <code>{`bearer ${freshToken}`}</code>
+              <button type="button" className="secondary" onClick={() => void copyToken()}>
+                Copy
+              </button>
+              {tokenCopied === true && (
+                <p className="note note-success" role="status">
+                  Copied. Paste this whole line, the word bearer included.
+                </p>
+              )}
+              {tokenCopied === false && (
+                <p className="note" role="status">
+                  This browser would not copy it. Select the line and copy it by hand.
+                </p>
+              )}
+              <p className="hint">
+                This is the only time it is shown. If you lose it, come back and make
+                another.
+              </p>
+            </div>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="secondary"
+                disabled={makingToken || hasToken === null}
+                onClick={() => (hasToken ? setConfirmingRotate(true) : void makeToken())}
+              >
+                {hasToken ? 'Make a new token' : 'Make my sync token'}
+              </button>
+              {hasToken === true && (
+                <p className="hint">
+                  You already have one. It was shown once when it was made, and making
+                  another stops the old one working.
+                </p>
+              )}
+            </>
+          )}
+          {tokenError && (
+            <p className="error" role="alert">
+              {tokenError}
+            </p>
+          )}
+
+          {confirmingRotate && (
+            <Confirm
+              heading="Replace the token?"
+              confirmLabel="Replace the token"
+              cancelLabel="Cancel"
+              busy={makingToken}
+              error={tokenError}
+              onConfirm={() => void makeToken()}
+              onCancel={() => setConfirmingRotate(false)}
+            >
+              <p>
+                Your phone stops syncing until the new token is pasted into your export
+                app.
+              </p>
+            </Confirm>
+          )}
         </div>
 
-        {apple ? (
-          <div className="card">
-            <h3>Let it read Apple Health</h3>
-            <p className="guide-note">
-              Health Auto Export can only send what Apple Health lets it read. The first
-              time it opens, iOS asks for that access; allow it, and turn on the categories
-              it lists.
-            </p>
-            <p className="guide-note">
-              If an automation fails with &quot;authorization not found&quot;, or runs
-              without sending anything, this permission is the usual reason: open the
-              iPhone's Settings, then Privacy &amp; Security, then Health, then Health Auto
-              Export, and turn everything on. Nothing reaches the server until this is
-              granted.
-            </p>
-          </div>
-        ) : (
-          <div className="card">
-            <h3>Let it read Health Connect</h3>
-            <p className="guide-note">
-              The bridge can only send what Health Connect lets it read, and Health Connect
-              only holds what your watch or your fitness app writes into it. Open Health
-              Connect, check that whatever records your workouts is connected to it, then
-              grant the bridge read access to the five data types listed below.
-            </p>
-            <p className="guide-note">
-              If a sync runs without sending anything, this permission is the usual reason.
-              Nothing reaches the server until it is granted.
-            </p>
-          </div>
-        )}
       </section>
 
       {apple && (
         <section className="settings-group">
           <h2 className="label settings-title guide-title">
-            Automation 1: Secondmile_Workouts <span className="guide-chip">Required</span>
+            Automation 1: Workouts <span className="guide-chip">Recommended</span>
           </h2>
 
           <div className="card">
@@ -277,8 +358,9 @@ export default function SetupGuide({ onBack }: Props) {
               is earned here: experience, levels, chests, growth in your grove, and medals.
             </p>
             <p className="guide-note">
-              In Health Auto Export, open Automations, add an automation, and name it
-              Secondmile_Workouts. Then set the fields below, top to bottom, and tap Update.
+              In Health Auto Export, open Automations and add one. Call it whatever you
+              like; the name is only for you. Then set the fields below, top to bottom, and
+              tap Update.
             </p>
 
             <FieldList fields={WORKOUT_FIELDS} />
@@ -337,46 +419,21 @@ export default function SetupGuide({ onBack }: Props) {
       )}
 
       <section className="settings-group">
-        <h2 className="label settings-title guide-title">The days before you joined</h2>
+        <h2 className="label settings-title guide-title">Backfill Limits</h2>
 
         <div className="card">
-          <h3>{apple ? 'One manual export brings them in' : 'One wider sync brings them in'}</h3>
           <p className="guide-note">
-            {apple
-              ? 'The automations only send what happens from now on,'
-              : 'An ordinary sync only reaches back about two days,'}{' '}
-            but your account accepts workouts from up to 14 days before the day it was
-            created. Anything older than that is refused, and the window never moves: it is
-            anchored to your signup, so time away later costs you nothing.
+            secondmile accepts workouts from up to 14 days before the day your account was
+            created. The window is anchored to your signup and never moves, so one export
+            covering those days brings them in, and anything older than that is refused.
           </p>
-          {apple ? (
-            <>
-              <p className="guide-note">
-                To bring those days in, run one manual export from Health Auto Export: a
-                Workouts export with a Date Range covering the days since the window opened.
-                Every walk, run, ride, and swim inside it lands with everything it earns,
-                exactly as if it had synced on the day.
-              </p>
-              <p className="guide-note">
-                The same window applies to steps. A manual Health Metrics export covers
-                them, though steps earn nothing either way.
-              </p>
-            </>
-          ) : (
-            <p className="guide-note">
-              To bring those days in, run one manual sync from the bridge over a range
-              covering the days since the window opened, if it offers one. Every walk, run,
-              ride, and swim inside it lands with everything it earns, exactly as if it had
-              synced on the day.
-            </p>
-          )}
         </div>
       </section>
 
       {apple && (
         <section className="settings-group">
           <h2 className="label settings-title guide-title">
-            Automation 2: Secondmile_Steps{' '}
+            Automation 2: Steps{' '}
             <span className="guide-chip guide-chip-optional">Optional</span>
           </h2>
 
@@ -385,14 +442,14 @@ export default function SetupGuide({ onBack }: Props) {
             <p className="guide-note">
               This one is entirely optional, and it earns nothing. All it does is feed the
               step counts on your screens: the line on your own profile, the count in your
-              weekly letter, and the tally on the landing page. Set up only
-              Secondmile_Workouts and you have the complete earning experience, with nothing
-              missing and nothing to catch up on later.
+              weekly letter, and the tally on the landing page. Set up the workouts one
+              alone and you have the complete earning experience, with nothing missing and
+              nothing to catch up on later.
             </p>
             <p className="guide-note">
-              Health Auto Export sends one data type per automation, which is the only reason
-              there are two. Duplicate the first automation or add a new one, name it
-              Secondmile_Steps, and set the fields below.
+              Health Auto Export sends one data type per automation, which is the only
+              reason there are two. Duplicate the first one or add another, and set the
+              fields below.
             </p>
 
             <FieldList fields={STEP_FIELDS} />
@@ -422,45 +479,29 @@ export default function SetupGuide({ onBack }: Props) {
       )}
 
       <section className="settings-group">
-        <h2 className="label settings-title guide-title">Once it is running</h2>
+        <h2 className="label settings-title guide-title">After Setup</h2>
 
         <div className="card">
           <p className="guide-note">
-            Every export covers a window that reaches back over the last one, so exports
-            overlap on purpose and overlapping exports are safe. A workout is known by who
-            you are, when it started, and how long it lasted, so the same one arriving twice
-            changes nothing, and a day's step count only ever rises. Anything else in an
-            export is ignored.
+            Exports overlap on purpose and overlapping exports are safe. A workout is known
+            by who you are, when it started, and how long it lasted, so the same one
+            arriving twice changes nothing. The first sync can take a minute to appear.
           </p>
           <p className="guide-note">
-            The first sync can take a minute to appear. After that your workouts show up on
-            their own, a few minutes behind the watch.
+            If your workouts stop showing up here, open{' '}
+            {apple ? 'Health Auto Export' : 'the bridge'} and let it run. A phone pauses the
+            background work of an app it has not seen you open in a while, and when it does
+            the exports stop without saying so. Opening it starts them again and it sends
+            what it missed. Nothing is lost while it is paused.
           </p>
-          {apple ? (
+          {apple && (
             <p className="guide-note">
-              If your workouts stop showing up here, open Health Auto Export and let it
-              run. iOS pauses the background automations of an app it has not seen you
-              open in a while, and when it does they stop sending without saying so: the
-              automation still reads as on. Opening the app is what starts it again, and
-              it sends everything it missed. Nothing is lost while it is paused, because
-              the workouts are still in Apple Health and they land as soon as it runs.
-            </p>
-          ) : (
-            <p className="guide-note">
-              If your workouts stop showing up here, open the bridge and let it run.
-              Android puts an app it has not seen you open in a while to sleep, and a
-              sleeping app stops sending without saying so. Opening it is what starts it
-              again, and it sends what it missed. Nothing is lost while it is asleep,
-              because the workouts are still in Health Connect. Allowing the app to run in
-              the background, or exempting it from battery optimisation, makes it happen
-              less often.
+              If an export fails with &quot;authorization not found&quot;, or runs without
+              sending anything, the Health permission is the usual reason: open the iPhone's
+              Settings, then Privacy &amp; Security, then Health, then Health Auto Export,
+              and turn everything on.
             </p>
           )}
-          <p className="guide-note">
-            Both phones post to the same address, in their own shapes, and the server reads
-            whichever arrives. Nothing about a workout remembers which one it came from, so
-            switching phones costs you nothing you have earned.
-          </p>
         </div>
       </section>
     </>

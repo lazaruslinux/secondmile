@@ -78,6 +78,9 @@ export default function App() {
   // after signing in, and the code has to outlive that.
   const [invite] = useState(welcomeCode)
   const [view, setView] = useState<View>('home')
+  // Which screen sent somebody to the setup guide. Settings is the old way in
+  // and Home is the new one, and Back has to mean the screen they left.
+  const [guideFrom, setGuideFrom] = useState<View>('settings')
   // Whose profile is open and which screen it was opened from, so Back goes
   // back to the feed or to the Friends screen rather than always to one of them.
   const [friend, setFriend] = useState<{ id: number; from: View } | null>(null)
@@ -195,6 +198,11 @@ export default function App() {
   function showTab(next: View) {
     setView(next)
     window.scrollTo(0, 0)
+  }
+
+  function openGuide(from: View) {
+    setGuideFrom(from)
+    setView('guide')
   }
 
   function openFriend(id: number) {
@@ -343,6 +351,7 @@ export default function App() {
             onOpenActivity={() => setView('activity')}
             onOpenGrove={() => setView('grove')}
             onOpenProfile={() => setView('you')}
+            onOpenGuide={() => openGuide('home')}
             onOpenPerson={openFriend}
             onOpenWorkout={openWorkout}
           />
@@ -404,13 +413,14 @@ export default function App() {
             notifyArrival={me.notify_workout_arrival ?? true}
             onNotifyChanged={changeNotify}
             onSignedOut={() => setMe(null)}
-            onOpenGuide={() => setView('guide')}
+            onOpenGuide={() => openGuide('settings')}
             onBack={() => setView('you')}
           />
         )}
-        {/* Back goes to Settings rather than to You: the card with the token on
-            it is what somebody is reading this alongside. */}
-        {view === 'guide' && <SetupGuide onBack={() => setView('settings')} />}
+        {/* Back goes where they came from: Settings holds the token card
+            somebody reads this alongside, and Home is where a new account is
+            sent from before it has ever synced. */}
+        {view === 'guide' && <SetupGuide onBack={() => setView(guideFrom)} />}
 
         {/* The end of every page: the alpha line beside the line that names
             the licence. The licence stays when the alpha ends. */}
