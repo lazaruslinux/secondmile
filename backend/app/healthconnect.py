@@ -220,6 +220,13 @@ def _session(
     if calories:
         # The session's own total, which is the number manna is drawn from. The
         # bridge sends active calories, so this is the active line already.
+        #
+        # Two sessions that overlap, which is what two fitness apps both watching
+        # one walk look like, would each claim the whole overlap's calories. Left
+        # as it is: sessions describing the same moments with the same start and
+        # length are already one workout by the time this matters, the earning
+        # lane reads each session's own distance rather than this pool, and manna
+        # is the giving lane, which by law reaches nothing that is earned.
         workout["activeEnergyBurned"] = {"qty": sum(calories), "units": "kcal"}
         workout["activeEnergy"] = [
             {**point, "units": "kcal"}
@@ -245,13 +252,40 @@ def _session(
     return workout
 
 
-def _day_metric(name: str, records: list[dict], field: str, units: str | None) -> dict | None:
+def _wheeled_and_swum(sessions: list[dict]) -> list[tuple[dt.datetime, dt.datetime]]:
+    """When this export's rides and swims happened.
+
+    Health Connect keeps one distance record type for every activity, while the
+    day figure this app stores and prints is the walking and running one. A ride
+    would otherwise be added to it and read as miles somebody walked, so the
+    windows come back here and the readings inside them are left out below.
+    """
+    windows = []
+    for entry in sessions:
+        if activity.classify(_name(entry.get("type"))) not in {"cycle", "swim"}:
+            continue
+        start = _moment(entry)
+        end = activity.parse_start(entry.get("end_time"))
+        if start is not None and end is not None and end >= start:
+            windows.append((start, end))
+    return windows
+
+
+def _day_metric(
+    name: str,
+    records: list[dict],
+    field: str,
+    units: str | None,
+    skip: list[tuple[dt.datetime, dt.datetime]] | None = None,
+) -> dict | None:
     """One of the two pedometer readings this app keeps, as a metrics entry."""
     points = []
     for item in records:
         when = _moment(item)
         value = _number(item.get(field))
         if when is None or value is None or value < 0:
+            continue
+        if skip and any(start <= when <= end for start, end in skip):
             continue
         points.append({"date": when.isoformat(), "qty": value})
     if not points:
@@ -286,8 +320,16 @@ def translate(payload: dict) -> dict:
     metrics = [
         entry
         for entry in (
+            # The pedometer counts what it counts, on a ride like any other day,
+            # so the step reading is taken whole and only the distance is sifted.
             _day_metric("step_count", steps, "count", None),
-            _day_metric("walking_running_distance", distance, "meters", "m"),
+            _day_metric(
+                "walking_running_distance",
+                distance,
+                "meters",
+                "m",
+                skip=_wheeled_and_swum(sessions),
+            ),
         )
         if entry is not None
     ]

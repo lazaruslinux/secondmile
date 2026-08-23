@@ -343,3 +343,55 @@ def test_both_phones_can_sync_into_one_account(signed_in, ingest_token, db_sessi
 
     stored = {row.activity: row.source for row in db_session.query(models.Workout)}
     assert stored == {"walk": "sync", "run": "sync"}
+
+
+def test_a_rides_distance_stays_out_of_the_walking_day_figure(
+    signed_in, ingest_token, db_session
+):
+    """Health Connect keeps one distance type for every activity.
+
+    The day figure this app prints is the walking and running one, so the metres
+    covered on a bike must not be added to it and read as miles somebody walked.
+    """
+    walk_mins = minutes("2026-07-20T12:00:00Z", 3)
+    ride_mins = minutes("2026-07-20T15:00:00Z", 3)
+    payload = android(
+        exercise=[
+            session("WALKING", walk_mins[0], "2026-07-20T12:03:00Z", 480.0),
+            session("BIKING", ride_mins[0], "2026-07-20T15:03:00Z", 6000.0),
+        ],
+        distance=[reading("meters", 160.0, when, when) for when in walk_mins]
+        + [reading("meters", 2000.0, when, when) for when in ride_mins],
+    )
+    assert post(signed_in, ingest_token, payload).json()["imported"] == 2
+
+    day = db_session.query(models.DailySteps).one()
+    # The three walking minutes only: 480 metres is 0.298 miles. The 6km ride
+    # would have made it 3.98.
+    assert round(day.distance_mi, 3) == 0.298
+
+
+def test_a_swim_is_left_out_of_the_walking_day_figure_too(signed_in, ingest_token, db_session):
+    swim_mins = minutes("2026-07-20T12:00:00Z", 2)
+    payload = android(
+        exercise=[session("SWIMMING_POOL", swim_mins[0], "2026-07-20T12:02:00Z", 800.0)],
+        distance=[reading("meters", 400.0, when, when) for when in swim_mins],
+    )
+    assert post(signed_in, ingest_token, payload).json()["imported"] == 1
+    assert db_session.query(models.DailySteps).count() == 0
+
+
+def test_the_ride_itself_keeps_every_metre_it_covered(signed_in, ingest_token, db_session):
+    """Only the day figure is sifted. The workout's own distance is untouched."""
+    ride_mins = minutes("2026-07-20T15:00:00Z", 3)
+    payload = android(
+        exercise=[session("BIKING", ride_mins[0], "2026-07-20T15:03:00Z", 6000.0)],
+        distance=[reading("meters", 2000.0, when, when) for when in ride_mins],
+    )
+    assert post(signed_in, ingest_token, payload).json()["imported"] == 1
+
+    row = db_session.query(models.Workout).one()
+    assert row.activity == "cycle"
+    # 6000 metres is 3.728 miles, and the per-minute detail still describes it.
+    assert round(row.distance_mi, 3) == 3.728
+    assert db_session.query(models.WorkoutSample).count() == 3
