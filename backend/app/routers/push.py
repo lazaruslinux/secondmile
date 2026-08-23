@@ -75,6 +75,48 @@ def subscribe(
     db.commit()
 
 
+@router.post("/test")
+def send_test(
+    db: Session = Depends(get_db),
+    user: models.User = Depends(security.current_user),
+) -> dict:
+    """Send this account's devices one notification, now, and say what happened.
+
+    Sent in the request rather than in a background task, which is the whole
+    point: somebody staring at a silent phone needs the answer on the screen in
+    front of them, and "the push service took it" and "that device is not
+    registered any more" are the two answers they are trying to tell apart.
+
+    Answers how many devices accepted it. A device the push service has given
+    up on is dropped on the way past and is not counted, so a reading of zero
+    means this account has nothing left to notify and the switch on this device
+    wants turning on again.
+
+    It does not, and cannot, promise the notification was shown. A phone with
+    the app's notifications switched off at the operating system level takes
+    delivery and displays nothing, and no server ever learns that.
+    """
+    if not push.configured():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_CONFIGURED)
+    if throttle.push_test_limiter.hit(throttle.user_key(user)):
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS, "Too many tests just now. Wait a minute."
+        )
+    subscriptions = [
+        (row.id, row.endpoint, row.p256dh, row.auth)
+        for row in db.execute(
+            select(models.PushSubscription).where(models.PushSubscription.user_id == user.id)
+        ).scalars()
+    ]
+    if not subscriptions:
+        return {"sent": 0, "removed": 0}
+    sent, removed = push.deliver(
+        subscriptions,
+        {"title": "secondmile", "body": "Notifications are working on this device."},
+    )
+    return {"sent": sent, "removed": removed}
+
+
 @router.delete("/subscriptions", status_code=status.HTTP_204_NO_CONTENT)
 def unsubscribe(
     body: EndpointBody,

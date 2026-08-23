@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app import activity as activity_rules
 from app import fellowship, grove, harvest, medals, models, progress, security, throttle
 from app.activity import converted_miles
 from app.config import SERVER_TZ
@@ -435,23 +436,13 @@ def _arrived(db: Session, user_id: int, since: dt.datetime | None) -> dict:
 
 
 def _last_sync(db: Session, user_id: int) -> str | None:
-    """When the phone last posted an export, or null for an account that has
-    never sent one.
-
-    Null is an ordinary answer rather than a fault: a player whose history was
-    loaded straight into the database has no sync to report, and neither has
-    anybody on their first day.
+    """The letter's reading of the same stamp, as ISO for the wire.
 
     UTC and ISO, like every other stamp in the letter. The instance timezone
     rides on /api/status and the client renders in it, because a browser pinned
     to UTC would read a quarter to two in the afternoon as nine in the evening.
     """
-    stamp = db.execute(
-        select(models.IngestLog.received_at)
-        .where(models.IngestLog.user_id == user_id)
-        .order_by(models.IngestLog.received_at.desc())
-        .limit(1)
-    ).scalar_one_or_none()
+    stamp = activity_rules.last_sync_at(db, user_id)
     return stamp.isoformat() if stamp is not None else None
 
 

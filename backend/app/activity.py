@@ -587,6 +587,24 @@ def local_day_bounds(moment: dt.datetime) -> tuple[dt.datetime, dt.datetime]:
     return day_bounds(moment.astimezone(SERVER_TZ).date())
 
 
+def last_sync_at(db: Session, user_id: int) -> dt.datetime | None:
+    """When this account's phone last posted an export, or None for one that
+    never has.
+
+    None is an ordinary answer rather than a fault: a player whose history was
+    loaded straight into the database has no sync to report, and neither has
+    anybody on their first day. It is also what an account answers once its
+    last sync is older than the ingest log's own retention, which is why a
+    reading of None is never treated as "something is wrong".
+    """
+    return db.execute(
+        select(models.IngestLog.received_at)
+        .where(models.IngestLog.user_id == user_id)
+        .order_by(models.IngestLog.received_at.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+
+
 def over_daily_cap(db: Session, user_id: int, activity: str, start_ts: dt.datetime) -> bool:
     """Whether this activity's stored total for the workout's local day is past
     the configured cap.

@@ -20,6 +20,7 @@ import {
   unitName,
 } from '../format.ts'
 import { plantStage } from '../grove.ts'
+import { exporterName } from '../platform.ts'
 import {
   activityIcon,
   defaultHeadline,
@@ -409,6 +410,16 @@ export default function Home({
   }
 
   const streak = profile.streak_weeks ?? 0
+  // A phone that has stopped posting. iOS suspends an exporter's background
+  // automations once its app has not been opened in a while, which looks from in
+  // here exactly like somebody who stopped moving, so the app says which one it
+  // is rather than leaving a quiet week to be misread. A day is the threshold:
+  // shorter than that and an overnight gap or a flat battery would set it off.
+  // Never shown to an account that has never synced at all, whose stamp is null
+  // and whose first sync is still ahead of it.
+  const syncedAt = profile.last_sync_at ? new Date(profile.last_sync_at) : null
+  const syncStale =
+    syncedAt !== null && Date.now() - syncedAt.getTime() > 24 * 60 * 60 * 1000
   // From the profile, which is where the streak beside it comes from too. It
   // used to be worked out from the first page of the feed, which meant a week
   // whose earlier days had scrolled off the page lost its diamonds, and a
@@ -431,6 +442,15 @@ export default function Home({
   // feed, in the order they are written.
   return (
     <div className="home">
+      {/* First, because it explains the emptiness under it. Where the three
+          columns open up it spans them and pushes them down a row; on a phone
+          it is simply the thing above the summary. */}
+      {syncStale && (
+        <p className="sync-stale" role="status">
+          No workouts have arrived since {formatShortDate(profile.last_sync_at ?? '')}. Open{' '}
+          {exporterName()} on your phone and it will catch up.
+        </p>
+      )}
       <aside className="home-col home-left">
         <section className="card summary">
           {/* The picture and the name are the way to the You screen, which is

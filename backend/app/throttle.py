@@ -220,6 +220,9 @@ bug_report_limiter = RateLimiter(3, "bug-report")
 # Turning a device's notifications on or off. Ten a minute is a person changing
 # their mind, not a client stuck in a subscribe loop.
 push_subscribe_limiter = RateLimiter(10, "push-subscribe")
+# A test send spends a real notification on somebody's lock screen, so it gets
+# its own smaller allowance rather than sharing the toggle's.
+push_test_limiter = RateLimiter(4, "push-test")
 # The three screens the app reads on every visit. Sixty a minute is well past
 # anything a person does and well under what a stuck poll would do.
 profile_read_limiter = RateLimiter(60, "profile-read")

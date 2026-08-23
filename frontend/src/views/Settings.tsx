@@ -7,6 +7,7 @@ import {
   logout,
   reportBug,
   rotateIngestToken,
+  sendTestPush,
   setHiddenFromFriends,
   setNotifyWorkoutArrival,
   setUnits,
@@ -130,6 +131,8 @@ export default function Settings({
   const [emailError, setEmailError] = useState('')
   const [emailNote, setEmailNote] = useState('')
   const [savingEmail, setSavingEmail] = useState(false)
+  const [testingPush, setTestingPush] = useState(false)
+  const [testResult, setTestResult] = useState('')
 
   useEffect(() => {
     getIngestTokenStatus()
@@ -171,6 +174,29 @@ export default function Settings({
       setPushError(errorText(err))
     } finally {
       setChangingDevice(false)
+    }
+  }
+
+  async function testPush() {
+    setTestingPush(true)
+    setTestResult('')
+    setPushError('')
+    try {
+      const { sent } = await sendTestPush()
+      // What the push service accepted, which is not the same as what the
+      // phone decided to show: a device with notifications switched off at the
+      // system level takes delivery silently and no server ever hears about it.
+      setTestResult(
+        sent === 0
+          ? 'No device is registered any more. Turn it off and on again here.'
+          : sent === 1
+            ? 'Sent. If nothing appears, notifications are switched off for secondmile in your phone settings.'
+            : `Sent to ${sent} devices. If nothing appears here, notifications are switched off for secondmile in your phone settings.`,
+      )
+    } catch (err) {
+      setPushError(errorText(err))
+    } finally {
+      setTestingPush(false)
     }
   }
 
@@ -654,14 +680,29 @@ export default function Settings({
           {device === 'on' && (
             <>
               <p className="hint">This device receives notifications.</p>
-              <button
-                type="button"
-                className="secondary"
-                disabled={changingDevice}
-                onClick={() => void turnDeviceOff()}
-              >
-                Turn off for this device
-              </button>
+              <div className="settings-actions">
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={changingDevice}
+                  onClick={() => void turnDeviceOff()}
+                >
+                  Turn off for this device
+                </button>
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={testingPush}
+                  onClick={() => void testPush()}
+                >
+                  Send a test
+                </button>
+              </div>
+              {testResult && (
+                <p className="hint" role="status">
+                  {testResult}
+                </p>
+              )}
             </>
           )}
           {pushError && (

@@ -1,4 +1,8 @@
 import { useState } from 'react'
+// Which set of instructions is being read. Guessed from the browser and then
+// left alone: the chips are the answer if the guess is wrong, and a guide
+// nobody can switch is worse than one that guesses.
+import { guessPlatform, type Platform } from '../platform.ts'
 import stepsExport from '../assets/guide/steps-automation-export.png'
 import stepsTop from '../assets/guide/steps-automation-top.png'
 import workoutsExport from '../assets/guide/workouts-automation-export.png'
@@ -82,15 +86,6 @@ const ANDROID_FIELDS: Field[] = [
   { name: 'Sync mode', value: 'Interval' },
   { name: 'Sync interval', value: '15 minutes, its shortest' },
 ]
-
-// Which set of instructions is being read. Guessed from the browser and then
-// left alone: the chips above are the answer if the guess is wrong, and a guide
-// nobody can switch is worse than one that guesses.
-type Platform = 'apple' | 'android'
-
-function guessPlatform(): Platform {
-  return /android/i.test(navigator.userAgent) ? 'android' : 'apple'
-}
 
 function FieldList({ fields }: { fields: Field[] }) {
   return (
@@ -441,6 +436,25 @@ export default function SetupGuide({ onBack }: Props) {
             The first sync can take a minute to appear. After that your workouts show up on
             their own, a few minutes behind the watch.
           </p>
+          {apple ? (
+            <p className="guide-note">
+              Open Health Auto Export every few days. iOS stops the background
+              automations of an app you have not opened in a while, and when it does,
+              exports quietly stop arriving even though the automation still says it is
+              on. Opening the app starts it again and it sends everything it missed.
+              Nothing is lost while it is stopped: the workouts are still in Apple Health,
+              and they land as soon as it runs.
+            </p>
+          ) : (
+            <p className="guide-note">
+              Open the bridge every few days. Android puts an app you have not opened in a
+              while to sleep, and a sleeping app stops syncing even though it still says it
+              is on. Opening it starts it again and it sends what it missed. Nothing is
+              lost while it is stopped: the workouts are still in Health Connect. Allowing
+              the app to run in the background, or exempting it from battery optimisation,
+              makes this rarer.
+            </p>
+          )}
           <p className="guide-note">
             Both phones post to the same address, in their own shapes, and the server reads
             whichever arrives. Nothing about a workout remembers which one it came from, so

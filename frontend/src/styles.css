@@ -5221,6 +5221,32 @@ button:disabled {
   margin-top: 1rem;
 }
 
+/* A phone that has stopped posting, said above everything else on Home because
+   it explains the emptiness underneath. Mustard rather than crimson: nothing is
+   broken and nothing was lost, there is just something to go and do. */
+.sync-stale {
+  /* Ahead of the streak card, which the phone layout pulls up with order -1.
+     Written as a smaller order rather than relying on document order, because
+     document order is exactly what that -1 overrules. */
+  order: -2;
+  margin: 0 0 0.9rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--landing-alpha);
+  border-radius: 6px;
+  color: var(--landing-alpha);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+/* Two buttons that belong to the same card, side by side where a phone has
+   room and stacked where it does not. Wrapping rather than a column, because
+   these two are equals: neither is the one you came here to press. */
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 /* A member who is not a friend: one card, one column, and nothing under it.
    Centred rather than laid out along a band, because there is no band: the
    grove that would stand on it is one of the things friendship gates. */
@@ -5422,6 +5448,21 @@ button:disabled {
     order: 0;
     grid-column: 3;
     grid-row: 1;
+  }
+
+  /* The sync notice spans the three columns and takes the row above them. The
+     columns are pinned to row one, so they are moved down only when the notice
+     is actually there: an empty first row would otherwise pay for a gap on
+     every ordinary visit. */
+  .sync-stale {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .home:has(.sync-stale) .home-left,
+  .home:has(.sync-stale) .home-main,
+  .home:has(.sync-stale) .home-right {
+    grid-row: 2;
   }
 
   /* The streak has a home inside the summary card here, so the phone's copy of

@@ -440,6 +440,9 @@ export interface Profile {
   diamond_sports?: Activity[]
   // Consecutive weeks with at least one workout, counting back from this one.
   streak_weeks?: number
+  // When this phone last posted an export, or null for an account that has
+  // never synced. Own profile only; a friend's payload has no such field.
+  last_sync_at?: string | null
   // Which days of the current week already carry a workout, Monday first. Seven
   // booleans, bucketed by the server in the instance's timezone, so they agree
   // with the streak beside them. Optional so the app still renders against a
@@ -1315,6 +1318,11 @@ export async function subscribePush(subscription: {
   keys: { p256dh: string; auth: string }
 }): Promise<void> {
   await sendJson('/push/subscriptions', 'POST', subscription)
+}
+
+export async function sendTestPush(): Promise<{ sent: number; removed: number }> {
+  const res = await send('/push/test', { method: 'POST' })
+  return (await res.json()) as { sent: number; removed: number }
 }
 
 export async function unsubscribePush(endpoint: string): Promise<void> {

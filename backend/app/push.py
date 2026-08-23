@@ -94,13 +94,20 @@ def arrival_body(arrivals: list[dict], units: str) -> str:
     return f"{len(arrivals)} workouts are in. {_distance(total, units, 1)} total."
 
 
-def deliver(subscriptions: list[Subscription], payload: dict) -> None:
+def deliver(subscriptions: list[Subscription], payload: dict) -> tuple[int, int]:
     """Send one payload to every subscription, and forget the dead ones.
 
-    Runs after the response is gone, so nothing here may raise: a push service
-    outage costs the notification and a log line, never the sync.
+    Answers how many the push service accepted and how many were dropped as
+    gone. The sync path is a background task and ignores both; the test send on
+    the Settings card is the caller that needs them, because "accepted" and
+    "this device is no longer registered" are the two answers somebody staring
+    at a silent phone is trying to tell apart.
+
+    Runs after the response is gone in the sync case, so nothing here may raise:
+    a push service outage costs the notification and a log line, never the sync.
     """
     data = json.dumps(payload)
+    sent = 0
     dead: list[int] = []
     for sub_id, endpoint, p256dh, auth in subscriptions:
         try:
@@ -111,6 +118,7 @@ def deliver(subscriptions: list[Subscription], payload: dict) -> None:
                 vapid_claims={"sub": settings.vapid_subject},
                 ttl=TTL_SECONDS,
             )
+            sent += 1
         except WebPushException as exc:
             # 404 and 410 are the push service saying this device is gone for
             # good; anything else is weather, kept and retried next sync.
@@ -129,3 +137,4 @@ def deliver(subscriptions: list[Subscription], payload: dict) -> None:
             session.commit()
         finally:
             session.close()
+    return sent, len(dead)

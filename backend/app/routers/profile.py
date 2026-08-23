@@ -219,6 +219,15 @@ def serialize_profile(db: Session, user: models.User, row: models.UserProgress) 
         # next_chest.gifted_by is null is one the next chest has no room for:
         # it is not lost, it is holding out for a chest it can lift.
         "pending_gifts": [{"from": name} for name in gifts],
+        # When this account's phone last posted, so Home can say something when
+        # a sync has stopped arriving. Own-only by construction: a friend is
+        # served by serialize_friend_profile, whose shape is the allowlist, and
+        # this line is not in it. Null for an account that has never synced.
+        "last_sync_at": (
+            stamp.isoformat()
+            if (stamp := activity_rules.last_sync_at(db, user.id)) is not None
+            else None
+        ),
     }
 
 

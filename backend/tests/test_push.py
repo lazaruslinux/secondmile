@@ -8,7 +8,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric import ec
 from pywebpush import WebPushException
 
-from app import config, models, push
+from app import config, models, push, security
 from conftest import make_user
 from test_ingest import export, post, workout
 from test_steps import TODAY, reading, sync
@@ -203,3 +203,61 @@ def test_the_clock_form_grows_hours_when_it_needs_them():
         }
     ]
     assert push.arrival_body(arrivals, "imperial") == "Your 2:05 PM cycle is in. 20.00 mi in 1:02:05."
+
+
+def test_a_test_send_reports_how_many_devices_took_it(
+    signed_in, db_session, member, vapid, sent
+):
+    """The button exists so somebody with a silent phone gets a real answer."""
+    for index in (1, 2):
+        db_session.add(
+            models.PushSubscription(
+                user_id=member.id,
+                endpoint=f"https://push.example.com/{index}",
+                p256dh="key",
+                auth="auth",
+                created_at=security.now_utc(),
+            )
+        )
+    db_session.commit()
+
+    response = signed_in.post("/api/push/test")
+    assert response.status_code == 200
+    assert response.json() == {"sent": 2, "removed": 0}
+    assert len(sent) == 2
+
+
+def test_a_test_send_with_no_devices_answers_zero(signed_in, member, vapid, sent):
+    """Zero is the reading that tells somebody to turn the switch back on."""
+    assert signed_in.post("/api/push/test").json() == {"sent": 0, "removed": 0}
+    assert sent == []
+
+
+def test_a_test_send_forgets_a_device_the_service_gave_up_on(
+    signed_in, db_session, member, vapid, monkeypatch
+):
+    """A gone device is dropped on the way past and is not counted as sent."""
+    db_session.add(
+        models.PushSubscription(
+            user_id=member.id,
+            endpoint="https://push.example.com/gone",
+            p256dh="key",
+            auth="auth",
+            created_at=security.now_utc(),
+        )
+    )
+    db_session.commit()
+
+    def gone(**kwargs):
+        raise WebPushException("gone", response=SimpleNamespace(status_code=410))
+
+    monkeypatch.setattr(push, "webpush", gone)
+    monkeypatch.setattr(push, "session_factory", lambda: db_session)
+
+    assert signed_in.post("/api/push/test").json() == {"sent": 0, "removed": 1}
+    assert db_session.query(models.PushSubscription).count() == 0
+
+
+def test_a_test_send_needs_a_configured_server(signed_in):
+    """Without a keypair the whole feature is off, and it says so."""
+    assert signed_in.post("/api/push/test").status_code == 404
