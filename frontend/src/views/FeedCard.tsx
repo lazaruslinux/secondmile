@@ -45,7 +45,7 @@ import {
   ACTIVITY_NAMES,
   defaultHeadline,
   personName,
-  standingLine,
+  standingSentence,
   TOO_MANY_UPLOADS,
 } from '../labels.ts'
 import AvatarFrame from './AvatarFrame.tsx'
@@ -1160,10 +1160,10 @@ export default function FeedCard({
   const medals = item.medals ?? []
   // The name they go by if they gave one, and their username otherwise.
   const who = personName(user)
-  // One line, and the strongest standing the workout holds: the server sends
-  // them best place first, so the head of the list is the thing to say. The
-  // rest of them are on the details screen, where there is room for a row.
-  const standing = item.records?.[0]
+  // Every standing the workout holds, as one sentence. The server sends them
+  // best place first and the sentence keeps that order, so the best thing it
+  // did leads and nothing has to be tapped into to find the rest.
+  const standing = standingSentence(item.records ?? [], item.own, who)
 
   if (item.own) {
     return (
@@ -1233,7 +1233,7 @@ export default function FeedCard({
 
         {/* Where the run stood when it arrived, and never rewritten since, which
             is why it is past tense. Under the numbers it is a reading of. */}
-        {standing && <p className="feed-standing">{standingLine(standing, 'your')}</p>}
+        {standing !== '' && <p className="feed-standing">{standing}</p>}
 
         {/* Under the numbers it is about, and worded as the sentence it is: a
             flagged workout still counts, and the card says so rather than
@@ -1328,7 +1328,7 @@ export default function FeedCard({
 
       <StatRow item={item} units={units} onOpen={open} />
 
-      {standing && <p className="feed-standing">{standingLine(standing, `${who}'s`)}</p>}
+      {standing !== '' && <p className="feed-standing">{standing}</p>}
 
       {item.has_route && <RouteLine workoutId={item.workout_id} />}
 

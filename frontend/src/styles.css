@@ -187,6 +187,10 @@
   --grove-basket: #b08d57;
   /* The alpha notice on the landing page, in the mustard that is not gold. */
   --landing-alpha: #e0b542;
+  /* A personal record on an activity card. The medals chip's own mustard,
+     because a standing and a medal mean nearly the same thing, but under its
+     own name so records can be recoloured without moving the chip. */
+  --record: #e0b542;
   /* The chip in the top bar. Magenta on purpose, because it is not a design
      colour: crimson means an error, mustard is the medals chip, gold is
      gilded. It is temporary signage, and it dies with alpha.ts. */
@@ -242,6 +246,7 @@
   --chip-level: #7c3aed;
   --chip-medals: #8f6f14;
   --grove-manna: #8c6a14;
+  --record: #8f6f14;
   --grove-season: #1f7a4d;
   --grove-basket: #7a5c2e;
   --landing-alpha: #8f6f14;
@@ -274,6 +279,7 @@
   --chip-level: #a06bff;
   --chip-medals: #ffc94d;
   --grove-manna: #ffc94d;
+  --record: #ffc94d;
   --grove-season: #4ee6a8;
   --grove-basket: #a06bff;
 }
@@ -642,6 +648,37 @@ code {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.09em;
+}
+
+/* The mark on a tab that has something waiting behind it. The holder exists so
+   the dot can sit on the corner of the picture without moving it: the bar's
+   heights are written in px against a thumb, and a tab that grew when a chest
+   arrived would shift the whole row. */
+.tab-mark-holder {
+  position: relative;
+  display: inline-flex;
+  line-height: 0;
+}
+
+/* A dot and no number. What is waiting is worth walking over to; how much of it
+   there is belongs on the screen it points at, not on a tab as a count to
+   clear. Crimson because that is the app's own colour for "look here", and lit
+   so it carries at a glance on a dark bar. */
+.tab-mark {
+  position: absolute;
+  top: -2px;
+  right: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px 1px rgba(220, 20, 60, 0.85);
+}
+
+/* On white the glow is a smudge, the same as every other lit thing here, so the
+   dot keeps a ring against the bar instead. */
+:root[data-theme='light'] .tab-mark {
+  box-shadow: 0 0 0 2px var(--surface);
 }
 
 /* The wide-screen navigation, which lives in the top bar. Below 900px the bar
@@ -2856,15 +2893,23 @@ button:disabled {
 }
 
 /* Where a workout stood in its own history, on the card the numbers are on.
-   Full ink at the weight the Home week line reads at, because this is a card's
-   real news rather than a footnote to it - but the app's crimson stays off it:
-   accent text on the dark surface is the 3.89:1 that was left as it is, and a
-   sentence is not the place to spend that. */
+   The card's real news rather than a footnote to it, so it is lit: its own
+   mustard at the weight the Home week line reads at. Not crimson, which means
+   an error or a flag here, and not the plain ink the rest of the card is set
+   in. */
 .feed-standing {
   margin: 0.7rem 0 0;
   font-size: 0.9rem;
   font-weight: 600;
-  color: var(--text);
+  color: var(--record);
+}
+
+/* The glow, on the dark grounds only, which is the rule the lit appearance chip
+   already follows: a lit word on a white card reads as a smudge, so light gets
+   the darkened tint and no more. Dark is the root's own block, hence the :not
+   rather than a list. */
+:root:not([data-theme='light']) .feed-standing {
+  text-shadow: 0 0 10px rgba(255, 201, 77, 0.45);
 }
 
 /* What the server marked about a workout's numbers, on the card the numbers are
@@ -3951,6 +3996,22 @@ button:disabled {
 
 .overlay-head .hint {
   margin: 0;
+}
+
+/* What a chest says as it opens. The one exclamation in the app's own voice,
+   because opening a chest is the one moment it has: everything else that
+   happens here is reported, and this is announced. */
+.chest-opened {
+  color: var(--record);
+}
+
+:root:not([data-theme='light']) .chest-opened {
+  text-shadow: 0 0 12px rgba(255, 201, 77, 0.45);
+}
+
+/* The line above the square, which the square finishes. */
+.chest-found {
+  margin: 0 0 0.6rem;
 }
 
 .overlay-foot {

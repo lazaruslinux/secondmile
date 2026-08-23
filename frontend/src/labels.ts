@@ -452,6 +452,15 @@ const CHEST_TIER_NAMES: Record<string, string> = {
   ultra: 'Ultra',
 }
 
+// The line above the square when a chest is opened. It trails off because the
+// square is the rest of the sentence.
+export const FOUND_LEAD = 'You found…'
+
+// What the mark on the You tab means, for anybody a dot never reaches. No
+// number in it: the mark says something is here, and how many is on the screen
+// it points at.
+export const CHESTS_WAITING = 'Chests waiting to be opened.'
+
 export function chestName(tier: string | null | undefined): string {
   if (!tier) return 'Chest'
   return `${CHEST_TIER_NAMES[tier.toLowerCase()] ?? tier} chest`
@@ -512,14 +521,29 @@ export function standingPhrase(record: WorkoutRecord): string {
   return place === undefined ? '' : `${place} ${PR_TIER_NAMES[record.tier]}`
 }
 
-// The same standing as the sentence a card says. `whose` is "your" on your own
-// card and the person's name in the possessive on anybody else's, so the
-// ownership is the only thing that changes between the two.
+// Every standing a workout holds, as the one sentence a card says. They arrive
+// strongest first and are said in that order, so the best thing it did leads.
+//
+// Your own card repeats the "your", which is how somebody says it out loud.
+// Somebody else's takes their name once and then goes bare: the alternatives
+// are their name four times over, or a pronoun the app was never told.
 //
 // Past tense on purpose. A standing is written the day a workout arrives and is
 // never rewritten, so what a card says is what was true then, not a claim about
 // where the run would place today.
-export function standingLine(record: WorkoutRecord, whose: string): string {
-  const phrase = standingPhrase(record)
-  return phrase === '' ? '' : `This was ${whose} ${phrase}.`
+export function standingSentence(
+  records: WorkoutRecord[],
+  own: boolean,
+  name: string,
+): string {
+  const phrases = records.map(standingPhrase).filter((phrase) => phrase !== '')
+  if (phrases.length === 0) return ''
+  const listed = own
+    ? phrases.map((phrase) => `your ${phrase}`)
+    : phrases.map((phrase, index) => (index === 0 ? `${name}'s ${phrase}` : phrase))
+  const said =
+    listed.length === 1
+      ? listed[0]
+      : `${listed.slice(0, -1).join(', ')} and ${listed[listed.length - 1]}`
+  return own ? `This activity was ${said}!` : `This was ${said}!`
 }

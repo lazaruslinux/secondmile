@@ -5,6 +5,7 @@ import {
   getMe,
   getRecap,
   getStatus,
+  listChests,
   setUnauthorizedHandler,
   verifyEmail,
   type FeedItem,
@@ -15,6 +16,7 @@ import {
   type Units,
 } from './api.ts'
 import { ALPHA, ALPHA_LINE } from './alpha.ts'
+import { CHESTS_WAITING } from './labels.ts'
 import { setInstanceTimezone } from './format.ts'
 import { recapHasNews } from './recap.ts'
 import ActivityView from './views/Activity.tsx'
@@ -100,6 +102,12 @@ export default function App() {
   // Bumped whenever something outside a view changes what it shows, which so
   // far means chests opened from the recap.
   const [refreshToken, setRefreshToken] = useState(0)
+  // How many chests are sitting unopened. Read once when the app opens and
+  // said again by the You screen every time it learns it, because that screen
+  // is the only place a chest is opened from. Nothing else feeds this yet: a
+  // mark that appeared for everything the app could nag about would be the
+  // opposite of earning things by going out and forgetting the app.
+  const [chestsWaiting, setChestsWaiting] = useState(0)
 
   useEffect(() => {
     // One place decides that a lost session means the login screen, so no
@@ -163,11 +171,19 @@ export default function App() {
     getRecap()
       .then(setRecap)
       .catch(() => setRecap(null))
+    listChests()
+      .then((waiting) => setChestsWaiting(waiting.length))
+      .catch(() => setChestsWaiting(0))
   }, [userId])
 
   async function dismissRecap() {
     setRecap(null)
     setRefreshToken((count) => count + 1)
+    // The letter is where chests are opened from as well, so what is left is
+    // asked for again rather than assumed unchanged.
+    listChests()
+      .then((waiting) => setChestsWaiting(waiting.length))
+      .catch(() => undefined)
     try {
       await ackRecap()
     } catch {
@@ -314,6 +330,7 @@ export default function App() {
         <nav className="topnav" aria-label="Sections">
           {TABS.map((tab) => {
             const current = section === tab.id
+            const waiting = tab.id === 'you' && chestsWaiting > 0
             return (
               <button
                 key={tab.id}
@@ -322,8 +339,12 @@ export default function App() {
                 aria-current={current ? 'page' : undefined}
                 onClick={() => showTab(tab.id)}
               >
-                <Icon name={tab.icon} />
+                <span className="tab-mark-holder">
+                  <Icon name={tab.icon} />
+                  {waiting && <span className="tab-mark" />}
+                </span>
                 <span className="topnav-label">{tab.label}</span>
+                {waiting && <span className="sr-only">{CHESTS_WAITING}</span>}
               </button>
             )
           })}
@@ -373,6 +394,7 @@ export default function App() {
             refreshToken={refreshToken}
             onOpenSettings={() => setView('settings')}
             onOpenPerson={openFriend}
+            onChestsWaiting={setChestsWaiting}
           />
         )}
         {/* Keyed by the person, so opening a second profile is a fresh screen
@@ -433,6 +455,10 @@ export default function App() {
       <nav className="tabbar" aria-label="Sections">
         {TABS.map((tab) => {
           const current = section === tab.id
+          // The mark rides the You tab because that is the screen the chests
+          // are on. It says something is here, never how many: a count on a tab
+          // is a number to clear rather than a thing to enjoy.
+          const waiting = tab.id === 'you' && chestsWaiting > 0
           return (
             <button
               key={tab.id}
@@ -441,8 +467,14 @@ export default function App() {
               aria-current={current ? 'page' : undefined}
               onClick={() => showTab(tab.id)}
             >
-              <Icon name={tab.icon} />
+              <span className="tab-mark-holder">
+                <Icon name={tab.icon} />
+                {waiting && <span className="tab-mark" />}
+              </span>
               <span className="tab-label">{tab.label}</span>
+              {/* The mark is a dot, so what it means is said here for anybody
+                  the dot never reaches. */}
+              {waiting && <span className="sr-only">{CHESTS_WAITING}</span>}
             </button>
           )
         })}

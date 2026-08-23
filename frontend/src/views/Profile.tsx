@@ -40,7 +40,7 @@ import {
 import AvatarFrame from './AvatarFrame.tsx'
 import BandGrove from './BandGrove.tsx'
 import ChestBar from './ChestBar.tsx'
-import ChestItem from './ChestItem.tsx'
+import ChestReveal from './ChestReveal.tsx'
 import EditProfile from './EditProfile.tsx'
 import GearCard from './GearCard.tsx'
 import Icon from './Icon.tsx'
@@ -73,6 +73,11 @@ interface Props {
   // Opens a profile, which on this screen only ever means your own through the
   // friend lens. The app owns which screen is up, so nothing here reaches for it.
   onOpenPerson: (userId: number) => void
+  // How many chests are still unopened, said upward every time this screen
+  // learns it. The app draws the mark on the tab and this screen is the only
+  // place that opens one, so the mark clears on the same tap that empties the
+  // list rather than on the next load.
+  onChestsWaiting: (waiting: number) => void
 }
 
 export default function Profile({
@@ -81,6 +86,7 @@ export default function Profile({
   refreshToken,
   onOpenSettings,
   onOpenPerson,
+  onChestsWaiting,
 }: Props) {
   // Coming back to the tab draws what was here before and asks the server again
   // underneath, so switching tabs is not a blank screen every time.
@@ -106,7 +112,7 @@ export default function Profile({
   const [badgeBusy, setBadgeBusy] = useState(false)
   const [badgeError, setBadgeError] = useState('')
 
-  const [opened, setOpened] = useState<SatchelItem[]>([])
+  const [opened, setOpened] = useState<{ tier: string | null; item: SatchelItem } | null>(null)
   const [openingChest, setOpeningChest] = useState<number | null>(null)
   const [chestError, setChestError] = useState('')
 
@@ -123,6 +129,7 @@ export default function Profile({
       ])
       setProfile(mine)
       setChests(waiting)
+      onChestsWaiting(waiting.length)
       setPlantings(plot)
       setKeepsakes(given)
       setLoadError('')
@@ -131,7 +138,9 @@ export default function Profile({
     } finally {
       setLoading(false)
     }
-  }, [])
+    // The app hands down a state setter, which never changes identity, so this
+    // stays the stable callback the effect below depends on.
+  }, [onChestsWaiting])
 
   useEffect(() => {
     void load()
@@ -185,8 +194,13 @@ export default function Profile({
     setChestError('')
     try {
       const item = await openChest(chestId)
-      setOpened((current) => [...current, item])
-      setChests((current) => current.filter((chest) => chest.id !== chestId))
+      const tier = chests.find((chest) => chest.id === chestId)?.tier ?? null
+      setOpened({ tier, item })
+      setChests((current) => {
+        const left = current.filter((chest) => chest.id !== chestId)
+        onChestsWaiting(left.length)
+        return left
+      })
       // The satchel and the counts on this screen both moved, so they are read
       // again rather than guessed at.
       void load()
@@ -495,7 +509,7 @@ export default function Profile({
 
           <section className="card">
             <h2 className="label">Chests</h2>
-            {chests.length === 0 && opened.length === 0 && (
+            {chests.length === 0 && (
               // Not "nothing waiting" any more: a gift can be waiting on this
               // card at the same time, and one word cannot mean both.
               <p className="hint">
@@ -531,14 +545,20 @@ export default function Profile({
                 ))}
               </ul>
             )}
-            {opened.length > 0 && (
-              <div className="item-reveals">
-                {opened.map((item) => (
-                  <ChestItem key={item.id} item={item} onPlanted={() => void load()} />
-                ))}
-              </div>
-            )}
           </section>
+
+          {/* What was in it, given the screen for a moment. It used to appear
+              as a quiet strip under the list above, which is easy to open a
+              chest and never see. Planting from inside reloads the plot the
+              same way it always did. */}
+          {opened !== null && (
+            <ChestReveal
+              tier={opened.tier}
+              item={opened.item}
+              onPlanted={() => void load()}
+              onClose={() => setOpened(null)}
+            />
+          )}
 
           {/* What friends have grown and given away, kept forever. It has no
               verb and no number anything spends: somebody went out, earned a
