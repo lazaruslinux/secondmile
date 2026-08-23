@@ -27,7 +27,7 @@ from dataclasses import dataclass, field
 
 from sqlalchemy.orm import Session
 
-from app import models
+from app import bests, models
 from app.activity import parse_start, plain_name, quantity, to_kcal, to_miles, unit_of
 from app.config import (
     MAX_SAMPLE_DISTANCE_MI,
@@ -310,6 +310,11 @@ def store(db: Session, workout_id: int, minutes: list[Sample]) -> int:
     Only ever called for a workout that has none. The unique key on the table
     is what makes that a rule rather than a hope: a second sync of a session
     already described is refused by the database.
+
+    The workout's best efforts are read off the same minutes and written here
+    too. Here rather than beside each caller because this is the one place
+    minutes reach the database, and two call sites deriving the same numbers is
+    two places for them to drift apart.
     """
     if not minutes:
         return 0
@@ -329,6 +334,7 @@ def store(db: Session, workout_id: int, minutes: list[Sample]) -> int:
         ]
     )
     db.flush()
+    bests.store(db, workout_id, [(row.minute, row.distance_mi) for row in minutes])
     return len(minutes)
 
 

@@ -25,7 +25,7 @@ import sys
 from sqlalchemy import delete, select
 
 from app import activity as activity_rules
-from app import grove, medals, models, progress, routemaps, samples, security
+from app import bests, grove, medals, models, progress, routemaps, samples, security
 from app.config import INGEST_LOG_RETENTION_DAYS, check_deploy_config
 from app.db import SessionLocal
 from app.routers.auth import create_invite
@@ -405,6 +405,54 @@ def cmd_backfill_samples(args: argparse.Namespace) -> None:
         db.close()
 
 
+def cmd_backfill_best_efforts(args: argparse.Namespace) -> None:
+    """Read every workout's fastest stretches out of the per-minute rows it has.
+
+    workout_best_efforts arrived in 0037 empty, and every workout imported before
+    that release has none. The rows they are read from are still there, so unlike
+    the sample backfill above nothing here depends on a payload surviving the
+    ingest log's retention: this reads workout_samples, which is permanent.
+
+    Every account, because it is a one-time pass run by whoever has a shell on
+    the server. Deleted workouts are left out: a session somebody took back
+    should not hold a record, which is the same rule the reader applies.
+
+    Safe to run twice, and safe to run again after a sample backfill. Each
+    workout's rows are rewritten from what its minutes now say, so a workout
+    whose detail was filled in later stops holding the thinner answer it had
+    before. Nothing outside this table is written: no workout, progress, medal,
+    chest or plant is touched, and nothing here has ever been earned.
+
+    Until this is run the band answers exactly as it did before, because a
+    workout with no stored bests falls back to its own average pace, which is
+    what a workout with no per-minute rows has always fallen back to.
+    """
+    db = _session()
+    try:
+        minutes: dict[int, list[tuple[int, float | None]]] = {}
+        for workout_id, minute, distance in db.execute(
+            select(
+                models.WorkoutSample.workout_id,
+                models.WorkoutSample.minute,
+                models.WorkoutSample.distance_mi,
+            )
+            .join(models.Workout, models.Workout.id == models.WorkoutSample.workout_id)
+            .where(models.Workout.deleted_at.is_(None))
+            .order_by(models.WorkoutSample.workout_id, models.WorkoutSample.minute)
+        ):
+            minutes.setdefault(workout_id, []).append((minute, distance))
+
+        written = 0
+        for workout_id, rows in minutes.items():
+            written += bests.store(db, workout_id, rows)
+        db.commit()
+
+        print(f"Read {len(minutes)} workouts with per-minute detail.")
+        print(f"  best efforts written: {written}")
+    finally:
+        db.close()
+
+
 def cmd_strip_ingest_log(args: argparse.Namespace) -> None:
     """Take the GPS traces out of every stored sync, and drop the expired ones.
 
@@ -757,6 +805,12 @@ def main() -> None:
         "backfill-samples", help="read the per-minute detail stored syncs still carry"
     )
     detail.set_defaults(func=cmd_backfill_samples)
+
+    efforts = sub.add_parser(
+        "backfill-best-efforts",
+        help="read each workout's fastest race-distance stretches from its per-minute rows",
+    )
+    efforts.set_defaults(func=cmd_backfill_best_efforts)
 
     strip = sub.add_parser(
         "strip-ingest-log", help="remove stored GPS traces and drop syncs past retention"

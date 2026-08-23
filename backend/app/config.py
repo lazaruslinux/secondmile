@@ -457,6 +457,14 @@ MAX_VIDEO_BODY_BYTES = 105 * 1024 * 1024
 # body, not the entry count, and an export of tiny entries is a request that
 # asks the server for one savepoint and one insert each. Years of catching up
 # for four activities does not come close to this.
+# The distances a best is read at, in miles, shortest first. A workout
+# qualifies for a tier by covering at least it, and what is answered is the
+# fastest stretch of that distance anywhere inside it: a personal best for a 5K
+# is the quickest 5K a body has actually run, whether it ran it as a race or in
+# the middle of a ten-miler. Where the per-minute rows exist that stretch is
+# found in them; where they do not, the session's own average stands in.
+PR_TIERS = (("5k", 3.1), ("10k", 6.2), ("half", 13.1), ("marathon", 26.2))
+
 MAX_INGEST_WORKOUTS = 2000
 
 # And the same ceiling on the samples the export's metrics carry between them,

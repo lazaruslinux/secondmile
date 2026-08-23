@@ -444,6 +444,34 @@ class WorkoutSample(Base):
     active_kcal: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
+class WorkoutBestEffort(Base):
+    __tablename__ = "workout_best_efforts"
+    # One row per tier a workout can answer for, so a tier it cannot reach is
+    # absent rather than null: absence is what tells the reader to fall back to
+    # the session's own average, which is the question it used to put to the
+    # sample rows directly.
+    __table_args__ = (UniqueConstraint("workout_id", "tier", name="uq_workout_best_effort"),)
+
+    # What the per-minute rows say the fastest stretch of a race distance inside
+    # this workout was. Written when those rows are, read by the insights band,
+    # and derived: nothing here is earned, and no medal, chest, level or plant
+    # has ever asked this table a question.
+    #
+    # Stored rather than recomputed because it does not change. The band used to
+    # read every sample row in a history and redo every one of these on every
+    # open, which at ten years of running is 120,000 rows for an answer settled
+    # the day the workout arrived.
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workout_id: Mapped[int] = mapped_column(
+        ForeignKey("workouts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # The tier's name from PR_TIERS, kept as its name rather than its distance so
+    # retuning a tier's mileage never silently rewrites what an old workout is
+    # claimed to have run.
+    tier: Mapped[str] = mapped_column(String(16), nullable=False)
+    seconds: Mapped[float] = mapped_column(Float, nullable=False)
+
+
 class IngestLog(Base):
     __tablename__ = "ingest_log"
 

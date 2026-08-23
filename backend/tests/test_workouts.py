@@ -20,7 +20,7 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 from app import activity as activity_rules
-from app import models, progress, security
+from app import bests, models, progress, security
 from app.activity import converted_miles
 from app.config import MAX_PHOTO_BYTES
 from app.main import app as fastapi_app
@@ -1055,11 +1055,19 @@ def sampled(db_session, workout: models.Workout, distances: list[float]) -> None
 
     Distance only: the tier records are the one thing that reads these rows for
     anything but the details screen, and a heart rate would say nothing here.
+
+    The workout's best efforts are written from them too, because that is what a
+    sync does: app.samples derives them the moment the minutes land, and a helper
+    that wrote the minutes without them would be describing a workout no sync
+    could produce.
     """
-    for minute, distance in enumerate(distances):
+    minutes = list(enumerate(distances))
+    for minute, distance in minutes:
         db_session.add(
             models.WorkoutSample(workout_id=workout.id, minute=minute, distance_mi=distance)
         )
+    db_session.flush()
+    bests.store(db_session, workout.id, minutes)
     db_session.commit()
 
 
