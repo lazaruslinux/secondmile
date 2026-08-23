@@ -438,21 +438,22 @@ export default function SetupGuide({ onBack }: Props) {
           </p>
           {apple ? (
             <p className="guide-note">
-              Open Health Auto Export every few days. iOS stops the background
-              automations of an app you have not opened in a while, and when it does,
-              exports quietly stop arriving even though the automation still says it is
-              on. Opening the app starts it again and it sends everything it missed.
-              Nothing is lost while it is stopped: the workouts are still in Apple Health,
-              and they land as soon as it runs.
+              If your workouts stop showing up here, open Health Auto Export and let it
+              run. iOS pauses the background automations of an app it has not seen you
+              open in a while, and when it does they stop sending without saying so: the
+              automation still reads as on. Opening the app is what starts it again, and
+              it sends everything it missed. Nothing is lost while it is paused, because
+              the workouts are still in Apple Health and they land as soon as it runs.
             </p>
           ) : (
             <p className="guide-note">
-              Open the bridge every few days. Android puts an app you have not opened in a
-              while to sleep, and a sleeping app stops syncing even though it still says it
-              is on. Opening it starts it again and it sends what it missed. Nothing is
-              lost while it is stopped: the workouts are still in Health Connect. Allowing
-              the app to run in the background, or exempting it from battery optimisation,
-              makes this rarer.
+              If your workouts stop showing up here, open the bridge and let it run.
+              Android puts an app it has not seen you open in a while to sleep, and a
+              sleeping app stops sending without saying so. Opening it is what starts it
+              again, and it sends what it missed. Nothing is lost while it is asleep,
+              because the workouts are still in Health Connect. Allowing the app to run in
+              the background, or exempting it from battery optimisation, makes it happen
+              less often.
             </p>
           )}
           <p className="guide-note">

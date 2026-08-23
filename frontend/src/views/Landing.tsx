@@ -254,9 +254,7 @@ export default function Landing({ onEnter, invite }: Props) {
           An iPhone with health and workout data turned on, or an Android phone with Health
           Connect. Each one needs a small exporter app that posts what it reads to your
           account: Health Auto Export on iOS, Health Connect Webhook on Android. The setup
-          guide inside walks through both. Open that exporter every few days: phones stop
-          the background work of an app nobody opens, and it sends everything it missed the
-          moment you do.
+          guide inside walks through both.
           {/* Somebody invited by a friend is not turned away by the hardware:
               the friendship is the point and the miles can start later. */}
           {invite && (

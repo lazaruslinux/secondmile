@@ -597,9 +597,6 @@ export default function Home({
           )}
 
           <Streak streak={streak} days={days} />
-          <p className="hint">
-            Miles counted this week. Your phone syncs on its own.
-          </p>
           {/* There is no rail on a phone, so what the rail holds is folded in
               here under a rule rather than lost. */}
           {!wide && (
