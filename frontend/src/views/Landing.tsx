@@ -251,9 +251,10 @@ export default function Landing({ onEnter, invite }: Props) {
         <p className="label landing-eyebrow">What you need</p>
         <h2>An iPhone or an Android.</h2>
         <p>
-          An iPhone with health and workout data turned on, or an Android device that can
-          export Health Connect data to secondmile's ingest link. Health Auto Export for
-          iOS is the only exporter tested and supported today.
+          An iPhone with health and workout data turned on, or an Android phone with Health
+          Connect. Each one needs a small exporter app that posts what it reads to your
+          account: Health Auto Export on iOS, Health Connect Webhook on Android. The setup
+          guide inside walks through both.
           {/* Somebody invited by a friend is not turned away by the hardware:
               the friendship is the point and the miles can start later. */}
           {invite && (

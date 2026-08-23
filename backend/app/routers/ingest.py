@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app import (
     activity,
     gear,
+    healthconnect,
     history,
     models,
     progress,
@@ -133,6 +134,15 @@ async def ingest(
         # than a fault of the server's: without this it escapes as a 500.
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Body must be JSON.") from None
 
+    # An Android export describes the same morning in a different shape, so it is
+    # turned into the one every reader below expects before any of them sees it.
+    # What arrived is held onto for the log at the end: the translation is this
+    # app's reading of somebody else's payload, and when a reading turns out to be
+    # wrong the payload itself is the only thing that can say so.
+    exported = payload
+    if healthconnect.looks_like(payload):
+        payload = healthconnect.translate(payload)
+
     # Counted before anything is parsed, so an export with a million entries
     # costs one length check rather than a million savepoints.
     entries = activity.workout_entries(payload)
@@ -237,7 +247,12 @@ async def ingest(
     # of the payload and drawn, trimmed, into workout_routes, so what goes into
     # the log is the export minus the one thing in it that says where this
     # person lives.
-    payload = activity.without_routes(payload)
+    #
+    # The export as it arrived rather than as it was read: for an Apple sync the
+    # two are the same object, and for an Android one this keeps what the bridge
+    # actually sent, which is what a mapping mistake has to be diagnosed from. A
+    # Health Connect payload carries no route, so there is nothing in it to strip.
+    payload = activity.without_routes(exported)
     db.add(
         models.IngestLog(
             user_id=user.id,

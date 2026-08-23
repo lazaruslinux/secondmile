@@ -175,6 +175,35 @@ already recorded.
 
 ## Android
 
-I have not built an Android path yet. The endpoint is plain JSON over HTTPS
-with a bearer token, so anything that can POST that shape can sync; the
-payload format it accepts is the Health Auto Export workout export.
+The same endpoint, the same bearer token, a different shape on the wire.
+
+Android has no Health Auto Export. What it has is bridge apps that read Health
+Connect and POST to a webhook, and the one this is written for is [Health
+Connect Webhook](https://github.com/mcnaveen/health-connect-webhook): free, open
+source under AGPL-3.0 like this app, and on the Play Store. It can attach custom
+headers per webhook, which is what lets it send the same `Authorization: bearer
+<token>` line an iPhone sends.
+
+Point it at `/api/ingest`, add the Authorization header, and enable five data
+types: Exercise Sessions, Heart Rate, Active Calories, Steps, Distance. The
+sessions become workouts; the other four fill in the per-minute detail, the heart
+rate zones, and the calories manna is converted from.
+
+The server tells the two shapes apart by looking at the payload rather than by
+having two endpoints. An export the Apple reader can already understand is never
+touched; one it cannot, carrying an array Health Connect names, is translated
+into the Apple shape before anything else reads it. That translation lives in
+`backend/app/healthconnect.py` and is the only part of the codebase that knows
+Android exists. Everything downstream of it, from deduplication to chests to the
+grove, cannot tell which phone a mile came from.
+
+Two honest limits. There is no route line on an Android workout: Health Connect
+has an exercise route API and the bridge does not export it, so those workouts
+arrive without a map. And the bridge sends its arrays independently of its
+sessions, at whatever resolution the phone chose, so each workout's detail is the
+slice of each array that falls inside its own window, folded into one reading per
+minute.
+
+Any other client can sync too. The endpoint is plain JSON over HTTPS with a
+bearer token, and it accepts either the Health Auto Export workout export or the
+Health Connect Webhook envelope.
