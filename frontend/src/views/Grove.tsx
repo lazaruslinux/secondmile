@@ -12,6 +12,7 @@ import {
   type Person,
   type Planting,
 } from '../api.ts'
+import { itemArt } from '../art.ts'
 import { convertedValue, fillClass, formatAcquired } from '../format.ts'
 import { levelProgress, plantStage } from '../grove.ts'
 import {
@@ -39,6 +40,11 @@ import RarityFrame from './RarityFrame.tsx'
 const HEADER =
   "Plants grow with your XP. Water one of yours, or a friend's, for a 10 XP boost. " +
   'Level 33 is fully grown.'
+
+// Marks that accompany words on this screen and never stand in for them. Both
+// are looked up once: the set of files is fixed at build time.
+const BASKET_MARK = itemArt('basket')
+const FRUIT_MARK = itemArt('fruit')
 
 interface Props {
   userId: number
@@ -247,6 +253,14 @@ export default function Grove({ userId, onFruitReady }: Props) {
             {harvest.ready ? (
               <div className="choice">
                 <button type="button" className="primary" disabled={busy} onClick={openGather}>
+                  {FRUIT_MARK && (
+                    <img
+                      className="word-mark word-mark-small"
+                      src={FRUIT_MARK}
+                      alt=""
+                      aria-hidden="true"
+                    />
+                  )}
                   Harvest
                 </button>
               </div>
@@ -257,7 +271,12 @@ export default function Grove({ userId, onFruitReady }: Props) {
 
           <div className="grove-area grove-area-basket">
             <div className="grove-area-head">
-              <span className="grove-area-label">Harvest</span>
+              <span className="grove-area-label">
+                {BASKET_MARK && (
+                  <img className="word-mark" src={BASKET_MARK} alt="" aria-hidden="true" />
+                )}
+                Harvest
+              </span>
               <span className="grove-area-value">{basket.length}</span>
             </div>
             {basket.length === 0 ? (
@@ -312,12 +331,17 @@ export default function Grove({ userId, onFruitReady }: Props) {
                       gilded={row.gilded}
                       className="plant-picture"
                     />
-                    {/* A plant holding fruit wears a dot in its corner, so the
+                    {/* A plant holding fruit wears a mark in its corner, so the
                         one that bore is findable in a plot at a glance. What it
                         is holding is said in words below, and this never
                         repeats the number. */}
-                    {carrying.length > 0 && (
-                      <span className="plant-fruit-mark" aria-hidden="true" />
+                    {carrying.length > 0 && FRUIT_MARK && (
+                      <img
+                        className="plant-fruit-mark"
+                        src={FRUIT_MARK}
+                        alt=""
+                        aria-hidden="true"
+                      />
                     )}
                   </RarityFrame>
                   {/* A progress element rather than a div with a width on it:

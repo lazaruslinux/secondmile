@@ -461,6 +461,28 @@ code {
   height: 0.9rem;
 }
 
+/* The same arrangement as .sport-icon, for a drawn mark loaded by URL rather
+   than an icon placed into the page: it sits with a line of text, keeps the gap
+   to the word, and accompanies that word rather than replacing it. The files are
+   48 pixels square and these are smaller, so the browser resamples them down and
+   image-rendering stays off. */
+.word-mark {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 1.15rem;
+  height: 1.15rem;
+  margin-inline-end: 0.35rem;
+  vertical-align: -0.25em;
+}
+
+/* Smaller, for a mark riding inside a button's own line of type. */
+.word-mark-small {
+  width: 1rem;
+  height: 1rem;
+  margin-inline-end: 0.3rem;
+  vertical-align: -0.18em;
+}
+
 /* Layout */
 
 .app {
@@ -4543,30 +4565,27 @@ button:disabled {
   position: relative;
 }
 
-/* A dot in the corner of a plant that is carrying fruit, in the gold the app
-   keeps for something worth having. It says a plant has something on it and
-   nothing else: the count is in the line under the picture, and it sits inside
-   the border because the arcade square clips anything past it. */
+/* The picture in the corner of a plant that is carrying fruit. It says a plant
+   has something on it and nothing else: the count is in the line under the
+   picture, and it sits inside the border because the arcade square clips
+   anything past it. Drawn at 48 and shown at 18, so the browser resamples it
+   down: no image-rendering here, which nearest-samples a drawing to pieces at
+   this size. */
 .plant-fruit-mark {
   position: absolute;
-  top: 5px;
-  right: 5px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--record);
+  top: 4px;
+  right: 4px;
+  width: 18px;
+  height: 18px;
   pointer-events: none;
 }
 
-/* Lit on the grounds that can carry a glow, the same as the mark on the tab. */
+/* Lit on the grounds that can carry a glow, the same as the mark on the tab.
+   A drop shadow rather than a box shadow: the file is transparent around the
+   drawing and a box would light the square instead. On white a glow is a
+   smudge, so the light ground carries none. */
 :root:not([data-theme='light']) .plant-fruit-mark {
-  box-shadow: 0 0 6px 1px color-mix(in srgb, var(--record) 70%, transparent);
-}
-
-/* On white a glow is a smudge, so the dot keeps a ring against the tile
-   instead. */
-:root[data-theme='light'] .plant-fruit-mark {
-  box-shadow: 0 0 0 2px var(--panel);
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--record) 70%, transparent));
 }
 
 .plant-fed {

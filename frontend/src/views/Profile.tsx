@@ -15,6 +15,7 @@ import {
   type SatchelItem,
   type Units,
 } from '../api.ts'
+import { itemArt } from '../art.ts'
 import { convertedValue, formatDate } from '../format.ts'
 import { plantStage } from '../grove.ts'
 import {
@@ -50,6 +51,9 @@ import Medals, { MedalMark } from './Medals.tsx'
 import ProfileCounts, { GroveTallies } from './ProfileCounts.tsx'
 import SportChips from './SportChips.tsx'
 import Stats from './Stats.tsx'
+
+// A mark that accompanies the shelf's heading and never stands in for it.
+const BASKET_MARK = itemArt('basket')
 
 interface Cached {
   profile: ProfileData
@@ -567,7 +571,12 @@ export default function Profile({
               screen full of counts reads as a feature that is missing. */}
           {keepsakes.length > 0 && (
             <section className="card">
-              <h2 className="label">Basket</h2>
+              <h2 className="label">
+                {BASKET_MARK && (
+                  <img className="word-mark" src={BASKET_MARK} alt="" aria-hidden="true" />
+                )}
+                Basket
+              </h2>
               <ul className="keepsakes">
                 {keepsakes.map((row) => (
                   <li key={row.id} className="keepsake">

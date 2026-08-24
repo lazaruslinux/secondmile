@@ -19,10 +19,10 @@ whole of what a commission would cover.
 | Interface icons | 19 | Tab bar, cheer, gear, pencil, play, eye, caret, chest ladder marker, week diamond, running shoe, and the five sport marks | Chrome, everywhere |
 | Plants | 39 | Thirteen species at three growth stages each | The plot, and the reveal when a seed is found |
 | Ground | 1 | The strip of soil a grove stands on, `ground` | The floor of the band across the top of both profiles |
-| Loose pieces | 5 | Chest, gilding overlay, boost potion, water, unmarked seed | Inventory squares, chest reveals, finished plants |
+| Loose pieces | 7 | Chest, gilding overlay, boost potion, water, unmarked seed, basket, fruit | Inventory squares, chest reveals, finished plants, harvest headings, fruiting plants |
 | Landing hero | 2 | The four sports in four strips, one drawing per ground, `landing-hero-dark` and `landing-hero-light` | The top of the landing page |
 
-One hundred and six files in total, all under `frontend/src/assets/`.
+One hundred and eight files in total, all under `frontend/src/assets/`.
 
 Every `border-t` file also has a `-light` twin beside it, such
 as `border-t3-light.svg`, which is the same drawing with its palette turned over
@@ -572,6 +572,32 @@ stack onto one square whatever step of the ladder dropped them, so this drawing
 carries no tier colour and is framed in no rarity. The same pixel spec again,
 centred rather than standing on a floor, and still shut: what is inside is the
 whole of what opening it is for.
+
+### The harvest marks
+
+`frontend/src/assets/grove/basket.png` and `fruit.png`
+
+Two marks read the same way as the tools, one file each named after what it is.
+They are not held in the inventory: they accompany words already on the screen
+and never stand in for them.
+
+| File | What it is | Where it appears |
+| --- | --- | --- |
+| `basket.png` | A woven basket of mixed fruit, in the tan the app gives the basket | Beside the Harvest heading on Grove, and beside the Basket shelf on You |
+| `fruit.png` | A banana and a strawberry side by side, fruit in general | Beside the Harvest button on Grove, and in the corner of a plant that is carrying |
+
+The plants' pixel spec again, native 48 by 48. Both are drawn far smaller than
+the tools are: 18 pixels beside a heading, 16 beside a button, 18 in the corner
+of a plant square. That is a reduction rather than an enlargement, so the app
+leaves `image-rendering` alone on all three and lets the browser resample. A
+replacement has to survive it: bold silhouettes, nothing thinner than three
+pixels, and the two shapes have to part on outline alone. Medals that could not
+be told apart at 28 pixels forced two rounds of rework here, and 18 is smaller
+still.
+
+`fruit.png` is one drawing for every species, the same staging as the gild
+overlay: fruit drawn per species is a later pass and is not built. When each
+species has its own, this file comes out and the drawings replace it.
 
 ## Rarity frames
 
