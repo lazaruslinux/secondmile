@@ -415,8 +415,29 @@ export const GATHER_HINT =
   'The fruit comes in whole. Harvested fruit keeps for a week; what stays on the ' +
   'plant keeps for good.'
 export const FED = 'Fed. Its next harvest is bigger.'
+
+// What feeding a pet says afterwards. Nothing is explained here and nothing is
+// promised: a pet returns nothing, so there is no "next" anything to name.
+// Golden fruit gets the second line and no more than that.
+export const PET_FED = 'Fed.'
+export const PET_FED_GOLDEN = 'Fed. It took the golden one first.'
+export const PET_NAMED = 'Named.'
+// Said under a pet that has had nothing yet. Resting, never hungry: nothing
+// counts down and there is nothing to keep up with.
+export const PET_RESTING = 'Resting.'
+// The caption over the basket when it is being picked from for a pet. It names
+// where the list came from and explains nothing about what feeding does.
+export const PET_FEED_HINT = 'From your basket.'
 export const MANNA_SENT = 'Sent. It is in their manna.'
 export const FRUIT_GIVEN = 'Given. It is in their basket.'
+
+// Giving fruit, which is an amount rather than a thing picked out: who first,
+// then how many. Neither line explains a mechanic; the first says what the list
+// is for and the second says how much there is.
+export const GIVE_FRUIT_HINT = 'Who is it for?'
+export function basketLine(fruit: number): string {
+  return fruit === 1 ? '1 fruit in your basket.' : `${fruit} fruit in your basket.`
+}
 
 // What feeding buys, said wherever a plant is picked for it. The second
 // sentence is the two-lane law in the app's own voice, and it is here because

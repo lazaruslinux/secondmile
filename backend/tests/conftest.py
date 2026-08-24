@@ -55,6 +55,7 @@ LETTER_KEYS = [
     "encouragement",
     "plant_growth",
     "harvest",
+    "pets",
     "manna_gifts",
     "fruit_gifts",
     "composted",

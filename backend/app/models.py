@@ -917,7 +917,16 @@ class FruitBatch(Base):
     # Whether the plant was fully grown when it bore. The same count either way:
     # a gilded plant's harvest is finer named and never larger.
     golden: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # What is left of the batch: the number the basket shows, a gift carries and
+    # compost returns. It goes down when a pet is fed out of it and never up.
     count: Mapped[int] = mapped_column(Integer, nullable=False)
+    # What the plant actually bore, written once at the bearing and never
+    # touched again. The letter says what a grove bore, and that sentence must
+    # not change because the fruit was eaten, given away or left to compost
+    # afterwards; what became of it is the count above.
+    borne_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
     # Which bearing this came from, counting from one. Written because one
     # workout can cross the meter twice and both crossings are stamped with that
     # workout's own moment: the letter counts how many times a grove came round,
@@ -935,15 +944,16 @@ class FruitBatch(Base):
     gathered_at: Mapped[dt.datetime | None] = mapped_column(UtcDateTime, nullable=True)
     # Set when composted.
     composted_at: Mapped[dt.datetime | None] = mapped_column(UtcDateTime, nullable=True)
-    # Set when it was given away, with who it went to. The row stays: giving is
-    # a thing that happened, and the keepsake on the other side is its own row.
+    # DORMANT since giving became an amount rather than a batch. A gift now
+    # takes fruit off the oldest batches and may leave a remainder in one of
+    # them, so no single batch is "the one that was given": the gift is a row in
+    # fruit_gifts and the record on the other side is a keepsake. These three
+    # still carry what the batch-at-a-time era wrote, they are still read by the
+    # basket's own filter, and nothing writes them any more.
     given_at: Mapped[dt.datetime | None] = mapped_column(UtcDateTime, nullable=True)
     given_to_user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
-    # Whether giving it paid the giver any renown, stored exactly as a spent
-    # satchel item stores it, so the seven day window is one indexed lookup and
-    # nothing can pay twice.
     earned_renown: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
 
@@ -973,6 +983,43 @@ class FruitKeepsake(Base):
     # because somebody else's grove moved on.
     provenance: Mapped[str] = mapped_column(String(200), nullable=False)
     received_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
+
+
+class Pet(Base):
+    __tablename__ = "pets"
+    __table_args__ = (
+        # One of each species per account, which is what makes an arrival a draw
+        # among the ones a grove is still missing.
+        UniqueConstraint("user_id", "species", name="uq_pet_user_species"),
+    )
+
+    # One creature drawn to a grove by the harvest. It is presence and nothing
+    # else: nothing here is spent, nothing here is earned, and no rule in the
+    # game may ever read this table for a bonus (TWO-LANE LAW, one lane over).
+    #
+    # Nothing counts down either. A pet never starves and never leaves; an unfed
+    # one is resting, which is the whole of what being unfed means.
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # One of app.pets.SPECIES. Authored content, so a plain string rather than
+    # an enum: the six live in Python and a seventh would need no migration.
+    species: Mapped[str] = mapped_column(String(16), nullable=False)
+    # What its owner calls it, or null for one that goes by its species word.
+    name: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    # Which of its three drawings it stands at, 1 to 3. Worked out from the
+    # fruit and written down, so the drawing never has to be derived on a read.
+    stage: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    # Fruit fed, counted from the first. Any species of fruit counts the same.
+    fruit_fed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    arrived_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
+    # When the stage last changed, which is what lets the letter say a pet grew
+    # without a table of events behind it. Null until the first crossing.
+    staged_at: Mapped[dt.datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    # Set at stage three, which is permanent: a grown pet stays in the grove and
+    # is never fed again.
+    grown_at: Mapped[dt.datetime | None] = mapped_column(UtcDateTime, nullable=True)
 
 
 class MannaBatch(Base):
@@ -1015,6 +1062,36 @@ class MannaGift(Base):
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     amount: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
+    # Stored for the reason every other giving stores it: one indexed lookup for
+    # the seven day window, and no way for a replay to pay twice.
+    earned_renown: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+
+class FruitGift(Base):
+    __tablename__ = "fruit_gifts"
+    __table_args__ = (
+        # The renown window: the newest earning row for one pair, exactly as the
+        # manna gift beside it is indexed.
+        Index("ix_fruit_gift_pair", "from_user_id", "to_user_id", "created_at"),
+    )
+
+    # One handing over of fruit, however many batches it came off. The giver's
+    # side of a gift; the receiver's side is a keepsake, which is the permanent
+    # record and the only one anybody reads.
+    #
+    # A row of its own because a gift is an amount now rather than a batch: it
+    # takes from the oldest fruit first and may leave a remainder behind, so
+    # there is no batch to hang the gift on. Marking batches instead would count
+    # one gift as several everywhere renown is added up.
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    from_user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    to_user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    count: Mapped[int] = mapped_column(Integer, nullable=False)
     created_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
     # Stored for the reason every other giving stores it: one indexed lookup for
     # the seven day window, and no way for a replay to pay twice.

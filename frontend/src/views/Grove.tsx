@@ -1,31 +1,41 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   errorText,
+  feedPet,
   feedPlant,
   gatherHarvest,
   getFriends,
   getHarvest,
   giveFruit,
   listGrove,
+  namePet,
   type FruitBatch,
   type HarvestState,
   type Person,
+  type Pet,
   type Planting,
 } from '../api.ts'
 import { itemArt } from '../art.ts'
 import { convertedValue, fillClass, formatAcquired } from '../format.ts'
 import { levelProgress, plantStage } from '../grove.ts'
 import {
+  basketLine,
   EMPTY_BASKET,
   FED,
   feedHint,
   fedLine,
   FRUIT_GIVEN,
+  GIVE_FRUIT_HINT,
   GATHER_HINT,
   harvestHint,
   NOTHING_BORNE,
   NOTHING_PLANTED,
   personName,
+  PET_FED,
+  PET_FED_GOLDEN,
+  PET_FEED_HINT,
+  PET_NAMED,
+  PET_RESTING,
   plantingName,
   plantStateLine,
   readyLine,
@@ -33,6 +43,7 @@ import {
 import Chooser, { type Choice } from './Chooser.tsx'
 import Confirm from './Confirm.tsx'
 import Inventory from './Inventory.tsx'
+import PetArt from './PetArt.tsx'
 import PlantArt from './PlantArt.tsx'
 import RarityFrame from './RarityFrame.tsx'
 
@@ -40,6 +51,10 @@ import RarityFrame from './RarityFrame.tsx'
 const HEADER =
   "Plants grow with your XP. Water one of yours, or a friend's, for a 10 XP boost. " +
   'Level 33 is fully grown.'
+
+// The longest name a pet takes, held to here as well as on the server so the
+// box stops rather than the save failing.
+const NAME_LIMIT = 60
 
 // Marks that accompany words on this screen and never stand in for them. Both
 // are looked up once: the set of files is fixed at build time.
@@ -71,7 +86,10 @@ type Step =
   | { at: 'none' }
   | { at: 'gather' }
   | { at: 'feed'; plant: Planting }
-  | { at: 'give'; fruit: FruitBatch }
+  | { at: 'give' }
+  | { at: 'giveAmount'; person: Person }
+  | { at: 'feedPet'; pet: Pet }
+  | { at: 'namePet'; pet: Pet }
 
 // What one harvest brought in, said in the plainest words there are.
 function gatheredLine(fruit: number): string {
@@ -94,6 +112,14 @@ export default function Grove({ userId, onFruitReady }: Props) {
   const [busy, setBusy] = useState(false)
   const [stepError, setStepError] = useState('')
   const [note, setNote] = useState('')
+  // The pet card's own line, so a word about an animal never appears over the
+  // harvest above it and the two never talk over each other.
+  const [petNote, setPetNote] = useState('')
+  // The name being typed, held here because the dialog is redrawn on every key.
+  const [typedName, setTypedName] = useState('')
+  // How much fruit this gift is for, as it is being typed. The same box the
+  // manna gift uses on a friend's screen.
+  const [amount, setAmount] = useState('')
   const [friends, setFriends] = useState<Person[]>([])
 
   const load = useCallback(async () => {
@@ -128,6 +154,14 @@ export default function Grove({ userId, onFruitReady }: Props) {
   const feedCost = harvest?.feed_cost ?? 0
   const feedCap = harvest?.feed_cap ?? 0
   const basket = harvest?.basket ?? []
+  // The basket as one number. Batches are still what the server keeps; nothing
+  // anybody presses is about one of them any more.
+  const inBasket = basket.reduce((total, row) => total + row.count, 0)
+  const pets = harvest?.pets ?? []
+  // The one still growing, and the ones that have finished. A grove holds at
+  // most one of the first and keeps every one of the second.
+  const growing = pets.find((row) => !row.grown) ?? null
+  const residents = pets.filter((row) => row.grown)
   // What each plant is carrying, by plant, so a tile can say it without the
   // whole list being walked once per tile.
   const borne = new Map<number, FruitBatch[]>()
@@ -178,10 +212,10 @@ export default function Grove({ userId, onFruitReady }: Props) {
     })
   }
 
-  async function toFriends(fruit: FruitBatch) {
+  async function toFriends() {
     setNote('')
     setStepError('')
-    setStep({ at: 'give', fruit })
+    setStep({ at: 'give' })
     if (friends.length > 0) return
     try {
       setFriends((await getFriends()).friends)
@@ -190,12 +224,39 @@ export default function Grove({ userId, onFruitReady }: Props) {
     }
   }
 
-  function give(fruit: FruitBatch, personId: number) {
+  function give(person: Person) {
+    const sent = Math.trunc(Number(amount) || 0)
     void act(async () => {
-      await giveFruit(personId, fruit.id)
+      await giveFruit(person.user_id, sent)
       setNote(FRUIT_GIVEN)
       setStep({ at: 'none' })
     })
+  }
+
+  // A number of fruit, never a species: the server takes the oldest first.
+  function feedFruit(count: number) {
+    void act(async () => {
+      const { golden } = await feedPet(count)
+      setPetNote(golden ? PET_FED_GOLDEN : PET_FED)
+      setStep({ at: 'none' })
+    })
+  }
+
+  function rename(pet: Pet) {
+    void act(async () => {
+      await namePet(pet.id, typedName)
+      setPetNote(PET_NAMED)
+      setStep({ at: 'none' })
+    })
+  }
+
+  // Both pet verbs open the same way: the card's own line cleared, and the box
+  // primed with whatever it is called now.
+  function openPetStep(next: Step & { pet: Pet }) {
+    setPetNote('')
+    setStepError('')
+    setTypedName(next.pet.name ?? '')
+    setStep(next)
   }
 
   const friendChoices: Choice[] = friends.map((person) => ({
@@ -277,33 +338,113 @@ export default function Grove({ userId, onFruitReady }: Props) {
                 )}
                 Harvest
               </span>
-              <span className="grove-area-value">{basket.length}</span>
+              {/* One number: fruit is fruit wherever anybody acts on it, and
+                  which species leave the basket is the server's own rule. */}
+              <span className="grove-area-value">{inBasket}</span>
             </div>
-            {basket.length === 0 ? (
+            {inBasket === 0 ? (
               <p className="hint">{EMPTY_BASKET}</p>
             ) : (
-              <ul className="basket">
-                {basket.map((row) => (
-                  <li key={row.id} className="basket-row">
-                    <div className="basket-body">
-                      <p className="basket-name">{row.label}</p>
-                      <p className="hint">{row.provenance}</p>
-                    </div>
-                    <button
-                      type="button"
-                      className="secondary"
-                      disabled={busy}
-                      aria-label={`Give ${row.label}`}
-                      onClick={() => void toFriends(row)}
-                    >
-                      Give
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              <div className="choice">
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={busy}
+                  onClick={() => void toFriends()}
+                >
+                  Give
+                </button>
+              </div>
             )}
           </div>
           </div>
+        </section>
+      )}
+
+      {/* The grove's animals, beside the harvest because that is where the
+          fruit they are fed comes from. Nothing here is a mechanic and nothing
+          here is explained: an animal, its name, and a quiet bar. */}
+      {pets.length > 0 && (
+        <section className="card">
+          <h2 className="label">Pets</h2>
+
+          {petNote && (
+            <p className="note note-success" role="status">
+              {petNote}
+            </p>
+          )}
+
+          {growing && (
+            <div className="pet">
+              <PetArt
+                species={growing.species}
+                name={growing.display_name}
+                stage={growing.stage}
+                className="pet-picture"
+              />
+              <div className="pet-body">
+                <p className="pet-name">{growing.display_name}</p>
+                {/* A progress element rather than a div with a width on it: the
+                    content security policy allows no inline styles. It shows
+                    how far a pet has come and never how far it has to go. */}
+                {growing.next_fruit !== null && (
+                  <progress
+                    className="xp-meter"
+                    value={growing.fruit_fed}
+                    max={growing.next_fruit}
+                  >
+                    Fed {growing.fruit_fed}
+                  </progress>
+                )}
+                {growing.fruit_fed === 0 && <p className="pet-state">{PET_RESTING}</p>}
+                <div className="pet-verbs">
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={busy || inBasket === 0}
+                    onClick={() => openPetStep({ at: 'feedPet', pet: growing })}
+                  >
+                    Feed
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={busy}
+                    onClick={() => openPetStep({ at: 'namePet', pet: growing })}
+                  >
+                    Name
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* The ones that have finished growing. A quiet row of residents:
+              they are here for good and there is nothing left to do to them. */}
+          {residents.length > 0 && (
+            <ul className="pet-residents">
+              {residents.map((row) => (
+                <li key={row.id} className="pet-resident">
+                  <PetArt
+                    species={row.species}
+                    name={row.display_name}
+                    stage={row.stage}
+                    className="pet-resident-picture"
+                  />
+                  <span className="pet-resident-name">{row.display_name}</span>
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={busy}
+                    aria-label={`Name ${row.display_name}`}
+                    onClick={() => openPetStep({ at: 'namePet', pet: row })}
+                  >
+                    Name
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       )}
 
@@ -435,18 +576,95 @@ export default function Grove({ userId, onFruitReady }: Props) {
         </Confirm>
       )}
 
+      {/* Two plain choices and no species anywhere: one fruit, or the lot. */}
+      {step.at === 'feedPet' && (
+        <Chooser
+          title={`Feed ${step.pet.display_name}`}
+          hint={PET_FEED_HINT}
+          choices={
+            inBasket > 1
+              ? [
+                  { id: 1, label: 'Feed 1' },
+                  { id: inBasket, label: `Feed all ${inBasket}` },
+                ]
+              : [{ id: 1, label: 'Feed 1' }]
+          }
+          empty={EMPTY_BASKET}
+          busy={busy}
+          error={stepError}
+          onChoose={(count) => feedFruit(count)}
+          onCancel={() => setStep({ at: 'none' })}
+        />
+      )}
+
+      {step.at === 'namePet' && (
+        <Confirm
+          heading={`Name your ${step.pet.species}`}
+          confirmLabel="Save"
+          cancelLabel="Cancel"
+          busy={busy}
+          error={stepError}
+          onConfirm={() => rename(step.pet)}
+          onCancel={() => setStep({ at: 'none' })}
+        >
+          <label>
+            Name
+            <input
+              type="text"
+              value={typedName}
+              maxLength={NAME_LIMIT}
+              disabled={busy}
+              onChange={(event) => setTypedName(event.target.value)}
+            />
+          </label>
+        </Confirm>
+      )}
+
       {step.at === 'give' && (
         <Chooser
-          title={`Give ${step.fruit.label}`}
-          hint={step.fruit.provenance}
+          title="Give fruit"
+          hint={GIVE_FRUIT_HINT}
           choices={friendChoices}
           empty="No friends yet. Invite someone from the You screen."
           busy={busy}
           error={stepError}
           searchPlaceholder="Search friends"
-          onChoose={(id) => give(step.fruit, id)}
+          onChoose={(id) => {
+            const person = friends.find((one) => one.user_id === id)
+            if (!person) return
+            setAmount('')
+            setStepError('')
+            setStep({ at: 'giveAmount', person })
+          }}
           onCancel={() => setStep({ at: 'none' })}
         />
+      )}
+
+      {/* How many, in the box the manna gift already uses. The oldest fruit
+          goes first, so nobody is asked which. */}
+      {step.at === 'giveAmount' && (
+        <Confirm
+          heading={`Give fruit to ${personName(step.person)}`}
+          confirmLabel="Give"
+          cancelLabel="Cancel"
+          busy={busy}
+          error={stepError}
+          onConfirm={() => give(step.person)}
+          onCancel={() => setStep({ at: 'none' })}
+        >
+          <label>
+            Fruit to give
+            <input
+              type="number"
+              min={1}
+              max={inBasket}
+              step={1}
+              value={amount}
+              onChange={(event) => setAmount(event.target.value)}
+            />
+          </label>
+          <p className="hint">{basketLine(inBasket)}</p>
+        </Confirm>
       )}
     </>
   )

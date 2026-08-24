@@ -336,16 +336,21 @@ def fruit_gift_earns_renown(
     db: Session, from_user_id: int, to_user_id: int, moment: dt.datetime
 ) -> bool:
     """Whether giving this friend fruit pays anything. The top of the ladder,
-    diminishing like everything else on it."""
+    diminishing like everything else on it.
+
+    Read off the gift rather than off the batches it came from: a gift is an
+    amount now and may come off several, and a window that counted batches would
+    make one handful read as two givings.
+    """
     return _first_in_window(
         db,
-        select(models.FruitBatch.id).where(
-            models.FruitBatch.user_id == from_user_id,
-            models.FruitBatch.given_to_user_id == to_user_id,
-            models.FruitBatch.earned_renown.is_(True),
+        select(models.FruitGift.id).where(
+            models.FruitGift.from_user_id == from_user_id,
+            models.FruitGift.to_user_id == to_user_id,
+            models.FruitGift.earned_renown.is_(True),
         ),
         moment,
-        models.FruitBatch.given_at,
+        models.FruitGift.created_at,
     )
 
 
@@ -455,7 +460,7 @@ def _manna_renown_since(db: Session, user_id: int, since: dt.datetime | None) ->
     rows = (
         (models.PlantFeeding, models.PlantFeeding.from_user_id, models.PlantFeeding.created_at, RENOWN_FEED),
         (models.MannaGift, models.MannaGift.from_user_id, models.MannaGift.created_at, RENOWN_MANNA_GIFT),
-        (models.FruitBatch, models.FruitBatch.user_id, models.FruitBatch.given_at, RENOWN_FRUIT_GIFT),
+        (models.FruitGift, models.FruitGift.from_user_id, models.FruitGift.created_at, RENOWN_FRUIT_GIFT),
     )
     total = 0
     for table, owner, stamp, worth in rows:

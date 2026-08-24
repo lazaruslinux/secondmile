@@ -16,10 +16,9 @@ every rule in this app lives.
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import update
 from sqlalchemy.orm import Session
 
-from app import fellowship, grove, harvest, models, progress, security, throttle
+from app import fellowship, grove, harvest, models, pets, progress, security, throttle
 from app.config import (
     FEED_COST,
     FEED_MAX_BANKED,
@@ -29,14 +28,16 @@ from app.config import (
     RENOWN_FRUIT_GIFT,
     RENOWN_MANNA_GIFT,
 )
-from app.db import get_db, rows_touched
+from app.db import get_db
 
 router = APIRouter(tags=["harvest"])
 
 NO_SUCH_PLANT = "No such planting."
 NO_SUCH_FRIEND = "No such friend."
-NO_SUCH_FRUIT = "No such fruit."
 NOT_ENOUGH = "You do not have enough manna for that."
+# Said the same way at both verbs that spend fruit, because they are the same
+# event to whoever met one: the basket does not hold that much.
+NOT_ENOUGH_FRUIT = "You do not have that much fruit in your basket."
 # Said the same way at both verbs it guards. No number of days and no countdown:
 # it is a limit, not a timer.
 TOO_MUCH_FOR_ONE = "That is more manna than you can give one person just now."
@@ -57,7 +58,9 @@ class MannaGiftBody(BaseModel):
 
 class FruitGiftBody(BaseModel):
     user_id: int
-    fruit_id: int
+    # How many fruit to hand over. Fruit is one number wherever anybody acts on
+    # it: which species leave the basket is the oldest-first rule's business.
+    count: int = 1
 
 
 def _spending(user: models.User) -> None:
@@ -109,6 +112,11 @@ def _state(db: Session, user: models.User) -> dict:
         # Miles, and how long a season is. Earned, like everything beside it.
         "season_mi": FRUIT_SEASON_MI,
         "season_progress_mi": round(row.fruit_progress_mi, 2),
+        # What lives in the grove. Here rather than in a payload of its own
+        # because the screen that draws them already reads this one, and what a
+        # pet is fed comes out of the basket two lines above it. Presence only:
+        # nothing in this list is spent, earned or worth anything.
+        "pets": [pets.serialize(one) for one in pets.owned(db, user.id)],
     }
 
 
@@ -141,10 +149,16 @@ def gather_all(
 
     Nothing is refused when there is nothing to bring in: the answer is that
     none of it moved, which is also what a second press a moment later gets.
+
+    A stray may be drawn to the grove afterwards, which is the one thing this
+    button does besides bring the fruit in. It is presence and nothing else, so
+    nothing about the harvest above it changes by a fruit either way.
     """
     _spending(user)
     progress.process_user(db, user.id)
-    taken = harvest.gather(db, user.id, security.now_utc())
+    now = security.now_utc()
+    taken = harvest.gather(db, user.id, now)
+    pets.maybe_arrive(db, user.id, now)
     db.commit()
     return {**_state(db, user), **taken}
 
@@ -263,11 +277,17 @@ def give_fruit(
     db: Session = Depends(get_db),
     user: models.User = Depends(security.current_user),
 ) -> dict:
-    """Give a friend something out of your basket.
+    """Give a friend fruit out of your basket.
 
     The top of the giving ladder, and the only thing in the game that carries
     where it came from: the miles that grew it and the month it came in travel
     with it as a sentence, frozen at the moment of the gift.
+
+    An amount rather than a batch. The oldest fruit goes first, exactly as it
+    does when a pet is fed, so a gift never costs somebody the fruit they were
+    about to lose anyway and nobody is ever asked which species to part with.
+    What it says about itself is composed from what actually left: one species
+    is named, a handful of several is fruit.
 
     What it becomes on the other side is a keepsake and nothing else. It buys
     them nothing, feeds nothing, and spoils never; it is a record that somebody
@@ -279,52 +299,57 @@ def give_fruit(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "You cannot give to yourself.")
     if not fellowship.are_friends(db, user.id, body.user_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, NO_SUCH_FRIEND)
+    if body.count < 1:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "A gift is at least one fruit.")
+    basket = harvest.oldest_first(db, user.id)
+    if body.count > sum(row.count for row in basket):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, NOT_ENOUGH_FRUIT)
+    taken = harvest.take(db, basket, body.count)
+    if not taken:
+        # The basket moved between the check above and the taking. Two requests
+        # racing cannot both spend the same fruit, and this is the one that lost.
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, NOT_ENOUGH_FRUIT)
 
     now = security.now_utc()
-    # Claimed with a conditional update rather than by writing to a row read a
-    # moment ago: two requests carrying the same batch would otherwise both go
-    # on to mint a keepsake out of fruit that only exists once. Somebody else's
-    # fruit, fruit still on the plant, and fruit already given or composted are
-    # one answer, the way a spent satchel item is.
-    claimed = db.execute(
-        update(models.FruitBatch)
-        .where(
-            models.FruitBatch.id == body.fruit_id,
-            models.FruitBatch.user_id == user.id,
-            models.FruitBatch.gathered_at.is_not(None),
-            models.FruitBatch.composted_at.is_(None),
-            models.FruitBatch.given_at.is_(None),
-        )
-        .values(given_at=now, given_to_user_id=body.user_id)
-    )
-    if rows_touched(claimed) != 1:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, NO_SUCH_FRUIT)
-    batch = db.get(models.FruitBatch, body.fruit_id)
-    # The update above claimed exactly one row, so it is there. Said out loud
-    # anyway: the alternative to this line is an AttributeError on None, and a
-    # 404 is what every other unreachable fruit here answers with.
-    if batch is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, NO_SUCH_FRUIT)
-    db.refresh(batch)
-
+    species_id, golden = harvest.gift_kind(taken)
+    told = harvest.gift_provenance(taken)
     earned = fellowship.fruit_gift_earns_renown(db, user.id, body.user_id, now)
-    batch.earned_renown = earned
+    # One row per gift however many batches it came off, so everything that adds
+    # renown up counts one gift once.
+    db.add(
+        models.FruitGift(
+            from_user_id=user.id,
+            to_user_id=body.user_id,
+            count=body.count,
+            created_at=now,
+            earned_renown=earned,
+        )
+    )
     db.add(
         models.FruitKeepsake(
             user_id=body.user_id,
             from_user_id=user.id,
             from_username=user.username,
-            species=batch.species,
-            golden=batch.golden,
-            count=batch.count,
-            provenance=harvest.provenance(batch),
+            species=species_id,
+            golden=golden,
+            count=body.count,
+            provenance=told,
             received_at=now,
         )
     )
     if earned:
         fellowship.pay_renown(db, user.id, RENOWN_FRUIT_GIFT)
     db.commit()
-    return {"given": harvest.serialize_batch(batch), **_state(db, user)}
+    return {
+        "given": {
+            "count": body.count,
+            "name": harvest.fruit_name(species_id, golden),
+            "label": harvest.fruit_words(body.count, species_id, golden),
+            "golden": golden,
+            "provenance": told,
+        },
+        **_state(db, user),
+    }
 
 
 @router.get("/basket")

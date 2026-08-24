@@ -770,6 +770,9 @@ FRIEND_PROFILE_KEYS = {
     "miles",
     "medals",
     "grove",
+    # Which animals live in their grove. Presence and nothing else: no fruit
+    # fed, no progress, no dates.
+    "pets",
     "item_tallies",
     "week",
     "lifetime",

@@ -4601,6 +4601,71 @@ button:disabled {
   align-self: flex-start;
 }
 
+/* The grove's animals. Presence, so the card is a picture, a name and a quiet
+   bar: there is nothing to spend here and no number to read. */
+.pet {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.pet-picture {
+  height: 4.5rem;
+  flex: 0 0 auto;
+}
+
+.pet-body {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.pet-name {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+/* Resting, never hungry. Muted, because it is a state rather than a prompt. */
+.pet-state {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.pet-verbs {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* The ones that have finished growing, on both profiles. A quiet row: they are
+   here for good and there is nothing left to do to them. */
+.pet-residents {
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.pet-resident {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.pet-resident-picture {
+  height: 2.5rem;
+}
+
+.pet-resident-name {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
 /* The harvest card's three colored areas and the profile's currency band.
    His palette picks: manna bread gold, season leaf green, basket woven tan;
    the profile chips run blue, teal, purple, gold. Facts, never flags:
@@ -4807,31 +4872,6 @@ button:disabled {
 /* The basket: what has been gathered and is there to be given away. One row per
    batch, the name and where it came from on the left and the verb on the right,
    which is the shape the chest list beside it already uses. */
-.basket {
-  list-style: none;
-  margin: 0.5rem 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.basket-row {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  justify-content: space-between;
-}
-
-.basket-body {
-  min-width: 0;
-}
-
-.basket-name {
-  margin: 0;
-  font-size: 0.95rem;
-}
-
 /* The keepsake shelf on the You screen. A record and nothing else, so it is a
    list of small paragraphs rather than a grid of squares: there is no verb here
    and nothing to tap. */

@@ -193,6 +193,29 @@ export function harvestLine(recap: RecapState): string {
   return piles.length === 0 ? '' : `Your grove bore ${asList(piles)}.`
 }
 
+// What the grove's animals did, one plain sentence each. The letter is the only
+// place the app says anything about them at all: nothing is explained, and what
+// a pet is for is left to be found out.
+//
+// Read defensively like everything else here: a row without a species says
+// nothing rather than saying it about "undefined".
+export function petLines(recap: RecapState): string[] {
+  return (recap.pets ?? [])
+    .map((row) => {
+      const species = typeof row.species === 'string' ? row.species.trim() : ''
+      if (species === '') return ''
+      const called = typeof row.name === 'string' && row.name.trim() !== '' ? row.name.trim() : ''
+      // An unnamed one is "your bat", which is a sentence about an animal
+      // somebody has rather than about a species.
+      const who = called === '' ? `Your ${species}` : called
+      if (row.event === 'arrived') return `A stray ${species} has come to your grove.`
+      if (row.event === 'grew') return `${who} is growing.`
+      if (row.event === 'grown') return `${who} is grown, and stays in your grove.`
+      return ''
+    })
+    .filter((line) => line !== '')
+}
+
 // Raw manna friends sent. One line each, named, because a gift is from somebody
 // rather than from the app.
 export function mannaGiftLines(recap: RecapState): string[] {
@@ -245,6 +268,7 @@ export function recapHasNews(recap: RecapState): boolean {
     (recap.chests?.length ?? 0) > 0 ||
     (recap.workouts?.length ?? 0) > 0 ||
     recapGrowthLines(recap).length > 0 ||
+    petLines(recap).length > 0 ||
     (recap.medals?.length ?? 0) > 0 ||
     recapNotes(recap.encouragement).length > 0 ||
     recapCheers(recap.encouragement) > 0 ||

@@ -18,11 +18,12 @@ whole of what a commission would cover.
 | Flourishes | 3 | The growth earned by encouraging people, `f1` to `f3` | Over the border, on every avatar |
 | Interface icons | 19 | Tab bar, cheer, gear, pencil, play, eye, caret, chest ladder marker, week diamond, running shoe, and the five sport marks | Chrome, everywhere |
 | Plants | 39 | Thirteen species at three growth stages each | The plot, and the reveal when a seed is found |
+| Pets | 18 | Six animals at three growth stages each | The pet card on Grove, and the row of residents on both profiles |
 | Ground | 1 | The strip of soil a grove stands on, `ground` | The floor of the band across the top of both profiles |
 | Loose pieces | 7 | Chest, gilding overlay, boost potion, water, unmarked seed, basket, fruit | Inventory squares, chest reveals, finished plants, harvest headings, fruiting plants |
 | Landing hero | 2 | The four sports in four strips, one drawing per ground, `landing-hero-dark` and `landing-hero-light` | The top of the landing page |
 
-One hundred and eight files in total, all under `frontend/src/assets/`.
+One hundred and twenty-seven files in total, all under `frontend/src/assets/`.
 
 Every `border-t` file also has a `-light` twin beside it, such
 as `border-t3-light.svg`, which is the same drawing with its palette turned over
@@ -598,6 +599,41 @@ still.
 `fruit.png` is one drawing for every species, the same staging as the gild
 overlay: fruit drawn per species is a later pass and is not built. When each
 species has its own, this file comes out and the drawings replace it.
+
+## Grove pets
+
+`frontend/src/assets/grove/pet-<species>-s1.png`, `-s2.png`, `-s3.png`
+
+Six animals at three stages each, so eighteen files. Read exactly the way the
+plants are, by name, and drawn to the plants' own pixel spec above: native 48 by
+48, nothing anti-aliased, transparent ground, three or four shades a hue, one
+warm near-black outline ring. The custom layer works for these too, under the
+same names.
+
+A pet is presence and nothing else. It is not a rarity, it stands in no frame,
+and there is no gilding over the last stage: the third drawing is the end of it.
+
+| Species | Files |
+| --- | --- |
+| Bat | `pet-bat-s1.png`, `-s2`, `-s3` |
+| Cat | `pet-cat-s1.png`, `-s2`, `-s3` |
+| Wolf | `pet-wolf-s1.png`, `-s2`, `-s3` |
+| Dog | `pet-dog-s1.png`, `-s2`, `-s3` |
+| Sheep | `pet-sheep-s1.png`, `-s2`, `-s3` |
+| Rooster | `pet-rooster-s1.png`, `-s2`, `-s3` |
+
+The three stages are young, half grown, and grown, and they have to part on
+**silhouette** rather than on detail. They are shown at about 72 pixels on the
+pet card and about 40 in the row of residents on a profile, and at 40 a feature
+thinner than three pixels is eaten by the outline ring: the placeholder set grows
+the whole animal from stage to stage and adds the species' own mark as it goes,
+a bat's span, a rooster's tail, a wolf's raised brush. Check a replacement by
+sampling pixels rather than by looking at it, which is the lesson the medals
+already cost two rounds of rework.
+
+They stand on the same floor the plants do, near the foot of the canvas, so a
+row of them lines up. Everything in the register reads on both grounds and these
+are no exception: whatever glow an appearance carries stays off the pale one.
 
 ## Rarity frames
 

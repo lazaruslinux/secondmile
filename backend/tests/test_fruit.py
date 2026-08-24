@@ -27,6 +27,7 @@ from conftest import (
 from test_grove import befriend, sign_in
 
 from app import harvest, models, progress, species
+from app.routers.harvest import NOT_ENOUGH_FRUIT
 from app.config import (
     FEED_COST,
     FEED_MAX_BANKED,
@@ -396,15 +397,12 @@ def test_composted_fruit_is_gone_and_not_merely_hidden(signed_in, db_session, me
     give_planting(db_session, member.id, "banana", growth=15.0)
     run_miles(db_session, member.id, 33.0)
     gather(signed_in)
-    fruit_id = state(signed_in)["basket"][0]["id"]
 
     let_a_moment_pass(db_session, seconds=GATHERED_LIFE_DAYS * DAY)
     state(signed_in)
-    refused = signed_in.post(
-        "/api/harvest/fruit", json={"user_id": other.id, "fruit_id": fruit_id}
-    )
-    assert refused.status_code == 404
-    assert refused.json()["detail"] == "No such fruit."
+    refused = signed_in.post("/api/harvest/fruit", json={"user_id": other.id, "count": 1})
+    assert refused.status_code == 400
+    assert refused.json()["detail"] == NOT_ENOUGH_FRUIT
 
 
 # --------------------------------------------------------------------------
@@ -834,15 +832,12 @@ def test_the_refusal_says_nothing_about_when(signed_in, db_session, member):
 # --------------------------------------------------------------------------
 
 
-def hand_over_fruit(db_session, signed_in, member, other):
-    """One gathered batch of bananas, given to a friend."""
+def hand_over_fruit(db_session, signed_in, member, other, count=3):
+    """One banana tree's harvest, gathered and handed to a friend."""
     give_planting(db_session, member.id, "banana", growth=15.0)
     run_miles(db_session, member.id, 33.0)
     gather(signed_in)
-    fruit_id = state(signed_in)["basket"][0]["id"]
-    return signed_in.post(
-        "/api/harvest/fruit", json={"user_id": other.id, "fruit_id": fruit_id}
-    )
+    return signed_in.post("/api/harvest/fruit", json={"user_id": other.id, "count": count})
 
 
 def test_fruit_is_given_with_where_it_came_from(signed_in, db_session, member):
@@ -862,6 +857,148 @@ def test_fruit_is_given_with_where_it_came_from(signed_in, db_session, member):
     assert keepsakes[0]["name"] == "bananas"
     assert keepsakes[0]["count"] == 3
     assert keepsakes[0]["provenance"] == "3 bananas, grown over 33 miles in April"
+
+
+def test_a_gift_of_an_amount_takes_the_oldest_fruit_first(signed_in, db_session, member):
+    """One number, and the oldest goes first: the same rule a pet is fed by, so
+    giving never costs somebody the batch they were about to lose anyway."""
+    other, other_client = sign_in(db_session, "mate")
+    befriend(db_session, member, other)
+    give_planting(db_session, member.id, "banana", growth=15.0)
+    run_miles(db_session, member.id, 33.0)
+    gather(signed_in)
+    let_a_moment_pass(db_session, seconds=DAY)
+    give_planting(db_session, member.id, "strawberry", growth=15.0)
+    run_miles(db_session, member.id, 33.0, offset_min=300)
+    gather(signed_in)
+
+    given = signed_in.post("/api/harvest/fruit", json={"user_id": other.id, "count": 4})
+    assert given.status_code == 201, given.text
+
+    # Three batches in gather order: the day-old bananas, and the two the
+    # second season brought in. The oldest went whole, the next kept a
+    # remainder, and the newest was never touched.
+    held = batches(db_session, member.id)
+    assert [row.count for row in held] == [0, 2, 3]
+    assert [row.borne_count for row in held] == [3, 3, 3]
+    assert sum(row["count"] for row in state(signed_in)["basket"]) == 5
+
+
+def test_a_gift_off_two_batches_says_what_it_really_is(signed_in, db_session, member):
+    """A handful of two kinds is fruit, because naming one of them would be the
+    sentence saying more than it knows."""
+    other, other_client = sign_in(db_session, "mate")
+    befriend(db_session, member, other)
+    give_planting(db_session, member.id, "banana", growth=15.0)
+    give_planting(db_session, member.id, "strawberry", growth=15.0)
+    run_miles(db_session, member.id, 33.0)
+    gather(signed_in)
+
+    signed_in.post("/api/harvest/fruit", json={"user_id": other.id, "count": 4})
+    keepsake = basket(other_client)[0]
+    assert keepsake["count"] == 4
+    assert keepsake["name"] == "fruit"
+    assert keepsake["label"] == "4 fruit"
+    assert keepsake["provenance"] == "4 fruit, grown over 33 miles in April"
+
+
+def test_a_gift_all_of_one_species_still_names_it(signed_in, db_session, member):
+    """Species survive where they are read. One kind in the handful and the
+    keepsake says which."""
+    other, other_client = sign_in(db_session, "mate")
+    befriend(db_session, member, other)
+    give_planting(db_session, member.id, "banana", growth=15.0)
+    run_miles(db_session, member.id, 33.0)
+    gather(signed_in)
+
+    signed_in.post("/api/harvest/fruit", json={"user_id": other.id, "count": 2})
+    keepsake = basket(other_client)[0]
+    assert keepsake["name"] == "bananas"
+    assert keepsake["provenance"] == "2 bananas, grown over 33 miles in April"
+
+
+def test_giving_everything_empties_the_basket(signed_in, db_session, member):
+    other, other_client = sign_in(db_session, "mate")
+    befriend(db_session, member, other)
+    give_planting(db_session, member.id, "banana", growth=15.0)
+    give_planting(db_session, member.id, "strawberry", growth=15.0)
+    run_miles(db_session, member.id, 33.0)
+    gather(signed_in)
+
+    assert signed_in.post(
+        "/api/harvest/fruit", json={"user_id": other.id, "count": 6}
+    ).status_code == 201
+    assert state(signed_in)["basket"] == []
+    assert basket(other_client)[0]["count"] == 6
+
+
+def test_more_than_the_basket_holds_gives_nothing_at_all(signed_in, db_session, member):
+    """No partial ambiguity, exactly as feeding has none: the basket is checked
+    before anything leaves it."""
+    other, other_client = sign_in(db_session, "mate")
+    befriend(db_session, member, other)
+    give_planting(db_session, member.id, "banana", growth=15.0)
+    run_miles(db_session, member.id, 33.0)
+    gather(signed_in)
+
+    refused = signed_in.post("/api/harvest/fruit", json={"user_id": other.id, "count": 4})
+    assert refused.status_code == 400
+    assert state(signed_in)["basket"][0]["count"] == 3
+    assert basket(other_client) == []
+
+
+def test_what_a_gift_left_behind_is_still_fruit(signed_in, db_session, member):
+    """A part-given batch keeps its remainder, and the remainder is fruit like
+    any other: it feeds a pet and it goes back to the soil in its own time."""
+    other, _ = sign_in(db_session, "mate")
+    befriend(db_session, member, other)
+    give_planting(db_session, member.id, "banana", growth=15.0)
+    run_miles(db_session, member.id, 33.0)
+    gather(signed_in)
+    signed_in.post("/api/harvest/fruit", json={"user_id": other.id, "count": 1})
+    assert state(signed_in)["basket"][0]["count"] == 2
+
+    let_a_moment_pass(db_session, seconds=GATHERED_LIFE_DAYS * DAY)
+    state(signed_in)
+    assert state(signed_in)["basket"] == []
+    assert signed_in.get("/api/recap").json()["composted"] is True
+
+
+def test_a_gift_off_two_seasons_says_since_rather_than_in(signed_in, db_session, member):
+    """Two months in one handful is not a handful from one month, so the
+    sentence names the earlier month and says the gift reaches back to it."""
+    other, other_client = sign_in(db_session, "mate")
+    befriend(db_session, member, other)
+    give_planting(db_session, member.id, "banana", growth=15.0)
+    run_miles(db_session, member.id, 33.0)
+    gather(signed_in)
+    # The batch already in the basket keeps its own month; the next one is
+    # written with another, which is what a gift spanning two seasons looks like.
+    held = batches(db_session, member.id)[0]
+    held.season_month = "March"
+    db_session.commit()
+    run_miles(db_session, member.id, 33.0, offset_min=300)
+    gather(signed_in)
+
+    signed_in.post("/api/harvest/fruit", json={"user_id": other.id, "count": 4})
+    assert basket(other_client)[0]["provenance"] == "4 bananas, grown over 33 miles since March"
+
+
+def test_one_gift_pays_renown_once_however_many_batches_it_came_off(
+    signed_in, db_session, member
+):
+    """A gift is a gift. Taking it off three batches is an accident of when the
+    grove bore and must never read as three givings."""
+    other, _ = sign_in(db_session, "mate")
+    befriend(db_session, member, other)
+    give_planting(db_session, member.id, "banana", growth=15.0)
+    give_planting(db_session, member.id, "strawberry", growth=15.0)
+    run_miles(db_session, member.id, 33.0)
+    gather(signed_in)
+
+    signed_in.post("/api/harvest/fruit", json={"user_id": other.id, "count": 6})
+    assert renown_of(db_session, member.id) == 8
+    assert db_session.query(models.FruitGift).count() == 1
 
 
 def test_a_keepsake_is_kept_forever_and_does_nothing(signed_in, db_session, member):
@@ -895,10 +1032,7 @@ def test_a_second_fruit_gift_to_the_same_friend_lands_and_earns_nothing(
     # A second season, a second basket, the same friend inside the window.
     run_miles(db_session, member.id, 33.0, offset_min=300)
     gather(signed_in)
-    again = signed_in.post(
-        "/api/harvest/fruit",
-        json={"user_id": other.id, "fruit_id": state(signed_in)["basket"][0]["id"]},
-    )
+    again = signed_in.post("/api/harvest/fruit", json={"user_id": other.id, "count": 3})
     assert again.status_code == 201, again.text
     assert len(basket(other_client)) == 2
     assert renown_of(db_session, member.id) == 8
@@ -910,16 +1044,16 @@ def test_only_gathered_fruit_can_be_given(signed_in, db_session, member):
     befriend(db_session, member, other)
     give_planting(db_session, member.id, "banana", growth=15.0)
     run_miles(db_session, member.id, 33.0)
-    borne = batches(db_session, member.id)[0]
+    assert batches(db_session, member.id)[0].gathered_at is None
 
-    refused = signed_in.post(
-        "/api/harvest/fruit", json={"user_id": other.id, "fruit_id": borne.id}
-    )
-    assert refused.status_code == 404
-    assert refused.json()["detail"] == "No such fruit."
+    refused = signed_in.post("/api/harvest/fruit", json={"user_id": other.id, "count": 1})
+    assert refused.status_code == 400
+    assert refused.json()["detail"] == NOT_ENOUGH_FRUIT
 
 
 def test_the_same_fruit_cannot_be_given_twice(signed_in, db_session, member):
+    """Given is gone. What left the basket is not in it to hand to somebody
+    else, which is the whole difference between a gift and a copy."""
     other, _ = sign_in(db_session, "mate")
     third, _third_client = sign_in(db_session, "third")
     befriend(db_session, member, other)
@@ -928,16 +1062,13 @@ def test_the_same_fruit_cannot_be_given_twice(signed_in, db_session, member):
     give_planting(db_session, member.id, "banana", growth=15.0)
     run_miles(db_session, member.id, 33.0)
     gather(signed_in)
-    fruit_id = state(signed_in)["basket"][0]["id"]
 
     assert signed_in.post(
-        "/api/harvest/fruit", json={"user_id": other.id, "fruit_id": fruit_id}
+        "/api/harvest/fruit", json={"user_id": other.id, "count": 3}
     ).status_code == 201
-    again = signed_in.post(
-        "/api/harvest/fruit", json={"user_id": third.id, "fruit_id": fruit_id}
-    )
-    assert again.status_code == 404
-    assert again.json()["detail"] == "No such fruit."
+    again = signed_in.post("/api/harvest/fruit", json={"user_id": third.id, "count": 1})
+    assert again.status_code == 400
+    assert again.json()["detail"] == NOT_ENOUGH_FRUIT
 
 
 def test_fruit_is_only_given_to_a_friend_and_never_to_yourself(
@@ -947,16 +1078,11 @@ def test_fruit_is_only_given_to_a_friend_and_never_to_yourself(
     give_planting(db_session, member.id, "banana", growth=15.0)
     run_miles(db_session, member.id, 33.0)
     gather(signed_in)
-    fruit_id = state(signed_in)["basket"][0]["id"]
 
-    stranger = signed_in.post(
-        "/api/harvest/fruit", json={"user_id": other.id, "fruit_id": fruit_id}
-    )
+    stranger = signed_in.post("/api/harvest/fruit", json={"user_id": other.id, "count": 1})
     assert stranger.status_code == 404
     assert stranger.json()["detail"] == "No such friend."
-    myself = signed_in.post(
-        "/api/harvest/fruit", json={"user_id": member.id, "fruit_id": fruit_id}
-    )
+    myself = signed_in.post("/api/harvest/fruit", json={"user_id": member.id, "count": 1})
     assert myself.status_code == 400
     assert myself.json()["detail"] == "You cannot give to yourself."
     assert len(state(signed_in)["basket"]) == 1
@@ -992,6 +1118,19 @@ def test_the_letter_tells_the_harvest_as_news(signed_in, db_session, member):
         {"name": "bananas", "count": 6, "label": "6 bananas"},
         {"name": "strawberries", "count": 6, "label": "6 strawberries"},
     ]
+
+
+def test_a_batch_records_what_it_bore_as_well_as_what_is_left(
+    signed_in, db_session, member
+):
+    """Two numbers on one row. What the plant bore is written once at the
+    bearing and never moves; what is left is what the basket shows, what a gift
+    carries and what compost returns."""
+    give_planting(db_session, member.id, "strawberry", growth=15.0)
+    run_miles(db_session, member.id, FRUIT_SEASON_MI)
+
+    row = batches(db_session, member.id)[0]
+    assert (row.borne_count, row.count) == (3, 3)
 
 
 def test_a_letter_with_no_harvest_in_it_says_none(signed_in, db_session, member):
@@ -1288,7 +1427,7 @@ def test_the_harvest_is_behind_a_session(client, db_session, member):
         "/api/harvest/manna", json={"user_id": 1, "amount": 5}
     ).status_code == 401
     assert client.post(
-        "/api/harvest/fruit", json={"user_id": 1, "fruit_id": 1}
+        "/api/harvest/fruit", json={"user_id": 1, "count": 1}
     ).status_code == 401
 
 

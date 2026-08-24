@@ -308,6 +308,22 @@ FRUIT_YIELD: dict[str, int] = {
 GOLDEN_FRUIT_PREFIX = "golden "
 
 
+# Pets: the third lane. A pet is presence and nothing else, so no number under
+# this line may ever touch manna, experience, a level, a chest, growth, yield,
+# renown or a medal. A mechanic that read the pets table for a bonus would be
+# the design bug the TWO-LANE LAW names, one lane over.
+
+# Fruit fed, counted from the first, at which a pet reaches its second and third
+# drawings. The third is grown and is where the feeding ends. Cumulative rather
+# than per stage, so what has already been fed is never re-earned.
+PET_STAGE_FRUIT = (30, 70)
+
+# The most a time medal may add to one species' weight when a stray is drawn.
+# The weights lean the draw and never gate it: every species still missing from
+# a grove can win the roll whatever anybody's medals say.
+PET_WEIGHT_CAP = 9
+
+
 # Experience is converted Miles, one for one. Nothing but synced movement ever
 # produces any of it, and the number on the profile is the distance itself
 # rather than a score derived from it.

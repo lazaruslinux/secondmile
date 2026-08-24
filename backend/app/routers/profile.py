@@ -25,6 +25,7 @@ from app import (
     images,
     medals,
     models,
+    pets,
     progress,
     security,
     stamps,
@@ -633,6 +634,10 @@ def serialize_friend_profile(db: Session, user: models.User, viewer_id: int) -> 
         # the same screen already calls, and serving it twice would mean two
         # places to remember when what a friend sees of a garden changes.
         "grove": grove.summary(db, user.id),
+        # Which animals live in their grove, and nothing about them past that.
+        # No fruit fed, no progress and no dates: presence is what crosses a
+        # fence, and how somebody spent their weeks is theirs.
+        "pets": [pets.serialize_for_friend(row) for row in pets.owned(db, user.id)],
         # The same four counts the You screen carries. Aggregates with nobody
         # named in them, and the oil column only moves once a gift has landed,
         # so this says how much somebody gives without telling anybody who.

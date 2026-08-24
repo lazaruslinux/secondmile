@@ -25,6 +25,7 @@ from app.routers import (
     harvest,
     ingest,
     invites,
+    pets,
     profile,
     push,
     settings,
@@ -203,6 +204,7 @@ app.include_router(profile.router, prefix="/api")
 app.include_router(chests.router, prefix="/api")
 app.include_router(grove.router, prefix="/api")
 app.include_router(harvest.router, prefix="/api")
+app.include_router(pets.router, prefix="/api")
 app.include_router(gear.router, prefix="/api")
 app.include_router(fellowship.router, prefix="/api")
 app.include_router(invites.router, prefix="/api")

@@ -571,6 +571,8 @@ export interface FriendProfile {
   medals?: Medal[]
   // The summary only. The plot itself comes from the grove endpoint.
   grove?: { seeds_found?: number; plant_levels?: number }
+  // Which animals live in their grove, and nothing about them past that.
+  pets?: FriendPet[]
   // The same four counts the You screen carries. Nobody is named in them, so
   // they cross the fence whole.
   item_tallies?: ItemTallies
@@ -716,6 +718,34 @@ export interface Keepsake {
   received_at: string
 }
 
+// One animal living in a grove, on its owner's own screen. It confers nothing:
+// there is no number here anything spends, earns or is worth.
+export interface Pet {
+  id: number
+  species: string
+  // What its owner called it, or null for one that goes by its species word.
+  name: string | null
+  // The two already joined by the server, so no screen composes a name.
+  display_name: string
+  // 1 young, 2 half grown, 3 grown, which is which drawing it wears.
+  stage: number
+  fruit_fed: number
+  // Where the quiet bar is full, or null for a grown one with nothing left to
+  // fill. Never a number of fruit still owed: nothing counts down here.
+  next_fruit: number | null
+  grown: boolean
+  arrived_at: string
+}
+
+// What a friend sees of somebody's pets: that they are there. No fruit, no
+// progress and no dates ever cross the fence.
+export interface FriendPet {
+  species: string
+  name: string
+  stage: number
+  grown: boolean
+}
+
 // The harvest as the Grove screen reads it. Own account only: what somebody has
 // banked and what they have to give is theirs to know.
 export interface HarvestState {
@@ -732,6 +762,11 @@ export interface HarvestState {
   // No dates anywhere: the miles are the season.
   season_mi: number
   season_progress_mi: number
+  // What lives in the grove. It rides here because this is the payload the
+  // Grove screen already reads and because what a pet is fed comes out of the
+  // basket above it. Optional, so an older server costs the card and not the
+  // screen.
+  pets?: Pet[]
 }
 
 // What one gather brought in, with the state it left behind. Fruit only: manna
@@ -880,6 +915,9 @@ export interface RecapState {
   // Gifts, attributed here the way every gift in this app is attributed.
   manna_gifts?: { from?: string; amount?: number }[]
   fruit_gifts?: { from?: string; label?: string; provenance?: string }[]
+  // What the grove's animals did: one arrived, one grew, one finished growing.
+  // One sentence each, and the only place the app says anything about them.
+  pets?: { species?: string; name?: string; stage?: number; event?: string }[]
   // Whether anything gathered went back to the soil since the last letter. One
   // soft line, said afterwards; nothing counted down to it.
   composted?: boolean
@@ -1598,10 +1636,25 @@ export async function giveManna(userId: number, amount: number): Promise<void> {
   await sendJson('/harvest/manna', 'POST', { user_id: userId, amount })
 }
 
-// Give a friend something out of your basket. It carries where it came from,
-// and on their side it is a keepsake with no mechanics at all.
-export async function giveFruit(userId: number, fruitId: number): Promise<void> {
-  await sendJson('/harvest/fruit', 'POST', { user_id: userId, fruit_id: fruitId })
+// Give a friend fruit out of your basket, by the number of them. The oldest
+// goes first and nobody picks a species; on their side it is a keepsake with no
+// mechanics at all.
+export async function giveFruit(userId: number, count: number): Promise<void> {
+  await sendJson('/harvest/fruit', 'POST', { user_id: userId, count })
+}
+
+// Feed fruit from the basket to whichever pet is still growing. Any fruit at
+// all, each worth one; the answer says whether any of it was golden, which
+// changes a word on the screen and nothing else.
+export async function feedPet(count: number): Promise<{ pet: Pet; golden: boolean }> {
+  const res = await sendJson('/pets/feed', 'POST', { count })
+  return (await res.json()) as { pet: Pet; golden: boolean }
+}
+
+// Name a pet, or hand it back its species word by sending nothing.
+export async function namePet(petId: number, name: string): Promise<Pet> {
+  const res = await sendJson(`/pets/${petId}/name`, 'POST', { name })
+  return (await res.json()) as Pet
 }
 
 // Everything this account has been given, newest first. Permanent.

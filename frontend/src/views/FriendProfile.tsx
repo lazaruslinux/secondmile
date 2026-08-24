@@ -38,6 +38,7 @@ import {
   activityIcon,
   ANOINT_HINT,
   ANOINTED,
+  basketLine,
   EMPTY_BASKET,
   FED,
   feedHint,
@@ -65,6 +66,7 @@ import ItemPicker from './ItemPicker.tsx'
 import ItemTallies from './ItemTallies.tsx'
 import MedalNest from './MedalNest.tsx'
 import Medals from './Medals.tsx'
+import PetArt from './PetArt.tsx'
 import PlantArt from './PlantArt.tsx'
 import ProfileCounts from './ProfileCounts.tsx'
 import RarityFrame from './RarityFrame.tsx'
@@ -409,9 +411,12 @@ export default function FriendProfile({
     })
   }
 
-  function give(fruitId: number) {
+  // An amount rather than a thing picked out of the basket: the oldest fruit
+  // goes first and nobody chooses a species.
+  function give() {
+    const sent = Math.trunc(Number(amount) || 0)
     void act(async () => {
-      await giveFruit(userId, fruitId)
+      await giveFruit(userId, sent)
       setNote(FRUIT_GIVEN)
       setStep({ at: 'none' })
     })
@@ -498,6 +503,11 @@ export default function FriendProfile({
   // Read defensively like everything else on this screen: a server that
   // predates gear says nothing, which draws no card.
   const shoes = Array.isArray(profile.gear) ? profile.gear : []
+  // Which animals live in their grove. Presence and nothing else: the payload
+  // carries no fruit and no progress, so there is nothing here to draw but them.
+  const theirPets = (Array.isArray(profile.pets) ? profile.pets : []).filter(
+    (row) => row != null && typeof row.species === 'string',
+  )
   const week = statsOf(profile.week)
   const lifetime = statsOf(profile.lifetime)
   // A stamp that will not parse is left out rather than printed as an invalid
@@ -533,11 +543,8 @@ export default function FriendProfile({
       label: plantingName(row),
       detail: plantStateLine(row, friendStage(row)),
     }))
-  const fruitChoices: Choice[] = basketRows.map((row) => ({
-    id: row.id,
-    label: row.label,
-    detail: row.provenance,
-  }))
+  // The basket as one number, which is the only way it is ever read now.
+  const inBasket = basketRows.reduce((total, row) => total + row.count, 0)
 
   return (
     <>
@@ -692,7 +699,7 @@ export default function FriendProfile({
             <button
               type="button"
               className="secondary"
-              disabled={busy || basketRows.length === 0}
+              disabled={busy || inBasket === 0}
               onClick={() => {
                 setNote('')
                 setActionError('')
@@ -917,6 +924,24 @@ export default function FriendProfile({
             </ul>
           </>
         )}
+
+        {/* Their animals, drawn and named and nothing else. What a pet is fed
+            is their own record of their weeks and never crosses a fence. */}
+        {theirPets.length > 0 && (
+          <ul className="pet-residents">
+            {theirPets.map((row) => (
+              <li key={`${row.species}`} className="pet-resident">
+                <PetArt
+                  species={row.species}
+                  name={row.name}
+                  stage={row.stage ?? 1}
+                  className="pet-resident-picture"
+                />
+                <span className="pet-resident-name">{row.name}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       {/* The feed's own cards, so what a friend's activity may show is written
@@ -1055,22 +1080,40 @@ export default function FriendProfile({
         </Confirm>
       )}
 
-      {/* Something out of your own basket, which carries where it came from.
-          On their side it is a keepsake and does nothing at all. */}
+      {/* Fruit out of your own basket, by the number of them. It carries where
+          it came from, and on their side it is a keepsake that does nothing. */}
       {step.at === 'fruit' && (
-        <Chooser
-          title={`Give fruit to ${who}`}
-          hint="Pick something out of your basket. It keeps its story."
-          choices={fruitChoices}
-          empty={EMPTY_BASKET}
+        <Confirm
+          heading={`Give fruit to ${who}`}
+          confirmLabel="Give"
+          cancelLabel="Cancel"
           busy={busy}
           error={actionError}
-          onChoose={(id) => give(id)}
+          onConfirm={give}
           onCancel={() => {
             setActionError('')
             setStep({ at: 'none' })
           }}
-        />
+        >
+          {inBasket === 0 ? (
+            <p className="hint">{EMPTY_BASKET}</p>
+          ) : (
+            <>
+              <label>
+                Fruit to give
+                <input
+                  type="number"
+                  min={1}
+                  max={inBasket}
+                  step={1}
+                  value={amount}
+                  onChange={(event) => setAmount(event.target.value)}
+                />
+              </label>
+              <p className="hint">{basketLine(inBasket)}</p>
+            </>
+          )}
+        </Confirm>
       )}
 
       {/* Ending a friendship, asked in the same dialog every other destructive

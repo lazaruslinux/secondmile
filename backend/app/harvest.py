@@ -102,17 +102,20 @@ def month_of(moment: dt.datetime) -> str:
     return MONTHS[moment.astimezone(SERVER_TZ).month - 1]
 
 
-def provenance(row: models.FruitBatch) -> str:
-    """What a batch says about itself when it is given away.
+def _miles_word(season_mi: float) -> str:
+    """A season's length as a sentence says it: 33 rather than 33.0."""
+    return str(int(season_mi) if float(season_mi).is_integer() else round(season_mi, 1))
 
-    Everything in it was written down when the fruit came in, so the sentence a
-    gift carries is the same sentence a year later and does not move when a
-    constant is retuned.
+
+def provenance(row: models.FruitBatch) -> str:
+    """What one batch says about itself.
+
+    Everything in it was written down when the fruit came in, so the sentence is
+    the same sentence a year later and does not move when a constant is retuned.
     """
-    miles = int(row.season_mi) if float(row.season_mi).is_integer() else round(row.season_mi, 1)
     return (
         f"{fruit_words(row.count, row.species, row.golden)}, "
-        f"grown over {miles} miles in {row.season_month}"
+        f"grown over {_miles_word(row.season_mi)} miles in {row.season_month}"
     )
 
 
@@ -146,12 +149,16 @@ def bear(
         if not grove.is_mature(row):
             continue
         golden = grove.is_gilded(row)
+        borne_count = fruit_yield(row.species, row.rarity) + max(row.fed_bonus, 0)
         batch = models.FruitBatch(
             user_id=user_id,
             planting_id=row.id,
             species=row.species,
             golden=golden,
-            count=fruit_yield(row.species, row.rarity) + max(row.fed_bonus, 0),
+            # The same number twice, and they part company from here: one is
+            # what bore and stays put, the other is what is left of it.
+            count=borne_count,
+            borne_count=borne_count,
             season=season,
             season_mi=FRUIT_SEASON_MI,
             season_month=month,
@@ -187,7 +194,8 @@ def on_the_plant(db: Session, user_id: int) -> list[models.FruitBatch]:
 
 
 def in_the_basket(db: Session, user_id: int) -> list[models.FruitBatch]:
-    """Fruit already gathered and still there: not composted, not given away."""
+    """Fruit already gathered and still there: not composted, not given away,
+    and not eaten down to nothing by a pet."""
     return list(
         db.execute(
             select(models.FruitBatch)
@@ -196,9 +204,105 @@ def in_the_basket(db: Session, user_id: int) -> list[models.FruitBatch]:
                 models.FruitBatch.gathered_at.is_not(None),
                 models.FruitBatch.composted_at.is_(None),
                 models.FruitBatch.given_at.is_(None),
+                models.FruitBatch.count > 0,
             )
             .order_by(models.FruitBatch.id)
         ).scalars()
+    )
+
+
+def oldest_first(db: Session, user_id: int) -> list[models.FruitBatch]:
+    """What is in the basket to spend, oldest gathered first.
+
+    The order is the whole of the kindness, and it is the same order for both
+    things fruit is spent on: whatever is closest to going back to the soil goes
+    first, so giving and feeding never cost somebody the batch they were about
+    to lose anyway.
+    """
+    return list(
+        db.execute(
+            select(models.FruitBatch)
+            .where(
+                models.FruitBatch.user_id == user_id,
+                models.FruitBatch.gathered_at.is_not(None),
+                models.FruitBatch.composted_at.is_(None),
+                models.FruitBatch.given_at.is_(None),
+                models.FruitBatch.count > 0,
+            )
+            .order_by(models.FruitBatch.gathered_at, models.FruitBatch.id)
+        ).scalars()
+    )
+
+
+def take(
+    db: Session, rows: list[models.FruitBatch], count: int
+) -> list[tuple[models.FruitBatch, int]]:
+    """Take this many fruit off these batches, in the order they are given.
+
+    Answers what came off each, or nothing at all when the basket moved between
+    the caller's check and this: every batch is lowered by a statement that
+    reads its count and writes it together, so two requests racing cannot both
+    spend the same fruit. A batch may be left with a remainder, which stays in
+    the basket and is spendable like anything else in it.
+
+    Flushes but never commits, so a caller that answers with nothing rolls the
+    whole thing back by never committing it.
+    """
+    taken: list[tuple[models.FruitBatch, int]] = []
+    left = count
+    for row in rows:
+        if left <= 0:
+            break
+        amount = min(row.count, left)
+        lowered = db.execute(
+            update(models.FruitBatch)
+            .where(models.FruitBatch.id == row.id, models.FruitBatch.count >= amount)
+            .values(count=models.FruitBatch.count - amount)
+        )
+        if rows_touched(lowered) != 1:
+            return []
+        db.expire(row)
+        taken.append((row, amount))
+        left -= amount
+    db.flush()
+    return taken if left == 0 else []
+
+
+def gift_kind(taken: list[tuple[models.FruitBatch, int]]) -> tuple[str, bool]:
+    """What a gift is named by: one species when it is all one species, and
+    nothing when it is not.
+
+    An empty species is how a mixed handful says so. Every place that prints a
+    name already answers "fruit" to a species it does not know, so the generic
+    word costs no special case anywhere downstream.
+
+    Golden only when every fruit in it is golden. A finer word for a handful
+    that is only partly finer would be the sentence saying more than it knows.
+    """
+    kinds = {row.species for row, _ in taken}
+    return (kinds.pop() if len(kinds) == 1 else ""), all(row.golden for row, _ in taken)
+
+
+def gift_provenance(taken: list[tuple[models.FruitBatch, int]]) -> str:
+    """What a gift of fruit says about itself, however many batches it came off.
+
+    One sentence in the shape a single batch has always used, so a keepsake
+    written before giving became an amount reads exactly like one written after.
+
+    The season is the oldest batch's, because that is the fruit at the front of
+    the handful. When the batches do not all share one season the sentence says
+    "since" rather than "in": a gift out of two months is not a gift from one,
+    and naming the earlier month and leaving the reader to think it was the only
+    one would be the sentence claiming more than it knows.
+    """
+    total = sum(amount for _, amount in taken)
+    species_id, golden = gift_kind(taken)
+    oldest = min((row for row, _ in taken), key=lambda row: (row.borne_at, row.id))
+    spans = len({(row.season_mi, row.season_month) for row, _ in taken}) > 1
+    joined = "since" if spans else "in"
+    return (
+        f"{fruit_words(total, species_id, golden)}, "
+        f"grown over {_miles_word(oldest.season_mi)} miles {joined} {oldest.season_month}"
     )
 
 
@@ -317,6 +421,9 @@ def compost(db: Session, user_id: int, moment: dt.datetime) -> int:
             models.FruitBatch.gathered_at <= cutoff,
             models.FruitBatch.composted_at.is_(None),
             models.FruitBatch.given_at.is_(None),
+            # A batch a pet ate is gone rather than returned, and the letter's
+            # one soft line is about fruit that went back to the soil.
+            models.FruitBatch.count > 0,
         )
     ).scalars():
         row.composted_at = moment
@@ -428,8 +535,13 @@ def harvest_since(db: Session, user_id: int, since: dt.datetime | None) -> list[
 
     Piled by name rather than listed by batch, because the letter tells the
     story of a harvest and four banana trees bearing is one sentence. Counted
-    whatever became of it afterwards: gathering it, giving it away, or leaving
-    it to compost are all things that happened after the news.
+    whatever became of it afterwards: gathering it, giving it away, feeding it
+    to a pet, or leaving it to compost are all things that happened after the
+    news.
+
+    Read off borne_count for exactly that reason. The live count is what is left
+    of a batch, and a grove that bore three strawberries and fed them to a pet
+    would otherwise be reported as having borne none of them.
     """
     stmt = select(models.FruitBatch).where(models.FruitBatch.user_id == user_id)
     if since is not None:
@@ -440,7 +552,7 @@ def harvest_since(db: Session, user_id: int, since: dt.datetime | None) -> list[
             (row.species, row.golden),
             {"name": fruit_name(row.species, row.golden), "count": 0},
         )
-        pile["count"] += row.count
+        pile["count"] += row.borne_count
     return [
         {**pile, "label": fruit_words(pile["count"], species_id, golden)}
         for (species_id, golden), pile in piles.items()

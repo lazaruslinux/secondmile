@@ -23,6 +23,7 @@ import {
   harvestLine,
   mannaGiftLines,
   noteAuthor,
+  petLines,
   recapCheers,
   recapChestNames,
   recapGiftLine,
@@ -98,7 +99,10 @@ export default function Recap({ recap, units, onDismiss }: Props) {
 
   const notes = recapNotes(recap.encouragement)
   const cheers = recapCheers(recap.encouragement)
-  const growth = recapGrowthLines(recap)
+  // The plot and the animals in it read as one piece of news about one
+  // place, so they share the grove's own section rather than opening a
+  // second heading about the same garden.
+  const growth = [...recapGrowthLines(recap), ...petLines(recap)]
   const harvest = harvestLine(recap)
   const gifts = [...mannaGiftLines(recap), ...fruitGiftLines(recap)]
   const composted = compostLine(recap)

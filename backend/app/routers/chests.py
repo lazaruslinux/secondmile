@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app import activity as activity_rules
-from app import fellowship, grove, harvest, medals, models, progress, security, throttle
+from app import fellowship, grove, harvest, medals, models, pets, progress, security, throttle
 from app.activity import converted_miles
 from app.config import SERVER_TZ
 from app.db import get_db
@@ -154,6 +154,10 @@ def read_recap(
         # points at the grove; the gathering itself happens there, because the
         # letter is what arrived and the grove is where things are done.
         "harvest": _harvest(db, user.id, since),
+        # What the grove's animals did: one arrived, one grew, one finished
+        # growing. One sentence each and nothing else about them anywhere in
+        # the app, which is what the discovery is made of.
+        "pets": pets.since(db, user.id, since),
         # Gifts, attributed the way every gift in this app is attributed: in the
         # letter, afterwards, by the person who received it.
         "manna_gifts": _manna_gifts(db, user.id, since),
