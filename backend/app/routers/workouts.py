@@ -331,6 +331,11 @@ def _deleted_row(workout: models.Workout) -> dict:
     tried to draw a photograph would draw a broken one. What it is, when it
     was, how far it went, and the way back.
     """
+    # Only ever called for rows the deleted query returned, so the stamp is
+    # there. Named once so the type says what the caller already guarantees.
+    deleted_at = workout.deleted_at
+    if deleted_at is None:
+        raise ValueError(f"workout {workout.id} is not deleted")
     return {
         "workout_id": workout.id,
         "activity": workout.activity,
@@ -341,8 +346,8 @@ def _deleted_row(workout: models.Workout) -> dict:
         "distance_mi": round(workout.distance_mi, 3),
         "duration_s": workout.duration_s,
         "title": workout.title,
-        "deleted_at": workout.deleted_at.isoformat(),
-        "days_left": history.days_left(workout.deleted_at),
+        "deleted_at": deleted_at.isoformat(),
+        "days_left": history.days_left(deleted_at),
     }
 
 

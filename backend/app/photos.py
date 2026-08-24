@@ -45,7 +45,7 @@ def _fit(image: Image.Image) -> Image.Image:
         return image
     scale = PHOTO_MAX_EDGE / longest
     return image.resize(
-        (max(1, round(width * scale)), max(1, round(height * scale))), Image.LANCZOS
+        (max(1, round(width * scale)), max(1, round(height * scale))), Image.Resampling.LANCZOS
     )
 
 

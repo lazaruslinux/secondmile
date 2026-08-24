@@ -6,3 +6,7 @@ httpx
 # Pinned: ruff's default rule set changes between releases, so an unpinned
 # linter starts failing CI on its own schedule instead of ours.
 ruff==0.16.0
+# Pinned for the same reason, and more so: a type checker finds new things to
+# say with every release, and a green branch should not go red because a
+# machine somewhere published a version.
+mypy==2.3.1

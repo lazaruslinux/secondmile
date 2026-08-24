@@ -492,7 +492,7 @@ def item_tallies(db: Session, user_id: int) -> dict:
     anywhere until then, which is the whole of the oil rule, and a number that
     moved the moment it was given would be the announcement oil never makes.
     """
-    used = dict(
+    used: dict[str, int] = dict(
         db.execute(
             select(models.SatchelItem.kind, func.count())
             .where(
@@ -501,7 +501,9 @@ def item_tallies(db: Session, user_id: int) -> dict:
                 models.SatchelItem.used_at.is_not(None),
             )
             .group_by(models.SatchelItem.kind)
-        ).all()
+        )
+        .tuples()
+        .all()
     )
     water_received = db.execute(
         select(func.count())

@@ -34,6 +34,9 @@ jobs:
       - run: pip install --require-hashes -r requirements.txt
       - run: pip install -r requirements-dev.txt
       - run: ruff check .
+      # The annotations are checked, not decorative. Config in backend/mypy.ini;
+      # app/ only, and the version is pinned for ruff's own reason.
+      - run: mypy
       - run: pytest -q
       # Known-vulnerability gate over the installed (pinned) dependency set.
       # Pinned for the same reason ruff is: an unpinned gate fails CI on its

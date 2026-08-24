@@ -285,7 +285,13 @@ class Workout(Base):
     # so the same session arrives again and again; the database refuses the
     # duplicate and the ingest loop counts it as skipped instead of crediting it
     # twice.
-    __table_args__ = (UniqueConstraint("user_id", "start_ts", "duration_s", name="uq_workout"),)
+    __table_args__ = (
+        UniqueConstraint("user_id", "start_ts", "duration_s", name="uq_workout"),
+        # One index for the filter and the sort together: every screen asks this
+        # account's workouts, undeleted, oldest first, and so do the history page
+        # and the feed. user_id alone left the ordering to a sort on top.
+        Index("ix_workouts_user_pending", "user_id", "start_ts", "id"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(

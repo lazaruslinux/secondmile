@@ -35,6 +35,7 @@ from app.config import (
     MAX_LEVEL,
     SERVER_TZ,
 )
+from app.db import rows_touched
 from app.models import ACTIVITIES
 from app.security import now_utc
 
@@ -170,15 +171,29 @@ def process_user(
     `bear` is false only on a replay that is re-walking history the grove has
     already borne for; see recompute.
     """
+    # Asked before the row is made rather than after, so a sweep knows whether
+    # it was the one that made it. The second lookup inside ensure_progress is
+    # served from the session's identity map.
+    born = db.get(models.UserProgress, user_id) is None
     progress = ensure_progress(db, user_id)
-    harvest.compost(db, user_id, now_utc())
+    composted = harvest.compost(db, user_id, now_utc())
     pending = (
         db.execute(
             select(models.Workout)
             .where(
                 models.Workout.user_id == user_id,
                 models.Workout.deleted_at.is_(None),
-                models.Workout.id.not_in(select(models.ProcessedWorkout.workout_id)),
+                # Correlated, and that is the whole point of the shape. Written
+                # as `id NOT IN (select workout_id from processed_workouts)` it
+                # is one statement and it reads the same, but the planner builds
+                # a hash of EVERY marker row in the instance to answer it - every
+                # account's, on every screen, because this function is what every
+                # screen comes through. Correlated on the marker table's own
+                # primary key it is an index lookup per candidate instead, and
+                # the cost stops growing with other people's histories.
+                ~select(models.ProcessedWorkout.workout_id)
+                .where(models.ProcessedWorkout.workout_id == models.Workout.id)
+                .exists(),
             )
             # By id within a timestamp so simultaneous workouts credit in a
             # stable order.
@@ -200,7 +215,17 @@ def process_user(
         credited += 1
     if credited:
         progress.updated_at = now_utc()
-    db.commit()
+    # Only when the sweep actually wrote something. Every screen in the app comes
+    # through here and almost every one of those passes finds nothing to do, so
+    # an unconditional commit is a write transaction the database is asked for on
+    # every read of every screen. A pass that wrote nothing leaves the session
+    # untouched, and get_db closes it per request, which rolls that back.
+    #
+    # credited is exactly "markers were written": _claim writes inside a
+    # savepoint that rolls back when it loses the race, so a claim that returned
+    # false left nothing behind.
+    if credited or composted or born:
+        db.commit()
     return progress
 
 
@@ -644,7 +669,7 @@ def open_chest(
         .where(models.Chest.id == chest.id, models.Chest.opened_at.is_(None))
         .values(opened_at=now)
     )
-    if claimed.rowcount != 1:
+    if rows_touched(claimed) != 1:
         return None
 
     # "First" means the first chest that ever yielded an item, not the first

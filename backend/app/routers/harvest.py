@@ -29,7 +29,7 @@ from app.config import (
     RENOWN_FRUIT_GIFT,
     RENOWN_MANNA_GIFT,
 )
-from app.db import get_db
+from app.db import get_db, rows_touched
 
 router = APIRouter(tags=["harvest"])
 
@@ -297,9 +297,14 @@ def give_fruit(
         )
         .values(given_at=now, given_to_user_id=body.user_id)
     )
-    if claimed.rowcount != 1:
+    if rows_touched(claimed) != 1:
         raise HTTPException(status.HTTP_404_NOT_FOUND, NO_SUCH_FRUIT)
     batch = db.get(models.FruitBatch, body.fruit_id)
+    # The update above claimed exactly one row, so it is there. Said out loud
+    # anyway: the alternative to this line is an AttributeError on None, and a
+    # 404 is what every other unreachable fruit here answers with.
+    if batch is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, NO_SUCH_FRUIT)
     db.refresh(batch)
 
     earned = fellowship.fruit_gift_earns_renown(db, user.id, body.user_id, now)

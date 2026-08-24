@@ -51,6 +51,20 @@ class Medal:
     distance_mi: float | None = None
 
 
+def _threshold(medal: Medal) -> float:
+    """The miles a medal is earned at.
+
+    Every family compared by distance has one. The time family is the only one
+    that does not, and it is never compared by distance, so this states the
+    invariant once rather than leaving four comparison sites to assume it. A
+    time medal reaching here is a rule pointed at the wrong catalogue, which is
+    worth a named error rather than a TypeError about None.
+    """
+    if medal.distance_mi is None:
+        raise ValueError(f"{medal.id} is not earned by distance")
+    return medal.distance_mi
+
+
 # Catalogue order, which is the order the profile serves them in. Within every
 # family that has thresholds they ascend, which is what makes "the highest one
 # this qualifies for" a single pass.
@@ -155,7 +169,7 @@ FEET_ACTIVITIES = ("walk", "run")
 # A time medal wants the smallest race medal's distance on the ground. Anything
 # shorter is a stroll at an odd hour, and the line follows the race family down
 # rather than being written out again.
-MIN_TIME_MEDAL_MI = RACE_MEDALS[0].distance_mi
+MIN_TIME_MEDAL_MI = _threshold(RACE_MEDALS[0])
 
 # Local hours, read in the instance timezone. Early Riser is the two hours
 # before six; Night Owl is everything from eight in the evening until it.
@@ -199,7 +213,7 @@ def _highest(
         return None
     best = None
     for medal in family:
-        if workout.distance_mi + _EPSILON >= medal.distance_mi:
+        if workout.distance_mi + _EPSILON >= _threshold(medal):
             best = medal
     return best
 
@@ -327,7 +341,7 @@ def _crossed(ladder: Ladder, total_before: float, total_after: float) -> list[Me
     return [
         medal
         for medal in ladder.medals
-        if total_before + _EPSILON < medal.distance_mi <= total_after + _EPSILON
+        if total_before + _EPSILON < _threshold(medal) <= total_after + _EPSILON
     ]
 
 
@@ -463,7 +477,7 @@ def _crossings(
         total += workout.distance_mi
         while (
             reached < len(WEEKLY_MEDALS)
-            and total + _EPSILON >= WEEKLY_MEDALS[reached].distance_mi
+            and total + _EPSILON >= _threshold(WEEKLY_MEDALS[reached])
         ):
             found["weekly"] = (WEEKLY_MEDALS[reached], workout)
             reached += 1

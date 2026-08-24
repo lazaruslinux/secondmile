@@ -51,7 +51,7 @@ def _square(image: Image.Image) -> Image.Image:
     left = (width - side) // 2
     top = (height - side) // 2
     cropped = image.crop((left, top, left + side, top + side))
-    return cropped.resize((AVATAR_SIZE, AVATAR_SIZE), Image.LANCZOS)
+    return cropped.resize((AVATAR_SIZE, AVATAR_SIZE), Image.Resampling.LANCZOS)
 
 
 def encode(raw: bytes) -> bytes:

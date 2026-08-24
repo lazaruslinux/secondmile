@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from app import mail, models, security, throttle
 from app.config import settings
-from app.db import get_db
+from app.db import get_db, rows_touched
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -193,7 +193,7 @@ def register(
             )
             .values(used_by=user.id)
         )
-        if claimed.rowcount != 1:
+        if rows_touched(claimed) != 1:
             db.rollback()
             raise invalid_invite
         if invite.auto_friend and invite.created_by != user.id:

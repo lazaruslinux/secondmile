@@ -1,9 +1,10 @@
 """Engine, session factory, and the per-request session dependency."""
 
 from collections.abc import Iterator
+from typing import Any, cast
 
 from sqlalchemy import create_engine
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import CursorResult, Engine, Result
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.config import settings
@@ -39,3 +40,15 @@ def get_db() -> Iterator[Session]:
         yield session
     finally:
         session.close()
+
+
+def rows_touched(result: Result[Any]) -> int:
+    """How many rows a DELETE or an UPDATE actually changed.
+
+    Session.execute is typed as answering with the read-shaped Result, while a
+    DML statement really answers with a CursorResult, which is the one that
+    carries this. The gap is the type stubs' rather than the database's, and
+    this is the single place it is written down instead of at every caller that
+    wants to know whether its update found anything.
+    """
+    return cast("CursorResult[Any]", result).rowcount

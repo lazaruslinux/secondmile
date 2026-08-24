@@ -31,6 +31,7 @@ from app.config import (
     MANNA_TO_ONE_PERSON_DAYS,
     SERVER_TZ,
 )
+from app.db import rows_touched
 
 # Month names written out rather than taken from strftime, which answers in
 # whichever locale the container happens to have. A provenance line is content,
@@ -292,7 +293,7 @@ def gather(db: Session, user_id: int, moment: dt.datetime) -> dict:
     return {"fruit": sum(row.count for row in fruit), "batches": len(fruit)}
 
 
-def compost(db: Session, user_id: int, moment: dt.datetime) -> None:
+def compost(db: Session, user_id: int, moment: dt.datetime) -> int:
     """Quietly return whatever fruit has been gathered too long to the soil.
 
     Passive, and run where the account is already being read or credited: this
@@ -302,8 +303,13 @@ def compost(db: Session, user_id: int, moment: dt.datetime) -> None:
 
     Only gathered fruit ages. Fruit on the plant, fruit already given away, and
     every manna anybody holds are all untouched: the bank does not spoil.
+
+    Answers with how many batches went back, which is almost always none. The
+    caller runs on every screen in the app and uses this to decide whether the
+    sweep wrote anything worth committing.
     """
     cutoff = moment - WINDOW
+    returned = 0
     for row in db.execute(
         select(models.FruitBatch).where(
             models.FruitBatch.user_id == user_id,
@@ -314,7 +320,9 @@ def compost(db: Session, user_id: int, moment: dt.datetime) -> None:
         )
     ).scalars():
         row.composted_at = moment
+        returned += 1
     db.flush()
+    return returned
 
 
 def composted_since(db: Session, user_id: int, since: dt.datetime | None) -> bool:
@@ -351,7 +359,7 @@ def spend_manna(db: Session, user_id: int, amount: int) -> bool:
         )
         .values(manna=models.UserProgress.manna - amount)
     )
-    if changed.rowcount != 1:
+    if rows_touched(changed) != 1:
         return False
     held = db.get(models.UserProgress, user_id)
     if held is not None:

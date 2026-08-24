@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 
 from app import fellowship, grove, models, progress, security, species, throttle
 from app.config import MAX_PENDING_ANOINTINGS
-from app.db import get_db
+from app.db import get_db, rows_touched
 
 router = APIRouter(tags=["grove"])
 
@@ -83,7 +83,7 @@ def _spend(db: Session, item: models.SatchelItem, moment: dt.datetime) -> None:
         .where(models.SatchelItem.id == item.id, models.SatchelItem.used_at.is_(None))
         .values(used_at=moment)
     )
-    if claimed.rowcount != 1:
+    if rows_touched(claimed) != 1:
         raise HTTPException(status.HTTP_404_NOT_FOUND, NO_SUCH_ITEM)
 
 

@@ -93,6 +93,9 @@ def _send(address: str, token: str, subject: str, body: str) -> None:
         # STARTTLS. Sending a STARTTLS handshake into an implicit-TLS port does
         # not fail cleanly, it hangs until the timeout, so the port decides
         # which one is used rather than leaving the admin to find that out.
+        # Typed as the base class because SMTP_SSL is one: the branch picks
+        # which is built, and everything below talks to either.
+        server: smtplib.SMTP
         if settings.smtp_port == 465:
             server = smtplib.SMTP_SSL(settings.smtp_host, settings.smtp_port, timeout=20)
         else:
