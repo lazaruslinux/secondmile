@@ -1927,13 +1927,6 @@ button:disabled {
    the one colour, the way it is everywhere else, and it is the only thing about
    them that is not black, white or grey. */
 
-/* What a walk or a run was done in, under its figures and above its map. One
-   quiet grey line carrying the shoe's own mark, with room above it so it is
-   not read as a sixth figure. The map below sets its own room and keeps it. */
-.details-gear {
-  margin: var(--gap) 0 0;
-}
-
 /* Splits. A table without a table's rules: the ordinal, the pace, the bar, and
    what the heart was doing, in four columns that line up down the page. The
    pace and the beats are figures rather than words, so they are set in the
@@ -6176,11 +6169,11 @@ button:disabled {
   text-align: left;
 }
 
-/* The row whose mile is picked out on the map. The well is what every other
-   chosen thing in the app sits in, and the mark on the map is the real answer:
-   this only says which row it came from. */
+/* The row whose mile is picked out on the map. A whisper of the record gold its
+   mark on the map is drawn in, over the card's own surface so it reads on every
+   ground. The mark is the real answer: this only says which row it came from. */
 .split-row-on {
-  background: var(--well);
+  background: color-mix(in srgb, var(--record) 14%, var(--surface));
 }
 
 /* The marks on the route: a stretch of it picked out, and the dot the graph's
@@ -6200,8 +6193,9 @@ button:disabled {
   inset: 0;
 }
 
-/* The stretch is the accent again, thicker, with the card's own colour cased
-   around it so it reads as picked out rather than as a fatter line. */
+/* The stretch takes the record gold so it reads as picked out against the
+   crimson line, thicker, with the card's own colour cased around it so it is
+   not read as a fatter line. */
 .route-trail-edge {
   fill: none;
   stroke: var(--surface);
@@ -6213,7 +6207,7 @@ button:disabled {
 
 .route-trail {
   fill: none;
-  stroke: var(--accent);
+  stroke: var(--record);
   stroke-width: 5px;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -6221,14 +6215,24 @@ button:disabled {
 }
 
 .route-dot {
-  fill: var(--accent);
+  fill: var(--record);
   stroke: var(--surface);
   stroke-width: 2px;
   vector-effect: non-scaling-stroke;
 }
 
-/* What the session put in the grove, under what it was done in. The gear line's
-   own room, because it is the same kind of quiet line and they stack. */
+/* The record gold carrying a little of its own light, on the two dark grounds
+   only: nothing glows on the light one. */
+:root:not([data-theme='light']) .route-trail {
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--record) 60%, transparent));
+}
+
+:root:not([data-theme='light']) .route-dot {
+  filter: drop-shadow(0 0 2px color-mix(in srgb, var(--record) 60%, transparent));
+}
+
+/* What the session put in the grove, under the standings. The room every quiet
+   line on this screen takes, because they stack. */
 .details-manna {
   margin: var(--gap) 0 0;
 }

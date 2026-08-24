@@ -941,20 +941,11 @@ export default function WorkoutDetails({ item, gear, units, onBack }: Props) {
   const manna = item.own && typeof item.active_kcal === 'number' ? mannaFor(item.active_kcal) : 0
 
   // What it was done in, where the row names a pair and the list handed down
-  // holds it. A row that carries no pair, and a screen that was handed no
-  // list, both resolve to nothing and draw no line at all.
-  const shoes = gear.find((pair) => pair.id === item.gear_id)
-  // Everything the pair has covered, this session included. The server works it
-  // out on every read of the gear list and it arrives on the list handed down,
-  // so nothing is fetched for it here. Whole units, the way the You screen
-  // writes it: this is wear on a shoe rather than a figure anybody is measuring
-  // themselves against.
-  const odometer =
-    shoes && shoes.miles > 0
-      ? `${Math.round(toDisplayDistance(shoes.miles, units)).toLocaleString()} ${unitName(
-          units,
-        )} total`
-      : ''
+  // holds it. Own workouts only: the server never sends a gear_id on a friend's
+  // row, and asking here makes that a rule of this screen rather than something
+  // it gets away with. A row that carries no pair, and a screen that was handed
+  // no list, both resolve to nothing and draw nothing at all.
+  const shoes = item.own ? gear.find((pair) => pair.id === item.gear_id) : undefined
 
   // The highest beat the session saw, from the summary the export sent, and the
   // top of the heart rate lane's own axis, which is the highest reading it can
@@ -1014,6 +1005,10 @@ export default function WorkoutDetails({ item, gear, units, onBack }: Props) {
           {stride !== null && (
             <Figure label="Stride" value={stride} unit={units === 'metric' ? 'm' : 'ft'} />
           )}
+          {/* What it was done in, named the way every other pair in the app is
+              named. Wide like the weather, because a pair name is words and a
+              real one runs longer than a figure cell holds. */}
+          {shoes && <Figure label="Gear" value={gearName(shoes)} wide />}
           {/* The air, as one line. It is a sentence rather than a number, so it
               takes the width of the row instead of being set smaller than the
               figures beside it. */}
@@ -1029,23 +1024,8 @@ export default function WorkoutDetails({ item, gear, units, onBack }: Props) {
           <p className="hint details-records">{`Personal records: ${standings.join(' · ')}`}</p>
         )}
 
-        {/* The pair it was done in, named the way every other pair in the app
-            is named, with what is on them beside it. One quiet line and no
-            figure: nothing about shoes is a score, and the odometer is here
-            because a session is where somebody wonders how far a pair has
-            gone. */}
-        {shoes && (
-          <p className="hint details-gear">
-            <span className="sport-icon sport-icon-small">
-              <Icon name="shoe" />
-            </span>
-            {odometer === '' ? gearName(shoes) : `${gearName(shoes)} · ${odometer}`}
-          </p>
-        )}
-
-        {/* What the session put in the grove, under what it was done in. One
-            quiet line and no figure, for the reason the shoes are one: it is
-            already banked, there is nothing to do about it here, and this is
+        {/* What the session put in the grove. One quiet line and no figure: it
+            is already banked, there is nothing to do about it here, and this is
             the screen where somebody wonders what a session was worth. */}
         {manna > 0 && (
           <p className="hint details-manna">{`Manna earned: +${manna.toLocaleString()}`}</p>
