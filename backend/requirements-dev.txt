@@ -1,8 +1,13 @@
 # Test and lint dependencies. The production image never installs these.
-pytest
+#
+# Every one of them is pinned, for the reason the two below say out loud: a
+# gate that installs whatever was published this morning is a gate that can go
+# red on a commit that touched nothing. These are the versions the suite is
+# green on today, and moving them is a deliberate act.
+pytest==9.1.1
 # Starlette's TestClient is a thin wrapper over httpx and refuses to import
 # without it.
-httpx
+httpx==0.28.1
 # Pinned: ruff's default rule set changes between releases, so an unpinned
 # linter starts failing CI on its own schedule instead of ours.
 ruff==0.16.0

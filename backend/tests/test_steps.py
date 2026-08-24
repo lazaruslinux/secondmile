@@ -518,6 +518,11 @@ def test_the_public_counter_carries_the_steps(client, signed_in, ingest_token):
 # are buckets a few minutes apart rather than a figure for the day, they carry
 # the device that recorded them, and the date is the space-and-offset form the
 # workout parser already knows.
+#
+# The names and the clock are made up, like every other fixture here. A real
+# export carries whoever owns the phone and when they walked, and neither of
+# those belongs in the repo: what these cases pin is the pipe-separated shape
+# and the sum, not whose watch it was.
 REAL_METRICS = {
     "data": {
         "metrics": [
@@ -525,16 +530,16 @@ REAL_METRICS = {
                 "name": "step_count",
                 "units": "count",
                 "data": [
-                    {"qty": 1040.13, "date": "2026-04-15 04:15:00 -0700", "source": "Justin's Apple Watch"},
-                    {"qty": 1040.13, "date": "2026-04-15 04:20:00 -0700", "source": "Justin's Apple Watch|iPhone"},
+                    {"qty": 1040.13, "date": "2026-04-15 09:00:00 -0700", "source": "Alex's Apple Watch"},
+                    {"qty": 1040.13, "date": "2026-04-15 09:05:00 -0700", "source": "Alex's Apple Watch|iPhone"},
                 ],
             },
             {
                 "name": "walking_running_distance",
                 "units": "mi",
                 "data": [
-                    {"qty": 0.4928, "date": "2026-04-15 04:15:00 -0700", "source": "Justin's Apple Watch"},
-                    {"qty": 0.4928, "date": "2026-04-15 04:20:00 -0700", "source": "Justin's Apple Watch|iPhone"},
+                    {"qty": 0.4928, "date": "2026-04-15 09:00:00 -0700", "source": "Alex's Apple Watch"},
+                    {"qty": 0.4928, "date": "2026-04-15 09:05:00 -0700", "source": "Alex's Apple Watch|iPhone"},
                 ],
             },
         ]

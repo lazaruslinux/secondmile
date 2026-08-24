@@ -34,7 +34,7 @@ router = APIRouter(prefix="/workouts", tags=["workouts"])
 AGE_MAX_HR = 220
 
 
-def _observed_ceiling(db: Session, owner_id: int) -> int | None:
+def _observed_ceiling(db: Session, owner_id: int, own: bool) -> int | None:
     """The highest beat this account has on record, or None if it has none.
 
     Read from both places a beat is kept: the per-minute rows, which are the
@@ -45,26 +45,33 @@ def _observed_ceiling(db: Session, owner_id: int) -> int | None:
     Deleted workouts are not read. A session somebody took out of the game is
     out of it, and a ladder drawn from a beat that no longer appears anywhere
     would be a number nothing on screen could account for.
+
+    Workouts the owner took off the feeds are read for the owner's own view and
+    for nobody else's. The ceiling a friend is shown is drawn from the sessions
+    that friend may see: a number sourced from a hidden one would be that
+    session's heart rate said a step removed, out of a workout every other
+    friend-facing read answers with a 404.
     """
+    seen_by_reader = (
+        models.Workout.user_id == owner_id,
+        models.Workout.deleted_at.is_(None),
+        *(() if own else (models.Workout.hidden_from_feed.is_(False),)),
+    )
     highest_minute = db.execute(
         select(func.max(models.WorkoutSample.hr_max))
         .join(models.Workout, models.Workout.id == models.WorkoutSample.workout_id)
-        .where(
-            models.Workout.user_id == owner_id,
-            models.Workout.deleted_at.is_(None),
-        )
+        .where(*seen_by_reader)
     ).scalar()
     highest_summary = db.execute(
-        select(func.max(models.Workout.max_hr)).where(
-            models.Workout.user_id == owner_id,
-            models.Workout.deleted_at.is_(None),
-        )
+        select(func.max(models.Workout.max_hr)).where(*seen_by_reader)
     ).scalar()
     readings = [int(seen) for seen in (highest_minute, highest_summary) if seen is not None]
     return max(readings) if readings else None
 
 
-def zone_ceiling(db: Session, owner_id: int, birthdate) -> tuple[int | None, str | None]:
+def zone_ceiling(
+    db: Session, owner_id: int, birthdate, own: bool
+) -> tuple[int | None, str | None]:
     """The top of the zone ladder for one account, and what it was read from.
 
     An age is the better answer and a birthdate is the only way to one, so it
@@ -79,11 +86,14 @@ def zone_ceiling(db: Session, owner_id: int, birthdate) -> tuple[int | None, str
     The basis rides with the number for the same reason: a friend reading their
     own zones next to somebody else's has to be able to tell an age estimate
     from a measurement.
+
+    own says whose screen this is, and only the measured answer reads it: the
+    owner's own ceiling may be drawn from a hidden session, a friend's may not.
     """
     age = computed_age(birthdate)
     if age is not None:
         return AGE_MAX_HR - age, "age"
-    observed = _observed_ceiling(db, owner_id)
+    observed = _observed_ceiling(db, owner_id, own)
     if observed is not None:
         return observed, "observed"
     return None, None
@@ -209,7 +219,7 @@ def workout_details(
     }
     if hearts:
         body["max_hr"] = workout.max_hr
-        ceiling, basis = zone_ceiling(db, workout.user_id, birthdate)
+        ceiling, basis = zone_ceiling(db, workout.user_id, birthdate, own)
         body["zone_max"] = ceiling
         body["zone_basis"] = basis
     if "route" not in kept_back:

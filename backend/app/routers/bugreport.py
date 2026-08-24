@@ -10,6 +10,7 @@ is collected quietly.
 import datetime as dt
 import logging
 import os
+import re
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
@@ -43,6 +44,18 @@ NO_USER_AGENT = "no user agent"
 # hour is the only one of them a person meets: the limiter above it fires on a
 # client hammering the endpoint several times in a minute.
 TOO_SOON = "One report an hour. Try again later."
+
+# Control bytes nobody types. They survive a strip() and this text is read
+# twice by things that obey them: the flat file below, where a stray carriage
+# return can forge a line, and the terminal manage.py bug-reports prints to,
+# where an escape sequence steers the screen. Newline and tab are kept, because
+# somebody describing what broke uses both.
+_CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+
+
+def _clean(text: str) -> str:
+    """What somebody typed, with anything that steers a terminal taken out."""
+    return _CONTROL.sub("", text.replace("\r\n", "\n").replace("\r", "\n"))
 
 
 class ReportBody(BaseModel):
@@ -110,7 +123,7 @@ def report_bug(
     ).scalar_one_or_none()
     if newest is not None and newest > since:
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, TOO_SOON)
-    text = body.text.strip()
+    text = _clean(body.text).strip()
     if not text:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "A bug report needs some words in it.")
     if len(text) > BUG_REPORT_MAX_CHARS:
@@ -121,7 +134,9 @@ def report_bug(
     # Both of these are trimmed rather than refused: neither is typed by
     # anybody, so an over-long one is a client being odd rather than a person
     # making a mistake, and losing the report over it would help nobody.
-    view = body.view.strip()[:BUG_REPORT_VIEW_MAX_CHARS] or UNKNOWN_VIEW
+    # The screen name is a label on one line of the block above, so its
+    # whitespace is folded as well: a newline in it would forge a second entry.
+    view = " ".join(_clean(body.view).split())[:BUG_REPORT_VIEW_MAX_CHARS] or UNKNOWN_VIEW
     agent = request.headers.get("user-agent", "").strip()[:BUG_REPORT_UA_MAX_CHARS]
     report = models.BugReport(
         user_id=user.id,
