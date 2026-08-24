@@ -1248,8 +1248,13 @@ export default function FeedCard({
 
         {(item.xp !== undefined || medals.length > 0) && (
           <p className="feed-foot">
+            {/* The figure and its unit are split so the figure can be read as a
+                score rather than as a caption: same words, the number carried
+                in the face the app counts in. */}
             {item.xp !== undefined && (
-              <span className="feed-xp">+{convertedValue(item.xp)} XP</span>
+              <span className="feed-xp">
+                <span className="feed-xp-value">+{convertedValue(item.xp)}</span> XP
+              </span>
             )}
             {/* One chip per medal the workout earned. A long run started before
                 dawn earns two, and the strip wraps rather than truncates. */}

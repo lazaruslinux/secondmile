@@ -1628,6 +1628,18 @@ button:disabled {
   color: var(--accent);
 }
 
+/* What the workout was worth, said as a score: the figure steps up into the
+   numerals face the rest of the app counts in and the unit beside it stays the
+   small label it always was. Nothing is lit; a readout is read, not shone at.
+   Only a card of your own carries this line at all. */
+.feed-xp-value {
+  font-family: var(--font-nums);
+  font-variant-numeric: tabular-nums;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: normal;
+}
+
 /* The medal itself rather than its name in a crimson pill: what was won is a
    drawing, and a feed card is where it is worth seeing. The name stays beside
    it because the artwork alone cannot tell 5K from MARATHON at this size, and
@@ -3173,21 +3185,27 @@ button:disabled {
   height: 100%;
 }
 
-/* The medal set is drawn at a native 48x48 and scales crisp on every ground;
-   one file serves light and dark alike. */
-.badge img {
-  image-rendering: pixelated;
-}
-
 /* The inventory items are drawn at a native 48x48 like the plants. */
 .item-art {
   image-rendering: pixelated;
 }
 
+/* The medal set is drawn at a native 48x48; one file serves light and dark
+   alike. Nearest-neighbour is only kind to that drawing at its own size or
+   above: below it the browser drops whole pixel rows and shreds the rim, the
+   same reason the fruit mark on a plant leaves image-rendering off. So the
+   smooth sampling is the default here, and the two places a medal is drawn at
+   48 across or wider ask for the crisp one by name. */
 .badge img {
   display: block;
   width: 100%;
   height: 100%;
+  image-rendering: auto;
+}
+
+/* The letter draws its medals at 3.5rem, above native, so they stay crisp. */
+.medal-earn .badge img {
+  image-rendering: pixelated;
 }
 
 /* A medal with no artwork at all still needs to occupy its place. */
@@ -5722,6 +5740,13 @@ button:disabled {
 
   .medal-nest-item + .medal-nest-item {
     margin-left: -1rem;
+  }
+
+  /* Less the pad that keeps two of them apart, 3.25rem draws the medal at the
+     48 the file is made at, so the crisp sampling comes back under a profile
+     picture here. The summary card's nest below is smaller and keeps smooth. */
+  .avatar-block .medal-nest-item .badge img {
+    image-rendering: pixelated;
   }
 
   /* The summary card's frame is 6rem, so its three stop at 2.6rem: 124.8px

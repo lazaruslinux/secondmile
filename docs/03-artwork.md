@@ -373,8 +373,13 @@ file per medal serves every ground: the `-light` twins are retired and deleted,
 because the plates read on dark, light and any future ground alike. A
 replacement must follow the grove's pixel spec (native 48x48, three or four
 shades a hue, one warm near-black outline ring, transparent background, no
-anti-aliasing; the app draws them with image-rendering: pixelated). Family is
-carried by the motif: a crimson ribbon on the race plates, the red week tab on
+anti-aliasing). The app draws a medal with `image-rendering: pixelated` only
+where it is shown at 48 across or wider, which is the letter's earn line and the
+nest under a profile picture on a desktop. Every smaller place leaves
+`image-rendering` alone and lets the browser resample, the same call the harvest
+marks make below and for the same reason: nearest-neighbour sampling under
+native size drops whole pixel rows and shreds the rim. Family is carried by the
+motif: a crimson ribbon on the race plates, the red week tab on
 the weekly plates, laurel sprigs on lifetime, waves on every swim, a chainring
 on every cycle, and the two time-of-day plates carry a sun and a stamped
 crescent instead of a figure.
