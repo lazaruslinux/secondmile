@@ -175,8 +175,9 @@ export default function Landing({ onEnter, invite }: Props) {
           people you know. Think of that orange running app, but privately hosted and free.
           Walk, run, bike, or swim; every synced workout opens treasure chests along the
           way and grows a personal grove of plants and trees that get boosted with your
-          miles. Your steps come along too, counted and shown but not earning. They also
-          do other things, but you'll have to start earning to find out.
+          miles. The harvest draws visitors. Your steps come along too, counted and shown
+          but not earning. They also do other things, but you'll have to start earning to
+          find out.
         </p>
 
         {/* Said before the account rather than found afterwards: this is what
