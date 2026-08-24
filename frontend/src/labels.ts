@@ -461,6 +461,11 @@ export const FOUND_LEAD = 'You found…'
 // it points at.
 export const CHESTS_WAITING = 'Chests waiting to be opened.'
 
+// The same mark, lit by the other thing that waits. One dot for both, because
+// two marks on two tabs would be a list to clear rather than something to go
+// and enjoy.
+export const HARVEST_WAITING = 'Fruit is ready to gather.'
+
 export function chestName(tier: string | null | undefined): string {
   if (!tier) return 'Chest'
   return `${CHEST_TIER_NAMES[tier.toLowerCase()] ?? tier} chest`

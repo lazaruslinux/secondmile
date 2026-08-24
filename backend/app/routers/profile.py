@@ -21,6 +21,7 @@ from app import (
     fellowship,
     gear,
     grove,
+    harvest,
     images,
     medals,
     models,
@@ -201,6 +202,11 @@ def serialize_profile(db: Session, user: models.User, row: models.UserProgress) 
         # What the calories have come to: the bank, one number, spendable and
         # permanent. Own screen only, and never on the friend payload.
         "manna": row.manna,
+        # Whether anything is waiting on the plants. A flag and never a count:
+        # what a mark on a tab may say is that something is here, and how much
+        # of it belongs on the screen it points at. Own screen only, like the
+        # bank above it: a friend is served by serialize_friend_profile.
+        "fruit_ready": bool(harvest.on_the_plant(db, user.id)),
         # How much is in the plot and how much of it is grown. Not a
         # collection: there is no total to fill, only what somebody planted.
         "grove": grove.summary(db, user.id),

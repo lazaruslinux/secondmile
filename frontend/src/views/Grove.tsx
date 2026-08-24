@@ -42,6 +42,11 @@ const HEADER =
 
 interface Props {
   userId: number
+  // Whether the grove has fruit on it, said upward every time this screen
+  // learns it. The app draws the mark on the tab and this screen is the only
+  // place a harvest is brought in, so the mark clears on the same tap that
+  // empties the plants rather than on the next load.
+  onFruitReady?: (ready: boolean) => void
 }
 
 // What this tab last showed, kept by account so a second person signing in on
@@ -67,7 +72,7 @@ function gatheredLine(fruit: number): string {
   return fruit === 0 ? 'Nothing was ready.' : `Harvested ${fruit} fruit.`
 }
 
-export default function Grove({ userId }: Props) {
+export default function Grove({ userId, onFruitReady }: Props) {
   // Coming back to the tab draws what was here before and asks the server again
   // underneath, so switching tabs is not a blank screen every time.
   const [plantings, setPlantings] = useState<Planting[]>(
@@ -91,14 +96,19 @@ export default function Grove({ userId }: Props) {
       // allowed to fail on its own rather than taking the page down.
       const [plot, brought] = await Promise.all([listGrove(), getHarvest().catch(() => null)])
       setPlantings(plot)
-      if (brought) setHarvest(brought)
+      if (brought) {
+        setHarvest(brought)
+        onFruitReady?.(brought.ready)
+      }
       setLoadError('')
     } catch (err) {
       setLoadError(errorText(err))
     } finally {
       setLoading(false)
     }
-  }, [])
+    // The app hands down a state setter, which never changes identity, so this
+    // stays the stable callback the effect below depends on.
+  }, [onFruitReady])
 
   useEffect(() => {
     void load()
@@ -147,6 +157,9 @@ export default function Grove({ userId }: Props) {
     void act(async () => {
       const brought = await gatherHarvest()
       setNote(gatheredLine(brought.fruit))
+      // Read off what the gather itself answered, so the mark on the tab goes
+      // out on this tap rather than when the reload behind it lands.
+      onFruitReady?.(brought.ready)
       setStep({ at: 'none' })
     })
   }
@@ -299,6 +312,13 @@ export default function Grove({ userId }: Props) {
                       gilded={row.gilded}
                       className="plant-picture"
                     />
+                    {/* A plant holding fruit wears a dot in its corner, so the
+                        one that bore is findable in a plot at a glance. What it
+                        is holding is said in words below, and this never
+                        repeats the number. */}
+                    {carrying.length > 0 && (
+                      <span className="plant-fruit-mark" aria-hidden="true" />
+                    )}
                   </RarityFrame>
                   {/* A progress element rather than a div with a width on it:
                       the content security policy allows no inline styles, and

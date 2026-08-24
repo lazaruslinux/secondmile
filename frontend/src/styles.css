@@ -4537,6 +4537,38 @@ button:disabled {
   color: var(--accent);
 }
 
+/* The square is what the mark below hangs in. The arcade ground already sets
+   this on the same box to hold its glass. */
+.plant-frame .rarity-square {
+  position: relative;
+}
+
+/* A dot in the corner of a plant that is carrying fruit, in the gold the app
+   keeps for something worth having. It says a plant has something on it and
+   nothing else: the count is in the line under the picture, and it sits inside
+   the border because the arcade square clips anything past it. */
+.plant-fruit-mark {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--record);
+  pointer-events: none;
+}
+
+/* Lit on the grounds that can carry a glow, the same as the mark on the tab. */
+:root:not([data-theme='light']) .plant-fruit-mark {
+  box-shadow: 0 0 6px 1px color-mix(in srgb, var(--record) 70%, transparent);
+}
+
+/* On white a glow is a smudge, so the dot keeps a ring against the tile
+   instead. */
+:root[data-theme='light'] .plant-fruit-mark {
+  box-shadow: 0 0 0 2px var(--panel);
+}
+
 .plant-fed {
   margin: 0;
   font-size: 0.78rem;

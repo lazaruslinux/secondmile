@@ -476,6 +476,11 @@ export interface Profile {
   // did. Your own screen only, the friend payload does not carry it and must
   // not. Optional, so a server that predates manna reads as none.
   manna?: number
+  // Whether anything is waiting on the plants. A flag and never a count: the
+  // mark it lights says something is here, and how much of it is on the Grove
+  // screen. Your own screen only, the friend payload does not carry it and must
+  // not. Optional, so a server that predates it reads as nothing waiting.
+  fruit_ready?: boolean
   // What the plot has come to. seeds_found counts the distinct species owned,
   // out of the twelve a chest can hold; plant_levels is every level on every
   // plant added up. Optional so the app still renders against a server that

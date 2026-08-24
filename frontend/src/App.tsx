@@ -16,7 +16,7 @@ import {
   type Units,
 } from './api.ts'
 import { ALPHA, ALPHA_LINE } from './alpha.ts'
-import { CHESTS_WAITING } from './labels.ts'
+import { CHESTS_WAITING, HARVEST_WAITING } from './labels.ts'
 import { setInstanceTimezone } from './format.ts'
 import { recapHasNews } from './recap.ts'
 import ActivityView from './views/Activity.tsx'
@@ -104,10 +104,14 @@ export default function App() {
   const [refreshToken, setRefreshToken] = useState(0)
   // How many chests are sitting unopened. Read once when the app opens and
   // said again by the You screen every time it learns it, because that screen
-  // is the only place a chest is opened from. Nothing else feeds this yet: a
-  // mark that appeared for everything the app could nag about would be the
-  // opposite of earning things by going out and forgetting the app.
+  // is the only place a chest is opened from.
   const [chestsWaiting, setChestsWaiting] = useState(0)
+  // Whether the grove has fruit on it. The other thing worth walking over to,
+  // and the only other thing that lights the mark: one that appeared for
+  // everything the app could nag about would be the opposite of earning things
+  // by going out and forgetting the app. Home says it from the profile it
+  // already loads, and Grove says it again on the tap that gathers.
+  const [fruitReady, setFruitReady] = useState(false)
 
   useEffect(() => {
     // One place decides that a lost session means the login screen, so no
@@ -330,7 +334,8 @@ export default function App() {
         <nav className="topnav" aria-label="Sections">
           {TABS.map((tab) => {
             const current = section === tab.id
-            const waiting = tab.id === 'you' && chestsWaiting > 0
+            const chests = tab.id === 'you' && chestsWaiting > 0
+            const marked = chests || (tab.id === 'you' && fruitReady)
             return (
               <button
                 key={tab.id}
@@ -341,10 +346,12 @@ export default function App() {
               >
                 <span className="tab-mark-holder">
                   <Icon name={tab.icon} />
-                  {waiting && <span className="tab-mark" />}
+                  {marked && <span className="tab-mark" />}
                 </span>
                 <span className="topnav-label">{tab.label}</span>
-                {waiting && <span className="sr-only">{CHESTS_WAITING}</span>}
+                {marked && (
+                  <span className="sr-only">{chests ? CHESTS_WAITING : HARVEST_WAITING}</span>
+                )}
               </button>
             )
           })}
@@ -375,6 +382,7 @@ export default function App() {
             onOpenGuide={() => openGuide('home')}
             onOpenPerson={openFriend}
             onOpenWorkout={openWorkout}
+            onFruitReady={setFruitReady}
           />
         )}
         {view === 'activity' && (
@@ -385,7 +393,7 @@ export default function App() {
             onOpenWorkout={openWorkout}
           />
         )}
-        {view === 'grove' && <Grove userId={me.id} />}
+        {view === 'grove' && <Grove userId={me.id} onFruitReady={setFruitReady} />}
         {view === 'friends' && <Friends userId={me.id} onOpenPerson={openFriend} />}
         {view === 'you' && (
           <Profile
@@ -455,10 +463,12 @@ export default function App() {
       <nav className="tabbar" aria-label="Sections">
         {TABS.map((tab) => {
           const current = section === tab.id
-          // The mark rides the You tab because that is the screen the chests
-          // are on. It says something is here, never how many: a count on a tab
-          // is a number to clear rather than a thing to enjoy.
-          const waiting = tab.id === 'you' && chestsWaiting > 0
+          // The mark rides the You tab, which is where the chests are opened,
+          // and a grove with fruit on it lights that same dot rather than a
+          // second one. It says something is here, never how many: a count on a
+          // tab is a number to clear rather than a thing to enjoy.
+          const chests = tab.id === 'you' && chestsWaiting > 0
+          const marked = chests || (tab.id === 'you' && fruitReady)
           return (
             <button
               key={tab.id}
@@ -469,12 +479,15 @@ export default function App() {
             >
               <span className="tab-mark-holder">
                 <Icon name={tab.icon} />
-                {waiting && <span className="tab-mark" />}
+                {marked && <span className="tab-mark" />}
               </span>
               <span className="tab-label">{tab.label}</span>
               {/* The mark is a dot, so what it means is said here for anybody
-                  the dot never reaches. */}
-              {waiting && <span className="sr-only">{CHESTS_WAITING}</span>}
+                  the dot never reaches. A chest is the nearer errand of the
+                  two, so it is the one named when both are waiting. */}
+              {marked && (
+                <span className="sr-only">{chests ? CHESTS_WAITING : HARVEST_WAITING}</span>
+              )}
             </button>
           )
         })}

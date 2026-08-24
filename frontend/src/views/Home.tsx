@@ -303,6 +303,10 @@ interface Props {
   // friend's alike. The shoes go with it: this screen is already holding the
   // list, and the screen behind the card has no call of its own for it.
   onOpenWorkout: (item: FeedItem, gear: Gear[]) => void
+  // Whether the grove has fruit on it, said upward every time this screen
+  // learns it. The app draws the mark on the tab, and this is the first own
+  // screen the app opens, so the mark is there before anything is tapped.
+  onFruitReady: (ready: boolean) => void
 }
 
 export default function Home({
@@ -315,6 +319,7 @@ export default function Home({
   onOpenGuide,
   onOpenPerson,
   onOpenWorkout,
+  onFruitReady,
 }: Props) {
   // Coming back to the tab draws what was here before and asks the server again
   // underneath, so switching tabs is not a blank screen every time.
@@ -334,6 +339,7 @@ export default function Home({
     try {
       const [mine, events] = await Promise.all([getProfile(), listFeed()])
       setProfile(mine)
+      onFruitReady(mine.fruit_ready ?? false)
       setFeed(events)
       setDone(events.length < PAGE)
       setLoadError('')
@@ -349,7 +355,9 @@ export default function Home({
     } catch {
       // Left as it was. A first-load failure keeps it null, so the card never draws.
     }
-  }, [])
+    // The app hands down a state setter, which never changes identity, so this
+    // stays the stable callback the effect below depends on.
+  }, [onFruitReady])
 
   useEffect(() => {
     void load()
