@@ -108,6 +108,13 @@ export default function Settings({
 
   const [hiddenError, setHiddenError] = useState('')
   const [savingHidden, setSavingHidden] = useState(false)
+  // The choices as ticked on screen, which may run ahead of what the server
+  // holds until Save is pressed. Reset to the stored truth whenever it moves.
+  const [hiddenDraft, setHiddenDraft] = useState<HiddenField[]>(hidden)
+  const [hiddenSaved, setHiddenSaved] = useState(false)
+  useEffect(() => setHiddenDraft(hidden), [hidden])
+  const hiddenDirty =
+    hiddenDraft.length !== hidden.length || hiddenDraft.some((one) => !hidden.includes(one))
 
   // What this browser can do about notifications, asked once on the way in.
   // 'unknown' draws nothing device-side for the moment the answer takes.
@@ -252,16 +259,22 @@ export default function Settings({
     rememberTheme(next)
   }
 
-  // Drawn from what the server stored rather than from the tap, so a switch
-  // never shows something as hidden that is still being sent.
-  async function toggleHidden(field: HiddenField) {
-    const next = hidden.includes(field)
-      ? hidden.filter((one) => one !== field)
-      : [...hidden, field]
+  // Staged rather than sent on the tap: hiding something from friends is a
+  // choice worth a deliberate Save, and the owner's own screens never change
+  // either way, so the saved chip is the only proof it landed.
+  function toggleHidden(field: HiddenField) {
+    setHiddenSaved(false)
+    setHiddenDraft((draft) =>
+      draft.includes(field) ? draft.filter((one) => one !== field) : [...draft, field],
+    )
+  }
+
+  async function saveHidden() {
     setSavingHidden(true)
     setHiddenError('')
     try {
-      onHiddenChanged(await setHiddenFromFriends(next))
+      onHiddenChanged(await setHiddenFromFriends(hiddenDraft))
+      setHiddenSaved(true)
     } catch (err) {
       setHiddenError(errorText(err))
     } finally {
@@ -468,7 +481,7 @@ export default function Settings({
       <section className="settings-group">
         <h2 className="label settings-title">Privacy</h2>
 
-        <div className="card">
+        <div className="card card-privacy">
           <h3>Hide from friends</h3>
           <p className="hint">
             Friends see your activities in full. Turn one of these on to keep it off the
@@ -481,15 +494,33 @@ export default function Settings({
                 <label className="picker-option">
                   <input
                     type="checkbox"
-                    checked={hidden.includes(field)}
+                    checked={hiddenDraft.includes(field)}
                     disabled={savingHidden}
-                    onChange={() => void toggleHidden(field)}
+                    onChange={() => toggleHidden(field)}
                   />
                   <span>{label}</span>
                 </label>
               </li>
             ))}
           </ul>
+
+          <div className="privacy-save">
+            <button
+              type="button"
+              className="primary"
+              disabled={!hiddenDirty || savingHidden}
+              onClick={() => void saveHidden()}
+            >
+              Save
+            </button>
+            {/* The one proof the change landed: the owner's own screens never
+                hide anything, so nothing else on this account visibly moves. */}
+            {hiddenSaved && !hiddenDirty && (
+              <span className="note note-success" role="status">
+                Privacy choices saved.
+              </span>
+            )}
+          </div>
 
           {hiddenError && (
             <p className="error" role="alert">

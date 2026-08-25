@@ -3002,6 +3002,26 @@ button:disabled {
   box-shadow: 0 0 16px -10px var(--accent);
 }
 
+/* The privacy card, kept a shade apart from the stack: these switches govern
+   what other people see, and finding them should not take hunting. Same edge
+   treatment as the waiting chest card, steady rather than earned. */
+.card-privacy {
+  border-color: var(--accent);
+}
+
+:root:not([data-theme='light']) .card-privacy {
+  box-shadow: 0 0 16px -10px var(--accent);
+}
+
+/* The Save beside its proof. The chip only appears once the server has the
+   choices, so the two never say different things. */
+.privacy-save {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+}
+
 /* The band across the top of the screen: the grove's home, and inert. Whatever
    is planted stands along its floor. */
 /* The band and the picture riding up over its lower edge are one item in the
