@@ -285,14 +285,17 @@ def parse_start(raw) -> dt.datetime | None:
 def duration_seconds(entry: dict) -> int:
     """One export entry's duration in whole seconds.
 
-    Duration arrives in seconds and is often fractional. Rounding to whole
-    seconds is what makes it usable as part of the dedupe key: the same workout
-    re-exported has to produce the same integer every time, and the migration
-    that matches a stored payload back to its workout row asks the same question
-    of the same entry.
+    Duration arrives in seconds and is often fractional. Truncating it is what
+    makes it usable as part of the dedupe key: the same workout re-exported has
+    to produce the same integer every time, and the migration that matches a
+    stored payload back to its workout row asks the same question of the same
+    entry. Dropping the fraction is exactly as deterministic as rounding to the
+    nearest second, and it is what Apple Fitness itself shows, so 49:49.6 reads
+    as 49:49 in both places rather than as a second the source never claimed.
+    The app never shows more time than what it was told.
     """
     duration = quantity(entry.get("duration"))
-    return max(0, round(duration)) if duration is not None else 0
+    return max(0, int(duration)) if duration is not None else 0
 
 
 def workout_entries(payload) -> list | None:

@@ -8,6 +8,7 @@
     python manage.py backfill-badges <username>
     python manage.py backfill-routes <username>
     python manage.py backfill-samples
+    python manage.py retime-workouts
     python manage.py backfill-pr-stamps
     python manage.py strip-ingest-log
     python manage.py bug-reports [--limit N]
@@ -412,6 +413,85 @@ def cmd_backfill_samples(args: argparse.Namespace) -> None:
         print(f"  workouts matched: {len(matched)}")
         print(f"  samples written: {written}")
         print(f"  workouts skipped as already detailed: {len(matched & already)}")
+    finally:
+        db.close()
+
+
+def cmd_retime_workouts(args: argparse.Namespace) -> None:
+    """Write the truncated duration back over the rounded one.
+
+    Durations used to be rounded to the nearest second and are now truncated,
+    which is what Apple Fitness shows for the same session. A workout imported
+    before that change can therefore read one second longer than its own source
+    does. The entries are still in the ingest log, in the payloads posted over
+    the last INGEST_LOG_RETENTION_DAYS, and this replays them before the prune
+    takes them. Every account rather than one, because it is a one-time pass run
+    by whoever has a shell on the server.
+
+    A stored payload is parsed exactly the way the sync endpoint parses it, and
+    each entry is matched to its workout on the account, the parsed start time,
+    and a stored duration within a second of the parsed one: the same slack the
+    sync's dedupe now allows, and the reason a re-posted workout lands on its old
+    row instead of beside it. A deleted workout is left out, the same as the
+    sample backfill above: its row is a tombstone, not a session anybody reads.
+
+    Only the duration column is written. No experience, medal, chest, sample,
+    route, or progress row is touched here, and nothing is converted: the export
+    sends seconds and this stores seconds. Running it twice is the same as
+    running it once, because the second pass parses the value that is already
+    stored and has nothing to write.
+    """
+    db = _session()
+    try:
+        # Grouped rather than keyed on the whole triple: the row being looked
+        # for is the one whose duration is a second off, so the duration cannot
+        # be part of the lookup.
+        rows: dict[tuple[int, dt.datetime], list[models.Workout]] = {}
+        for workout in db.execute(
+            select(models.Workout).where(models.Workout.deleted_at.is_(None))
+        ).scalars():
+            rows.setdefault((workout.user_id, workout.start_ts), []).append(workout)
+
+        replayed = retimed = ambiguous = 0
+        matched: set[int] = set()
+        for user_id, payload in db.execute(
+            select(models.IngestLog.user_id, models.IngestLog.payload).order_by(
+                models.IngestLog.id
+            )
+        ):
+            replayed += 1
+            parsed, _ = activity_rules.parse_payload(payload)
+            for item in parsed:
+                near = [
+                    row
+                    for row in rows.get((user_id, item.start_ts), ())
+                    if abs(row.duration_s - item.duration_s) <= 1
+                ]
+                if not near:
+                    continue
+                matched.update(row.id for row in near)
+                # Already truncated, either by an earlier payload in this run or
+                # by a run before it. Skipping here is what makes a second pass
+                # a no-op, and it is also what keeps two neighbouring rows off
+                # one dedupe key.
+                if any(row.duration_s == item.duration_s for row in near):
+                    continue
+                if len(near) > 1:
+                    # Two rows a second apart on either side of the same entry.
+                    # Guessing which one it describes would move the wrong
+                    # workout, so neither is touched.
+                    ambiguous += 1
+                    continue
+                near[0].duration_s = item.duration_s
+                retimed += 1
+        db.commit()
+
+        print(f"Replayed {replayed} stored syncs.")
+        print(f"  workouts matched: {len(matched)}")
+        print(f"  durations retimed: {retimed}")
+        print(f"  left alone as ambiguous: {ambiguous}")
+        print("Payloads older than the ingest log's retention are gone; those workouts")
+        print("keep a duration at most one second high.")
     finally:
         db.close()
 
@@ -853,6 +933,11 @@ def main() -> None:
         "backfill-samples", help="read the per-minute detail stored syncs still carry"
     )
     detail.set_defaults(func=cmd_backfill_samples)
+
+    retime = sub.add_parser(
+        "retime-workouts", help="write the truncated duration over the rounded one"
+    )
+    retime.set_defaults(func=cmd_retime_workouts)
 
     efforts = sub.add_parser(
         "backfill-best-efforts",

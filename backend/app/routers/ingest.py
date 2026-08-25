@@ -182,6 +182,23 @@ async def ingest(
     # are read off the workouts, and an export can carry a week in any order.
     landed: list[models.Workout] = []
     for item in parsed:
+        # A second of slack on the duration half of the dedupe key. Durations
+        # were once rounded to the nearest second and are now truncated, so the
+        # same session re-posted can differ by one from the row it already has,
+        # and it has to land on that row rather than beside it. Deleted rows
+        # count: they are the tombstones the dedupe below deliberately reads.
+        # The unique constraint stays as the exact-match backstop.
+        near = db.execute(
+            select(models.Workout.id).where(
+                models.Workout.user_id == user.id,
+                models.Workout.start_ts == item.start_ts,
+                models.Workout.duration_s.between(item.duration_s - 1, item.duration_s + 1),
+            )
+        ).first()
+        if near is not None:
+            skipped += 1
+            continue
+
         flags = {}
         if activity.impossible_pace(item.activity, item.duration_s, item.distance_mi):
             flags["impossible_pace"] = True

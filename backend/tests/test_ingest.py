@@ -4,7 +4,15 @@ import argparse
 import datetime as dt
 
 from app import config, models, security
-from app.activity import classify, is_indoor, parse_start, to_kcal, to_miles, without_routes
+from app.activity import (
+    classify,
+    duration_seconds,
+    is_indoor,
+    parse_start,
+    to_kcal,
+    to_miles,
+    without_routes,
+)
 from conftest import make_user
 # The same synthetic trace the route cases are built from, rather than a second
 # generator here that could drift from it.
@@ -102,6 +110,22 @@ def test_conversion_helpers():
     assert to_kcal(220) == 220.0
 
 
+def test_a_duration_is_truncated_and_never_rounded_up():
+    """Apple Fitness drops the fraction, so this has to drop it too.
+
+    A session the watch measured as 49:49.6 reads as 49:49 in both places,
+    rather than as a second the source never claimed.
+    """
+    assert duration_seconds({"duration": 2989.6}) == 2989
+    assert duration_seconds({"duration": 2989.4}) == 2989
+    assert duration_seconds({"duration": 2989}) == 2989
+    assert duration_seconds({"duration": {"qty": 2989.9, "units": "s"}}) == 2989
+    # Nothing usable, and nothing a workout can be shorter than.
+    assert duration_seconds({}) == 0
+    assert duration_seconds({"duration": None}) == 0
+    assert duration_seconds({"duration": -12.5}) == 0
+
+
 def test_activity_name_matching_is_contains_based():
     assert classify("Outdoor Walk") == "walk"
     assert classify("INDOOR WALK") == "walk"
@@ -178,10 +202,33 @@ def test_overlapping_windows_credit_only_what_is_new(signed_in, ingest_token, db
     assert db_session.query(models.Workout).count() == 3
 
 
-def test_same_start_different_duration_is_a_different_workout(signed_in, ingest_token, db_session):
+def test_same_start_a_second_apart_lands_on_the_row_it_already_has(
+    signed_in, ingest_token, db_session
+):
+    """The workouts stored while durations were rounded to the nearest second.
+
+    Truncating now means the same session re-exported arrives one second
+    shorter than the row it made, and every overlapping window re-exports it.
+    Without the tolerance the whole retained history would import twice.
+    """
+    start = "2026-07-20T06:12:00-07:00"
+    post(signed_in, ingest_token, export(workout("Outdoor Walk", start, 2990, 2.1, 190)))
+    assert db_session.query(models.Workout).one().duration_s == 2990
+
+    again = post(signed_in, ingest_token, export(workout("Outdoor Walk", start, 2989.6, 2.1, 190)))
+    assert again.json() == {"imported": 0, "skipped": 1, "flagged": 0, "ignored": 0}
+    db_session.expire_all()
+    # The stored row keeps the value it has: the sync writes nothing over a
+    # workout it already knows, and retime-workouts is what corrects it.
+    assert db_session.query(models.Workout).one().duration_s == 2990
+
+
+def test_same_start_more_than_a_second_apart_is_a_different_workout(
+    signed_in, ingest_token, db_session
+):
     start = "2026-07-20T06:12:00-07:00"
     post(signed_in, ingest_token, export(workout("Outdoor Walk", start, 2400, 2.1, 190)))
-    second = post(signed_in, ingest_token, export(workout("Outdoor Walk", start, 2401, 2.1, 190)))
+    second = post(signed_in, ingest_token, export(workout("Outdoor Walk", start, 2402, 2.1, 190)))
     assert second.json()["imported"] == 1
     assert db_session.query(models.Workout).count() == 2
 
@@ -638,6 +685,76 @@ def test_the_cleanup_command_run_twice_reports_zeros(db_session, member, monkeyp
     assert "rows stripped of routes: 0" in second
     assert f"rows deleted as older than {config.INGEST_LOG_RETENTION_DAYS} days: 0" in second
     assert "rows kept: 1" in second
+
+
+def retime_workouts(db_session, monkeypatch) -> None:
+    import manage
+
+    monkeypatch.setattr(manage, "_session", lambda: db_session)
+    manage.cmd_retime_workouts(argparse.Namespace())
+
+
+def rounded_up(db_session) -> models.Workout:
+    """Put the one workout back the way an import before the truncation left it.
+
+    The sync writes the truncated value now, so a case about the retime has to
+    round it up again to have anything to correct. That is exactly what a
+    database carrying history from before the change holds.
+    """
+    row = db_session.query(models.Workout).one()
+    row.duration_s += 1
+    db_session.commit()
+    return row
+
+
+def test_the_retime_command_truncates_a_rounded_duration(
+    signed_in, ingest_token, db_session, monkeypatch, capsys
+):
+    """The one-time pass over the workouts imported while durations rounded up."""
+    payload = export(workout("Outdoor Walk", "2026-07-21T06:12:00+00:00", 2989.6, 2.1, 190))
+    assert post(signed_in, ingest_token, payload).json()["imported"] == 1
+    assert rounded_up(db_session).duration_s == 2990
+
+    retime_workouts(db_session, monkeypatch)
+
+    out = capsys.readouterr().out
+    assert "workouts matched: 1" in out
+    assert "durations retimed: 1" in out
+    db_session.expire_all()
+    assert db_session.query(models.Workout).one().duration_s == 2989
+
+
+def test_the_retime_command_run_twice_changes_nothing(
+    signed_in, ingest_token, db_session, monkeypatch, capsys
+):
+    payload = export(workout("Outdoor Walk", "2026-07-21T06:12:00+00:00", 2989.6, 2.1, 190))
+    assert post(signed_in, ingest_token, payload).json()["imported"] == 1
+    rounded_up(db_session)
+
+    retime_workouts(db_session, monkeypatch)
+    assert "durations retimed: 1" in capsys.readouterr().out
+
+    retime_workouts(db_session, monkeypatch)
+    second = capsys.readouterr().out
+    assert "workouts matched: 1" in second
+    assert "durations retimed: 0" in second
+    db_session.expire_all()
+    assert db_session.query(models.Workout).one().duration_s == 2989
+
+
+def test_the_retime_command_leaves_a_deleted_workout_alone(
+    signed_in, ingest_token, db_session, monkeypatch
+):
+    """A tombstone is a dedupe key, not a session anybody reads."""
+    payload = export(workout("Outdoor Walk", "2026-07-21T06:12:00+00:00", 2989.6, 2.1, 190))
+    assert post(signed_in, ingest_token, payload).json()["imported"] == 1
+    row = rounded_up(db_session)
+    signed_in.delete(f"/api/workouts/{row.id}")
+
+    retime_workouts(db_session, monkeypatch)
+
+    db_session.expire_all()
+    assert db_session.query(models.Workout).one().duration_s == 2990
 
 
 # --------------------------------------------------------------------------
