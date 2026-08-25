@@ -297,9 +297,34 @@ export default function Landing({ onEnter, invite }: Props) {
         </p>
       </section>
 
-      {/* The way in, after everything the page had to say. His call: the top
-          button invited people to join before they had read what they were
-          joining, and moving it is honester than locking it. */}
+      {/* Real screens near the door, softly blurred where a life shows
+          through. A strip rather than a grid: thumbed sideways like the app
+          itself. */}
+      <section className="landing-section">
+        <p className="label landing-eyebrow">Themes</p>
+        <h2>Light Mode, Dark Mode, Arcade Mode</h2>
+        <p>(Try it now at the top of the screen)</p>
+        <ul className="landing-shots">
+          {[
+            [shotArcadeYou, 'The You screen in arcade mode'],
+            [shotArcadeGrove, 'The grove in arcade mode'],
+            [shotArcadeDetails, 'A workout details view in arcade mode'],
+            [shotDarkHome, 'The home feed in dark mode'],
+            [shotLightHome, 'The home feed in light mode'],
+            [shotLightGrove, 'The grove in light mode'],
+            [shotLightYou, 'The You screen in light mode'],
+          ].map(([src2, alt]) => (
+            <li key={alt}>
+              <img src={src2} alt={alt} loading="lazy" />
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {/* The way in, after everything the page had to say, the theme strip
+          included. His call: the top button invited people to join before they
+          had read what they were joining, and moving it is honester than
+          locking it. */}
       {invite && (
         <section className="landing-section landing-actions">
           {/* Read before the button on purpose: the window anchors to the day
@@ -318,29 +343,6 @@ export default function Landing({ onEnter, invite }: Props) {
           </p>
         </section>
       )}
-
-      {/* Real screens near the door, softly blurred where a life shows
-          through. A strip rather than a grid: thumbed sideways like the app
-          itself. */}
-      <section className="landing-section">
-        <p className="label landing-eyebrow">Themes</p>
-        <h2>Light Mode, Dark Mode, Arcade Mode. (Try it now at the top of the screen)</h2>
-        <ul className="landing-shots">
-          {[
-            [shotArcadeYou, 'The You screen in arcade mode'],
-            [shotArcadeGrove, 'The grove in arcade mode'],
-            [shotArcadeDetails, 'A workout details view in arcade mode'],
-            [shotDarkHome, 'The home feed in dark mode'],
-            [shotLightHome, 'The home feed in light mode'],
-            [shotLightGrove, 'The grove in light mode'],
-            [shotLightYou, 'The You screen in light mode'],
-          ].map(([src2, alt]) => (
-            <li key={alt}>
-              <img src={src2} alt={alt} loading="lazy" />
-            </li>
-          ))}
-        </ul>
-      </section>
 
       <footer className="landing-foot">
         {/* No repository link while the repository is private: a link to a page
