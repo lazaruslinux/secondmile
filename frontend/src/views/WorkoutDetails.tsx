@@ -123,9 +123,12 @@ function unitInMiles(units: Units): number {
 // each of them spent inside it, so a minute split across a boundary counts
 // toward both in the proportion it belongs to each.
 //
-// The final minute is given only the time the session had left in it rather
-// than a whole sixty seconds, falling back to the whole minute when the summary
-// and the samples disagree about where the session ended.
+// Each minute is given only the slice of the session's own duration its bucket
+// overlaps, rather than a flat sixty seconds. The closing bucket gets what the
+// session had left in it, and a bucket past the end gets nothing at all: the
+// phone stamps heart readings on wall-clock minutes, so the last one can land
+// after the run ended and mint a minute nobody ran. Its time and its recovery
+// heart rate both stay out of the final split.
 function splitsOf(minutes: WorkoutMinute[], units: Units, durationS: number): Split[] {
   const step = unitInMiles(units)
   const out: Split[] = []
@@ -135,15 +138,13 @@ function splitsOf(minutes: WorkoutMinute[], units: Units, durationS: number): Sp
   let beatSeconds = 0
   let ordinal = 1
 
-  const last = minutes.length - 1
-  for (const [index, row] of minutes.entries()) {
+  for (const row of minutes) {
     let left = typeof row.distance_mi === 'number' && row.distance_mi > 0 ? row.distance_mi : 0
-    // The closing bucket is timed from where it started, since a session rarely
-    // ends on a whole minute. Anything but a part minute stays sixty seconds.
+    // A summary with no duration says nothing about the buckets, so the flat
+    // minute stands in for it there.
     let time = MINUTE_S
-    if (index === last) {
-      const partial = durationS - MINUTE_S * row.minute
-      time = partial > 0 && partial < MINUTE_S ? partial : MINUTE_S
+    if (durationS > 0) {
+      time = Math.max(0, Math.min(MINUTE_S, durationS - MINUTE_S * row.minute))
     }
     const heart = typeof row.hr_avg === 'number' ? row.hr_avg : null
 
