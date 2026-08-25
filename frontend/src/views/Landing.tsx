@@ -247,6 +247,14 @@ export default function Landing({ onEnter, invite }: Props) {
           private server with encrypted ZFS storage. Multiple public visibility settings
           inside.
         </p>
+        {/* Both halves are true and checked: the trim is TRIM_RADIUS_M in
+            routemaps.py, and the switch is the Route map row of the Settings
+            privacy card. */}
+        <p>
+          If your sync includes route or GPS data, secondmile automatically hides the
+          first and last 200 meters of every route on the activity map. Alternatively,
+          you can turn route sharing off entirely.
+        </p>
       </section>
 
       <section className="landing-section">
