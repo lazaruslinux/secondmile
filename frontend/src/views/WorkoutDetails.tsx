@@ -122,7 +122,11 @@ function unitInMiles(units: Units): number {
 // The heart rate of a split is its minutes' own average weighted by how long
 // each of them spent inside it, so a minute split across a boundary counts
 // toward both in the proportion it belongs to each.
-function splitsOf(minutes: WorkoutMinute[], units: Units): Split[] {
+//
+// The final minute is given only the time the session had left in it rather
+// than a whole sixty seconds, falling back to the whole minute when the summary
+// and the samples disagree about where the session ended.
+function splitsOf(minutes: WorkoutMinute[], units: Units, durationS: number): Split[] {
   const step = unitInMiles(units)
   const out: Split[] = []
   let covered = 0
@@ -131,9 +135,16 @@ function splitsOf(minutes: WorkoutMinute[], units: Units): Split[] {
   let beatSeconds = 0
   let ordinal = 1
 
-  for (const row of minutes) {
+  const last = minutes.length - 1
+  for (const [index, row] of minutes.entries()) {
     let left = typeof row.distance_mi === 'number' && row.distance_mi > 0 ? row.distance_mi : 0
+    // The closing bucket is timed from where it started, since a session rarely
+    // ends on a whole minute. Anything but a part minute stays sixty seconds.
     let time = MINUTE_S
+    if (index === last) {
+      const partial = durationS - MINUTE_S * row.minute
+      time = partial > 0 && partial < MINUTE_S ? partial : MINUTE_S
+    }
     const heart = typeof row.hr_avg === 'number' ? row.hr_avg : null
 
     // A fast minute on a bike can carry more than one boundary, so this closes
@@ -889,7 +900,7 @@ export default function WorkoutDetails({ item, gear, units, onBack }: Props) {
     given === '' ? formatStart(item.start_ts) : `${activityName}, ${formatStart(item.start_ts)}`
 
   const minutes = Array.isArray(details.minutes) ? details.minutes : []
-  const splits = splitsOf(minutes, units)
+  const splits = splitsOf(minutes, units, item.duration_s)
   // The range the bars are spread across: this workout's own quickest and
   // slowest split, rather than the quickest one alone. Nought on a screen with
   // no splits on it, which draws no bars either way.
@@ -1106,6 +1117,7 @@ export default function WorkoutDetails({ item, gear, units, onBack }: Props) {
             <p className="hint">{fastestLine(quickest, item.activity, units)}</p>
           )}
           {lined && <p className="hint">Tap a split to see it on the map.</p>}
+          {lined && <p className="hint">Start and end of the route are hidden.</p>}
         </section>
       )}
 
