@@ -193,17 +193,17 @@ export default function Landing({ onEnter, invite }: Props) {
         <p>
           After you set up one of the recommended companion apps to export your activity
           and steps data to secondmile, every walk, run, bicycle and swim workout you
-          record with your phone or smart watch earns XP. You never need to log anything
-          by hand, and you never have to keep the
-          app open to earn: secondmile is designed to encourage you to stay active while
-          reducing screentime. Everything you earn will be waiting for you in a recap
-          letter the next time you log in and refresh.
+          record with your phone or smart watch earns XP. You never have to log anything
+          by hand (unless you wish to manually sync with the exporter app). You never
+          have to keep the app open to earn XP: secondmile is designed to encourage you
+          to stay active while reducing screentime. Everything you earn will be waiting
+          for you in a recap letter the next time you log in and refresh.
         </p>
       </section>
 
       <section className="landing-section">
         <p className="label landing-eyebrow">Miles earn XP</p>
-        <h2>Every mile counts for something.</h2>
+        <h2>Every mile counts for something</h2>
         {/* The two modifiers are stated rather than discovered. Cycling is the
             only one that earns less than its distance, and somebody who finds
             that out by riding trusts the rest of this page less. Steps are not
@@ -229,7 +229,7 @@ export default function Landing({ onEnter, invite }: Props) {
           dropped. */}
       <section className="landing-section">
         <p className="label landing-eyebrow">Calories = manna</p>
-        <h2>Give your garden energy by burning yours.</h2>
+        <h2>Give your garden energy by burning more</h2>
         <p>
           Calories become manna, one for one. Feed it to your garden for a richer
           harvest, or give it to a friend for theirs. It will never make anything grow
@@ -239,18 +239,19 @@ export default function Landing({ onEnter, invite }: Props) {
 
       <section className="landing-section">
         <p className="label landing-eyebrow">Private by design</p>
-        <h2>Invite-only, and no trackers.</h2>
+        <h2>No tracking or selling your data</h2>
         {/* The ZFS pool is the homelab this moves to, which has to be true by
             the day anybody outside can read this. */}
         <p>
-          This website has no trackers, and this entire project is hosted on a private ZFS
-          pool. You choose what your friends can see.
+          This website has absolutely no trackers, and this entire project is hosted on a
+          private server with encrypted ZFS storage. Multiple public visibility settings
+          inside.
         </p>
       </section>
 
       <section className="landing-section">
         <p className="label landing-eyebrow">What you need</p>
-        <h2>An iPhone or an Android.</h2>
+        <h2>An iPhone or an Android</h2>
         <p>
           An iPhone with health and workout data turned on, or an Android phone with Health
           Connect. Each one needs a small exporter app that posts what it reads to your
@@ -271,7 +272,7 @@ export default function Landing({ onEnter, invite }: Props) {
 
       <section className="landing-section">
         <p className="label landing-eyebrow">What this is</p>
-        <h2>A fitness encouragement app, not a leaderboard.</h2>
+        <h2>A fitness encouragement app, not a leaderboard</h2>
         <p>
           No follower counts, no leaderboards, no competitions. This is a fun way to
           encourage friends to stay active, no matter what their lifestyle is like.
@@ -280,10 +281,11 @@ export default function Landing({ onEnter, invite }: Props) {
 
       <section className="landing-section">
         <p className="label landing-eyebrow">Built for busy people</p>
-        <h2>Nothing expires, no FOMO. Come back whenever.</h2>
+        <h2>No streaks to lose, no expiring items, no FOMO</h2>
         <p>
-          The feed is always there, and is shared between friends. Your items don't expire
-          or get deleted.
+          Come back to secondmile whenever you want. Your welcome-back letter and XP you
+          earned will be waiting for you when you return, as long as you keep syncing your
+          workouts. (Notifications can be enabled/disabled)
         </p>
       </section>
 
@@ -313,8 +315,8 @@ export default function Landing({ onEnter, invite }: Props) {
           through. A strip rather than a grid: thumbed sideways like the app
           itself. */}
       <section className="landing-section">
-        <p className="label landing-eyebrow">Appearance</p>
-        <h2>Three looks. Every device picks its own.</h2>
+        <p className="label landing-eyebrow">Themes</p>
+        <h2>Light Mode, Dark Mode, Arcade Mode. (Try it now at the top of the screen)</h2>
         <ul className="landing-shots">
           {[
             [shotArcadeYou, 'The You screen in arcade mode'],
