@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   avatarUrl,
   errorText,
@@ -21,6 +21,7 @@ import { plantStage } from '../grove.ts'
 import {
   chestName,
   chestTierClass,
+  HARVEST_WAITING,
   medalName,
   NOTHING_RECORDED,
   NOTHING_THIS_WEEK,
@@ -82,6 +83,11 @@ interface Props {
   // place that opens one, so the mark clears on the same tap that empties the
   // list rather than on the next load.
   onChestsWaiting: (waiting: number) => void
+  // The same two things the tab's dot is lit by, handed back down so the top of
+  // this screen can name what the dot only points at.
+  chestsWaiting: number
+  fruitReady: boolean
+  onGoGrove: () => void
 }
 
 export default function Profile({
@@ -91,6 +97,9 @@ export default function Profile({
   onOpenSettings,
   onOpenPerson,
   onChestsWaiting,
+  chestsWaiting,
+  fruitReady,
+  onGoGrove,
 }: Props) {
   // Coming back to the tab draws what was here before and asks the server again
   // underneath, so switching tabs is not a blank screen every time.
@@ -119,6 +128,10 @@ export default function Profile({
   const [opened, setOpened] = useState<{ tier: string | null; item: SatchelItem } | null>(null)
   const [openingChest, setOpeningChest] = useState<number | null>(null)
   const [chestError, setChestError] = useState('')
+
+  // The chests card sits a long way down the phone column, so the callout at
+  // the top walks somebody to it rather than only telling them it is there.
+  const chestsCard = useRef<HTMLElement | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -215,6 +228,12 @@ export default function Profile({
     }
   }
 
+  // Centred rather than aligned to the top: two sticky bars sit over the top of
+  // the column and would otherwise cover the heading it lands on.
+  function goToChests() {
+    chestsCard.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+
   if (loading) return <p className="notice">Loading.</p>
   if (!profile) {
     return (
@@ -272,6 +291,35 @@ export default function Profile({
           onSaved={setProfile}
           onClose={() => setEditing(false)}
         />
+      )}
+
+      {/* What the tab's dot is lit by, named at the top of the screen it points
+          at. The dot says something is here; this says what, and hands over the
+          walk to it. Nothing is opened or gathered from here: the errand is the
+          reward, so it is still done in the place it belongs to. */}
+      {(chestsWaiting > 0 || fruitReady) && (
+        <section className="you-callout" role="status">
+          {chestsWaiting > 0 && (
+            <div className="you-callout-line">
+              <p>
+                {chestsWaiting === 1
+                  ? 'A chest is waiting.'
+                  : `${chestsWaiting} chests are waiting.`}
+              </p>
+              <button type="button" className="primary" onClick={goToChests}>
+                {chestsWaiting === 1 ? 'Open it' : 'Open them'}
+              </button>
+            </div>
+          )}
+          {fruitReady && (
+            <div className="you-callout-line">
+              <p>{HARVEST_WAITING}</p>
+              <button type="button" className="primary" onClick={onGoGrove}>
+                Go to the grove
+              </button>
+            </div>
+          )}
+        </section>
       )}
 
       {/* The band across the top is where the grove lives. Everything in it
@@ -511,8 +559,16 @@ export default function Profile({
             <ItemTallies tallies={profile.item_tallies} />
           </section>
 
-          <section className="card">
-            <h2 className="label">Chests</h2>
+          {/* Lit at its edge while there is something on it, so the card the
+              callout sends you to reads as the errand rather than as one more
+              card in the stack. */}
+          <section className={chests.length > 0 ? 'card card-waiting' : 'card'} ref={chestsCard}>
+            <h2 className="label">
+              Chests
+              {chests.length > 0 && (
+                <span className="tag tag-wait">{chests.length} waiting</span>
+              )}
+            </h2>
             {chests.length === 0 && (
               // Not "nothing waiting" any more: a gift can be waiting on this
               // card at the same time, and one word cannot mean both.
@@ -538,7 +594,7 @@ export default function Profile({
                     <span className={chestTierClass(chest.tier)}>{chestName(chest.tier)}</span>
                     <button
                       type="button"
-                      className="secondary"
+                      className="primary"
                       aria-label={`Open ${chestName(chest.tier)}`}
                       disabled={openingChest === chest.id}
                       onClick={() => void open(chest.id)}

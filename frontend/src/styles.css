@@ -2919,6 +2919,22 @@ button:disabled {
   font-weight: 600;
 }
 
+/* A count of things waiting rather than a flag on something wrong. Same shape,
+   lit in the accent, because what it marks is the errand and not a problem. */
+.tag-wait {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* A tag riding a card's heading, which is set in small caps. The tag is a
+   count rather than a label, so it keeps its own case and spacing. */
+.label .tag {
+  margin-left: 0.5rem;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
 /* Where a workout stood in its own history, on the card the numbers are on.
    The card's real news rather than a footnote to it, so it is lit: its own
    mustard at the weight the Home week line reads at. Not crimson, which means
@@ -2948,6 +2964,43 @@ button:disabled {
 }
 
 /* You */
+
+/* What is waiting, said at the top of the screen it waits on. Accent rather
+   than mustard, for the same reason the setup card on Home is: this is the way
+   to something good, not a warning. Small by design: a line and its button, no
+   essay, because the errand is a few steps away and not a lesson. */
+.you-callout {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.85rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.you-callout-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.you-callout-line p {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+/* The card the callout points at, lit at its edge while it holds something.
+   The glow is dark grounds only: on a light one it reads as a smudge. */
+.card-waiting {
+  border-color: var(--accent);
+}
+
+:root:not([data-theme='light']) .card-waiting {
+  box-shadow: 0 0 16px -10px var(--accent);
+}
 
 /* The band across the top of the screen: the grove's home, and inert. Whatever
    is planted stands along its floor. */

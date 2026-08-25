@@ -403,6 +403,9 @@ export default function App() {
             onOpenSettings={() => setView('settings')}
             onOpenPerson={openFriend}
             onChestsWaiting={setChestsWaiting}
+            chestsWaiting={chestsWaiting}
+            fruitReady={fruitReady}
+            onGoGrove={() => showTab('grove')}
           />
         )}
         {/* Keyed by the person, so opening a second profile is a fresh screen
