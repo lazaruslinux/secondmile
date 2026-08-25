@@ -76,7 +76,7 @@ export default function Landing({ onEnter, invite }: Props) {
               chooseTheme(theme === 'light' ? 'dark' : theme === 'dark' ? 'arcade' : 'light')
             }
           >
-            Appearance: {theme === 'light' ? 'Light' : theme === 'arcade' ? 'Arcade' : 'Dark'}
+            Theme: {theme === 'light' ? 'Light' : theme === 'arcade' ? 'Arcade' : 'Dark'}
           </button>
           <button type="button" className="link" onClick={() => onEnter(false)}>
             Sign in
