@@ -49,6 +49,7 @@ import Icon from './Icon.tsx'
 import ItemTallies from './ItemTallies.tsx'
 import MedalNest, { MAX_MEDAL_SLOTS } from './MedalNest.tsx'
 import Medals, { MedalMark } from './Medals.tsx'
+import PetArt from './PetArt.tsx'
 import ProfileCounts, { GroveTallies } from './ProfileCounts.tsx'
 import SportChips from './SportChips.tsx'
 import Stats from './Stats.tsx'
@@ -255,6 +256,9 @@ export default function Profile({
   const bio = profile.bio?.trim() ?? ''
   const steps = weekSteps(profile)
   const manna = mannaLine(profile)
+  // The grove's animals, read defensively: a server that predates them says
+  // nothing, which draws no row.
+  const myPets = Array.isArray(profile.pets) ? profile.pets : []
 
   return (
     <>
@@ -373,6 +377,24 @@ export default function Profile({
           seeds={profile.grove?.seeds_found ?? 0}
           plantLevels={profile.grove?.plant_levels ?? 0}
         />
+        {/* The animals, at the band's foot with the plot they live in. Drawn
+            and named and nothing else, which is exactly what a friend sees of
+            them: the fruit and the feeding are on the Grove screen. */}
+        {myPets.length > 0 && (
+          <ul className="pet-residents">
+            {myPets.map((row) => (
+              <li key={row.species} className="pet-resident">
+                <PetArt
+                  species={row.species}
+                  name={row.name}
+                  stage={row.stage ?? 1}
+                  className="pet-resident-picture"
+                />
+                <span className="pet-resident-name">{row.name}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       {/* Two columns from 900px up and one below it: the picture and its card on

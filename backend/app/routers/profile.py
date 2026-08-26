@@ -211,6 +211,11 @@ def serialize_profile(db: Session, user: models.User, row: models.UserProgress) 
         # How much is in the plot and how much of it is grown. Not a
         # collection: there is no total to fill, only what somebody planted.
         "grove": grove.summary(db, user.id),
+        # Which animals live in the grove. The friend shape deliberately, the
+        # same helper and the same four fields: this row is drawn by the same
+        # markup on both screens, and what a pet has been fed belongs to the
+        # Grove screen, which reads it from the harvest payload.
+        "pets": [pets.serialize_for_friend(row) for row in pets.owned(db, user.id)],
         # Oil and water, spent and arrived. Counts only, the same four on the
         # friend payload: a tally of giving, not a record of it.
         "item_tallies": grove.item_tallies(db, user.id),

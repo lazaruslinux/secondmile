@@ -486,6 +486,10 @@ export interface Profile {
   // plant added up. Optional so the app still renders against a server that
   // predates the grove.
   grove?: { seeds_found: number; plant_levels: number }
+  // Which animals live in your grove, in the same presence-only shape a friend
+  // reads: the fruit and the progress are the Grove screen's business, and this
+  // row is drawn by the same markup on both screens.
+  pets?: FriendPet[]
   // Oil and water, spent and arrived. Optional like the grove above it.
   item_tallies?: ItemTallies
   // The shoes and the miles on them, the owner's own copy. Optional, so a

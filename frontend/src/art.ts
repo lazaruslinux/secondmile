@@ -92,6 +92,26 @@ export function groveArtCustom(species: string, stage: number): boolean {
   return groveCustom.has(groveFile(name) ? name : fallback)
 }
 
+// What a sleeping animal is drawn from: `pet-bat-sleep.png` and its five
+// siblings. One file per species rather than one per stage, because an animal
+// asleep is an animal asleep.
+function petSleepName(species: string): string {
+  return `pet-${species.toLowerCase().replace(/_/g, '-')}-sleep`
+}
+
+// Null until the file is dropped in, which is what lets the caller draw it
+// awake in the meantime: a species with no sleeping picture costs the pose
+// rather than the pet.
+export function petSleepArt(species: string): string | null {
+  return groveFile(petSleepName(species))
+}
+
+// Whether the sleeping picture is the owner's rather than the committed one,
+// asked for the same reason groveArtCustom is: the two are scaled differently.
+export function petSleepArtCustom(species: string): boolean {
+  return groveCustom.has(petSleepName(species))
+}
+
 // The one gild treatment, laid over anything fully grown. Every species shares
 // it until each gets artwork of its own.
 export function gildArt(): string | null {
