@@ -490,7 +490,11 @@ code {
 /* Layout */
 
 .app {
+  /* svh, not vh: phone browsers count vh past their own chrome, and the
+     difference became a scrollable void under the page foot. The vh line
+     stays for engines without the small-viewport units. */
   min-height: 100vh;
+  min-height: 100svh;
   background: var(--bg);
 }
 
