@@ -177,8 +177,9 @@ export function recapGrowthLines(recap: RecapState): string[] {
 
 // A short list as a sentence says it: "a", "a and b", "a, b and c". Written
 // here because three lines of the letter join lists and a list joined three
-// ways reads as three different letters.
-function asList(parts: string[]): string {
+// ways reads as three different letters. The Grove screen's own harvest
+// sentence reads it too, so a gather and the letter about it join alike.
+export function asList(parts: string[]): string {
   if (parts.length <= 1) return parts[0] ?? ''
   return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`
 }

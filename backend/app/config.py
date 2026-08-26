@@ -316,7 +316,9 @@ GOLDEN_FRUIT_PREFIX = "golden "
 # Fruit fed, counted from the first, at which a pet reaches its second and third
 # drawings. The third is grown and is where the feeding ends. Cumulative rather
 # than per stage, so what has already been fed is never re-earned.
-PET_STAGE_FRUIT = (30, 70)
+# Looked at and tuned: 30 and 70 first, softened to 15 and 40, blessed
+# 2026-08-25. A crossing an ordinary grove reaches is the whole point of one.
+PET_STAGE_FRUIT = (15, 40)
 
 # The most a time medal may add to one species' weight when a stray is drawn.
 # The weights lean the draw and never gate it: every species still missing from

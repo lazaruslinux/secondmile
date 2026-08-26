@@ -10,6 +10,7 @@ import {
   listGrove,
   namePet,
   type FruitBatch,
+  type Gathered,
   type HarvestState,
   type Person,
   type Pet,
@@ -24,22 +25,26 @@ import {
   FED,
   feedHint,
   fedLine,
+  fromPlantsLine,
   FRUIT_GIVEN,
+  GATHERED_GOLDEN,
   GIVE_FRUIT_HINT,
   GATHER_HINT,
   harvestHint,
   NOTHING_BORNE,
   NOTHING_PLANTED,
   personName,
+  petArrivedLine,
   PET_FED,
   PET_FED_GOLDEN,
   PET_FEED_HINT,
+  petGrewLine,
   PET_NAMED,
-  PET_RESTING,
   plantingName,
   plantStateLine,
   readyLine,
 } from '../labels.ts'
+import { asList } from '../recap.ts'
 import Chooser, { type Choice } from './Chooser.tsx'
 import Confirm from './Confirm.tsx'
 import Inventory from './Inventory.tsx'
@@ -91,9 +96,58 @@ type Step =
   | { at: 'feedPet'; pet: Pet }
   | { at: 'namePet'; pet: Pet }
 
-// What one harvest brought in, said in the plainest words there are.
-function gatheredLine(fruit: number): string {
-  return fruit === 0 ? 'Nothing was ready.' : `Harvested ${fruit} fruit.`
+// The batches this gather brought in. The basket carries whatever was gathered
+// in the days before it too, and one gather stamps everything it takes with the
+// same moment, so the newest stamp is the whole of what just happened.
+function justGathered(brought: Gathered): FruitBatch[] {
+  let newest = ''
+  for (const row of brought.basket) {
+    if (row.gathered_at !== null && row.gathered_at > newest) newest = row.gathered_at
+  }
+  return newest === '' ? [] : brought.basket.filter((row) => row.gathered_at === newest)
+}
+
+// What the gather was, under the count. Named while there are few enough kinds
+// to read at a glance, and how many plants bore otherwise. Never a list and
+// never a row: one sentence or nothing.
+//
+// Piled by the name the server wrote rather than by the species, because a
+// gilded plant's harvest is a word of its own and two batches that read the
+// same are one pile to say.
+function gatheredTally(brought: Gathered): string {
+  const rows = justGathered(brought)
+  if (rows.length === 0) return ''
+  const piles = new Map<string, { label: string; count: number; batches: number }>()
+  for (const row of rows) {
+    const held = piles.get(row.name)
+    if (held) {
+      held.count += row.count
+      held.batches += 1
+    } else piles.set(row.name, { label: row.label, count: row.count, batches: 1 })
+  }
+  if (piles.size > 3) {
+    // The server's own count of what bore, which is the number this sentence
+    // is about: one batch is one plant's answer to one season.
+    const plants = fromPlantsLine(brought.batches)
+    // The gilded word is only carried by the names, so where they are not said
+    // it gets the one short sentence instead.
+    return rows.some((row) => row.golden) ? `${plants} ${GATHERED_GOLDEN}` : plants
+  }
+  // One batch says the label the server already joined; several of a kind are
+  // added up and take the plural word beside it, which two or more always is.
+  const parts = [...piles].map(([name, pile]) =>
+    pile.batches === 1 ? pile.label : `${pile.count} ${name}`,
+  )
+  return `${asList(parts)}.`
+}
+
+// What one harvest brought in, said in the plainest words there are: the count,
+// then the one sentence about what it was.
+function gatheredLine(brought: Gathered): string {
+  if (brought.fruit === 0) return 'Nothing was ready.'
+  const tally = gatheredTally(brought)
+  const head = `Harvested ${brought.fruit} fruit.`
+  return tally === '' ? head : `${head} ${tally}`
 }
 
 export default function Grove({ userId, onFruitReady }: Props) {
@@ -115,6 +169,10 @@ export default function Grove({ userId, onFruitReady }: Props) {
   // The pet card's own line, so a word about an animal never appears over the
   // harvest above it and the two never talk over each other.
   const [petNote, setPetNote] = useState('')
+  // What the last feed looked like, so the picture answers it rather than a
+  // number doing. The count is what makes two feeds in a row two movements: the
+  // art is drawn fresh on it, which is what starts the keyframes again.
+  const [fedMark, setFedMark] = useState({ tick: 0, how: '' })
   // The name being typed, held here because the dialog is redrawn on every key.
   const [typedName, setTypedName] = useState('')
   // How much fruit this gift is for, as it is being typed. The same box the
@@ -196,7 +254,7 @@ export default function Grove({ userId, onFruitReady }: Props) {
   function gather() {
     void act(async () => {
       const brought = await gatherHarvest()
-      setNote(gatheredLine(brought.fruit))
+      setNote(gatheredLine(brought))
       // Read off what the gather itself answered, so the mark on the tab goes
       // out on this tap rather than when the reload behind it lands.
       onFruitReady?.(brought.ready)
@@ -233,11 +291,19 @@ export default function Grove({ userId, onFruitReady }: Props) {
     })
   }
 
-  // A number of fruit, never a species: the server takes the oldest first.
+  // A number of fruit, never a species: the server takes the oldest first. The
+  // drawing it stood at before the feed is read here, since the answer carries
+  // the one it stands at after and a crossing is the difference between them.
   function feedFruit(count: number) {
+    const before = growing?.stage ?? 0
     void act(async () => {
-      const { golden } = await feedPet(count)
-      setPetNote(golden ? PET_FED_GOLDEN : PET_FED)
+      const { pet, golden } = await feedPet(count)
+      const grew = pet.stage > before
+      setPetNote(grew ? petGrewLine(pet.name, pet.species) : golden ? PET_FED_GOLDEN : PET_FED)
+      setFedMark((mark) => ({
+        tick: mark.tick + 1,
+        how: `${golden ? 'pet-hop-golden' : 'pet-hop'}${grew ? ' pet-grew' : ''}`,
+      }))
       setStep({ at: 'none' })
     })
   }
@@ -376,11 +442,15 @@ export default function Grove({ userId, onFruitReady }: Props) {
 
           {growing && (
             <div className="pet">
+              {/* Drawn fresh on the count and on the drawing it stands at, so
+                  a feed moves the animal that was there and the drawing a
+                  crossing swapped in arrives on its own. */}
               <PetArt
+                key={`${fedMark.tick}:${growing.stage}`}
                 species={growing.species}
                 name={growing.display_name}
                 stage={growing.stage}
-                className="pet-picture"
+                className={fedMark.how === '' ? 'pet-picture' : `pet-picture ${fedMark.how}`}
               />
               <div className="pet-body">
                 <p className="pet-name">{growing.display_name}</p>
@@ -396,7 +466,9 @@ export default function Grove({ userId, onFruitReady }: Props) {
                     Fed {growing.fruit_fed}
                   </progress>
                 )}
-                {growing.fruit_fed === 0 && <p className="pet-state">{PET_RESTING}</p>}
+                {growing.fruit_fed === 0 && (
+                  <p className="pet-state">{petArrivedLine(growing.species)}</p>
+                )}
                 <div className="pet-verbs">
                   <button
                     type="button"

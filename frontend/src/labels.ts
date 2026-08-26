@@ -416,15 +416,35 @@ export const GATHER_HINT =
   'plant keeps for good.'
 export const FED = 'Fed. Its next harvest is bigger.'
 
+// What a gather brought in, said under the count when there are too many kinds
+// to name them. Plants rather than batches, because what bore is a plant.
+export function fromPlantsLine(plants: number): string {
+  return plants === 1 ? 'From 1 plant.' : `From ${plants} plants.`
+}
+
+// Said only where the kinds are not named. Wherever they are, the server's own
+// word for a gilded plant's harvest is already in them.
+export const GATHERED_GOLDEN = 'Some of it was golden.'
+
 // What feeding a pet says afterwards. Nothing is explained here and nothing is
 // promised: a pet returns nothing, so there is no "next" anything to name.
 // Golden fruit gets the second line and no more than that.
 export const PET_FED = 'Fed.'
 export const PET_FED_GOLDEN = 'Fed. It took the golden one first.'
 export const PET_NAMED = 'Named.'
-// Said under a pet that has had nothing yet. Resting, never hungry: nothing
-// counts down and there is nothing to keep up with.
-export const PET_RESTING = 'Resting.'
+// Said when a feed moved one on to its next drawing, in place of the plain
+// line. A named one goes by its name and an unnamed one is "your bat", which
+// is the letter's own answer to the same question.
+export function petGrewLine(name: string | null, species: string): string {
+  const called = name?.trim() ?? ''
+  return called === '' ? `Your ${species} grew.` : `${called} grew.`
+}
+// Said under a pet that has had nothing yet. What happened, never what to do
+// about it: nothing counts down and there is nothing to keep up with. The
+// species word even where it has been named, because a stray arrives unnamed.
+export function petArrivedLine(species: string): string {
+  return `A stray ${species} has been following you.`
+}
 // The caption over the basket when it is being picked from for a pet. It names
 // where the list came from and explains nothing about what feeding does.
 export const PET_FEED_HINT = 'From your basket.'

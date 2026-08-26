@@ -9,8 +9,10 @@
    landing page, which never flips. Cards sit on the ground with
    gutters of it between them, labels are small and quiet, numbers are large
    and bold, and crimson is the only colour that is not black, white, or grey.
-   Nothing moves: no transitions, no animations, no shadows, and a hover on a
-   desktop swaps a colour on the spot rather than easing into it. */
+   Nothing moves: no transitions, no shadows, and a hover on a desktop swaps a
+   colour on the spot rather than easing into it. The one exception is a fed
+   animal, which answers the feed itself; it is the only keyframe in the file
+   and it is off where stillness is asked for. */
 
 /* The typefaces, bundled rather than fetched. Nothing in this app loads from
    another origin, so a font cannot be an exception: a Google Fonts link would
@@ -4706,6 +4708,76 @@ button:disabled {
   flex: 0 0 auto;
 }
 
+/* The one thing on this screen that moves. A feed is answered by the animal
+   rather than by a number, a golden one is answered a little harder, and a feed
+   that carried it on to its next drawing is answered by the drawing itself
+   arriving. Transform only: no colour changes here, so all three grounds read
+   it the same. It plays once and leaves nothing behind. */
+.pet-hop {
+  transform-origin: 50% 100%;
+  animation: pet-hop 320ms ease-out;
+}
+
+.pet-hop-golden {
+  transform-origin: 50% 100%;
+  animation: pet-hop-golden 420ms ease-out;
+}
+
+.pet-grew img {
+  transform-origin: 50% 100%;
+  animation: pet-grew 380ms ease-out;
+}
+
+@keyframes pet-hop {
+  0% {
+    transform: translateY(0);
+  }
+
+  40% {
+    transform: translateY(-10%);
+  }
+
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@keyframes pet-hop-golden {
+  0% {
+    transform: translateY(0);
+  }
+
+  40% {
+    transform: translateY(-20%);
+  }
+
+  100% {
+    transform: translateY(0);
+  }
+}
+
+/* Grows into its box and never past it, so the parent's clipping never takes a
+   corner off the new drawing. */
+@keyframes pet-grew {
+  from {
+    transform: scale(0.72);
+  }
+
+  to {
+    transform: scale(1);
+  }
+}
+
+/* Asked for stillness, given stillness. The three above are the whole of what
+   this app animates, so this is the whole of what it turns off. */
+@media (prefers-reduced-motion: reduce) {
+  .pet-hop,
+  .pet-hop-golden,
+  .pet-grew img {
+    animation: none;
+  }
+}
+
 .pet-body {
   min-width: 0;
   flex: 1 1 auto;
@@ -4719,7 +4791,8 @@ button:disabled {
   font-size: 0.95rem;
 }
 
-/* Resting, never hungry. Muted, because it is a state rather than a prompt. */
+/* What happened, never what to do about it. Muted, because it is a state
+   rather than a prompt. */
 .pet-state {
   margin: 0;
   font-size: 0.82rem;
