@@ -426,9 +426,9 @@ export function fromPlantsLine(plants: number): string {
 // word for a gilded plant's harvest is already in them.
 export const GATHERED_GOLDEN = 'Some of it was golden.'
 
-// What feeding a pet says afterwards. Nothing is explained here and nothing is
-// promised: a pet returns nothing, so there is no "next" anything to name.
-// Golden fruit gets the second line and no more than that.
+// What feeding a pet says afterwards. Nothing is promised here: a pet returns
+// nothing, so there is no "next" anything to name. Golden fruit gets the second
+// line and no more than that.
 export const PET_FED = 'Fed.'
 export const PET_FED_GOLDEN = 'Fed. It took the golden one first.'
 export const PET_NAMED = 'Named.'
@@ -449,8 +449,13 @@ export function petArrivedLine(species: string): string {
   return `A stray ${species} has been following you.`
 }
 // The caption over the basket when it is being picked from for a pet. It names
-// where the list came from and explains nothing about what feeding does.
+// where the list came from and leaves what feeding does to the line under the
+// meter.
 export const PET_FEED_HINT = 'From your basket.'
+// Said under the growing pet's meter, and only while it is still growing. The
+// one line here that names a mechanic: the meter is fruit going in, and there
+// is no other place that says so.
+export const PET_LOVES_FRUIT = 'Pets love fruit'
 export const MANNA_SENT = 'Sent. It is in their manna.'
 export const FRUIT_GIVEN = 'Given. It is in their basket.'
 

@@ -11,9 +11,10 @@
    and bold, and crimson is the only colour that is not black, white, or grey.
    Nothing moves: no transitions, no shadows, and a hover on a desktop swaps a
    colour on the spot rather than easing into it. The one exception is a
-   touched animal, which answers the touch itself: a fed or patted pet hops
-   and a pat floats a heart, the only keyframes in the file, stilled where
-   stillness is asked for. */
+   touched animal, which answers the touch itself: a fed or patted pet hops, a
+   sleeping one stirs where it would have hopped, and a pat floats a heart that
+   now and then comes up gold. Those are the only keyframes in the file, and
+   every one of them is stilled where stillness is asked for. */
 
 /* The typefaces, bundled rather than fetched. Nothing in this app loads from
    another origin, so a font cannot be an exception: a Google Fonts link would
@@ -4744,6 +4745,14 @@ button:disabled {
   animation: pet-grew 380ms ease-out;
 }
 
+/* What a pat gets from one that is asleep. It answers, but it does not get up:
+   a sway across its own feet and no lift at all, so the sleeping drawing stays
+   on the ground it was drawn on. Transform only, like the hop. */
+.pet-stir {
+  transform-origin: 50% 100%;
+  animation: pet-stir 320ms ease-out;
+}
+
 @keyframes pet-hop {
   0% {
     transform: translateY(0);
@@ -4772,6 +4781,26 @@ button:disabled {
   }
 }
 
+/* A sway and nothing more: no vertical travel anywhere in it. The tilt is small
+   enough to stay inside the box the drawing already sits in. */
+@keyframes pet-stir {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  30% {
+    transform: rotate(-2.5deg);
+  }
+
+  65% {
+    transform: rotate(2deg);
+  }
+
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
 /* Grows into its box and never past it, so the parent's clipping never takes a
    corner off the new drawing. */
 @keyframes pet-grew {
@@ -4784,17 +4813,19 @@ button:disabled {
   }
 }
 
-/* Asked for stillness, given stillness: the hops and the growth stop moving.
-   The pat's heart keeps its fade but loses its rise, so the answer stays and
-   the movement goes. */
+/* Asked for stillness, given stillness: the hops, the stir and the growth stop
+   moving. Both hearts keep their fade but lose their rise, so the answer stays
+   and the movement goes. */
 @media (prefers-reduced-motion: reduce) {
   .pet-hop,
   .pet-hop-golden,
+  .pet-stir,
   .pet-grew img {
     animation: none;
   }
 
-  .pet-heart {
+  .pet-heart,
+  .pet-heart-golden {
     animation-name: pet-heart-still;
   }
 }
@@ -4821,6 +4852,58 @@ button:disabled {
 .pet-name {
   margin: 0;
   font-size: 0.95rem;
+}
+
+/* The meter and the two marks that say what it is: fruit on the edge it fills
+   from, and a pip per drawing after it. One short row, left-aligned, rather
+   than a bar across the card. The mark carries its own trailing margin for the
+   lines of type it usually rides in, which the gap here replaces. */
+.pet-meter-block {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.pet-meter-block .word-mark {
+  margin-inline-end: 0;
+}
+
+/* Capped here and nowhere else: the shared meter still spans its column on
+   every other screen. */
+.pet-meter {
+  width: 11rem;
+  max-width: 100%;
+  flex: 0 1 auto;
+}
+
+/* Three drawings, three pips, filled as far as this one has come. The fill is
+   the meter's own colour so the row reads as one path; the empty ones are the
+   card's line, which holds on all three grounds. */
+.pet-pips {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+}
+
+.pet-pip {
+  width: 0.4rem;
+  height: 0.4rem;
+  flex: 0 0 auto;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+}
+
+.pet-pip-filled {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+/* The one line on this card that names a mechanic. Quieter than the state line
+   under it, because it is there to be read once and then ignored. */
+.pet-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
 }
 
 /* What happened, never what to do about it. Muted, because it is a state
@@ -4928,8 +5011,11 @@ button:disabled {
 }
 
 /* The heart a pat sends up: it rises from over the head, past where a thumb
-   sits, and goes out on its own. Never catches a tap on its way. */
-.pet-heart {
+   sits, and goes out on its own. Never catches a tap on its way. The gold one
+   is the same heart in the same place, so the two share everything but the
+   drawing they carry and how far up it goes. */
+.pet-heart,
+.pet-heart-golden {
   position: absolute;
   left: 50%;
   bottom: 100%;
@@ -4937,7 +5023,17 @@ button:disabled {
   transform: translate(-50%, 0.35rem);
   pointer-events: none;
   opacity: 0;
+}
+
+.pet-heart {
   animation: pet-heart 900ms ease-out;
+}
+
+/* The rare one, and the only way it is louder: a little bigger and a little
+   higher. Same length, so a gold pat is not a longer wait. */
+.pet-heart-golden {
+  width: 1.7rem;
+  animation: pet-heart-golden 900ms ease-out;
 }
 
 @keyframes pet-heart {
@@ -4957,6 +5053,26 @@ button:disabled {
   100% {
     opacity: 0;
     transform: translate(-50%, -0.9rem);
+  }
+}
+
+@keyframes pet-heart-golden {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 0.35rem);
+  }
+
+  20% {
+    opacity: 1;
+  }
+
+  75% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -1.4rem);
   }
 }
 

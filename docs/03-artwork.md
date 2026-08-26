@@ -18,12 +18,12 @@ whole of what a commission would cover.
 | Flourishes | 3 | The growth earned by encouraging people, `f1` to `f3` | Over the border, on every avatar |
 | Interface icons | 19 | Tab bar, cheer, gear, pencil, play, eye, caret, chest ladder marker, week diamond, running shoe, and the five sport marks | Chrome, everywhere |
 | Plants | 39 | Thirteen species at three growth stages each | The plot, and the reveal when a seed is found |
-| Pets | 25 | Six animals at three growth stages each, one sleeping pose apiece, and the pat heart | The Pets card on Grove, and the row of residents on a friend's profile |
+| Pets | 26 | Six animals at three growth stages each, one sleeping pose apiece, and the pat heart in both its colours | The Pets card on Grove, and the row of residents on a friend's profile |
 | Ground | 1 | The strip of soil a grove stands on, `ground` | The floor of the band across the top of both profiles |
 | Loose pieces | 7 | Chest, gilding overlay, boost potion, water, unmarked seed, basket, fruit | Inventory squares, chest reveals, finished plants, harvest headings, fruiting plants |
 | Landing hero | 2 | The four sports in four strips, one drawing per ground, `landing-hero-dark` and `landing-hero-light` | The top of the landing page |
 
-One hundred and thirty-four files in total, all under `frontend/src/assets/`.
+One hundred and thirty-five files in total, all under `frontend/src/assets/`.
 
 Every `border-t` file also has a `-light` twin beside it, such
 as `border-t3-light.svg`, which is the same drawing with its palette turned over
@@ -608,10 +608,10 @@ species has its own, this file comes out and the drawings replace it.
 ## Grove pets
 
 `frontend/src/assets/grove/pet-<species>-s1.png`, `-s2.png`, `-s3.png`,
-`pet-<species>-sleep.png`, and `pet-heart.png`
+`pet-<species>-sleep.png`, `pet-heart.png`, and `pet-heart-gold.png`
 
-Six animals at three stages each with one sleeping pose apiece, and one heart
-shared by them all, so twenty five files. Read exactly the way the plants are, by name, and drawn to the plants'
+Six animals at three stages each with one sleeping pose apiece, and one heart in
+two colours shared by them all, so twenty six files. Read exactly the way the plants are, by name, and drawn to the plants'
 own pixel spec above: native 48 by 48, nothing anti-aliased, transparent ground,
 three or four shades a hue, one warm near-black outline ring. The custom layer
 works for these too, under the same names.
@@ -663,6 +663,14 @@ rather than the pet: the app draws that one awake at the stage it stands at.
 and gleamed on the other, drawn to the set's own grid and ring. It floats up
 over a patted animal's head and goes out on its own, and it is the one drawing
 here that is never on the floor.
+
+`pet-heart-gold.png` is the same heart in gold, sent up in its place about one
+pat in twelve. Same silhouette, same grid and same ring: only the four pink
+tones are exchanged, for the gild's own gold and a shade and a gleam drawn out
+from it. A replacement has to keep the silhouette, because the two are read as
+one heart in two colours rather than as two drawings. Orange stays banned here
+as everywhere; gold is not orange, and the register's legendary orange is the
+one place that hue is used.
 
 They stand on the same floor the plants do, near the foot of the canvas, so a
 row of them lines up. Everything in the register reads on both grounds and these

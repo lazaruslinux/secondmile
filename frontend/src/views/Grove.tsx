@@ -39,6 +39,7 @@ import {
   PET_FED,
   PET_FED_GOLDEN,
   PET_FEED_HINT,
+  PET_LOVES_FRUIT,
   petGrewLine,
   PET_NAMED,
   plantingName,
@@ -93,8 +94,17 @@ function asleepNow(species: string, moment: Date): boolean {
 // are looked up once: the set of files is fixed at build time.
 const BASKET_MARK = itemArt('basket')
 const FRUIT_MARK = itemArt('fruit')
-// The heart a pat floats over an animal's head.
+// The heart a pat floats over an animal's head, and the rare gold one that
+// stands in for it. Same drawing, same place, a different palette.
 const HEART_MARK = itemArt('pet-heart')
+const GOLD_HEART_MARK = itemArt('pet-heart-gold')
+// How often a pat sends up the gold heart instead. Nothing is owed by it and
+// nothing counts it: it is rare so that it stays worth seeing.
+const GOLDEN_HEART_ODDS = 1 / 12
+
+// How many drawings a pet passes through, which is what the pips beside the
+// meter stand for.
+const PET_STAGES = [1, 2, 3]
 
 interface Props {
   userId: number
@@ -200,11 +210,13 @@ export default function Grove({ userId, onFruitReady }: Props) {
   // harvest above it and the two never talk over each other.
   const [petNote, setPetNote] = useState('')
   // What the last touch on an animal looked like: whose it was, the classes a
-  // feed answered with or the hop of a pat, and whether a heart goes up. The
-  // count is what makes two in a row two movements: the art is drawn fresh on
-  // it, which is what starts the keyframes again. Nothing here is sent
-  // anywhere and nothing survives the page.
-  const [move, setMove] = useState({ tick: 0, id: 0, how: '', heart: false })
+  // feed answered with or the movement of a pat, whether a heart goes up and
+  // whether that heart is the gold one. The count is what makes two in a row
+  // two movements: the art is drawn fresh on it, which is what starts the
+  // keyframes again. Every answer is settled here at the touch and never while
+  // the screen is being drawn, so a redraw repeats a pat rather than rerolling
+  // it. Nothing here is sent anywhere and nothing survives the page.
+  const [move, setMove] = useState({ tick: 0, id: 0, how: '', heart: false, golden: false })
   // One pat at a time: a drum of taps reads as one gladness, not a flood.
   const patHeld = useRef(false)
   // The name being typed, held here because the dialog is redrawn on every key.
@@ -344,6 +356,7 @@ export default function Grove({ userId, onFruitReady }: Props) {
         id: pet.id,
         how: `${golden ? 'pet-hop-golden' : 'pet-hop'}${grew ? ' pet-grew' : ''}`,
         heart: false,
+        golden: false,
       }))
       setStep({ at: 'none' })
     })
@@ -357,17 +370,27 @@ export default function Grove({ userId, onFruitReady }: Props) {
     })
   }
 
-  // A hand on the animal. Nothing leaves the browser: it hops and a heart
-  // floats up over its head, and that is all a pat has ever been. It lands
-  // the same while it is sleeping, where the hop plays over the sleeping
-  // drawing. Held to one at a time so the animal answers each pat whole.
+  // A hand on the animal. Nothing leaves the browser: it answers and a heart
+  // floats up over its head, and that is all a pat has ever been. One asleep
+  // stirs where an awake one hops, and now and then the heart comes up gold.
+  // Both answers are decided here at the touch and carried in the mark, never
+  // read or rolled while the screen is being drawn. Held to one at a time so
+  // the animal answers each pat whole.
   function pat(pet: Pet) {
     if (patHeld.current) return
     patHeld.current = true
     window.setTimeout(() => {
       patHeld.current = false
     }, 450)
-    setMove((mark) => ({ tick: mark.tick + 1, id: pet.id, how: 'pet-hop', heart: true }))
+    const stirring = asleepNow(pet.species, new Date())
+    const golden = Math.random() < GOLDEN_HEART_ODDS
+    setMove((mark) => ({
+      tick: mark.tick + 1,
+      id: pet.id,
+      how: stirring ? 'pet-stir' : 'pet-hop',
+      heart: true,
+      golden,
+    }))
   }
 
   // Both pet verbs open the same way: the card's own line cleared, and the box
@@ -482,9 +505,11 @@ export default function Grove({ userId, onFruitReady }: Props) {
       )}
 
       {/* Every animal in one place, beside the harvest because that is where
-          the fruit they are fed comes from. Nothing here is a mechanic and
-          nothing here is explained: the one still growing with its quiet bar,
-          and the grown ones standing together beneath it. */}
+          the fruit they are fed comes from. The one still growing with its bar,
+          and the grown ones standing together beneath it. The bar is the one
+          thing here that says what it is: a fruit at its edge, three pips for
+          the three drawings, and one quiet line under it. Nothing else is
+          explained and nothing counts down. */}
       {(growing !== null || residents.length > 0 || petNote !== '') && (
         <section className="card">
           <h2 className="label">Pets</h2>
@@ -522,11 +547,15 @@ export default function Grove({ userId, onFruitReady }: Props) {
                       : 'pet-picture'
                   }
                 />
+                {/* One heart, whichever it turned out to be: the gold one
+                    swaps the file and the class on this same element rather
+                    than standing beside it, because siblings may never share
+                    a key. */}
                 {move.id === growing.id && move.heart && HEART_MARK && (
                   <img
                     key={`heart-${move.tick}`}
-                    className="pet-heart pixel"
-                    src={HEART_MARK}
+                    className={move.golden ? 'pet-heart-golden pixel' : 'pet-heart pixel'}
+                    src={move.golden ? (GOLD_HEART_MARK ?? HEART_MARK) : HEART_MARK}
                     alt=""
                     aria-hidden="true"
                   />
@@ -547,15 +576,43 @@ export default function Grove({ userId, onFruitReady }: Props) {
                 </p>
                 {/* A progress element rather than a div with a width on it: the
                     content security policy allows no inline styles. It shows
-                    how far a pet has come and never how far it has to go. */}
+                    how far a pet has come and never how far it has to go.
+                    Around it, the two marks that say what it is without a
+                    sentence: the harvest's own fruit at the edge it fills from,
+                    and a pip per drawing, filled as far as this one has come.
+                    Both are drawings of what the element already reads out, so
+                    both are hidden from a screen reader. */}
                 {growing.next_fruit !== null && (
-                  <progress
-                    className="xp-meter"
-                    value={growing.fruit_fed}
-                    max={growing.next_fruit}
-                  >
-                    Fed {growing.fruit_fed}
-                  </progress>
+                  <>
+                    <div className="pet-meter-block">
+                      {FRUIT_MARK && (
+                        <img
+                          className="word-mark word-mark-small"
+                          src={FRUIT_MARK}
+                          alt=""
+                          aria-hidden="true"
+                        />
+                      )}
+                      <progress
+                        className="xp-meter pet-meter"
+                        value={growing.fruit_fed}
+                        max={growing.next_fruit}
+                      >
+                        Fed {growing.fruit_fed}
+                      </progress>
+                      <span className="pet-pips" aria-hidden="true">
+                        {PET_STAGES.map((step) => (
+                          <span
+                            key={step}
+                            className={step <= growing.stage ? 'pet-pip pet-pip-filled' : 'pet-pip'}
+                          />
+                        ))}
+                      </span>
+                    </div>
+                    {/* Under the block rather than inside it, so the meter keeps
+                        its own line whatever the width. */}
+                    <p className="pet-hint">{PET_LOVES_FRUIT}</p>
+                  </>
                 )}
                 {/* A stray that has had nothing yet is following you, which is
                     the truer sentence whatever the hour says, so the arrival
@@ -607,8 +664,8 @@ export default function Grove({ userId, onFruitReady }: Props) {
                     {move.id === row.id && move.heart && HEART_MARK && (
                       <img
                         key={`heart-${move.tick}`}
-                        className="pet-heart pixel"
-                        src={HEART_MARK}
+                        className={move.golden ? 'pet-heart-golden pixel' : 'pet-heart pixel'}
+                        src={move.golden ? (GOLD_HEART_MARK ?? HEART_MARK) : HEART_MARK}
                         alt=""
                         aria-hidden="true"
                       />
