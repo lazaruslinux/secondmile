@@ -487,9 +487,10 @@ export interface Profile {
   // predates the grove.
   grove?: { seeds_found: number; plant_levels: number }
   // Which animals live in your grove, in the same presence-only shape a friend
-  // reads: the fruit and the progress are the Grove screen's business, and this
-  // row is drawn by the same markup on both screens.
-  pets?: FriendPet[]
+  // reads plus the id, which the You row's Name button acts on: the fruit and
+  // the progress are the Grove screen's business, and this row is drawn by the
+  // same markup on both screens.
+  pets?: OwnPet[]
   // Oil and water, spent and arrived. Optional like the grove above it.
   item_tallies?: ItemTallies
   // The shoes and the miles on them, the owner's own copy. Optional, so a
@@ -748,6 +749,12 @@ export interface FriendPet {
   name: string
   stage: number
   grown: boolean
+}
+
+// Your own copy of the same row, with the one thing a fence keeps in: the id,
+// so the You screen's Name button knows which animal it is naming.
+export interface OwnPet extends FriendPet {
+  id: number
 }
 
 // The harvest as the Grove screen reads it. Own account only: what somebody has

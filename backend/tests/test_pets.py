@@ -455,14 +455,17 @@ def test_a_friend_sees_the_animals_and_never_the_numbers(signed_in, db_session, 
 def test_your_own_profile_carries_the_same_presence_only_row(signed_in, db_session, member):
     """The You screen draws the row a friend's screen draws, off the same shape.
 
-    Deliberately the friend serializer rather than a second one: the markup is
-    shared, so the payload is too, and the fruit stays where the fruit is read.
+    Deliberately the friend serializer rather than a second one, plus the id on
+    the owner's copy alone: the You row carries a Name button and the id is
+    what it acts on. The fruit stays where the fruit is read.
     """
     pet = give_pet(db_session, member.id, "wolf", fruit_fed=SECOND)
     name(signed_in, pet.id, "Grey")
 
     body = signed_in.get("/api/profile").json()
-    assert body["pets"] == [{"species": "wolf", "name": "Grey", "stage": 2, "grown": False}]
+    assert body["pets"] == [
+        {"id": pet.id, "species": "wolf", "name": "Grey", "stage": 2, "grown": False}
+    ]
     assert "fruit_fed" not in str(body["pets"])
 
 

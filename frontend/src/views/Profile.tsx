@@ -6,10 +6,12 @@ import {
   listBasket,
   listChests,
   listGrove,
+  namePet,
   openChest,
   setDisplayedBadges,
   type Chest,
   type Keepsake,
+  type OwnPet,
   type Planting,
   type Profile as ProfileData,
   type SatchelItem,
@@ -43,6 +45,7 @@ import AvatarFrame from './AvatarFrame.tsx'
 import BandGrove from './BandGrove.tsx'
 import ChestBar from './ChestBar.tsx'
 import ChestReveal from './ChestReveal.tsx'
+import Confirm from './Confirm.tsx'
 import EditProfile from './EditProfile.tsx'
 import GearCard from './GearCard.tsx'
 import Icon from './Icon.tsx'
@@ -56,6 +59,10 @@ import Stats from './Stats.tsx'
 
 // A mark that accompanies the shelf's heading and never stands in for it.
 const BASKET_MARK = itemArt('basket')
+
+// The longest name a pet takes, held to here as well as on the server so the
+// box stops rather than the save failing. The same number the Grove holds.
+const NAME_LIMIT = 60
 
 interface Cached {
   profile: ProfileData
@@ -120,6 +127,13 @@ export default function Profile({
   const [loadError, setLoadError] = useState('')
 
   const [editing, setEditing] = useState(false)
+  // The resident being renamed from the You row, and the box being typed into.
+  // The same dialog the Grove opens for a growing pet, acting on the id the
+  // own-profile payload carries for exactly this.
+  const [naming, setNaming] = useState<OwnPet | null>(null)
+  const [typedName, setTypedName] = useState('')
+  const [nameBusy, setNameBusy] = useState(false)
+  const [nameError, setNameError] = useState('')
 
   const [picking, setPicking] = useState(false)
   const [chosen, setChosen] = useState<string[]>([])
@@ -260,6 +274,22 @@ export default function Profile({
   // nothing, which draws no row.
   const myPets = Array.isArray(profile.pets) ? profile.pets : []
 
+  // Naming from the row: save, reload the payload the row is drawn from, and
+  // only then put the dialog away, so the row never shows a stale word.
+  async function rename(pet: OwnPet) {
+    setNameBusy(true)
+    try {
+      await namePet(pet.id, typedName)
+      await load()
+      setNaming(null)
+      setNameError('')
+    } catch (err) {
+      setNameError(errorText(err))
+    } finally {
+      setNameBusy(false)
+    }
+  }
+
   return (
     <>
       <div className="view-head view-head-sticky">
@@ -295,6 +325,29 @@ export default function Profile({
           onSaved={setProfile}
           onClose={() => setEditing(false)}
         />
+      )}
+
+      {naming !== null && (
+        <Confirm
+          heading={`Name your ${naming.species}`}
+          confirmLabel="Save"
+          cancelLabel="Cancel"
+          busy={nameBusy}
+          error={nameError}
+          onConfirm={() => void rename(naming)}
+          onCancel={() => setNaming(null)}
+        >
+          <label>
+            Name
+            <input
+              type="text"
+              value={typedName}
+              maxLength={NAME_LIMIT}
+              disabled={nameBusy}
+              onChange={(event) => setTypedName(event.target.value)}
+            />
+          </label>
+        </Confirm>
       )}
 
       {/* What the tab's dot is lit by, named at the top of the screen it points
@@ -383,7 +436,7 @@ export default function Profile({
         {myPets.length > 0 && (
           <ul className="pet-residents">
             {myPets.map((row) => (
-              <li key={row.species} className="pet-resident">
+              <li key={row.id} className="pet-resident">
                 <PetArt
                   species={row.species}
                   name={row.name}
@@ -391,6 +444,21 @@ export default function Profile({
                   className="pet-resident-picture"
                 />
                 <span className="pet-resident-name">{row.name}</span>
+                {/* The one verb a settled animal keeps, here rather than on
+                    the grove floor, and on the owner's row alone: a friend's
+                    copy of this markup carries no button. */}
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={nameBusy}
+                  onClick={() => {
+                    setNameError('')
+                    setTypedName(row.name === row.species ? '' : row.name)
+                    setNaming(row)
+                  }}
+                >
+                  Name
+                </button>
               </li>
             ))}
           </ul>
