@@ -16,7 +16,7 @@ import {
   type Pet,
   type Planting,
 } from '../api.ts'
-import { itemArt } from '../art.ts'
+import { groundArt, itemArt } from '../art.ts'
 import { convertedValue, fillClass, formatAcquired } from '../format.ts'
 import { levelProgress, plantStage } from '../grove.ts'
 import {
@@ -39,7 +39,6 @@ import {
   PET_FED,
   PET_FED_GOLDEN,
   PET_FEED_HINT,
-  PET_LOVES_FRUIT,
   petGrewLine,
   PET_NAMED,
   plantingName,
@@ -64,30 +63,56 @@ const HEADER =
 // box stops rather than the save failing.
 const NAME_LIMIT = 60
 
-// LOOK-AND-TUNE. When each half of the set is down, by the clock on this
-// device: the night animals sleep through the day and the morning ones sleep
-// through the night. Whole hours, the first counted and the last not, and a
-// window that runs past midnight is written as it reads.
+// LOOK-AND-TUNE. Naps are drawn by lot rather than run off the clock: every pet
+// gets one roll an hour, by the clock on this device, and is down for that hour
+// if the roll comes up under its chance. Each half of the set leans, and a lean
+// is never a rule: the night animals doze through the day more often than not
+// and the morning ones through the night, and either can surprise you.
 //
-// Nothing is scheduled off these and nothing counts down: they are read while
-// the screen is being drawn and that is the whole of it. A sleeping pet can
-// still be fed, named and patted.
+// The roll is a hash of the pet, the day and the hour, so the same animal in
+// the same hour always agrees with itself and a pat never contradicts the
+// drawing it landed on. Nothing is scheduled off any of this and nothing counts
+// down. A sleeping pet still takes food, a name and a hand.
+//
+// The hours each half leans toward napping in. Whole hours, the first counted
+// and the last not, and a window that runs past midnight is written as it
+// reads.
 const NIGHT_SET = ['bat', 'cat', 'wolf']
-const NIGHT_SLEEP: [number, number] = [9, 19]
+const NIGHT_NAPS: [number, number] = [9, 19]
 const MORNING_SET = ['dog', 'sheep', 'rooster']
-const MORNING_SLEEP: [number, number] = [21, 5]
+const MORNING_NAPS: [number, number] = [21, 5]
+// How often the lot falls asleep inside a pet's own hours, and outside them.
+// Both set by eye: raise them for a sleepier grove.
+const LEANING_ODDS = 0.5
+const OFF_HOURS_ODDS = 0.12
 
 function withinHours(hour: number, [from, until]: [number, number]): boolean {
   return from <= until ? hour >= from && hour < until : hour >= from || hour < until
 }
 
-// Whether this species is asleep at this moment. A species in neither set is
-// awake, so a seventh animal costs nothing here.
-function asleepNow(species: string, moment: Date): boolean {
+// A number in [0, 1) from a string, the same one every time. FNV-1a: small
+// enough to read and spread enough to toss a coin with.
+function lot(seed: string): number {
+  let hash = 0x811c9dc5
+  for (let i = 0; i < seed.length; i += 1) {
+    hash ^= seed.charCodeAt(i)
+    hash = Math.imul(hash, 0x01000193)
+  }
+  return (hash >>> 0) / 4294967296
+}
+
+// Whether this pet drew a nap for the hour it is being looked at in. A species
+// in neither set leans nowhere and naps at the off-hours chance all day, so a
+// seventh animal costs nothing here.
+function asleepNow(pet: Pet, moment: Date): boolean {
   const hour = moment.getHours()
-  if (NIGHT_SET.includes(species)) return withinHours(hour, NIGHT_SLEEP)
-  if (MORNING_SET.includes(species)) return withinHours(hour, MORNING_SLEEP)
-  return false
+  const leaning =
+    (NIGHT_SET.includes(pet.species) && withinHours(hour, NIGHT_NAPS)) ||
+    (MORNING_SET.includes(pet.species) && withinHours(hour, MORNING_NAPS))
+  const month = String(moment.getMonth() + 1).padStart(2, '0')
+  const day = String(moment.getDate()).padStart(2, '0')
+  const date = `${moment.getFullYear()}-${month}-${day}`
+  return lot(`${pet.id}:${date}:${hour}`) < (leaning ? LEANING_ODDS : OFF_HOURS_ODDS)
 }
 
 // Marks that accompany words on this screen and never stand in for them. Both
@@ -101,6 +126,10 @@ const GOLD_HEART_MARK = itemArt('pet-heart-gold')
 // How often a pat sends up the gold heart instead. Nothing is owed by it and
 // nothing counts it: it is rare so that it stays worth seeing.
 const GOLDEN_HEART_ODDS = 1 / 12
+
+// The same strip of soil the band across a profile stands its plot on, laid
+// under the grown ones so they stand on drawn ground rather than in a box.
+const GROUND_MARK = groundArt()
 
 // How many drawings a pet passes through, which is what the pips beside the
 // meter stand for.
@@ -270,7 +299,7 @@ export default function Grove({ userId, onFruitReady }: Props) {
   // on the screen agrees about the hour. It is read again the next time
   // something happens here and never on a timer of its own.
   const now = new Date()
-  const growingAsleep = growing !== null && asleepNow(growing.species, now)
+  const growingAsleep = growing !== null && asleepNow(growing, now)
   // What each plant is carrying, by plant, so a tile can say it without the
   // whole list being walked once per tile.
   const borne = new Map<number, FruitBatch[]>()
@@ -382,7 +411,7 @@ export default function Grove({ userId, onFruitReady }: Props) {
     window.setTimeout(() => {
       patHeld.current = false
     }, 450)
-    const stirring = asleepNow(pet.species, new Date())
+    const stirring = asleepNow(pet, new Date())
     const golden = Math.random() < GOLDEN_HEART_ODDS
     setMove((mark) => ({
       tick: mark.tick + 1,
@@ -506,10 +535,10 @@ export default function Grove({ userId, onFruitReady }: Props) {
 
       {/* Every animal in one place, beside the harvest because that is where
           the fruit they are fed comes from. The one still growing with its bar,
-          and the grown ones standing together beneath it. The bar is the one
-          thing here that says what it is: a fruit at its edge, three pips for
-          the three drawings, and one quiet line under it. Nothing else is
-          explained and nothing counts down. */}
+          and the grown ones standing together beneath it. The bar says what it
+          is without a sentence: the harvest's own fruit at the edge it fills
+          from, and three pips for the three drawings. Nothing else is explained
+          and nothing counts down. */}
       {(growing !== null || residents.length > 0 || petNote !== '') && (
         <section className="card">
           <h2 className="label">Pets</h2>
@@ -583,36 +612,31 @@ export default function Grove({ userId, onFruitReady }: Props) {
                     Both are drawings of what the element already reads out, so
                     both are hidden from a screen reader. */}
                 {growing.next_fruit !== null && (
-                  <>
-                    <div className="pet-meter-block">
-                      {FRUIT_MARK && (
-                        <img
-                          className="word-mark word-mark-small"
-                          src={FRUIT_MARK}
-                          alt=""
-                          aria-hidden="true"
+                  <div className="pet-meter-block">
+                    {FRUIT_MARK && (
+                      <img
+                        className="word-mark word-mark-small"
+                        src={FRUIT_MARK}
+                        alt=""
+                        aria-hidden="true"
+                      />
+                    )}
+                    <progress
+                      className="xp-meter pet-meter"
+                      value={growing.fruit_fed}
+                      max={growing.next_fruit}
+                    >
+                      Fed {growing.fruit_fed}
+                    </progress>
+                    <span className="pet-pips" aria-hidden="true">
+                      {PET_STAGES.map((step) => (
+                        <span
+                          key={step}
+                          className={step <= growing.stage ? 'pet-pip pet-pip-filled' : 'pet-pip'}
                         />
-                      )}
-                      <progress
-                        className="xp-meter pet-meter"
-                        value={growing.fruit_fed}
-                        max={growing.next_fruit}
-                      >
-                        Fed {growing.fruit_fed}
-                      </progress>
-                      <span className="pet-pips" aria-hidden="true">
-                        {PET_STAGES.map((step) => (
-                          <span
-                            key={step}
-                            className={step <= growing.stage ? 'pet-pip pet-pip-filled' : 'pet-pip'}
-                          />
-                        ))}
-                      </span>
-                    </div>
-                    {/* Under the block rather than inside it, so the meter keeps
-                        its own line whatever the width. */}
-                    <p className="pet-hint">{PET_LOVES_FRUIT}</p>
-                  </>
+                      ))}
+                    </span>
+                  </div>
                 )}
                 {/* A stray that has had nothing yet is following you, which is
                     the truer sentence whatever the hour says, so the arrival
@@ -636,56 +660,69 @@ export default function Grove({ userId, onFruitReady }: Props) {
             </div>
           )}
 
-          {/* The ones that have finished, standing together on one floor at the
-              foot of the card. They are here for good and a hand is the one
-              thing left to offer them; the pencil is how a name is changed. */}
+          {/* The ones that have finished, standing together on drawn soil at the
+              foot of the card, under the one word that says what the row is.
+              They are here for good and a hand is the one thing left to offer
+              them; the pencil is how a name is changed. */}
           {residents.length > 0 && (
-            <ul className="pet-floor">
-              {residents.map((row) => (
-                <li key={row.id} className="pet-floor-resident">
-                  <button
-                    type="button"
-                    className="pet-pat"
-                    aria-label={`Pat ${row.display_name}`}
-                    onClick={() => pat(row)}
-                  >
-                    <PetArt
-                      key={`art-${move.id === row.id ? move.tick : 0}`}
-                      species={row.species}
-                      name={row.display_name}
-                      stage={row.stage}
-                      sleeping={asleepNow(row.species, now)}
-                      className={
-                        move.id === row.id && move.how !== ''
-                          ? `pet-floor-picture ${move.how}`
-                          : 'pet-floor-picture'
-                      }
-                    />
-                    {move.id === row.id && move.heart && HEART_MARK && (
-                      <img
-                        key={`heart-${move.tick}`}
-                        className={move.golden ? 'pet-heart-golden pixel' : 'pet-heart pixel'}
-                        src={move.golden ? (GOLD_HEART_MARK ?? HEART_MARK) : HEART_MARK}
-                        alt=""
-                        aria-hidden="true"
-                      />
-                    )}
-                  </button>
-                  <span className="pet-floor-name">
-                    {row.display_name}
+            <div className="pet-floor">
+              <p className="label pet-floor-label">Grown</p>
+              <ul className="pet-floor-row">
+                {residents.map((row) => (
+                  <li key={row.id} className="pet-floor-resident">
                     <button
                       type="button"
-                      className="pet-rename"
-                      aria-label={`Name ${row.display_name}`}
-                      disabled={busy}
-                      onClick={() => openPetStep({ at: 'namePet', pet: row })}
+                      className="pet-pat"
+                      aria-label={`Pat ${row.display_name}`}
+                      onClick={() => pat(row)}
                     >
-                      <Icon name="pencil" />
+                      <PetArt
+                        key={`art-${move.id === row.id ? move.tick : 0}`}
+                        species={row.species}
+                        name={row.display_name}
+                        stage={row.stage}
+                        sleeping={asleepNow(row, now)}
+                        className={
+                          move.id === row.id && move.how !== ''
+                            ? `pet-floor-picture ${move.how}`
+                            : 'pet-floor-picture'
+                        }
+                      />
+                      {move.id === row.id && move.heart && HEART_MARK && (
+                        <img
+                          key={`heart-${move.tick}`}
+                          className={move.golden ? 'pet-heart-golden pixel' : 'pet-heart pixel'}
+                          src={move.golden ? (GOLD_HEART_MARK ?? HEART_MARK) : HEART_MARK}
+                          alt=""
+                          aria-hidden="true"
+                        />
+                      )}
                     </button>
-                  </span>
-                </li>
-              ))}
-            </ul>
+                    <span className="pet-floor-name">
+                      {row.display_name}
+                      <button
+                        type="button"
+                        className="pet-rename"
+                        aria-label={`Name ${row.display_name}`}
+                        disabled={busy}
+                        onClick={() => openPetStep({ at: 'namePet', pet: row })}
+                      >
+                        <Icon name="pencil" />
+                      </button>
+                    </span>
+                    {/* A strip of soil per animal rather than one across the
+                        card: laid edge to edge they read as one floor, and a
+                        row that wraps gets a floor on every line instead of
+                        leaving the first one standing on nothing. Last of the
+                        three so it is painted over the ground line the drawing
+                        carries. */}
+                    {GROUND_MARK && (
+                      <img className="pet-ground" src={GROUND_MARK} alt="" aria-hidden="true" />
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </section>
       )}

@@ -449,13 +449,9 @@ export function petArrivedLine(species: string): string {
   return `A stray ${species} has been following you.`
 }
 // The caption over the basket when it is being picked from for a pet. It names
-// where the list came from and leaves what feeding does to the line under the
-// meter.
+// where the list came from and nothing else: the fruit at the meter's edge and
+// the pips beside it already say what feeding does, without a sentence.
 export const PET_FEED_HINT = 'From your basket.'
-// Said under the growing pet's meter, and only while it is still growing. The
-// one line here that names a mechanic: the meter is fruit going in, and there
-// is no other place that says so.
-export const PET_LOVES_FRUIT = 'Pets love fruit'
 export const MANNA_SENT = 'Sent. It is in their manna.'
 export const FRUIT_GIVEN = 'Given. It is in their basket.'
 

@@ -4898,14 +4898,6 @@ button:disabled {
   background: var(--accent);
 }
 
-/* The one line on this card that names a mechanic. Quieter than the state line
-   under it, because it is there to be read once and then ignored. */
-.pet-hint {
-  margin: 0;
-  font-size: 0.78rem;
-  color: var(--muted);
-}
-
 /* What happened, never what to do about it. Muted, because it is a state
    rather than a prompt. */
 .pet-state {
@@ -4947,31 +4939,63 @@ button:disabled {
   color: var(--muted);
 }
 
-/* The floor of the grove, at the foot of the plot. The grown ones stand on it
-   together: one baseline, no frames, no meters and nothing to press but the
-   animal itself. The panel and the line are the plant tiles' own, so the strip
-   sits in the card the same way they do and all three grounds read it alike.
-   The room at the bottom is where a name surfaces, held open so nothing moves
-   when one does. */
-/* The grown ones, on one floor at the foot of the Pets card. Bottom-aligned so
-   the row stands level, wrapping when the grove fills. Headroom above for the
-   heart a pat sends up. */
+/* The grown ones, at the foot of the Pets card: one word over them and a strip
+   of the grove's own soil under them, so the row stands on drawn ground rather
+   than in a blank box. No frames, no meters and nothing to press but the animal
+   itself. */
 .pet-floor {
-  list-style: none;
+  /* How deep the soil is, and how much room is kept clear under it. The strip
+     stops above the names so a word never ends up buried in the dirt. */
+  --pet-soil: 1.25rem;
+  --pet-name: 1.15rem;
+
   margin: 0.9rem 0 0;
-  padding: 1.5rem 0 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 1.1rem;
+  padding-top: 0.9rem;
   border-top: 1px solid var(--line);
 }
 
+/* The one word the whole row shares, in the caption style the cards already
+   use. It never repeats itself per animal. */
+.pet-floor-label {
+  margin: 0 0 0.4rem;
+}
+
+/* Bottom-aligned so the row stands level, wrapping when the grove fills.
+   Headroom above for the heart a pat sends up. No gap across: the animals are
+   spaced by their own padding instead, so their strips of soil meet and the
+   line reads as one floor. */
+.pet-floor-row {
+  list-style: none;
+  margin: 0;
+  padding: 1.1rem 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  column-gap: 0;
+  row-gap: 0.9rem;
+}
+
+/* The gap down the column is the soil's depth: it lifts the animal off its name
+   by exactly the strip that goes between them. */
 .pet-floor-resident {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.3rem;
+  gap: var(--pet-soil);
+  padding: 0 0.55rem;
+}
+
+/* The soil, in place of the ground line each drawing carries. A width rather
+   than a right edge, the way the band across a profile draws the same file. It
+   is laid over the drawing rather than behind it, so the animal stands in the
+   dirt instead of on a line of it, and it stops above the name. */
+.pet-ground {
+  position: absolute;
+  bottom: var(--pet-name);
+  left: 0;
+  width: 100%;
+  height: var(--pet-soil);
 }
 
 /* Native size, drawn square-edged by the .pixel rule the plants already use. */
