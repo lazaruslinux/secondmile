@@ -4838,8 +4838,10 @@ button:disabled {
   gap: 0.4rem;
 }
 
+/* Native size, so the row draws the 48 pixel art one to one the way the grove
+   floor strip does. */
 .pet-resident-picture {
-  height: 2.5rem;
+  height: 3rem;
 }
 
 .pet-resident-name {

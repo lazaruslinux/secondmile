@@ -18,12 +18,12 @@ whole of what a commission would cover.
 | Flourishes | 3 | The growth earned by encouraging people, `f1` to `f3` | Over the border, on every avatar |
 | Interface icons | 19 | Tab bar, cheer, gear, pencil, play, eye, caret, chest ladder marker, week diamond, running shoe, and the five sport marks | Chrome, everywhere |
 | Plants | 39 | Thirteen species at three growth stages each | The plot, and the reveal when a seed is found |
-| Pets | 18 | Six animals at three growth stages each | The pet card on Grove, and the row of residents on both profiles |
+| Pets | 24 | Six animals at three growth stages each, and one sleeping pose apiece | The pet card on Grove, the grove floor, and the row of residents on both profiles |
 | Ground | 1 | The strip of soil a grove stands on, `ground` | The floor of the band across the top of both profiles |
 | Loose pieces | 7 | Chest, gilding overlay, boost potion, water, unmarked seed, basket, fruit | Inventory squares, chest reveals, finished plants, harvest headings, fruiting plants |
 | Landing hero | 2 | The four sports in four strips, one drawing per ground, `landing-hero-dark` and `landing-hero-light` | The top of the landing page |
 
-One hundred and twenty-seven files in total, all under `frontend/src/assets/`.
+One hundred and thirty-three files in total, all under `frontend/src/assets/`.
 
 Every `border-t` file also has a `-light` twin beside it, such
 as `border-t3-light.svg`, which is the same drawing with its palette turned over
@@ -607,34 +607,56 @@ species has its own, this file comes out and the drawings replace it.
 
 ## Grove pets
 
-`frontend/src/assets/grove/pet-<species>-s1.png`, `-s2.png`, `-s3.png`
+`frontend/src/assets/grove/pet-<species>-s1.png`, `-s2.png`, `-s3.png`, and
+`pet-<species>-sleep.png`
 
-Six animals at three stages each, so eighteen files. Read exactly the way the
-plants are, by name, and drawn to the plants' own pixel spec above: native 48 by
-48, nothing anti-aliased, transparent ground, three or four shades a hue, one
-warm near-black outline ring. The custom layer works for these too, under the
-same names.
+Six animals at three stages each with one sleeping pose apiece, so twenty four
+files. Read exactly the way the plants are, by name, and drawn to the plants'
+own pixel spec above: native 48 by 48, nothing anti-aliased, transparent ground,
+three or four shades a hue, one warm near-black outline ring. The custom layer
+works for these too, under the same names.
+
+The placeholder set is chunky and big headed on purpose: a round head about half
+the animal's height, thick short legs, round shapes throughout, and a silhouette
+that still holds together at 48 pixels. It is drawn on a 24 by 24 grid and
+emitted at 48 by 48 by exact doubling, which is a noted amendment to the one
+drawn pixel to one image pixel rule above. Doubling costs nothing at the sizes
+these are read and it guarantees the chunk: every drawn feature is two image
+pixels at the least. The outline ring is grown from the drawing rather than laid
+down by hand, so every opaque pixel that touches transparency is that one warm
+near-black. A replacement may be drawn either way: at 48 directly, where no
+feature may be thinner than three pixels, or at 24 and doubled, where the
+doubling sees to it. Neither may be anti-aliased.
 
 A pet is presence and nothing else. It is not a rarity, it stands in no frame,
 and there is no gilding over the last stage: the third drawing is the end of it.
 
 | Species | Files |
 | --- | --- |
-| Bat | `pet-bat-s1.png`, `-s2`, `-s3` |
-| Cat | `pet-cat-s1.png`, `-s2`, `-s3` |
-| Wolf | `pet-wolf-s1.png`, `-s2`, `-s3` |
-| Dog | `pet-dog-s1.png`, `-s2`, `-s3` |
-| Sheep | `pet-sheep-s1.png`, `-s2`, `-s3` |
-| Rooster | `pet-rooster-s1.png`, `-s2`, `-s3` |
+| Bat | `pet-bat-s1.png`, `-s2`, `-s3`, `pet-bat-sleep.png` |
+| Cat | `pet-cat-s1.png`, `-s2`, `-s3`, `pet-cat-sleep.png` |
+| Wolf | `pet-wolf-s1.png`, `-s2`, `-s3`, `pet-wolf-sleep.png` |
+| Dog | `pet-dog-s1.png`, `-s2`, `-s3`, `pet-dog-sleep.png` |
+| Sheep | `pet-sheep-s1.png`, `-s2`, `-s3`, `pet-sheep-sleep.png` |
+| Rooster | `pet-rooster-s1.png`, `-s2`, `-s3`, `pet-rooster-sleep.png` |
 
 The three stages are young, half grown, and grown, and they have to part on
 **silhouette** rather than on detail. They are shown at about 72 pixels on the
-pet card and about 40 in the row of residents on a profile, and at 40 a feature
-thinner than three pixels is eaten by the outline ring: the placeholder set grows
-the whole animal from stage to stage and adds the species' own mark as it goes,
-a bat's span, a rooster's tail, a wolf's raised brush. Check a replacement by
-sampling pixels rather than by looking at it, which is the lesson the medals
-already cost two rounds of rework.
+pet card, and at 48, native size, on the grove floor and in the row of residents
+on a profile, and at that size a feature thinner than three pixels is eaten by
+the outline ring: the placeholder set grows the whole animal from stage to stage,
+24 pixels tall young, 32 half grown and 40 grown, and carries the species' own
+mark at all three, a bat's wing span and tall ears, a rooster's comb and tail
+arc, a wolf's snout and raised brush, a cat's pointed ears and lifted tail, a
+dog's floppy ears, a sheep's cloud of wool. Check a replacement by sampling
+pixels rather than by looking at it, which is the lesson the medals already cost
+two rounds of rework.
+
+The sleeping drawing is one per species rather than one per stage, because an
+animal asleep is an animal asleep. It is a curled compact shape, sized between
+the young and the half grown, with the eyes drawn shut and enough of the species
+left showing to tell whose it is. A species with no sleeping file costs the pose
+rather than the pet: the app draws that one awake at the stage it stands at.
 
 They stand on the same floor the plants do, near the foot of the canvas, so a
 row of them lines up. Everything in the register reads on both grounds and these
