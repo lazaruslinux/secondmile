@@ -534,8 +534,8 @@ export default function Grove({ userId, onFruitReady }: Props) {
       )}
 
       {/* Every animal in one place, beside the harvest because that is where
-          the fruit they are fed comes from. The one still growing with its bar,
-          and the grown ones standing together beneath it. The bar says what it
+          the fruit they are fed comes from. Two labelled areas: the one still
+          growing with its bar, and the grown ones on a shelf. The bar says what it
           is without a sentence: the harvest's own fruit at the edge it fills
           from, and three pips for the three drawings. Nothing else is explained
           and nothing counts down. */}
@@ -549,130 +549,142 @@ export default function Grove({ userId, onFruitReady }: Props) {
             </p>
           )}
 
+          {/* The one still growing, under the word for what it is. Nothing in
+              the block itself changed: the picture, the name, the meter and the
+              one verb are where they were. */}
           {growing && (
-            <div className="pet">
-              {/* The picture is the pat. A real button so a keyboard reaches it
-                  and so it says whose animal it is out loud; everything a
-                  button brings with it is undone in the stylesheet. */}
-              <button
-                type="button"
-                className="pet-pat"
-                aria-label={`Pat ${growing.display_name}`}
-                onClick={() => pat(growing)}
-              >
-                {/* Drawn fresh on the count and on the drawing it stands at, so
-                    a touch moves the animal that was there and the drawing a
-                    crossing swapped in arrives on its own. The keys part on a
-                    prefix: siblings may never share one. */}
-                <PetArt
-                  key={`art-${move.id === growing.id ? move.tick : 0}:${growing.stage}`}
-                  species={growing.species}
-                  name={growing.display_name}
-                  stage={growing.stage}
-                  sleeping={growingAsleep}
-                  className={
-                    move.id === growing.id && move.how !== ''
-                      ? `pet-picture ${move.how}`
-                      : 'pet-picture'
-                  }
-                />
-                {/* One heart, whichever it turned out to be: the gold one
-                    swaps the file and the class on this same element rather
-                    than standing beside it, because siblings may never share
-                    a key. */}
-                {move.id === growing.id && move.heart && HEART_MARK && (
-                  <img
-                    key={`heart-${move.tick}`}
-                    className={move.golden ? 'pet-heart-golden pixel' : 'pet-heart pixel'}
-                    src={move.golden ? (GOLD_HEART_MARK ?? HEART_MARK) : HEART_MARK}
-                    alt=""
-                    aria-hidden="true"
+            <div className="pet-area">
+              <p className="label pet-sub-label">Active pet</p>
+              <div className="pet">
+                {/* The picture is the pat. A real button so a keyboard reaches it
+                    and so it says whose animal it is out loud; everything a
+                    button brings with it is undone in the stylesheet. */}
+                <button
+                  type="button"
+                  className="pet-pat"
+                  aria-label={`Pat ${growing.display_name}`}
+                  onClick={() => pat(growing)}
+                >
+                  {/* Drawn fresh on the count and on the drawing it stands at, so
+                      a touch moves the animal that was there and the drawing a
+                      crossing swapped in arrives on its own. The keys part on a
+                      prefix: siblings may never share one. */}
+                  <PetArt
+                    key={`art-${move.id === growing.id ? move.tick : 0}:${growing.stage}`}
+                    species={growing.species}
+                    name={growing.display_name}
+                    stage={growing.stage}
+                    sleeping={growingAsleep}
+                    className={
+                      move.id === growing.id && move.how !== ''
+                        ? `pet-picture ${move.how}`
+                        : 'pet-picture'
+                    }
                   />
-                )}
-              </button>
-              <div className="pet-body">
-                <p className="pet-name">
-                  {growing.display_name}
-                  <button
-                    type="button"
-                    className="pet-rename"
-                    aria-label={`Name ${growing.display_name}`}
-                    disabled={busy}
-                    onClick={() => openPetStep({ at: 'namePet', pet: growing })}
-                  >
-                    <Icon name="pencil" />
-                  </button>
-                </p>
-                {/* A progress element rather than a div with a width on it: the
-                    content security policy allows no inline styles. It shows
-                    how far a pet has come and never how far it has to go.
-                    Around it, the two marks that say what it is without a
-                    sentence: the harvest's own fruit at the edge it fills from,
-                    and a pip per drawing, filled as far as this one has come.
-                    Both are drawings of what the element already reads out, so
-                    both are hidden from a screen reader. */}
-                {growing.next_fruit !== null && (
-                  <div className="pet-meter-block">
-                    {FRUIT_MARK && (
-                      <img
-                        className="word-mark word-mark-small"
-                        src={FRUIT_MARK}
-                        alt=""
-                        aria-hidden="true"
-                      />
-                    )}
-                    <progress
-                      className="xp-meter pet-meter"
-                      value={growing.fruit_fed}
-                      max={growing.next_fruit}
+                  {/* One heart, whichever it turned out to be: the gold one
+                      swaps the file and the class on this same element rather
+                      than standing beside it, because siblings may never share
+                      a key. */}
+                  {move.id === growing.id && move.heart && HEART_MARK && (
+                    <img
+                      key={`heart-${move.tick}`}
+                      className={move.golden ? 'pet-heart-golden pixel' : 'pet-heart pixel'}
+                      src={move.golden ? (GOLD_HEART_MARK ?? HEART_MARK) : HEART_MARK}
+                      alt=""
+                      aria-hidden="true"
+                    />
+                  )}
+                </button>
+                <div className="pet-body">
+                  <p className="pet-name">
+                    {growing.display_name}
+                    <button
+                      type="button"
+                      className="pet-rename"
+                      aria-label={`Name ${growing.display_name}`}
+                      disabled={busy}
+                      onClick={() => openPetStep({ at: 'namePet', pet: growing })}
                     >
-                      Fed {growing.fruit_fed}
-                    </progress>
-                    <span className="pet-pips" aria-hidden="true">
-                      {PET_STAGES.map((step) => (
-                        <span
-                          key={step}
-                          className={step <= growing.stage ? 'pet-pip pet-pip-filled' : 'pet-pip'}
+                      <Icon name="pencil" />
+                    </button>
+                  </p>
+                  {/* A progress element rather than a div with a width on it: the
+                      content security policy allows no inline styles. It shows
+                      how far a pet has come and never how far it has to go.
+                      Around it, the two marks that say what it is without a
+                      sentence: the harvest's own fruit at the edge it fills from,
+                      and a pip per drawing, filled as far as this one has come.
+                      Both are drawings of what the element already reads out, so
+                      both are hidden from a screen reader. */}
+                  {growing.next_fruit !== null && (
+                    <div className="pet-meter-block">
+                      {FRUIT_MARK && (
+                        <img
+                          className="word-mark word-mark-small"
+                          src={FRUIT_MARK}
+                          alt=""
+                          aria-hidden="true"
                         />
-                      ))}
-                    </span>
+                      )}
+                      <progress
+                        className="xp-meter pet-meter"
+                        value={growing.fruit_fed}
+                        max={growing.next_fruit}
+                      >
+                        Fed {growing.fruit_fed}
+                      </progress>
+                      <span className="pet-pips" aria-hidden="true">
+                        {PET_STAGES.map((step) => (
+                          <span
+                            key={step}
+                            className={step <= growing.stage ? 'pet-pip pet-pip-filled' : 'pet-pip'}
+                          />
+                        ))}
+                      </span>
+                    </div>
+                  )}
+                  {/* A stray that has had nothing yet is following you, which is
+                      the truer sentence whatever the hour says, so the arrival
+                      line wins and the clock only speaks after the first fruit. */}
+                  {growing.fruit_fed === 0 ? (
+                    <p className="pet-state">{petArrivedLine(growing.species)}</p>
+                  ) : (
+                    growingAsleep && <p className="pet-state">{PET_ASLEEP}</p>
+                  )}
+                  <div className="pet-verbs">
+                    <button
+                      type="button"
+                      className="secondary"
+                      disabled={busy || inBasket === 0}
+                      onClick={() => openPetStep({ at: 'feedPet', pet: growing })}
+                    >
+                      Feed
+                    </button>
                   </div>
-                )}
-                {/* A stray that has had nothing yet is following you, which is
-                    the truer sentence whatever the hour says, so the arrival
-                    line wins and the clock only speaks after the first fruit. */}
-                {growing.fruit_fed === 0 ? (
-                  <p className="pet-state">{petArrivedLine(growing.species)}</p>
-                ) : (
-                  growingAsleep && <p className="pet-state">{PET_ASLEEP}</p>
-                )}
-                <div className="pet-verbs">
-                  <button
-                    type="button"
-                    className="secondary"
-                    disabled={busy || inBasket === 0}
-                    onClick={() => openPetStep({ at: 'feedPet', pet: growing })}
-                  >
-                    Feed
-                  </button>
                 </div>
               </div>
             </div>
           )}
 
-          {/* The ones that have finished, standing together on drawn soil at the
-              foot of the card, under the one word that says what the row is.
-              They are here for good and a hand is the one thing left to offer
-              them; the pencil is how a name is changed. */}
+          {/* The ones that have finished, on a shelf under the one word that
+              says what the row is: the animals standing on a single strip of the
+              grove's own soil, their names in a row under it. They are here for
+              good and a hand is the one thing left to offer them; the pencil is
+              how a name is changed. */}
           {residents.length > 0 && (
-            <div className="pet-floor">
-              <p className="label pet-floor-label">Grown</p>
-              <ul className="pet-floor-row">
-                {residents.map((row) => (
-                  <li key={row.id} className="pet-floor-resident">
+            <div className="pet-area pet-area-grown">
+              <p className="label pet-sub-label">Grown</p>
+              {/* A shelf rather than a floor: it scrolls sideways instead of
+                  wrapping, so there is one ground line however many are home
+                  and never a second one under a second row. A grove holds six
+                  at the most. */}
+              <div className="pet-shelf">
+                <div className="pet-shelf-band">
+                  {residents.map((row) => (
                     <button
+                      key={row.id}
                       type="button"
-                      className="pet-pat"
+                      className="pet-pat pet-shelf-pet"
                       aria-label={`Pat ${row.display_name}`}
                       onClick={() => pat(row)}
                     >
@@ -684,8 +696,8 @@ export default function Grove({ userId, onFruitReady }: Props) {
                         sleeping={asleepNow(row, now)}
                         className={
                           move.id === row.id && move.how !== ''
-                            ? `pet-floor-picture ${move.how}`
-                            : 'pet-floor-picture'
+                            ? `pet-shelf-picture ${move.how}`
+                            : 'pet-shelf-picture'
                         }
                       />
                       {move.id === row.id && move.heart && HEART_MARK && (
@@ -698,8 +710,22 @@ export default function Grove({ userId, onFruitReady }: Props) {
                         />
                       )}
                     </button>
-                    <span className="pet-floor-name">
-                      {row.display_name}
+                  ))}
+                  {/* One strip for the whole row, after the animals rather than
+                      before them, the way the band across a profile lays the
+                      same file: the soil is painted over the ground line each
+                      drawing carries, so they stand on one floor. */}
+                  {GROUND_MARK && (
+                    <img className="pet-shelf-ground" src={GROUND_MARK} alt="" aria-hidden="true" />
+                  )}
+                </div>
+                {/* The names, under the soil rather than in it, in the same
+                    columns as the animals over them. They ride inside the shelf
+                    so they scroll with the animals they belong to. */}
+                <div className="pet-shelf-names">
+                  {residents.map((row) => (
+                    <span key={row.id} className="pet-shelf-name">
+                      <span className="pet-shelf-name-text">{row.display_name}</span>
                       <button
                         type="button"
                         className="pet-rename"
@@ -710,18 +736,9 @@ export default function Grove({ userId, onFruitReady }: Props) {
                         <Icon name="pencil" />
                       </button>
                     </span>
-                    {/* A strip of soil per animal rather than one across the
-                        card: laid edge to edge they read as one floor, and a
-                        row that wraps gets a floor on every line instead of
-                        leaving the first one standing on nothing. Last of the
-                        three so it is painted over the ground line the drawing
-                        carries. */}
-                    {GROUND_MARK && (
-                      <img className="pet-ground" src={GROUND_MARK} alt="" aria-hidden="true" />
-                    )}
-                  </li>
-                ))}
-              </ul>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </section>

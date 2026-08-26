@@ -4696,13 +4696,36 @@ button:disabled {
   align-self: flex-start;
 }
 
+/* The two areas of the Pets card, each one a word over a block: the animal
+   still growing, and the ones that have finished. A flex column rather than a
+   plain block, so the gap under the word is the gap and nothing collapses into
+   it. */
+.pet-area {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+/* A hairline over the grown ones, so the card reads as two areas rather than
+   one long run of animals. */
+.pet-area-grown {
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+/* The word over each area, in the caption style the cards already use. Both
+   areas take the same one, so the two match. */
+.pet-sub-label {
+  margin: 0;
+}
+
 /* The grove's animals. Presence, so the card is a picture, a name and a quiet
    bar: there is nothing to spend here and no number to read. */
 .pet {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  margin-top: 0.5rem;
 }
 
 .pet-picture {
@@ -4939,78 +4962,98 @@ button:disabled {
   color: var(--muted);
 }
 
-/* The grown ones, at the foot of the Pets card: one word over them and a strip
-   of the grove's own soil under them, so the row stands on drawn ground rather
-   than in a blank box. No frames, no meters and nothing to press but the animal
-   itself. */
-.pet-floor {
-  /* How deep the soil is, and how much room is kept clear under it. The strip
-     stops above the names so a word never ends up buried in the dirt. */
-  --pet-soil: 1.25rem;
-  --pet-name: 1.15rem;
+/* The grown ones, on a shelf at the foot of the Pets card: one strip of the
+   grove's own soil along the floor, the animals standing on it, and their names
+   in a row underneath. It scrolls sideways rather than wrapping, so there is one
+   ground line however many are home and never a name in the dirt. No frames, no
+   meters and nothing to press but the animal itself. */
+.pet-shelf {
+  /* The column every animal and every name is given. Equal widths are the whole
+     of what holds a name under the animal it belongs to: nothing here is
+     measured off a word. */
+  --pet-column: 4.5rem;
+  /* How deep the soil is, and how far the feet stand into it. The drawings carry
+     two clear rows under their feet, so the sink is a little more than it
+     reads. */
+  --pet-soil: 0.75rem;
+  --pet-stand: 0.5rem;
+  /* Room over the row for the heart a pat sends up. A shelf that scrolls
+     sideways clips upward too, so the flight has to be padding inside it; the
+     same distance is taken back above, and the word sits where it would if
+     there were no headroom at all. */
+  --pet-sky: 2.75rem;
 
-  margin: 0.9rem 0 0;
-  padding-top: 0.9rem;
-  border-top: 1px solid var(--line);
+  margin-top: calc(var(--pet-sky) * -1);
+  padding-top: var(--pet-sky);
+  overflow-x: auto;
 }
 
-/* The one word the whole row shares, in the caption style the cards already
-   use. It never repeats itself per animal. */
-.pet-floor-label {
-  margin: 0 0 0.4rem;
-}
-
-/* Bottom-aligned so the row stands level, wrapping when the grove fills.
-   Headroom above for the heart a pat sends up. No gap across: the animals are
-   spaced by their own padding instead, so their strips of soil meet and the
-   line reads as one floor. */
-.pet-floor-row {
-  list-style: none;
-  margin: 0;
-  padding: 1.1rem 0 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  column-gap: 0;
-  row-gap: 0.9rem;
-}
-
-/* The gap down the column is the soil's depth: it lifts the animal off its name
-   by exactly the strip that goes between them. */
-.pet-floor-resident {
+/* The row itself, as wide as all of the animals: the shelf scrolls, the row
+   never wraps. Bottom-aligned so they stand level. */
+.pet-shelf-band {
   position: relative;
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--pet-soil);
-  padding: 0 0.55rem;
+  align-items: flex-end;
+  min-width: max-content;
 }
 
 /* The soil, in place of the ground line each drawing carries. A width rather
-   than a right edge, the way the band across a profile draws the same file. It
-   is laid over the drawing rather than behind it, so the animal stands in the
-   dirt instead of on a line of it, and it stops above the name. */
-.pet-ground {
+   than a right edge, the way the band across a profile draws the same file, so
+   it runs the whole row and not the part of it on screen. */
+.pet-shelf-ground {
   position: absolute;
-  bottom: var(--pet-name);
   left: 0;
+  bottom: 0;
   width: 100%;
   height: var(--pet-soil);
 }
 
+/* One animal, centred in its column and standing in the dirt rather than on a
+   line of it. */
+.pet-shelf-pet {
+  display: flex;
+  justify-content: center;
+  width: var(--pet-column);
+  padding-bottom: var(--pet-stand);
+}
+
 /* Native size, drawn square-edged by the .pixel rule the plants already use. */
-.pet-floor-picture {
+.pet-shelf-picture {
   width: 3rem;
   height: 3rem;
 }
 
+/* The names, under the soil rather than in it, in the animals' own columns.
+   Inside the shelf, so they scroll with what they name. */
+.pet-shelf-names {
+  display: flex;
+  min-width: max-content;
+  margin-top: 0.35rem;
+}
+
 /* What it is called, said under it for good, with the pencil that changes it. */
-.pet-floor-name {
-  display: inline-flex;
+.pet-shelf-name {
+  display: flex;
   align-items: center;
-  gap: 0.25rem;
+  justify-content: center;
+  gap: 0.15rem;
+  width: var(--pet-column);
   font-size: 0.78rem;
   color: var(--muted);
+}
+
+/* A long name is cut rather than allowed to widen its column: the columns are
+   what keep a name under its animal. */
+.pet-shelf-name-text {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The pencil keeps its size whatever the name beside it does. */
+.pet-shelf-name .pet-rename {
+  flex: none;
 }
 
 /* The pencil beside a name. An icon and nothing else: renaming is quiet. */
