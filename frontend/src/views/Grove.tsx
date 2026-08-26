@@ -673,7 +673,7 @@ export default function Grove({ userId, onFruitReady }: Props) {
               how a name is changed. */}
           {residents.length > 0 && (
             <div className="pet-area pet-area-grown">
-              <p className="label pet-sub-label">Grown</p>
+              <p className="label pet-sub-label">Other pets</p>
               {/* A shelf rather than a floor: it scrolls sideways instead of
                   wrapping, so there is one ground line however many are home
                   and never a second one under a second row. A grove holds six

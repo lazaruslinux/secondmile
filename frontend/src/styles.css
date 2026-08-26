@@ -4988,13 +4988,15 @@ button:disabled {
   overflow-x: auto;
 }
 
-/* The row itself, as wide as all of the animals: the shelf scrolls, the row
-   never wraps. Bottom-aligned so they stand level. */
+/* The row itself, as wide as all of the animals and no wider, the way the
+   meter above it takes only the width it needs: the shelf scrolls, the row
+   never wraps, and the soil under it ends where the animals do. Bottom-aligned
+   so they stand level. */
 .pet-shelf-band {
   position: relative;
   display: flex;
   align-items: flex-end;
-  min-width: max-content;
+  width: max-content;
 }
 
 /* The soil, in place of the ground line each drawing carries. A width rather
