@@ -4836,14 +4836,15 @@ button:disabled {
   }
 }
 
-/* Asked for stillness, given stillness: the hops, the stir and the growth stop
-   moving. Both hearts keep their fade but lose their rise, so the answer stays
-   and the movement goes. */
+/* Asked for stillness, given stillness: the hops, the stir, the growth and the
+   landing page's idle bob stop moving. Both hearts keep their fade but lose
+   their rise, so the answer stays and the movement goes. */
 @media (prefers-reduced-motion: reduce) {
   .pet-hop,
   .pet-hop-golden,
   .pet-stir,
-  .pet-grew img {
+  .pet-grew img,
+  .landing-scene-pet {
     animation: none;
   }
 
@@ -6550,6 +6551,92 @@ button:disabled {
   max-width: 40rem;
 }
 
+/* The one thing on this page that moves: an animal standing by a tree on a
+   strip of the grove's own soil, built the way the Pets card builds its shelf.
+   Decorative and offline; a pat reaches nothing. The three measurements are the
+   shelf's own: how deep the soil is, how far the feet stand into it, and the
+   room over the row a pat's heart flies through. The sky is padding taken back
+   above, so the scene sits where it would if there were no headroom at all. */
+.landing-scene {
+  --scene-soil: 0.75rem;
+  --scene-stand: 0.5rem;
+  --scene-sky: 2.75rem;
+
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  width: max-content;
+  margin-top: calc(1.1rem - var(--scene-sky));
+  /* Soil past the animal on the right, and none asked for on the left: the tree
+     is drawn with clear pixels down that edge and carries its own. */
+  padding: var(--scene-sky) 0.5rem 0 0;
+}
+
+/* The soil, in place of the ground line each drawing carries. As wide as the
+   scene and no wider: a strip across the column would read as a rule. */
+.landing-scene-ground {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: var(--scene-soil);
+}
+
+/* Twice the 48 the file is drawn at, which is the one enlargement
+   nearest-neighbour is kind to. The clear rows under the trunk double with it,
+   so it stands shallower than the animal to reach the same soil. */
+.landing-scene-tree {
+  display: block;
+  width: 6rem;
+  height: 6rem;
+  margin-bottom: 0.25rem;
+  image-rendering: pixelated;
+}
+
+/* The pat, undone to nothing the way the Pets card undoes it, and the box the
+   heart is positioned against. Pulled back into the tree's own empty margin:
+   both drawings carry clear pixels at their edges, so the boxes have to overlap
+   for the animal to stand near the trunk rather than a thumb away from it. */
+.landing-scene-pat {
+  position: relative;
+  display: block;
+  flex: 0 0 auto;
+  margin: 0 0 0 -0.5rem;
+  padding: 0 0 var(--scene-stand);
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* The hop lands here and the bob lands on the image inside, so neither
+   transform overwrites the other. */
+.landing-scene-hop {
+  display: block;
+}
+
+/* Native size, drawn square-edged. */
+.landing-scene-pet {
+  display: block;
+  width: 3rem;
+  height: 3rem;
+  image-rendering: pixelated;
+  animation: landing-pet-idle 3.2s ease-in-out infinite;
+}
+
+/* Breathing and nothing else: two pixels of travel, transform only, so all
+   three grounds read it the same and nothing around it is moved. */
+@keyframes landing-pet-idle {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
 .landing-foot {
   padding: 1.6rem 0 0;
 }
@@ -6558,6 +6645,17 @@ button:disabled {
   font-size: 0.85rem;
   color: var(--muted);
   margin: 0;
+}
+
+/* The credit sits in the footer's own sentence, so it takes that sentence's
+   colour and is marked as a link by the underline alone. */
+.landing-foot a {
+  color: var(--muted);
+  text-decoration: underline;
+}
+
+.landing-foot a:hover {
+  color: var(--text);
 }
 
 /* Back to the landing page from the form. Pulled to the left edge of the card

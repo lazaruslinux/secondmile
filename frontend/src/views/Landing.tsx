@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ALPHA, ALPHA_NOTICE } from '../alpha.ts'
 import { getStatus, welcomeAvatarUrl, type Welcome as WelcomeData } from '../api.ts'
 import heroDark from '../assets/landing-hero-dark.png'
@@ -11,6 +11,14 @@ import shotLightHome from '../assets/shot-light-home.webp'
 import shotLightGrove from '../assets/shot-light-grove.webp'
 import shotLightYou from '../assets/shot-light-you.webp'
 import heroLight from '../assets/landing-hero-light.png'
+// The grove's own files, borrowed for the scene at the foot of the page. Named
+// imports rather than art.ts, because nobody reading this page has an account
+// and none of these can be missing: they are the committed set.
+import sceneTree from '../assets/grove/mango-s3.png'
+import scenePetCat from '../assets/grove/pet-cat-s3.png'
+import scenePetSheep from '../assets/grove/pet-sheep-s3.png'
+import sceneGround from '../assets/grove/ground.svg'
+import sceneHeart from '../assets/grove/pet-heart.png'
 import { ACTIVITY_ICONS, ACTIVITY_NAMES, ACTIVITY_ORDER } from '../labels.ts'
 import { applyTheme, rememberTheme, type Theme, useTheme } from '../theme.ts'
 import AvatarFrame from './AvatarFrame.tsx'
@@ -35,6 +43,29 @@ export default function Landing({ onEnter, invite }: Props) {
   const invited = invite !== undefined
   const who = invite?.data.inviter_display_name ?? ''
   const theme = useTheme()
+
+  // Which animal stands by the tree at the foot of the page. Rolled once when
+  // the page draws and held for the visit, so it never swaps under a reader.
+  const [pet] = useState(() =>
+    Math.random() < 0.5
+      ? { src: scenePetCat, label: 'Pat the cat' }
+      : { src: scenePetSheep, label: 'Pat the sheep' },
+  )
+  // How many pats this visit, which is only ever a key: it restarts the hop and
+  // sends a fresh heart. Held to one at a time the way the Pets card holds it.
+  const [pats, setPats] = useState(0)
+  const patHeld = useRef(false)
+
+  // Nothing leaves the browser. There is no account behind this page and a pat
+  // has never been anything but the animal answering.
+  function patPet() {
+    if (patHeld.current) return
+    patHeld.current = true
+    window.setTimeout(() => {
+      patHeld.current = false
+    }, 450)
+    setPats((count) => count + 1)
+  }
 
   // The same two calls Settings makes, in the same order: the ground changes
   // under the button and this browser keeps the choice.
@@ -321,6 +352,54 @@ export default function Landing({ onEnter, invite }: Props) {
         </ul>
       </section>
 
+      {/* The last of the sections that explain the place, and the only thing on
+          the page that moves: an animal standing by a tree on a strip of the
+          grove's own soil. The way in still comes after it. */}
+      <section className="landing-section">
+        <p className="label landing-eyebrow">More to come</p>
+        <h2>secondmile is in active development, and always changing</h2>
+        <p>
+          There will be many more mini-games and fun things to unlock as I
+          continue development. Thanks so much for stopping by!
+        </p>
+        <div className="landing-scene">
+          <img className="landing-scene-tree" src={sceneTree} alt="" aria-hidden="true" />
+          {/* The picture is the pat, the way it is on the Pets card: a real
+              button so a keyboard reaches it, undone to nothing in the
+              stylesheet. The hop rides the span and the idle bob rides the
+              image inside it, so the two transforms never land on one
+              element. */}
+          <button
+            type="button"
+            className="landing-scene-pat"
+            aria-label={pet.label}
+            onClick={patPet}
+          >
+            <span
+              key={`hop-${pats}`}
+              className={pats > 0 ? 'landing-scene-hop pet-hop' : 'landing-scene-hop'}
+            >
+              <img className="landing-scene-pet" src={pet.src} alt="" aria-hidden="true" />
+            </span>
+            {/* Drawn fresh on the count so each pat sends its own. The keys part
+                on a prefix: siblings may never share one. */}
+            {pats > 0 && (
+              <img
+                key={`heart-${pats}`}
+                className="pet-heart"
+                src={sceneHeart}
+                alt=""
+                aria-hidden="true"
+              />
+            )}
+          </button>
+          {/* After the two rather than before them, the way the shelf lays the
+              same file: the soil is painted over the ground line each drawing
+              carries, so they stand on one floor. */}
+          <img className="landing-scene-ground" src={sceneGround} alt="" aria-hidden="true" />
+        </div>
+      </section>
+
       {/* The way in, after everything the page had to say, the theme strip
           included. His call: the top button invited people to join before they
           had read what they were joining, and moving it is honester than
@@ -347,7 +426,13 @@ export default function Landing({ onEnter, invite }: Props) {
       <footer className="landing-foot">
         {/* No repository link while the repository is private: a link to a page
             nobody can open says less than the licence does on its own. */}
-        <p>secondmile. Open source, AGPL-3.0.</p>
+        <p>
+          secondmile. Open source, AGPL-3.0. Developed by{' '}
+          <a href="https://lazaruslinux.com" target="_blank" rel="noopener">
+            Lazarus Labs
+          </a>
+          .
+        </p>
       </footer>
     </div>
   )

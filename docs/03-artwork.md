@@ -680,6 +680,12 @@ They stand on the same floor the plants do, near the foot of the canvas, so a
 row of them lines up. Everything in the register reads on both grounds and these
 are no exception: whatever glow an appearance carries stays off the pale one.
 
+Five grove files are also read before anybody has signed in: the landing page
+ends on a decorative scene built from `mango-s3.png` as a tree, `pet-cat-s3.png`
+or `pet-sheep-s3.png` as the animal beside it, `ground.svg` as the soil under
+both, and `pet-heart.png` for the pat, so a replacement for any of the five
+shows on the way in as well as inside the app.
+
 ## Rarity frames
 
 Not artwork, and no file to swap: every square holding a plant, a seed, or a
