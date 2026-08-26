@@ -18,12 +18,12 @@ whole of what a commission would cover.
 | Flourishes | 3 | The growth earned by encouraging people, `f1` to `f3` | Over the border, on every avatar |
 | Interface icons | 19 | Tab bar, cheer, gear, pencil, play, eye, caret, chest ladder marker, week diamond, running shoe, and the five sport marks | Chrome, everywhere |
 | Plants | 39 | Thirteen species at three growth stages each | The plot, and the reveal when a seed is found |
-| Pets | 24 | Six animals at three growth stages each, and one sleeping pose apiece | The pet card on Grove, the grove floor, and the row of residents on both profiles |
+| Pets | 25 | Six animals at three growth stages each, one sleeping pose apiece, and the pat heart | The Pets card on Grove, and the row of residents on a friend's profile |
 | Ground | 1 | The strip of soil a grove stands on, `ground` | The floor of the band across the top of both profiles |
 | Loose pieces | 7 | Chest, gilding overlay, boost potion, water, unmarked seed, basket, fruit | Inventory squares, chest reveals, finished plants, harvest headings, fruiting plants |
 | Landing hero | 2 | The four sports in four strips, one drawing per ground, `landing-hero-dark` and `landing-hero-light` | The top of the landing page |
 
-One hundred and thirty-three files in total, all under `frontend/src/assets/`.
+One hundred and thirty-four files in total, all under `frontend/src/assets/`.
 
 Every `border-t` file also has a `-light` twin beside it, such
 as `border-t3-light.svg`, which is the same drawing with its palette turned over
@@ -607,11 +607,11 @@ species has its own, this file comes out and the drawings replace it.
 
 ## Grove pets
 
-`frontend/src/assets/grove/pet-<species>-s1.png`, `-s2.png`, `-s3.png`, and
-`pet-<species>-sleep.png`
+`frontend/src/assets/grove/pet-<species>-s1.png`, `-s2.png`, `-s3.png`,
+`pet-<species>-sleep.png`, and `pet-heart.png`
 
-Six animals at three stages each with one sleeping pose apiece, so twenty four
-files. Read exactly the way the plants are, by name, and drawn to the plants'
+Six animals at three stages each with one sleeping pose apiece, and one heart
+shared by them all, so twenty five files. Read exactly the way the plants are, by name, and drawn to the plants'
 own pixel spec above: native 48 by 48, nothing anti-aliased, transparent ground,
 three or four shades a hue, one warm near-black outline ring. The custom layer
 works for these too, under the same names.
@@ -641,9 +641,10 @@ and there is no gilding over the last stage: the third drawing is the end of it.
 | Rooster | `pet-rooster-s1.png`, `-s2`, `-s3`, `pet-rooster-sleep.png` |
 
 The three stages are young, half grown, and grown, and they have to part on
-**silhouette** rather than on detail. They are shown at about 72 pixels on the
-pet card, and at 48, native size, on the grove floor and in the row of residents
-on a profile, and at that size a feature thinner than three pixels is eaten by
+**silhouette** rather than on detail. They are shown at about 72 pixels for the
+growing one on the Pets card, and at 48, native size, for the grown ones on the
+card's floor and in the row of residents on a friend's profile, and at that
+size a feature thinner than three pixels is eaten by
 the outline ring: the placeholder set grows the whole animal from stage to stage,
 24 pixels tall young, 32 half grown and 40 grown, and carries the species' own
 mark at all three, a bat's wing span and tall ears, a rooster's comb and tail
@@ -657,6 +658,11 @@ animal asleep is an animal asleep. It is a curled compact shape, sized between
 the young and the half grown, with the eyes drawn shut and enough of the species
 left showing to tell whose it is. A species with no sleeping file costs the pose
 rather than the pet: the app draws that one awake at the stage it stands at.
+
+`pet-heart.png` is the pat's answer: a pink heart, shaded dark under one flank
+and gleamed on the other, drawn to the set's own grid and ring. It floats up
+over a patted animal's head and goes out on its own, and it is the one drawing
+here that is never on the floor.
 
 They stand on the same floor the plants do, near the foot of the canvas, so a
 row of them lines up. Everything in the register reads on both grounds and these

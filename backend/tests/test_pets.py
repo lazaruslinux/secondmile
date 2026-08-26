@@ -452,21 +452,13 @@ def test_a_friend_sees_the_animals_and_never_the_numbers(signed_in, db_session, 
     assert "fruit_fed" not in str(body)
 
 
-def test_your_own_profile_carries_the_same_presence_only_row(signed_in, db_session, member):
-    """The You screen draws the row a friend's screen draws, off the same shape.
-
-    Deliberately the friend serializer rather than a second one, plus the id on
-    the owner's copy alone: the You row carries a Name button and the id is
-    what it acts on. The fruit stays where the fruit is read.
-    """
-    pet = give_pet(db_session, member.id, "wolf", fruit_fed=SECOND)
-    name(signed_in, pet.id, "Grey")
+def test_your_own_profile_carries_no_pets_row(signed_in, db_session, member):
+    """Pets live in one place, the Grove: the own profile payload says nothing
+    about them. Friends still read presence off the friend payload."""
+    give_pet(db_session, member.id, "wolf", fruit_fed=SECOND)
 
     body = signed_in.get("/api/profile").json()
-    assert body["pets"] == [
-        {"id": pet.id, "species": "wolf", "name": "Grey", "stage": 2, "grown": False}
-    ]
-    assert "fruit_fed" not in str(body["pets"])
+    assert "pets" not in body
 
 
 def test_a_stranger_sees_no_pets_at_all(signed_in, db_session, member):

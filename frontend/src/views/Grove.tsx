@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   errorText,
   feedPet,
@@ -41,7 +41,6 @@ import {
   PET_FEED_HINT,
   petGrewLine,
   PET_NAMED,
-  PET_PATTED,
   plantingName,
   plantStateLine,
   readyLine,
@@ -49,6 +48,7 @@ import {
 import { asList } from '../recap.ts'
 import Chooser, { type Choice } from './Chooser.tsx'
 import Confirm from './Confirm.tsx'
+import Icon from './Icon.tsx'
 import Inventory from './Inventory.tsx'
 import PetArt from './PetArt.tsx'
 import PlantArt from './PlantArt.tsx'
@@ -93,6 +93,8 @@ function asleepNow(species: string, moment: Date): boolean {
 // are looked up once: the set of files is fixed at build time.
 const BASKET_MARK = itemArt('basket')
 const FRUIT_MARK = itemArt('fruit')
+// The heart a pat floats over an animal's head.
+const HEART_MARK = itemArt('pet-heart')
 
 interface Props {
   userId: number
@@ -197,14 +199,14 @@ export default function Grove({ userId, onFruitReady }: Props) {
   // The pet card's own line, so a word about an animal never appears over the
   // harvest above it and the two never talk over each other.
   const [petNote, setPetNote] = useState('')
-  // What the growing one's picture is doing: how the last feed answered, or the
-  // hop a pat replays. The count is what makes two in a row two movements: the
-  // art is drawn fresh on it, which is what starts the keyframes again.
-  const [fedMark, setFedMark] = useState({ tick: 0, how: '' })
-  // Which resident was last patted and how many times. The same idea as the
-  // mark above, kept apart because the ones on the floor move one at a time.
-  // Nothing here is sent anywhere and nothing survives the page.
-  const [patMark, setPatMark] = useState({ tick: 0, id: 0 })
+  // What the last touch on an animal looked like: whose it was, the classes a
+  // feed answered with or the hop of a pat, and whether a heart goes up. The
+  // count is what makes two in a row two movements: the art is drawn fresh on
+  // it, which is what starts the keyframes again. Nothing here is sent
+  // anywhere and nothing survives the page.
+  const [move, setMove] = useState({ tick: 0, id: 0, how: '', heart: false })
+  // One pat at a time: a drum of taps reads as one gladness, not a flood.
+  const patHeld = useRef(false)
   // The name being typed, held here because the dialog is redrawn on every key.
   const [typedName, setTypedName] = useState('')
   // How much fruit this gift is for, as it is being typed. The same box the
@@ -337,9 +339,11 @@ export default function Grove({ userId, onFruitReady }: Props) {
       const { pet, golden } = await feedPet(count)
       const grew = pet.stage > before
       setPetNote(grew ? petGrewLine(pet.name, pet.species) : golden ? PET_FED_GOLDEN : PET_FED)
-      setFedMark((mark) => ({
+      setMove((mark) => ({
         tick: mark.tick + 1,
+        id: pet.id,
         how: `${golden ? 'pet-hop-golden' : 'pet-hop'}${grew ? ' pet-grew' : ''}`,
+        heart: false,
       }))
       setStep({ at: 'none' })
     })
@@ -353,18 +357,17 @@ export default function Grove({ userId, onFruitReady }: Props) {
     })
   }
 
-  // A hand on the animal. Nothing leaves the browser: it hops, the card says
-  // one sentence, and that is all a pat has ever been. It lands the same while
-  // it is sleeping, where the hop plays over the sleeping drawing.
-  function patGrowing() {
-    setPetNote(PET_PATTED)
-    setFedMark((mark) => ({ tick: mark.tick + 1, how: 'pet-hop' }))
-  }
-
-  // The same tap out on the floor, where there is no card to say anything. The
-  // animal's own name surfaces under it for a moment instead.
-  function patResident(pet: Pet) {
-    setPatMark((mark) => ({ tick: mark.tick + 1, id: pet.id }))
+  // A hand on the animal. Nothing leaves the browser: it hops and a heart
+  // floats up over its head, and that is all a pat has ever been. It lands
+  // the same while it is sleeping, where the hop plays over the sleeping
+  // drawing. Held to one at a time so the animal answers each pat whole.
+  function pat(pet: Pet) {
+    if (patHeld.current) return
+    patHeld.current = true
+    window.setTimeout(() => {
+      patHeld.current = false
+    }, 450)
+    setMove((mark) => ({ tick: mark.tick + 1, id: pet.id, how: 'pet-hop', heart: true }))
   }
 
   // Both pet verbs open the same way: the card's own line cleared, and the box
@@ -478,12 +481,11 @@ export default function Grove({ userId, onFruitReady }: Props) {
         </section>
       )}
 
-      {/* The one still growing, beside the harvest because that is where the
-          fruit it is fed comes from. Nothing here is a mechanic and nothing
-          here is explained: an animal, its name, and a quiet bar. The grown
-          ones have moved out to the floor of the plot below, so the card goes
-          altogether once there is neither an animal on it nor a word to say. */}
-      {(growing !== null || petNote !== '') && (
+      {/* Every animal in one place, beside the harvest because that is where
+          the fruit they are fed comes from. Nothing here is a mechanic and
+          nothing here is explained: the one still growing with its quiet bar,
+          and the grown ones standing together beneath it. */}
+      {(growing !== null || residents.length > 0 || petNote !== '') && (
         <section className="card">
           <h2 className="label">Pets</h2>
 
@@ -502,22 +504,47 @@ export default function Grove({ userId, onFruitReady }: Props) {
                 type="button"
                 className="pet-pat"
                 aria-label={`Pat ${growing.display_name}`}
-                onClick={patGrowing}
+                onClick={() => pat(growing)}
               >
                 {/* Drawn fresh on the count and on the drawing it stands at, so
-                    a feed moves the animal that was there and the drawing a
-                    crossing swapped in arrives on its own. */}
+                    a touch moves the animal that was there and the drawing a
+                    crossing swapped in arrives on its own. The keys part on a
+                    prefix: siblings may never share one. */}
                 <PetArt
-                  key={`${fedMark.tick}:${growing.stage}`}
+                  key={`art-${move.id === growing.id ? move.tick : 0}:${growing.stage}`}
                   species={growing.species}
                   name={growing.display_name}
                   stage={growing.stage}
                   sleeping={growingAsleep}
-                  className={fedMark.how === '' ? 'pet-picture' : `pet-picture ${fedMark.how}`}
+                  className={
+                    move.id === growing.id && move.how !== ''
+                      ? `pet-picture ${move.how}`
+                      : 'pet-picture'
+                  }
                 />
+                {move.id === growing.id && move.heart && HEART_MARK && (
+                  <img
+                    key={`heart-${move.tick}`}
+                    className="pet-heart pixel"
+                    src={HEART_MARK}
+                    alt=""
+                    aria-hidden="true"
+                  />
+                )}
               </button>
               <div className="pet-body">
-                <p className="pet-name">{growing.display_name}</p>
+                <p className="pet-name">
+                  {growing.display_name}
+                  <button
+                    type="button"
+                    className="pet-rename"
+                    aria-label={`Name ${growing.display_name}`}
+                    disabled={busy}
+                    onClick={() => openPetStep({ at: 'namePet', pet: growing })}
+                  >
+                    <Icon name="pencil" />
+                  </button>
+                </p>
                 {/* A progress element rather than a div with a width on it: the
                     content security policy allows no inline styles. It shows
                     how far a pet has come and never how far it has to go. */}
@@ -547,17 +574,61 @@ export default function Grove({ userId, onFruitReady }: Props) {
                   >
                     Feed
                   </button>
-                  <button
-                    type="button"
-                    className="secondary"
-                    disabled={busy}
-                    onClick={() => openPetStep({ at: 'namePet', pet: growing })}
-                  >
-                    Name
-                  </button>
                 </div>
               </div>
             </div>
+          )}
+
+          {/* The ones that have finished, standing together on one floor at the
+              foot of the card. They are here for good and a hand is the one
+              thing left to offer them; the pencil is how a name is changed. */}
+          {residents.length > 0 && (
+            <ul className="pet-floor">
+              {residents.map((row) => (
+                <li key={row.id} className="pet-floor-resident">
+                  <button
+                    type="button"
+                    className="pet-pat"
+                    aria-label={`Pat ${row.display_name}`}
+                    onClick={() => pat(row)}
+                  >
+                    <PetArt
+                      key={`art-${move.id === row.id ? move.tick : 0}`}
+                      species={row.species}
+                      name={row.display_name}
+                      stage={row.stage}
+                      sleeping={asleepNow(row.species, now)}
+                      className={
+                        move.id === row.id && move.how !== ''
+                          ? `pet-floor-picture ${move.how}`
+                          : 'pet-floor-picture'
+                      }
+                    />
+                    {move.id === row.id && move.heart && HEART_MARK && (
+                      <img
+                        key={`heart-${move.tick}`}
+                        className="pet-heart pixel"
+                        src={HEART_MARK}
+                        alt=""
+                        aria-hidden="true"
+                      />
+                    )}
+                  </button>
+                  <span className="pet-floor-name">
+                    {row.display_name}
+                    <button
+                      type="button"
+                      className="pet-rename"
+                      aria-label={`Name ${row.display_name}`}
+                      disabled={busy}
+                      onClick={() => openPetStep({ at: 'namePet', pet: row })}
+                    >
+                      <Icon name="pencil" />
+                    </button>
+                  </span>
+                </li>
+              ))}
+            </ul>
           )}
         </section>
       )}
@@ -652,47 +723,6 @@ export default function Grove({ userId, onFruitReady }: Props) {
           </ul>
         )}
 
-        {/* The grown ones, standing on the floor of the plot they live in
-            rather than listed on a card. No frame, no meter and no verb but a
-            hand: they are here for good and there is nothing left to do to
-            them. The name surfaces under whichever one was touched and goes
-            again on its own. */}
-        {residents.length > 0 && (
-          <ul className="grove-pets-floor">
-            {residents.map((row) => {
-              const patted = patMark.id === row.id ? patMark.tick : 0
-              return (
-                <li key={row.id} className="grove-pet">
-                  <button
-                    type="button"
-                    className="pet-pat"
-                    aria-label={`Pat ${row.display_name}`}
-                    onClick={() => patResident(row)}
-                  >
-                    {/* Drawn fresh on the count, the same way a feed moves the
-                        one on the card above. */}
-                    <PetArt
-                      key={patted}
-                      species={row.species}
-                      name={row.display_name}
-                      stage={row.stage}
-                      sleeping={asleepNow(row.species, now)}
-                      className={patted === 0 ? 'grove-pet-picture' : 'grove-pet-picture pet-hop'}
-                    />
-                    {/* Over the floor rather than in it, so a name arriving
-                        moves nothing. The button already says whose animal this
-                        is, so this is a picture of a name and not a second one. */}
-                    {patted > 0 && (
-                      <span key={patted} className="grove-pet-name" aria-hidden="true">
-                        {row.display_name}
-                      </span>
-                    )}
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
-        )}
       </section>
 
       {/* The squares sit here on the page rather than behind a button: what is

@@ -10,9 +10,10 @@
    gutters of it between them, labels are small and quiet, numbers are large
    and bold, and crimson is the only colour that is not black, white, or grey.
    Nothing moves: no transitions, no shadows, and a hover on a desktop swaps a
-   colour on the spot rather than easing into it. The one exception is a fed
-   animal, which answers the feed itself; it is the only keyframe in the file
-   and it is off where stillness is asked for. */
+   colour on the spot rather than easing into it. The one exception is a
+   touched animal, which answers the touch itself: a fed or patted pet hops
+   and a pat floats a heart, the only keyframes in the file, stilled where
+   stillness is asked for. */
 
 /* The typefaces, bundled rather than fetched. Nothing in this app loads from
    another origin, so a font cannot be an exception: a Google Fonts link would
@@ -4783,15 +4784,29 @@ button:disabled {
   }
 }
 
-/* Asked for stillness, given stillness. The three above are the whole of what
-   this app moves, so this is the whole of what it turns off. The name that
-   surfaces under a patted resident is opacity and nothing else, so it stays:
-   turning it off would take the answer away rather than the movement. */
+/* Asked for stillness, given stillness: the hops and the growth stop moving.
+   The pat's heart keeps its fade but loses its rise, so the answer stays and
+   the movement goes. */
 @media (prefers-reduced-motion: reduce) {
   .pet-hop,
   .pet-hop-golden,
   .pet-grew img {
     animation: none;
+  }
+
+  .pet-heart {
+    animation-name: pet-heart-still;
+  }
+}
+
+@keyframes pet-heart-still {
+  0%,
+  75% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
   }
 }
 
@@ -4855,53 +4870,93 @@ button:disabled {
    sits in the card the same way they do and all three grounds read it alike.
    The room at the bottom is where a name surfaces, held open so nothing moves
    when one does. */
-.grove-pets-floor {
+/* The grown ones, on one floor at the foot of the Pets card. Bottom-aligned so
+   the row stands level, wrapping when the grove fills. Headroom above for the
+   heart a pat sends up. */
+.pet-floor {
   list-style: none;
   margin: 0.9rem 0 0;
-  padding: 0.6rem 0.75rem 1.4rem;
+  padding: 1.5rem 0 0;
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: 0.9rem;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  gap: 1.1rem;
+  border-top: 1px solid var(--line);
 }
 
-.grove-pet {
+.pet-floor-resident {
   display: flex;
-  align-items: flex-end;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
 }
 
 /* Native size, drawn square-edged by the .pixel rule the plants already use. */
-.grove-pet-picture {
+.pet-floor-picture {
   width: 3rem;
   height: 3rem;
 }
 
-/* What it is called, under whichever one was touched. Laid over the floor
-   rather than set into it, so it costs no room and takes none when it goes. */
-.grove-pet-name {
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  white-space: nowrap;
-  font-size: 0.75rem;
+/* What it is called, said under it for good, with the pencil that changes it. */
+.pet-floor-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.78rem;
   color: var(--muted);
-  pointer-events: none;
-  opacity: 0;
-  animation: grove-pet-name 2s ease-out;
 }
 
-@keyframes grove-pet-name {
-  0%,
-  70% {
+/* The pencil beside a name. An icon and nothing else: renaming is quiet. */
+.pet-rename {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  padding: 0.1rem;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.pet-rename:hover {
+  color: var(--text);
+}
+
+.pet-rename .icon {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+/* The heart a pat sends up: it rises from over the head, past where a thumb
+   sits, and goes out on its own. Never catches a tap on its way. */
+.pet-heart {
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  width: 1.35rem;
+  transform: translate(-50%, 0.35rem);
+  pointer-events: none;
+  opacity: 0;
+  animation: pet-heart 900ms ease-out;
+}
+
+@keyframes pet-heart {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 0.35rem);
+  }
+
+  20% {
+    opacity: 1;
+  }
+
+  75% {
     opacity: 1;
   }
 
   100% {
     opacity: 0;
+    transform: translate(-50%, -0.9rem);
   }
 }
 

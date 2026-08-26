@@ -432,9 +432,6 @@ export const GATHERED_GOLDEN = 'Some of it was golden.'
 export const PET_FED = 'Fed.'
 export const PET_FED_GOLDEN = 'Fed. It took the golden one first.'
 export const PET_NAMED = 'Named.'
-// What a hand on the animal says. Nothing is sent, nothing is stored and
-// nothing is earned: the sentence and the movement are the whole of a pat.
-export const PET_PATTED = 'It leans into your hand.'
 // Said under one that is sleeping by the clock on this device. A state and not
 // a wait: it wakes on its own hours and nothing is missed while it is down.
 export const PET_ASLEEP = 'Asleep.'
