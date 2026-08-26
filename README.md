@@ -4,7 +4,7 @@ A self-hosted fitness app with a game inside it. Miles you actually walk, run,
 cycle, or swim sync from your phone and become experience, medals, and things
 growing in a grove on a profile you build over months. The game is early:
 accounts, workout sync, the Activity tab, the profile with its levels and
-medals, the grove with its chests and seeds, the screen behind a single workout,
+medals, the grove with its chests, seeds, and pets, the screen behind a single workout,
 and a feed shared with friends all work today, and the rest is being built on top
 of them. The app says so rather than hiding it: there is an alpha chip in the
 top bar and a line at the foot of every page, and most of the artwork is
@@ -58,6 +58,9 @@ are blurred: names, faces, and the maps under the routes.
   pair earns once per kind, so two accounts hyping each other all evening earn
   one hype's worth between them. Everything after still arrives and is still
   worth as much to whoever receives it; it just pays the sender nothing.
+- **Writes you a letter once a week.** A short recap in plain sentences: what
+  you covered, what grew and bore, who arrived in the grove, and what friends
+  sent. It reads in under a minute, and it is the only digest there is.
 
 ### The earning lane
 
@@ -120,6 +123,12 @@ are blurred: names, faces, and the maps under the routes.
   grove as easily as your own. A boost potion is encouragement rather than a
   secret: spend it on a friend and their own screen says the next chest their
   miles were already going to earn opens a step rarer, with your name on it.
+- **Draws animals in, after the harvest.** The first gather is followed home by
+  a stray, one of six species, leaning toward the hours you tend to move in.
+  Fruit fed to it grows it through three drawings, and grown it stays for good,
+  which is when the next stray finds you. A pet confers nothing at all, no
+  yield and no odds: it is presence, a name if you give it one, and a heart
+  over its head when you pat it.
 
 ### One workout, in full
 
@@ -152,7 +161,7 @@ are blurred: names, faces, and the maps under the routes.
   link carry the same switch, so the first screen anybody sees is already on the
   ground they picked.
 - **The artwork is placeholder, and every piece is swappable.** The grove plants,
-  the medal faces, the growth around a border, and the things in the inventory
+  the pets, the medal faces, the growth around a border, and the things in the inventory
   are 48 by 48 pixel art; the avatar borders, the soil, and the gilding are still
   SVG. Each is a file addressed by name, so replacing one is dropping a file in
   and rebuilding, with no code to edit. See
@@ -251,7 +260,9 @@ Anything earned by distance can only ever be earned by distance. Levels, medals,
 chests, and how fast a plant grows read miles and nothing else. Calories become
 a separate currency that is given away or spent on fruit yield, and it never
 touches the earning side. A mechanic that crossed those lanes would be a bug,
-not a feature.
+not a feature. Pets sit in neither lane: they are presence only and confer
+nothing, and a mechanic that read them for a bonus would be the same bug one
+lane over.
 
 Rewards come from logging miles, never from opening the app. There are no login
 streaks, no countdowns, and nothing expires except the two things meant to be
@@ -374,9 +385,9 @@ npm ci
 npm run dev
 ```
 
-Tests run against SQLite so they need no running database. CI runs ruff,
-pytest, pip-audit, the frontend typecheck and build, and npm audit on every
-push.
+Tests run against SQLite so they need no running database. CI runs ruff, mypy,
+pytest, pip-audit, the frontend lint, typecheck, and build, and npm audit on
+every push to main and every pull request.
 
 ## License
 

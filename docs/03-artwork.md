@@ -16,14 +16,14 @@ whole of what a commission would cover.
 | Medals | 32 | One face per medal in the catalogue | You screen, Home rail, feed and Activity chips, avatar slots |
 | Avatar borders | 6 | One per level tier, `border-t1` to `border-t6` | Around every avatar, every screen |
 | Flourishes | 3 | The growth earned by encouraging people, `f1` to `f3` | Over the border, on every avatar |
-| Interface icons | 19 | Tab bar, cheer, gear, pencil, play, eye, caret, chest ladder marker, week diamond, running shoe, and the five sport marks | Chrome, everywhere |
+| Interface icons | 18 | Tab bar, cheer, gear, pencil, play, eye, caret, chest ladder marker, week diamond, running shoe, and the sport marks except the run | Chrome, everywhere |
 | Plants | 39 | Thirteen species at three growth stages each | The plot, and the reveal when a seed is found |
 | Pets | 26 | Six animals at three growth stages each, one sleeping pose apiece, and the pat heart in both its colours | The Pets card on Grove, and the row of residents on a friend's profile |
-| Ground | 1 | The strip of soil a grove stands on, `ground` | The floor of the band across the top of both profiles |
+| Ground | 1 | The strip of soil a grove stands on, `ground` | The floor of the band across the top of both profiles, and the shelf under the grown pets on the Pets card |
 | Loose pieces | 7 | Chest, gilding overlay, boost potion, water, unmarked seed, basket, fruit | Inventory squares, chest reveals, finished plants, harvest headings, fruiting plants |
 | Landing hero | 2 | The four sports in four strips, one drawing per ground, `landing-hero-dark` and `landing-hero-light` | The top of the landing page |
 
-One hundred and thirty-five files in total, all under `frontend/src/assets/`.
+One hundred and thirty-four files in total, all under `frontend/src/assets/`.
 
 Every `border-t` file also has a `-light` twin beside it, such
 as `border-t3-light.svg`, which is the same drawing with its palette turned over
@@ -32,6 +32,10 @@ drawn, so they are not counted above and a commission does not cover them: draw
 the original and the twin is regenerated from whatever arrives. Nothing else in
 the register has a twin any more: the medals and the flourishes are pixel art
 that reads on every ground, and their twins are retired and deleted.
+
+The run mark, `sport-run.svg`, is not counted either: it is the owner's own
+mark rather than a placeholder (see its row in the icon table), and a
+commission does not cover it.
 
 There are two chest drawings on purpose. `grove/chest.png` is a picture loaded
 by URL with its own colours, used for an inventory square. `icons/chest.svg` is
@@ -505,9 +509,9 @@ not final). None of it is committed; that is the point.
 `frontend/src/assets/grove/ground.svg`
 
 One strip of soil, drawn along the floor of the band across the top of both
-profiles, with the whole plot standing on its top edge. Only the band reads it:
-the plot on the Grove screen and the row in the Home rail draw their plants
-without it.
+profiles, with the whole plot standing on its top edge. The band reads it, and
+so does the shelf the grown pets stand on in the Pets card; the plot on the
+Grove screen and the row in the Home rail still draw their plants without it.
 
 The strip is stretched to the width of the band, which is a phone's screen at
 one end and most of a desktop window at the other, so draw it low and wide and
@@ -643,7 +647,7 @@ and there is no gilding over the last stage: the third drawing is the end of it.
 The three stages are young, half grown, and grown, and they have to part on
 **silhouette** rather than on detail. They are shown at about 72 pixels for the
 growing one on the Pets card, and at 48, native size, for the grown ones on the
-card's floor and in the row of residents on a friend's profile, and at that
+shelf under Other pets and in the row of residents on a friend's profile, and at that
 size a feature thinner than three pixels is eaten by
 the outline ring: the placeholder set grows the whole animal from stage to stage,
 24 pixels tall young, 32 half grown and 40 grown, and carries the species' own

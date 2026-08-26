@@ -129,7 +129,8 @@ family earns it. Manna comes back as what the surviving workouts are worth, less
 what has already been spent and plus what friends gave.
 
 Nothing anybody chose is rebuilt either. What is in the inventory, what has been
-planted, and every anointing given or received stay exactly as they are. A boost
+planted, every pet with its name and its stage, and every anointing given or
+received stay exactly as they are. A boost
 potion raises a chest the miles had already earned rather than dropping one of
 its own, so every chest goes and comes back off the ladder; an anointing already
 spent stays spent, and the chest it lifted comes back unlifted.

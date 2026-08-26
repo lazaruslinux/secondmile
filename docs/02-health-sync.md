@@ -1,4 +1,4 @@
-# Syncing workouts from Apple Health
+# Syncing workouts
 
 secondmile ingests workouts through Health Auto Export, an iPhone app that
 reads Apple Health and posts JSON to a URL you choose. Anything that records

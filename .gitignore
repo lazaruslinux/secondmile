@@ -66,3 +66,4 @@ CLAUDE-archive.md
 
 # Deploy helpers are staged outside the repo; they carry instance specifics.
 deploy-*.sh
+CLAUDE.md.bak-*
