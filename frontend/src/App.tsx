@@ -459,7 +459,13 @@ export default function App() {
             the licence. The licence stays when the alpha ends. */}
         <footer className="page-foot">
           {ALPHA && <p className="page-foot-alpha">{ALPHA_LINE}</p>}
-          <p>secondmile. Open source, AGPL-3.0.</p>
+          <p>
+            secondmile. Open source, AGPL-3.0. Developed by{' '}
+            <a href="https://lazaruslinux.com" target="_blank" rel="noopener">
+              Lazarus Labs
+            </a>
+            .
+          </p>
         </footer>
       </main>
 

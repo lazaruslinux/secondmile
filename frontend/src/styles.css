@@ -6648,13 +6648,16 @@ button:disabled {
 }
 
 /* The credit sits in the footer's own sentence, so it takes that sentence's
-   colour and is marked as a link by the underline alone. */
-.landing-foot a {
+   colour and is marked as a link by the underline alone. One rule serves the
+   landing foot and the in-app page foot: the same sentence ends both. */
+.landing-foot a,
+.page-foot a {
   color: var(--muted);
   text-decoration: underline;
 }
 
-.landing-foot a:hover {
+.landing-foot a:hover,
+.page-foot a:hover {
   color: var(--text);
 }
 
