@@ -2070,11 +2070,47 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
+/* The reading, and the route beside it, held under the top bar while the lanes
+   scroll past: a stack of lanes is taller than the phone, and a line naming
+   what the cursor is on is no use above the top of the view. Opaque and on the
+   card's own colour, or the lanes would climb through it on their way up. */
+.lane-follow {
+  position: sticky;
+  top: var(--topbar-h);
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.4rem 0;
+  background: var(--surface);
+}
+
+/* The sketch is the same control it is on a history row, held to the box it
+   draws itself in: everywhere else it is a strip across the width it is given,
+   and here the width it is given belongs to the words beside it. The row's own
+   spacing stands in for the margins it carries elsewhere. */
+.lane-follow .route-map-small {
+  flex: 0 0 96px;
+  width: 96px;
+  margin: 0;
+}
+
+/* The row carries the spacing now, and the line inside it carries none. */
+.lane-follow .lane-readout {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
 /* A drag across the lanes reads them and a drag down the page still scrolls it,
    which is what pan-y buys: taking the whole gesture would trap a thumb on a
-   chart that is a third of the screen. */
+   chart that is a third of the screen. A drag that reads is not a drag that
+   selects: without this a thumb held on the lanes starts highlighting the page
+   around them, and iOS wants to be told in its own words. */
 .lane-stack {
   touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .lane + .lane {

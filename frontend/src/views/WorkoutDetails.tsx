@@ -460,6 +460,30 @@ function kcalLabel(kcal: number): string {
   return String(Math.round(kcal))
 }
 
+// The stretch of readings a lane's axis is worth setting to. A minute spent
+// nearly stopped is a true reading and it is still drawn, but sixty seconds
+// over nine thousandths of a mile is an hour and a half a mile, and an axis
+// stretched far enough to name that leaves every honest minute pressed into one
+// flat line at the top. So the ends come from the readings within a third and
+// three times the middle one, and a reading outside them hangs off the lane
+// where the drawing clips it. A run paced evenly enough that the kept readings
+// are all one value keeps that value as both ends anyway - a flat line and a
+// dive is the honest picture, where reaching back for the plain ends would
+// hand the axis to the outlier the band was drawn against. Only when the
+// readings are all outliers of one another is there no typical to find, and
+// the plain ends are the truest thing there is.
+function typicalBounds(values: number[]): [number, number] {
+  if (values.length === 0) return [0, 1]
+  const plain: [number, number] = [Math.min(...values), Math.max(...values)]
+  const sorted = [...values].sort((a, b) => a - b)
+  const half = Math.floor(sorted.length / 2)
+  const median = sorted.length % 2 === 0 ? (sorted[half - 1] + sorted[half]) / 2 : sorted[half]
+  if (median <= 0) return plain
+  const kept = sorted.filter((value) => value >= median / 3 && value <= median * 3)
+  if (kept.length === 0) return plain
+  return [kept[0], kept[kept.length - 1]]
+}
+
 // The lanes a workout has anything to draw, in the order they are stacked. A
 // lane with fewer than two readings is not a line, and it is left out rather
 // than drawn as a dot.
@@ -517,7 +541,11 @@ function lanesOf(
     const seconds = moving.map((row) => MINUTE_S / toDisplayDistance(row.distance_mi ?? 0, units))
     const fastest = Math.min(...seconds)
     const slowest = Math.max(...seconds)
-    const at = (value: number) => laneY(value, fastest, slowest, true)
+    // The axis is set to the minutes that were actually run; the true ends
+    // still go in the summary, and the crawling minute is still drawn and still
+    // read out honestly when the cursor lands on it.
+    const [quick, slow] = typicalBounds(seconds)
+    const at = (value: number) => laneY(value, quick, slow, true)
     lanes.push({
       key: 'pace',
       chip: 'Pace',
@@ -532,9 +560,9 @@ function lanesOf(
         .join(' '),
       band: '',
       labels: [
-        paceLabel(fastest, activity, units),
-        paceLabel((fastest + slowest) / 2, activity, units),
-        paceLabel(slowest, activity, units),
+        paceLabel(quick, activity, units),
+        paceLabel((quick + slow) / 2, activity, units),
+        paceLabel(slow, activity, units),
       ],
       said: new Map<number, string>(
         moving.map((row) => [row.minute, formatPace(activity, row.distance_mi ?? 0, MINUTE_S, units)]),
@@ -553,7 +581,8 @@ function lanesOf(
     const counts = stepping.map((row) => row.steps ?? 0)
     const low = Math.min(...counts)
     const high = Math.max(...counts)
-    const at = (value: number) => laneY(value, low, high, false)
+    const [floor, roof] = typicalBounds(counts)
+    const at = (value: number) => laneY(value, floor, roof, false)
     lanes.push({
       key: 'cadence',
       chip: 'Cadence',
@@ -563,7 +592,7 @@ function lanesOf(
         .map((row, index) => `${atX(row.minute).toFixed(1)},${at(counts[index]).toFixed(1)}`)
         .join(' '),
       band: '',
-      labels: [String(high), String(Math.round((low + high) / 2)), String(low)],
+      labels: [String(roof), String(Math.round((floor + roof) / 2)), String(floor)],
       said: new Map<number, string>(
         stepping.map((row) => [row.minute, `${Math.round(row.steps ?? 0)} spm`]),
       ),
@@ -582,7 +611,8 @@ function lanesOf(
     const kcal = burning.map((row) => row.active_kcal ?? 0)
     const low = Math.min(...kcal)
     const high = Math.max(...kcal)
-    const at = (value: number) => laneY(value, low, high, false)
+    const [floor, roof] = typicalBounds(kcal)
+    const at = (value: number) => laneY(value, floor, roof, false)
     lanes.push({
       key: 'energy',
       chip: 'Energy',
@@ -594,7 +624,7 @@ function lanesOf(
         .map((row, index) => `${atX(row.minute).toFixed(1)},${at(kcal[index]).toFixed(1)}`)
         .join(' '),
       band: '',
-      labels: [kcalLabel(high), kcalLabel((low + high) / 2), kcalLabel(low)],
+      labels: [kcalLabel(roof), kcalLabel((floor + roof) / 2), kcalLabel(floor)],
       said: new Map<number, string>(
         burning.map((row) => [row.minute, `${kcalLabel(row.active_kcal ?? 0)} kcal`]),
       ),
@@ -625,6 +655,7 @@ function LaneGraph({
   paced,
   places,
   marker,
+  workoutId,
 }: {
   minutes: WorkoutMinute[]
   activity: Activity
@@ -635,6 +666,9 @@ function LaneGraph({
   // Empty on a workout with no line to put one on.
   places: Map<number, number>
   marker: RefObject<RouteMarker | null>
+  // For the sketch that rides along with the readout, which fetches nothing:
+  // the points are already in hand by the time this screen has minutes.
+  workoutId: number
 }) {
   const [shown, setShown] = useState<Record<LaneKey, boolean>>({
     hr: true,
@@ -645,6 +679,15 @@ function LaneGraph({
   const plots = useRef(new Map<LaneKey, SVGSVGElement>())
   const rules = useRef(new Map<LaneKey, SVGLineElement>())
   const readout = useRef<HTMLParagraphElement>(null)
+  // The sketch beside the readout carries a dot of its own, and the map at the
+  // top of the screen keeps the one it already had. One cursor reads one
+  // minute, so both are driven together and neither is told which it is.
+  const strip = useRef<RouteMarker | null>(null)
+  const dots = [marker, strip]
+  // The minute a tap settled on. A finger that lifts has not stopped reading,
+  // so the choice outlives the gesture; null is nothing chosen, which is what
+  // the hint line and a passing hover both are.
+  const pinned = useRef<number | null>(null)
 
   const first = minutes[0]?.minute ?? 0
   const last = minutes[minutes.length - 1]?.minute ?? 0
@@ -654,24 +697,18 @@ function LaneGraph({
   if (lanes.length === 0) return null
 
   function clearCursor() {
+    pinned.current = null
     for (const rule of rules.current.values()) {
       rule.setAttribute('visibility', 'hidden')
     }
-    marker.current?.clear()
+    for (const dot of dots) dot.current?.clear()
     if (readout.current) readout.current.textContent = CURSOR_HINT
   }
 
-  // Where the pointer is, as the minute nearest it, drawn in every lane at
-  // once. Every lane's plot sits in the same column at the same width, so one
-  // of their boxes is every lane's box and the rule lands at the same x in all
-  // of them.
-  function readAt(event: PointerEvent<HTMLDivElement>) {
-    const plot = plots.current.values().next().value
-    if (!plot) return
-    const box = plot.getBoundingClientRect()
-    if (box.width <= 0) return
-    const part = Math.min(1, Math.max(0, (event.clientX - box.left) / box.width))
-    const minute = first + Math.round(part * across)
+  // One minute, drawn in every lane at once. Every lane's plot sits in the same
+  // column at the same width, so one of their boxes is every lane's box and the
+  // rule lands at the same x in all of them.
+  function drawAt(minute: number) {
     const x = atX(minute).toFixed(1)
     for (const rule of rules.current.values()) {
       rule.setAttribute('x1', x)
@@ -682,7 +719,9 @@ function LaneGraph({
     // line to say. A minute the phone was not recording has no place on it, and
     // the dot waits there rather than jumping to an end of the line.
     const place = places.get(minute)
-    if (place !== undefined) marker.current?.at(place)
+    if (place !== undefined) {
+      for (const dot of dots) dot.current?.at(place)
+    }
     // A row is a whole minute rather than an instant, so the reading is named
     // at the middle of the minute it came out of rather than at either end.
     const parts = [formatClock(minute * MINUTE_S + MINUTE_S / 2)]
@@ -691,6 +730,30 @@ function LaneGraph({
       if (value !== undefined) parts.push(value)
     }
     if (readout.current) readout.current.textContent = parts.join(' · ')
+  }
+
+  // Where the pointer is, as the minute nearest it. Pinning is what a deliberate
+  // gesture does: a tap, and a drag of either kind. A mouse crossing the lanes
+  // with no button held is only looking, and looking leaves the choice alone.
+  function readAt(event: PointerEvent<HTMLDivElement>, pin: boolean) {
+    const plot = plots.current.values().next().value
+    if (!plot) return
+    const box = plot.getBoundingClientRect()
+    if (box.width <= 0) return
+    const part = Math.min(1, Math.max(0, (event.clientX - box.left) / box.width))
+    const minute = first + Math.round(part * across)
+    if (pin) pinned.current = minute
+    drawAt(minute)
+  }
+
+  // A pointer leaving is not the reading ending. A phone has nothing else to do
+  // with a finger once it lifts, and wiping the line then would leave the reader
+  // holding nothing; a mouse wandering off goes back to the minute that was
+  // chosen rather than to whatever it grazed on the way out. With nothing chosen
+  // there is nothing to go back to, and the hint returns.
+  function restoreCursor() {
+    if (pinned.current !== null) drawAt(pinned.current)
+    else clearCursor()
   }
 
   return (
@@ -725,9 +788,18 @@ function LaneGraph({
         </ul>
       )}
 
-      <p className="lane-readout" role="status" ref={readout}>
-        {CURSOR_HINT}
-      </p>
+      {/* The reading follows the lanes down the screen. A stack of three lanes
+          is taller than the phone it is read on, and a line naming what the
+          cursor is on is no use parked above the top of the view. The route
+          comes with it: the same dot the map at the top of the screen is
+          carrying, in a sketch small enough to ride along. A workout that never
+          drew a line renders nothing there and the row is the line alone. */}
+      <div className="lane-follow">
+        <RouteLine workoutId={workoutId} compact marker={strip} />
+        <p className="lane-readout" role="status" ref={readout}>
+          {CURSOR_HINT}
+        </p>
+      </div>
 
       <div
         className="lane-stack"
@@ -735,11 +807,13 @@ function LaneGraph({
           // Capture, so a thumb dragging off the edge of one lane keeps
           // reading rather than handing the drag back to the page.
           event.currentTarget.setPointerCapture(event.pointerId)
-          readAt(event)
+          readAt(event, true)
         }}
-        onPointerMove={readAt}
-        onPointerLeave={clearCursor}
-        onPointerCancel={clearCursor}
+        onPointerMove={(event) => {
+          readAt(event, !(event.pointerType === 'mouse' && event.buttons === 0))
+        }}
+        onPointerLeave={restoreCursor}
+        onPointerCancel={restoreCursor}
       >
         {lanes
           .filter((lane) => shown[lane.key])
@@ -1130,6 +1204,7 @@ export default function WorkoutDetails({ item, gear, units, onBack }: Props) {
         paced={paced}
         places={places}
         marker={marker}
+        workoutId={item.workout_id}
       />
 
       {ceiling !== null && inZones > 0 && (

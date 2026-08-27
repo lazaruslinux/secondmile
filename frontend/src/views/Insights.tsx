@@ -336,6 +336,10 @@ export default function Insights({ units }: Props) {
   const plots = useRef(new Map<ChartKey, SVGSVGElement>())
   const rules = useRef(new Map<ChartKey, SVGLineElement>())
   const readout = useRef<HTMLParagraphElement>(null)
+  // The bucket a tap settled on, by its place in the run. A finger that lifts
+  // has not stopped reading, so the choice outlives the gesture; null is nothing
+  // chosen, which is what the hint line and a passing hover both are.
+  const pinned = useRef<number | null>(null)
 
   useEffect(() => {
     if (!open || asked.current) return
@@ -368,25 +372,21 @@ export default function Insights({ units }: Props) {
   const charts = insights === null || sport === null ? [] : chartsOf(buckets, sport, units, span)
 
   function clearCursor() {
+    pinned.current = null
     for (const rule of rules.current.values()) {
       rule.setAttribute('visibility', 'hidden')
     }
     if (readout.current) readout.current.textContent = HINT[span]
   }
 
-  // Where the pointer is, as the bucket nearest it, drawn in every chart at
-  // once. Every chart sits in the same column at the same width, so one of
-  // their boxes is every chart's box and the rule lands at the same x in all of
-  // them. The rule and the words are written straight onto the drawing through
-  // refs: the content security policy allows no inline styles, so a position
-  // worked out per pointer event has nowhere else to go.
-  function readAt(event: PointerEvent<HTMLDivElement>) {
-    const plot = plots.current.values().next().value
-    if (!plot || sport === null) return
-    const box = plot.getBoundingClientRect()
-    if (box.width <= 0) return
-    const part = Math.min(1, Math.max(0, (event.clientX - box.left) / box.width))
-    const index = Math.min(buckets.length - 1, Math.floor(part * buckets.length))
+  // One bucket, drawn in every chart at once. Every chart sits in the same
+  // column at the same width, so one of their boxes is every chart's box and
+  // the rule lands at the same x in all of them. The rule and the words are
+  // written straight onto the drawing through refs: the content security policy
+  // allows no inline styles, so a position worked out per pointer event has
+  // nowhere else to go.
+  function drawAt(index: number) {
+    if (sport === null) return
     const bucket = buckets[index]
     if (bucket === undefined) return
     const x = atX(index, buckets.length).toFixed(1)
@@ -405,6 +405,30 @@ export default function Insights({ units }: Props) {
     const pace = paceOf(bucket, units)
     if (pace !== null) said.push(paceText(pace, sport, units))
     if (readout.current) readout.current.textContent = said.join(' · ')
+  }
+
+  // Where the pointer is, as the bucket nearest it. Pinning is what a deliberate
+  // gesture does: a tap, and a drag of either kind. A mouse crossing the charts
+  // with no button held is only looking, and looking leaves the choice alone.
+  function readAt(event: PointerEvent<HTMLDivElement>, pin: boolean) {
+    const plot = plots.current.values().next().value
+    if (!plot) return
+    const box = plot.getBoundingClientRect()
+    if (box.width <= 0) return
+    const part = Math.min(1, Math.max(0, (event.clientX - box.left) / box.width))
+    const index = Math.min(buckets.length - 1, Math.floor(part * buckets.length))
+    if (pin) pinned.current = index
+    drawAt(index)
+  }
+
+  // A pointer leaving is not the reading ending. A phone has nothing else to do
+  // with a finger once it lifts, and wiping the line then would leave the reader
+  // holding nothing; a mouse wandering off goes back to the bucket that was
+  // chosen rather than to whatever it grazed on the way out. With nothing chosen
+  // there is nothing to go back to, and the hint returns.
+  function restoreCursor() {
+    if (pinned.current !== null) drawAt(pinned.current)
+    else clearCursor()
   }
 
   return (
@@ -508,11 +532,13 @@ export default function Insights({ units }: Props) {
                       // keeps reading rather than handing the drag back to the
                       // page.
                       event.currentTarget.setPointerCapture(event.pointerId)
-                      readAt(event)
+                      readAt(event, true)
                     }}
-                    onPointerMove={readAt}
-                    onPointerLeave={clearCursor}
-                    onPointerCancel={clearCursor}
+                    onPointerMove={(event) => {
+                      readAt(event, !(event.pointerType === 'mouse' && event.buttons === 0))
+                    }}
+                    onPointerLeave={restoreCursor}
+                    onPointerCancel={restoreCursor}
                   >
                     {charts.map((chart) => (
                       <div className="lane" key={chart.key}>
