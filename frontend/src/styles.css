@@ -14,7 +14,11 @@
    touched animal, which answers the touch itself: a fed or patted pet hops, a
    sleeping one stirs where it would have hopped, and a pat floats a heart that
    now and then comes up gold. Those are the only keyframes in the file, and
-   every one of them is stilled where stillness is asked for. */
+   every one of them is stilled where stillness is asked for.
+
+   From 900px up the controls are right-sized rather than redrawn: intrinsic
+   widths and a 2.25rem height, written only inside the desktop block, so a
+   phone keeps every metric it was made with. */
 
 /* The typefaces, bundled rather than fetched. Nothing in this app loads from
    another origin, so a font cannot be an exception: a Google Fonts link would
@@ -6240,6 +6244,110 @@ button:disabled {
     width: 2.2rem;
     height: 2.2rem;
   }
+
+  /* The controls, right-sized. A pointer does not need the 44px a thumb does,
+     and a submit stretched the width of the column reads as another field
+     rather than the verb that ends the form. Heights come down to 2.25rem and
+     the things you press take the width of their own words. None of this is
+     drawn below 900px: the phone keeps the targets it was made with. */
+  .primary,
+  .secondary,
+  .icon-button,
+  .choice-option,
+  .dash-select,
+  .deleted-pill {
+    min-height: 2.25rem;
+    padding-block: 0.4rem;
+  }
+
+  /* A form is a column that stretches what is in it, so the submit is told to
+     size to its own words and stand at the left instead. The floor keeps a one
+     word verb from shrinking to a stub. */
+  form > .primary,
+  form > .secondary {
+    align-self: flex-start;
+    min-width: 7rem;
+  }
+
+  /* The gate is the exception. Signing in and making an account are the whole
+     screen there, so that submit stays the width of the card it sits in. */
+  .gate form > .primary,
+  .gate form > .secondary {
+    align-self: stretch;
+    min-width: 0;
+  }
+
+  /* The cheer under a feed card is a row rather than a column, so its Send was
+     never stretched and the rule above would only lift it off the field's
+     line. */
+  .encourage-form > .primary {
+    align-self: auto;
+    min-width: 0;
+  }
+
+  /* The Privacy Save is not a submit, so the rule above cannot reach it. Its
+     row already sizes it to its words; this is only the same floor, so it
+     matches the Save on every other card. */
+  .privacy-save .primary {
+    min-width: 7rem;
+  }
+
+  /* The segmented toggles are sized to their words too, rather than splitting
+     the width of a desktop column between two of them. */
+  .choice {
+    width: max-content;
+  }
+
+  .choice-option {
+    flex: 0 0 auto;
+    min-width: 6.5rem;
+    padding-inline: 1.1rem;
+  }
+
+  /* The Activity toolbar. The shape toggle stops growing, and Select is held at
+     its far right post by the margin rather than by the toggle behind it. */
+  .dash-shape {
+    flex: 0 0 auto;
+  }
+
+  .dash-top .dash-select {
+    margin-left: auto;
+  }
+
+  /* The sort key and the direction share one line. The base rule already sits
+     them on their bottom edges, which is what keeps the caption above the
+     select from pushing the pills down, so only the widths are written here. */
+  .dash-field {
+    flex: 0 0 auto;
+  }
+
+  .dash-field select {
+    width: auto;
+    min-width: 9rem;
+    min-height: 2.25rem;
+  }
+
+  .dash-acts .primary {
+    flex: 0 0 auto;
+  }
+
+  /* A dialog's foot. The buttons sit at the left in a row here, the way Save
+     and Cancel do on every card, and a verb standing on its own centres under
+     what it answers. The foot is a row only from here: on a phone its buttons
+     are full width and stack, which needs no flex at all. */
+  .overlay-foot {
+    display: flex;
+    gap: 0.6rem;
+  }
+
+  .overlay-foot button {
+    width: auto;
+    min-width: 7rem;
+  }
+
+  .overlay-foot button:only-child {
+    margin-inline: auto;
+  }
 }
 
 /* Hover, on the machines that have a pointer to hover with. Nothing moves and
@@ -6247,14 +6355,26 @@ button:disabled {
    shell the rest of this sheet is drawn as. A phone never matches the query, so
    none of this can stick to a control after it is tapped.
 
-   The filter chips, the sort pills and the sections in the top bar are left out
-   on purpose. Each of them already says which one is on by turning crimson, and
-   a hover written here would outrank that and grey out the very one being
-   pointed at. */
+   The one that is on is left out, wherever it appears. A chosen filter chip, a
+   chosen sort pill and the section already being read each say so by turning
+   crimson, and a hover written over that would grey out the very one being
+   pointed at. The others answer, named by :not so the crimson always wins: a
+   pointer should be able to tell what is pressable before it presses. */
 @media (hover: hover) and (pointer: fine) {
   .secondary:hover,
   .icon-button:hover {
     border-color: var(--line-strong);
+    background: var(--panel);
+  }
+
+  .choice-option:not(.choice-current):hover,
+  .filter-chip:not(.filter-chip-on):hover {
+    border-color: var(--line-strong);
+    background: var(--panel);
+  }
+
+  /* The sections in the bar carry no border, so this is the ground alone. */
+  .topnav-item:not(.topnav-current):hover {
     background: var(--panel);
   }
 
