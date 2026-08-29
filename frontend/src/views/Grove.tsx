@@ -756,7 +756,7 @@ export default function Grove({ userId, onFruitReady }: Props) {
                       disabled={busy || inBasket === 0}
                       onClick={() => openPetStep({ at: 'feedPet', pet: growing })}
                     >
-                      <Icon name="feed" />
+                      <Icon name="fruit" />
                     </button>
                   </div>
                 </div>
@@ -863,7 +863,7 @@ export default function Grove({ userId, onFruitReady }: Props) {
                   setStep({ at: 'feedAll' })
                 }}
               >
-                <Icon name="feed" />
+                <Icon name="fruit" />
                 Feed all
               </button>
             )}
@@ -973,7 +973,7 @@ export default function Grove({ userId, onFruitReady }: Props) {
                           setStep({ at: 'feed', plant: row })
                         }}
                       >
-                        <Icon name="feed" />
+                        <Icon name="fruit" />
                       </button>
                     )}
                     {waterHeld > 0 && !row.gilded && (

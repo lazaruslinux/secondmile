@@ -16,7 +16,7 @@ whole of what a commission would cover.
 | Medals | 32 | One face per medal in the catalogue | You screen, Home rail, feed and Activity chips, avatar slots |
 | Avatar borders | 6 | One per level tier, `border-t1` to `border-t6` | Around every avatar, every screen |
 | Flourishes | 3 | The growth earned by encouraging people, `f1` to `f3` | Over the border, on every avatar |
-| Interface icons | 20 | Tab bar, cheer, gear, pencil, play, eye, caret, chest ladder marker, week diamond, running shoe, the feed sack and water droplet, and the sport marks except the run | Chrome, everywhere |
+| Interface icons | 20 | Tab bar, cheer, gear, pencil, play, eye, caret, chest ladder marker, week diamond, running shoe, the fruit and water marks on the grove's verbs, and the sport marks except the run | Chrome, everywhere |
 | Plants | 39 | Thirteen species at three growth stages each | The plot, and the reveal when a seed is found |
 | Pets | 26 | Six animals at three growth stages each, one sleeping pose apiece, and the pat heart in both its colours | The Pets card on Grove, and the row of residents on a friend's profile |
 | Ground | 1 | The strip of soil a grove stands on, `ground` | The floor of the band across the top of both profiles, and the shelf under the grown pets on the Pets card |
@@ -129,7 +129,7 @@ both.
 | `shoe.svg` | Gear: the Shoes heading on both profiles and the shoe picker in a card's edit panel (feed cards carry no gear) |
 | `eye.svg` | The View public profile button on the You screen |
 | `caret.svg` | The Insights header on Activity, pointing down at the shut band and turned over when it is open |
-| `feed.svg` | The feed button on a plant tile, the Feed all button over the plot, and the feed button on the Pets card |
+| `fruit.svg` | The feed button on a plant tile, the Feed all button over the plot, and the feed button on the Pets card |
 | `water.svg` | The water button on a plant tile and the Water all button over the plot |
 
 Three rules on top of the two above, because these files are placed straight
@@ -166,11 +166,21 @@ by the stylesheet: the file points down, and the header that is open rotates it
 half a turn on the spot. The placeholder is a plain chevron in the same weight
 of line as the rest of this set.
 
-`feed.svg` and `water.svg` are one pair and stand side by side on a plant tile,
+`fruit.svg` and `water.svg` are one pair and stand side by side on a plant tile,
 so they want the same weight of line and the same amount of the square filled.
-The droplet is drawn in `currentColor` like everything else here; the blue it
-wears comes from the stylesheet, so redrawing it never has to know the palette.
-The placeholders are a tied sack and a plain teardrop.
+They also have to be told apart at a glance at about twenty pixels, which is
+what the strawberry's crown is for: without it the two silhouettes are both
+teardrops. The droplet is drawn in `currentColor` like everything else here; the
+blue it wears comes from the stylesheet, so redrawing it never has to know the
+palette. The placeholders are a strawberry and a plain teardrop.
+
+There are two fruit drawings for the same reason there are two chest drawings.
+`grove/fruit.png` is a picture loaded by URL with its own colours, used beside
+the Harvest button, on the basket and in a fruiting plant's corner.
+`icons/fruit.svg` is placed straight into the page and drawn in `currentColor`,
+which is what lets it sit in a button next to a water droplet and take that
+button's colour. They can be redrawn to match each other, but they cannot become
+one file. Both are strawberries, which is the app's own shorthand for fruit.
 
 `sport-treadmill.svg` is the fifth of that set and the odd one out: it is not a
 sport but a place, drawn instead of the walk or run mark when the export named
