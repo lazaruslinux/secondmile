@@ -26,6 +26,10 @@ router = APIRouter(tags=["grove"])
 
 NO_SUCH_ITEM = "No such item."
 TOO_MANY_SPENDS = "Too many spends just now. Wait a minute."
+# Said when the one button that pours on the whole plot has nothing to pour, or
+# nothing to pour onto. One sentence for both, because an empty satchel and a
+# finished plot are the same answer to the same press.
+NOTHING_TO_WATER = "Nothing to water just now."
 
 
 class PourBody(BaseModel):
@@ -199,6 +203,66 @@ def pour_water(
     db.commit()
     # A friend's planting comes back in the shape a friend is allowed to see.
     return grove.serialize_planting(planting) if own else grove.serialize_for_friend(planting)
+
+
+@router.post("/satchel/water-all")
+def water_whole_plot(
+    db: Session = Depends(get_db),
+    user: models.User = Depends(security.current_user),
+) -> dict:
+    """Pour one water onto each of your own plantings that still has room.
+
+    The same act as the single pour, done down the row: one item per plant, ten
+    Miles of growth each, and an event row beside every one of them so a rebuild
+    can put the water back where it went.
+
+    Your own plot only. Watering a friend is the half that pays renown, and it
+    is aimed at one plant belonging to one person on purpose.
+
+    Fewer waters than plants is an ordinary answer rather than a refusal: the
+    oldest plants take them, which is the order the plot is drawn in, and the
+    dialog has already said how many there were to go round.
+    """
+    if throttle.satchel_limiter.hit(throttle.user_key(user)):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, TOO_MANY_SPENDS)
+    progress.process_user(db, user.id)
+    plantings = [
+        row
+        for row in db.execute(
+            select(models.Planting)
+            .where(models.Planting.user_id == user.id)
+            .order_by(models.Planting.id)
+        ).scalars()
+        # Gilded plants have no levels left to put on, so water on one would be
+        # thrown away. The single pour refuses it; here it is simply skipped.
+        if not grove.is_gilded(row)
+    ]
+    items = list(
+        db.execute(
+            select(models.SatchelItem)
+            .where(
+                models.SatchelItem.user_id == user.id,
+                models.SatchelItem.kind == "water",
+                models.SatchelItem.used_at.is_(None),
+            )
+            .order_by(models.SatchelItem.id)
+        ).scalars()
+    )
+    poured = min(len(plantings), len(items))
+    if poured == 0:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, NOTHING_TO_WATER)
+
+    now = security.now_utc()
+    for item, planting in zip(items[:poured], plantings[:poured]):
+        # Claimed one at a time, each before its own water lands, so two presses
+        # racing cannot pour the same item onto two plants.
+        _spend(db, item, now)
+        grove.pour(db, user.id, planting, now)
+    db.commit()
+    return {
+        "poured": poured,
+        "plantings": [grove.serialize_planting(row) for row in plantings[:poured]],
+    }
 
 
 @router.post("/satchel/{item_id}/anoint", status_code=status.HTTP_204_NO_CONTENT)

@@ -58,7 +58,6 @@ LETTER_KEYS = [
     "pets",
     "manna_gifts",
     "fruit_gifts",
-    "composted",
     "workouts",
     "workouts_total",
     "flourish_stage",

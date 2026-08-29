@@ -176,7 +176,6 @@ def process_user(
     # served from the session's identity map.
     born = db.get(models.UserProgress, user_id) is None
     progress = ensure_progress(db, user_id)
-    composted = harvest.compost(db, user_id, now_utc())
     pending = (
         db.execute(
             select(models.Workout)
@@ -224,7 +223,7 @@ def process_user(
     # credited is exactly "markers were written": _claim writes inside a
     # savepoint that rolls back when it loses the race, so a claim that returned
     # false left nothing behind.
-    if credited or composted or born:
+    if credited or born:
         db.commit()
     return progress
 
@@ -860,8 +859,7 @@ def rebuild_from_surviving(db: Session, user_id: int) -> models.UserProgress:
     under them recomputes: the surviving miles have to pay for every season
     already borne before a single new one comes round. Where they no longer cover
     them the meter parks empty, which is never negative and never a second
-    harvest of fruit that has already been gathered, given away, or left to
-    compost.
+    harvest of fruit that has already been gathered or given away.
 
     The first line is fruit_baseline_mi, taken off before the walk begins. Fuel
     the meter never saw is not a season it owes, and replaying it as one is what

@@ -251,9 +251,10 @@ WATER_POUR_MI = 10.0
 # workout should never be worth less than the calories it cost.
 MANNA_STEP_KCAL = 5
 
-# Days gathered FRUIT keeps before composting. Clock starts at the gather, not
-# before: fruit left on the plant never expires, and manna never spoils at all.
-GATHERED_LIFE_DAYS = 7
+# Nothing here keeps a clock on fruit. Gathered fruit used to compost seven days
+# after the gather; HIS WORD 2026-08-29 made it permanent, so fruit on the plant,
+# fruit in the basket and every manna in the bank all keep for good. The rolling
+# per-recipient giving cap below is what keeps a large bank a watering can.
 
 # What feeding a mature plant costs, in manna, for one more fruit on its next
 # bearing, and how many of those may be banked before it bears. Three at 500 is

@@ -10,11 +10,12 @@ release that taught it to would be the design bug the TWO-LANE LAW names.
 Manna is a permanent bank. Calories earn it, spending it lowers it, and it
 never spoils, is never gathered and never counts down.
 
-Spoiling is fruit's alone. Fruit sits on the plant, safe forever; gathering
-brings it in, and gathered fruit lives GATHERED_LIFE_DAYS and then quietly goes
-back to the soil. Nothing counts down there either: the sweep runs when an
-account is already being read or credited, the way every other passive sweep
-here does.
+Nothing spoils here any more. Gathered fruit used to live seven days and then go
+back to the soil, which was the last of the spoilage idea; his word on
+2026-08-29 made it permanent. Fruit on the plant, fruit in the basket and the
+bank beside them all keep for good, and no screen in this file counts down to
+anything. Batches composted before that release keep their stamp and stay gone:
+what happened, happened.
 """
 
 import datetime as dt
@@ -26,7 +27,6 @@ from app import grove, models, species
 from app.config import (
     FRUIT_SEASON_MI,
     FRUIT_YIELD,
-    GATHERED_LIFE_DAYS,
     GOLDEN_FRUIT_PREFIX,
     MANNA_TO_ONE_PERSON_DAYS,
     SERVER_TZ,
@@ -50,9 +50,6 @@ MONTHS = (
     "November",
     "December",
 )
-
-WINDOW = dt.timedelta(days=GATHERED_LIFE_DAYS)
-
 
 # --------------------------------------------------------------------------
 # What a plant bears, and what it is called
@@ -194,8 +191,8 @@ def on_the_plant(db: Session, user_id: int) -> list[models.FruitBatch]:
 
 
 def in_the_basket(db: Session, user_id: int) -> list[models.FruitBatch]:
-    """Fruit already gathered and still there: not composted, not given away,
-    and not eaten down to nothing by a pet."""
+    """Fruit already gathered and still there: not given away, not eaten down
+    to nothing by a pet, and not composted back when fruit still composted."""
     return list(
         db.execute(
             select(models.FruitBatch)
@@ -385,8 +382,8 @@ def gather(db: Session, user_id: int, moment: dt.datetime) -> dict:
     whole: a harvest is a harvest and there is no sense in leaving half of it
     hanging. Manna is not gathered at all any more; it is banked as it is earned.
 
-    What is gathered starts its seven days here and nowhere earlier. What is
-    left on the plant stays safe forever.
+    Gathering starts no clock. What is brought in keeps for good, the same as
+    what is left on the plant.
 
     Flushes but never commits: the caller owns the transaction.
     """
@@ -395,51 +392,6 @@ def gather(db: Session, user_id: int, moment: dt.datetime) -> dict:
         row.gathered_at = moment
     db.flush()
     return {"fruit": sum(row.count for row in fruit), "batches": len(fruit)}
-
-
-def compost(db: Session, user_id: int, moment: dt.datetime) -> int:
-    """Quietly return whatever fruit has been gathered too long to the soil.
-
-    Passive, and run where the account is already being read or credited: this
-    app has no scheduler and wants none. Nothing is announced as it happens and
-    nothing counts down to it; the letter says one soft line afterwards if there
-    is one to say.
-
-    Only gathered fruit ages. Fruit on the plant, fruit already given away, and
-    every manna anybody holds are all untouched: the bank does not spoil.
-
-    Answers with how many batches went back, which is almost always none. The
-    caller runs on every screen in the app and uses this to decide whether the
-    sweep wrote anything worth committing.
-    """
-    cutoff = moment - WINDOW
-    returned = 0
-    for row in db.execute(
-        select(models.FruitBatch).where(
-            models.FruitBatch.user_id == user_id,
-            models.FruitBatch.gathered_at.is_not(None),
-            models.FruitBatch.gathered_at <= cutoff,
-            models.FruitBatch.composted_at.is_(None),
-            models.FruitBatch.given_at.is_(None),
-            # A batch a pet ate is gone rather than returned, and the letter's
-            # one soft line is about fruit that went back to the soil.
-            models.FruitBatch.count > 0,
-        )
-    ).scalars():
-        row.composted_at = moment
-        returned += 1
-    db.flush()
-    return returned
-
-
-def composted_since(db: Session, user_id: int, since: dt.datetime | None) -> bool:
-    """Whether any fruit went back to the soil since the letter was put down."""
-    fruit = select(models.FruitBatch.id).where(
-        models.FruitBatch.user_id == user_id, models.FruitBatch.composted_at.is_not(None)
-    )
-    if since is not None:
-        fruit = fruit.where(models.FruitBatch.composted_at > since)
-    return db.execute(fruit.limit(1)).first() is not None
 
 
 # --------------------------------------------------------------------------
@@ -535,9 +487,8 @@ def harvest_since(db: Session, user_id: int, since: dt.datetime | None) -> list[
 
     Piled by name rather than listed by batch, because the letter tells the
     story of a harvest and four banana trees bearing is one sentence. Counted
-    whatever became of it afterwards: gathering it, giving it away, feeding it
-    to a pet, or leaving it to compost are all things that happened after the
-    news.
+    whatever became of it afterwards: gathering it, giving it away and feeding
+    it to a pet are all things that happened after the news.
 
     Read off borne_count for exactly that reason. The live count is what is left
     of a batch, and a grove that bore three strawberries and fed them to a pet

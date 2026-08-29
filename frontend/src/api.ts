@@ -730,9 +730,13 @@ export interface Pet {
   // 1 young, 2 half grown, 3 grown, which is which drawing it wears.
   stage: number
   fruit_fed: number
-  // Where the quiet bar is full, or null for a grown one with nothing left to
-  // fill. Never a number of fruit still owed: nothing counts down here.
+  // The next crossing, or null for a grown one with nothing left to cross.
   next_fruit: number | null
+  // Where the bar ends: the fruit a pet is fully grown at. The meter fills
+  // toward this one number for the whole of its growing, so the count beside it
+  // and the fill can never disagree. Optional, so an older server costs the
+  // reading on the card and not the card.
+  grown_fruit?: number
   grown: boolean
   arrived_at: string
 }
@@ -758,6 +762,11 @@ export interface HarvestState {
   ready: boolean
   feed_cost: number
   feed_cap: number
+  // Unspent water in the satchel. It rides here because the plot draws a water
+  // button per plant and one over the row, and this is the payload that screen
+  // already reads. Optional, so an older server hides the buttons rather than
+  // breaking the screen.
+  water_held?: number
   // How long a season runs and how far into it the miles have got, both in XP.
   // No dates anywhere: the miles are the season.
   season_mi: number
@@ -918,9 +927,6 @@ export interface RecapState {
   // What the grove's animals did: one arrived, one grew, one finished growing.
   // One sentence each, and the only place the app says anything about them.
   pets?: { species?: string; name?: string; stage?: number; event?: string }[]
-  // Whether anything gathered went back to the soil since the last letter. One
-  // soft line, said afterwards; nothing counted down to it.
-  composted?: boolean
   // The newest workouts that arrived, capped by the server, and how many there
   // really were. The cap is why the count travels: a list of ten out of a
   // hundred and fifty has to say so.
@@ -1606,6 +1612,13 @@ export async function pourWater(itemId: number, plantingId: number): Promise<voi
   await sendJson(`/satchel/${itemId}/pour`, 'POST', { planting_id: plantingId })
 }
 
+// One water onto each of your own plantings that still has room, oldest first.
+// Fewer waters than plants is an ordinary answer: it pours what there is.
+export async function waterWholePlot(): Promise<{ poured: number }> {
+  const res = await send('/satchel/water-all', { method: 'POST' })
+  return (await res.json()) as { poured: number }
+}
+
 // Oil goes onto a friend and says nothing to them. A 409 means one is already
 // waiting on that person.
 export async function anointFriend(itemId: number, userId: number): Promise<void> {
@@ -1628,6 +1641,16 @@ export async function gatherHarvest(): Promise<Gathered> {
 // that plant's next bearing and nothing else: never growth.
 export async function feedPlant(plantingId: number, bonus = 1): Promise<void> {
   await sendJson('/harvest/feed', 'POST', { planting_id: plantingId, bonus })
+}
+
+// The same act down the whole of your own row: one more fruit on every grown
+// plant that still has room, charged in one go. Your own grove only, so it earns
+// nobody anything. Answers with the state it left behind.
+export async function feedWholePlot(): Promise<
+  HarvestState & { fed: number; manna_spent: number }
+> {
+  const res = await send('/harvest/feed-all', { method: 'POST' })
+  return (await res.json()) as HarvestState & { fed: number; manna_spent: number }
 }
 
 // Hand a friend raw manna. It joins their bank, theirs to spend at once, and

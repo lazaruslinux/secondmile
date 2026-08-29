@@ -185,7 +185,9 @@
   --success-line: #23492e;
   /* The four stat chips and the grove card's three areas, each of which names
      itself in its own colour on its own left edge. The faint wash behind them
-     is mixed from the same token, so a light variant carries its own tint. */
+     is mixed from the same token, so a light variant carries its own tint.
+     --grove-water is not an area: it is the blue the water droplet wears on a
+     plant tile, kept here so the icon file stays currentColor like the rest. */
   --chip-miles: #4a9eda;
   --chip-activities: #3fbfb0;
   --chip-level: #a855f7;
@@ -193,6 +195,7 @@
   --grove-manna: #d9a441;
   --grove-season: #4caf7d;
   --grove-basket: #b08d57;
+  --grove-water: #4a9eda;
   /* The alpha notice on the landing page, in the mustard that is not gold. */
   --landing-alpha: #e0b542;
   /* A personal record on an activity card. The medals chip's own mustard,
@@ -257,6 +260,7 @@
   --record: #8f6f14;
   --grove-season: #1f7a4d;
   --grove-basket: #7a5c2e;
+  --grove-water: #2b71b0;
   --landing-alpha: #8f6f14;
   --alpha-chip: #b3126e;
 }
@@ -290,6 +294,7 @@
   --record: #ffc94d;
   --grove-season: #4ee6a8;
   --grove-basket: #a06bff;
+  --grove-water: #55d0ff;
 }
 
 /* What the skin does past colour: a cyan edge on the panels and a red one on
@@ -4733,11 +4738,56 @@ button:disabled {
   color: var(--muted);
 }
 
-/* The one verb on a plant tile. It sits at the foot of the tile whatever else
-   the tile carries, so a row of plants keeps one line of buttons. */
-.plant-feed {
+/* The verbs on a plant tile. They sit at the foot of it whatever else the tile
+   carries, so a row of plants keeps one line of buttons. */
+.plant-verbs {
   margin-top: auto;
-  align-self: flex-start;
+  display: flex;
+  gap: 0.35rem;
+}
+
+/* A verb with a mark instead of a word, for the places two of them have to sit
+   side by side in a tile narrower than either word. Square rather than sized to
+   its contents, because a row of them is read as a row: the base button rule
+   already gives it the app's radius and its 44px floor, and this only stops the
+   padding from stretching it sideways. */
+.verb-square {
+  min-width: 44px;
+  padding-inline: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.verb-square .icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+/* The one drop of colour on either verb. Water is the only thing in the grove
+   that is a thing rather than an amount, and the blue is how it is told from the
+   sack beside it at a glance. The file itself is currentColor like every other
+   icon; this is the only place that colour is decided. */
+.verb-water .icon {
+  color: var(--grove-water);
+}
+
+/* The two buttons that act on the whole plot, over it rather than in it. They
+   wrap rather than overflow, the way every other button row in this app does,
+   and they carry their word as well as their mark: there is room here, and
+   "all" is the half that matters. */
+.plot-verbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+
+.plot-verbs .icon {
+  width: 1.05rem;
+  height: 1.05rem;
+  margin-inline-end: 0.4rem;
 }
 
 /* The two areas of the Pets card, each one a word over a block: the animal
@@ -4932,8 +4982,18 @@ button:disabled {
   gap: 0.4rem;
 }
 
-.pet-meter-block .word-mark {
-  margin-inline-end: 0;
+/* The reading at the meter's edge, in place of the picture that used to sit
+   there: the word and the count together, so the bar is never a fill with
+   nothing to read off it. Small, tabular and never wrapped, because it sits in
+   a flex row that the bar beside it is allowed to shrink in. */
+.pet-meter-mark {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
 }
 
 /* Capped here and nowhere else: the shared meter still spans its column on
@@ -6332,6 +6392,12 @@ button:disabled {
      the width of a desktop column between two of them. */
   .choice {
     width: max-content;
+  }
+
+  /* The You edit row is three buttons, not a segmented toggle: it keeps the
+     wrap the base rule gives it instead of being sized to one long line. */
+  .profile-edit .choice {
+    width: auto;
   }
 
   .choice-option {

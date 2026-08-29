@@ -387,6 +387,55 @@ def test_feeding_moves_nothing_in_the_earning_lane(signed_in, db_session, member
     assert renown_of(db_session, member.id) == renown_before
 
 
+def test_feeding_past_the_last_crossing_is_refused(signed_in, db_session, member):
+    """His rule 2026-08-29: a feeding larger than what is left to grow used to
+    swallow the remainder whole. Refused at the door now, and the basket is
+    untouched, so nothing is burned for nothing."""
+    pet = give_pet(db_session, member.id, "sheep")
+    give_basket(db_session, member.id, THIRD + 10)
+
+    refused = feed(signed_in, THIRD + 1)
+    assert refused.status_code == 400
+    db_session.expire_all()
+    assert db_session.get(models.Pet, pet.id).fruit_fed == 0
+    assert harvest_state(signed_in)["basket"][0]["count"] == THIRD + 10
+
+
+def test_exactly_what_is_left_to_grow_is_allowed(signed_in, db_session, member):
+    """The line is at the last crossing and not before it: the Max the card
+    offers is the most anybody can hand over, and it goes through."""
+    give_pet(db_session, member.id, "sheep")
+    give_basket(db_session, member.id, THIRD + 10)
+
+    body = feed(signed_in, THIRD).json()["pet"]
+    assert (body["fruit_fed"], body["stage"], body["grown"]) == (THIRD, 3, True)
+    assert harvest_state(signed_in)["basket"][0]["count"] == 10
+
+
+def test_the_room_left_counts_what_has_already_been_fed(signed_in, db_session, member):
+    """Cumulative, like the crossings themselves. A pet part way along has room
+    for the difference and not for the whole ladder again."""
+    give_pet(db_session, member.id, "sheep")
+    give_basket(db_session, member.id, THIRD * 2)
+    feed(signed_in, SECOND)
+
+    assert feed(signed_in, THIRD - SECOND + 1).status_code == 400
+    assert feed(signed_in, THIRD - SECOND).status_code == 200
+
+
+def test_the_card_is_told_where_the_meter_ends(signed_in, db_session, member):
+    """The bar fills toward one number for the whole of a pet's growing, so the
+    count beside it and the fill can never disagree."""
+    give_pet(db_session, member.id, "sheep")
+    give_basket(db_session, member.id, SECOND)
+
+    pet = harvest_state(signed_in)["pets"][0]
+    assert (pet["grown_fruit"], pet["next_fruit"]) == (THIRD, SECOND)
+
+    grown = feed(signed_in, SECOND).json()["pet"]
+    assert (grown["grown_fruit"], grown["next_fruit"]) == (THIRD, THIRD)
+
+
 # --------------------------------------------------------------------------
 # Naming
 # --------------------------------------------------------------------------
@@ -396,12 +445,32 @@ def name(client, pet_id: int, sent):
     return client.post(f"/api/pets/{pet_id}/name", json={"name": sent})
 
 
-def test_a_pet_goes_by_its_species_word_until_it_is_named(signed_in, db_session, member):
+def test_a_pet_goes_by_its_species_and_drawing_until_it_is_named(
+    signed_in, db_session, member
+):
+    """His pick 2026-08-29: an unnamed one is called by what it is and how far
+    along it is, capitalised, and the grown one drops the qualifier."""
     pet = give_pet(db_session, member.id, "rooster")
-    assert pets.serialize(pet)["display_name"] == "rooster"
+    assert pets.serialize(pet)["display_name"] == "Baby Rooster"
+
+    pet.stage = 2
+    assert pets.serialize(pet)["display_name"] == "Young Rooster"
+
+    pet.stage = 3
+    assert pets.serialize(pet)["display_name"] == "Rooster"
 
     body = name(signed_in, pet.id, "Boaz").json()
     assert (body["name"], body["display_name"]) == ("Boaz", "Boaz")
+
+
+def test_a_named_pet_keeps_its_name_at_every_drawing(signed_in, db_session, member):
+    """The stage word stands in for a name and never sits in front of one."""
+    pet = give_pet(db_session, member.id, "wolf")
+    name(signed_in, pet.id, "Ari")
+    db_session.refresh(pet)
+    for stage in (1, 2, 3):
+        pet.stage = stage
+        assert pets.serialize(pet)["display_name"] == "Ari"
 
 
 def test_a_name_is_stripped_of_control_bytes_and_capped(signed_in, db_session, member):
@@ -418,7 +487,7 @@ def test_a_blank_name_takes_it_back_off(signed_in, db_session, member):
     name(signed_in, pet.id, "Dusk")
     body = name(signed_in, pet.id, "   ").json()
     assert body["name"] is None
-    assert body["display_name"] == "bat"
+    assert body["display_name"] == "Baby Bat"
 
 
 def test_a_grown_pet_can_still_be_renamed(signed_in, db_session, member):

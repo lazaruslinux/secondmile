@@ -16,6 +16,7 @@ every rule in this app lives.
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app import fellowship, grove, harvest, models, pets, progress, security, throttle
@@ -42,6 +43,10 @@ NOT_ENOUGH_FRUIT = "You do not have that much fruit in your basket."
 # it is a limit, not a timer.
 TOO_MUCH_FOR_ONE = "That is more manna than you can give one person just now."
 TOO_MANY_SPENDS = "Too many spends just now. Wait a minute."
+# Said when the one button that acts on the whole plot has nothing to act on.
+# Its own sentence rather than the single plant's, because a grove with nothing
+# grown in it and a grove already fed to the brim are the same answer here.
+NOTHING_TO_FEED = "Nothing in your grove can take a feeding just now."
 
 
 class FeedBody(BaseModel):
@@ -86,6 +91,21 @@ def _within_cap(db: Session, user_id: int, to_user_id: int, amount: int) -> None
         raise HTTPException(status.HTTP_400_BAD_REQUEST, TOO_MUCH_FOR_ONE)
 
 
+def _water_held(db: Session, user_id: int) -> int:
+    """How many water items are in the satchel and still unspent."""
+    return int(
+        db.execute(
+            select(func.count())
+            .select_from(models.SatchelItem)
+            .where(
+                models.SatchelItem.user_id == user_id,
+                models.SatchelItem.kind == "water",
+                models.SatchelItem.used_at.is_(None),
+            )
+        ).scalar_one()
+    )
+
+
 def _state(db: Session, user: models.User) -> dict:
     """Everything the grove screen needs about a harvest, in one answer.
 
@@ -108,6 +128,10 @@ def _state(db: Session, user: models.User) -> dict:
         # say the price rather than a copy of it being kept on the client.
         "feed_cost": FEED_COST,
         "feed_cap": FEED_MAX_BANKED,
+        # How much unspent water is in the satchel. Here rather than in the
+        # satchel's own payload because the plot draws a water button per plant
+        # and one over the row, and this screen already reads this answer.
+        "water_held": _water_held(db, user.id),
         # How far the meter has come toward the next bearing, in converted
         # Miles, and how long a season is. Earned, like everything beside it.
         "season_mi": FRUIT_SEASON_MI,
@@ -127,8 +151,7 @@ def read_harvest(
     """What is on the plants, what is in the basket, and what there is to spend.
 
     Swept before it is read, like every other own screen, so a sync that landed
-    a moment ago has already borne and anything gathered too long ago has
-    already gone back to the soil.
+    a moment ago has already borne.
     """
     if throttle.harvest_read_limiter.hit(throttle.user_key(user)):
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, throttle.TOO_MANY_READS)
@@ -227,6 +250,67 @@ def feed_plant(
     # A friend's plant comes back in the shape a friend is allowed to see, the
     # same way a pour answers.
     return grove.serialize_planting(planting) if own else grove.serialize_for_friend(planting)
+
+
+@router.post("/harvest/feed-all")
+def feed_whole_plot(
+    db: Session = Depends(get_db),
+    user: models.User = Depends(security.current_user),
+) -> dict:
+    """Feed one manna's worth of fruit to every grown plant of your own at once.
+
+    The same act as the single Feed, done to the whole row: one more fruit on
+    each plant's next bearing and nothing else (TWO-LANE LAW). One feeding per
+    plant per press, so the price is always the plant count times the cost and
+    the dialog can say it before anything is spent; pressing it again tops the
+    row up a second time until every plant is holding all it will hold.
+
+    Your own grove only. A friend's plot is fed one plant at a time on purpose:
+    that is the act that carries a name, pays renown and answers to the window's
+    cap, and none of those are things to do to a list of people at once.
+
+    Every plant is charged for or none is: the bank is read and lowered in the
+    one statement, so two presses racing cannot both spend the same manna.
+    """
+    _spending(user)
+    progress.process_user(db, user.id)
+    # The plot's own order, oldest first, which is the order the screen draws
+    # them in: what the dialog counted is what gets fed.
+    rows = [
+        row
+        for row in db.execute(
+            select(models.Planting)
+            .where(models.Planting.user_id == user.id)
+            .order_by(models.Planting.id)
+        ).scalars()
+        if grove.is_mature(row) and row.fed_bonus < FEED_MAX_BANKED
+    ]
+    if not rows:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, NOTHING_TO_FEED)
+    cost = FEED_COST * len(rows)
+    if not harvest.spend_manna(db, user.id, cost):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, NOT_ENOUGH)
+
+    now = security.now_utc()
+    for row in rows:
+        row.fed_bonus += 1
+        # One event row per plant, the same shape the single Feed writes, so a
+        # plot fed at once and a plot fed one at a time read identically
+        # afterwards. Own grove, so it earns nobody anything: no renown, and
+        # nothing for the per-person window to count.
+        db.add(
+            models.PlantFeeding(
+                from_user_id=user.id,
+                to_user_id=user.id,
+                planting_id=row.id,
+                manna_spent=FEED_COST,
+                bonus=1,
+                created_at=now,
+                earned_renown=False,
+            )
+        )
+    db.commit()
+    return {"fed": len(rows), "manna_spent": cost, **_state(db, user)}
 
 
 @router.post("/harvest/manna", status_code=status.HTTP_201_CREATED)

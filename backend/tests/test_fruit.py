@@ -4,13 +4,13 @@ The law this file pins, in one sentence: the MILES decide when a grove bears and
 the MANNA decides how much, and neither of them ever crosses into the other's
 lane. Nothing here moves experience, a level, a chest, growth or a medal.
 
-Fruit is the only thing that spoils. It is gathered whole and lives seven days
-from the gather; manna is a bank and none of this touches it.
+Nothing here spoils. Fruit is gathered whole and keeps for good, on the plant
+and in the basket alike, and manna is a bank that never counted down either.
 
-The clock never ticks on its own. Everything about those seven days, and about
-the window the giving cap is measured over, is said with let_a_moment_pass,
-which pushes what is already stored into the past, because the suite's now is
-pinned and a case that means "and then a week went by" has to say so.
+The clock never ticks on its own. Everything about time passing, including the
+window the giving cap is measured over, is said with let_a_moment_pass, which
+pushes what is already stored into the past, because the suite's now is pinned
+and a case that means "and then a week went by" has to say so.
 """
 
 import datetime as dt
@@ -19,6 +19,7 @@ import pytest
 
 from conftest import (
     LETTER_KEYS,
+    give_item,
     give_planting,
     let_a_moment_pass,
     log_workout,
@@ -32,11 +33,13 @@ from app.config import (
     FEED_COST,
     FEED_MAX_BANKED,
     FRUIT_SEASON_MI,
-    GATHERED_LIFE_DAYS,
     MANNA_TO_ONE_PERSON,
 )
 
 DAY = 24 * 60 * 60
+# What gathered fruit used to live before it went back to the soil, kept as a
+# number the permanence cases stand on both sides of.
+ONCE_A_LIFETIME = 7 * DAY
 # Long enough that anything with a seven day life is well past it, and short of
 # the session's own thirty: let_a_moment_pass ages every stamp in the database,
 # the signed-in cookie's included, so a case that pushed everything back three
@@ -335,74 +338,91 @@ def test_nothing_anywhere_counts_down(signed_in, db_session, member):
 
 
 # --------------------------------------------------------------------------
-# Compost
+# Fruit keeps for good
 # --------------------------------------------------------------------------
 
 
-def test_gathered_fruit_lasts_exactly_seven_days(signed_in, db_session, member):
-    """Never a day early. The window is the whole of the promise, so the case
-    stands a minute inside it and then crosses it. The bank beside it does not
-    move at either moment: manna never spoils."""
+def test_gathered_fruit_outlives_the_old_seven_days(signed_in, db_session, member):
+    """The window that used to take it is gone, his word 2026-08-29. The case
+    stands a minute inside the old line, crosses it, then goes well past it, and
+    the basket holds the same fruit at all three. The bank does not move at any
+    of them either: manna never spoiled to begin with."""
     give_planting(db_session, member.id, "strawberry", growth=15.0)
     log_workout(db_session, member.id, "run", 33.0, kcal=650)
     gather(signed_in)
 
-    let_a_moment_pass(db_session, seconds=GATHERED_LIFE_DAYS * DAY - 60)
+    let_a_moment_pass(db_session, seconds=ONCE_A_LIFETIME - 60)
     read = state(signed_in)
     assert len(read["basket"]) == 1
     assert read["manna"] == 650
 
     let_a_moment_pass(db_session, seconds=60)
     read = state(signed_in)
-    assert read["basket"] == []
+    assert len(read["basket"]) == 1
+    assert read["manna"] == 650
+
+    let_a_moment_pass(db_session, seconds=A_LONG_WHILE)
+    read = state(signed_in)
+    assert len(read["basket"]) == 1
     assert read["manna"] == 650
 
 
-def test_compost_leaves_the_plant_and_the_bank_alone(signed_in, db_session, member):
-    """Only gathered fruit ages. A second harvest still on the plant and every
-    manna anybody holds are untouched by the sweep."""
+def test_nothing_stamps_a_batch_as_composted_any_more(signed_in, db_session, member):
+    """The column is dormant rather than dropped, so the rows written while the
+    seven days were real still read. Nothing writes it now, however long an
+    account that is being read sits there."""
     give_planting(db_session, member.id, "strawberry", growth=15.0)
-    log_workout(db_session, member.id, "run", 33.0, kcal=650)
+    run_miles(db_session, member.id, 33.0)
     gather(signed_in)
-    let_a_moment_pass(db_session, seconds=GATHERED_LIFE_DAYS * DAY)
-    # Borne after the gather, so it is still on the plant, and calories with it.
-    log_workout(db_session, member.id, "run", 33.0, kcal=400, offset_min=300)
+    row = db_session.query(models.FruitBatch).one()
+    assert row.composted_at is None
 
-    read = state(signed_in)
-    assert read["basket"] == []
-    assert len(read["borne"]) == 1
-    assert read["manna"] == 1050
-
-
-def test_the_letter_says_one_soft_line_when_something_composted(
-    signed_in, db_session, member
-):
-    """One flag, said afterwards and once. Nothing warned anybody first."""
-    give_planting(db_session, member.id, "strawberry", growth=15.0)
-    log_workout(db_session, member.id, "run", 33.0, kcal=650)
-    gather(signed_in)
-    assert signed_in.get("/api/recap").json()["composted"] is False
-
-    assert signed_in.post("/api/recap/ack").status_code == 204
-    let_a_moment_pass(db_session, seconds=GATHERED_LIFE_DAYS * DAY)
+    let_a_moment_pass(db_session, seconds=A_LONG_WHILE)
     state(signed_in)
-    assert signed_in.get("/api/recap").json()["composted"] is True
+    db_session.refresh(row)
+    assert row.composted_at is None
 
 
-def test_composted_fruit_is_gone_and_not_merely_hidden(signed_in, db_session, member):
-    """What went back to the soil cannot be given away, which is the difference
-    between composting and a screen that stopped drawing it."""
+def test_a_batch_already_composted_stays_gone(signed_in, db_session, member):
+    """What went back to the soil while the sweep was real is not handed back by
+    the release that stopped it. The basket's filter still reads the stamp, so an
+    old row keeps the answer it was given."""
+    give_planting(db_session, member.id, "strawberry", growth=15.0)
+    run_miles(db_session, member.id, 33.0)
+    gather(signed_in)
+    row = db_session.query(models.FruitBatch).one()
+    row.composted_at = dt.datetime.now(dt.timezone.utc)
+    db_session.commit()
+
+    assert state(signed_in)["basket"] == []
+
+
+def test_the_letter_has_no_compost_line_left(signed_in, db_session, member):
+    """The one soft line went with the sweep it described. Nothing in the letter
+    says anything went back to the soil, because nothing does."""
+    give_planting(db_session, member.id, "strawberry", growth=15.0)
+    log_workout(db_session, member.id, "run", 33.0, kcal=650)
+    gather(signed_in)
+    assert signed_in.post("/api/recap/ack").status_code == 204
+    let_a_moment_pass(db_session, seconds=A_LONG_WHILE)
+    state(signed_in)
+    assert "composted" not in signed_in.get("/api/recap").json()
+
+
+def test_fruit_left_a_fortnight_can_still_be_given(signed_in, db_session, member):
+    """What composting took was the giving: a batch that had gone back could not
+    be handed to anybody. Well past the old window it still can, which is the
+    whole of what permanent means here."""
     other, _ = sign_in(db_session, "mate")
     befriend(db_session, member, other)
     give_planting(db_session, member.id, "banana", growth=15.0)
     run_miles(db_session, member.id, 33.0)
     gather(signed_in)
 
-    let_a_moment_pass(db_session, seconds=GATHERED_LIFE_DAYS * DAY)
+    let_a_moment_pass(db_session, seconds=A_LONG_WHILE)
     state(signed_in)
-    refused = signed_in.post("/api/harvest/fruit", json={"user_id": other.id, "count": 1})
-    assert refused.status_code == 400
-    assert refused.json()["detail"] == NOT_ENOUGH_FRUIT
+    given = signed_in.post("/api/harvest/fruit", json={"user_id": other.id, "count": 1})
+    assert given.status_code == 201, given.text
 
 
 # --------------------------------------------------------------------------
@@ -534,6 +554,172 @@ def test_feeding_moves_nothing_in_the_earning_lane(signed_in, db_session, member
     db_session.refresh(plant)
     assert (after["xp"], after["level"]) == (before["xp"], before["level"])
     assert after["next_chest"] == before["next_chest"]
+    assert plant.growth_mi == growth_before
+    assert len(signed_in.get("/api/chests").json()) == chests_before
+    assert after["medals"] == before["medals"]
+
+
+def test_the_screen_is_told_how_much_water_is_held(signed_in, db_session, member):
+    """The plot draws a water button per plant and one over the row, so the
+    screen that already reads this answer is told the count here rather than
+    asking the satchel a second time."""
+    assert state(signed_in)["water_held"] == 0
+
+    give_item(db_session, member.id, "water")
+    give_item(db_session, member.id, "water")
+    give_item(db_session, member.id, "seed", "banana")
+    assert state(signed_in)["water_held"] == 2
+
+    plant = give_planting(db_session, member.id, "strawberry")
+    item = db_session.query(models.SatchelItem).filter_by(kind="water").first()
+    signed_in.post(f"/api/satchel/{item.id}/pour", json={"planting_id": plant.id})
+    assert state(signed_in)["water_held"] == 1
+
+
+# --------------------------------------------------------------------------
+# Feeding the whole plot at once
+# --------------------------------------------------------------------------
+
+
+def feed_all(client):
+    return client.post("/api/harvest/feed-all")
+
+
+def test_feed_all_gives_every_grown_plant_one_more_fruit(
+    signed_in, db_session, member
+):
+    """One feeding each, not a top-up to the cap: the price is always the plant
+    count times the cost, which is what lets the dialog say it first."""
+    grown = [
+        give_planting(db_session, member.id, "strawberry", growth=15.0),
+        give_planting(db_session, member.id, "banana", growth=15.0),
+    ]
+    stock_manna(db_session, member.id, FEED_COST * 3)
+
+    fed = feed_all(signed_in)
+    assert fed.status_code == 200, fed.text
+    body = fed.json()
+    assert (body["fed"], body["manna_spent"]) == (2, FEED_COST * 2)
+    assert body["manna"] == FEED_COST
+    for row in grown:
+        db_session.refresh(row)
+        assert row.fed_bonus == 1
+
+
+def test_feed_all_skips_what_is_not_grown_yet(signed_in, db_session, member):
+    """Nothing bears before it is grown, so feeding a seedling would be paying
+    for a harvest that cannot happen. It is passed over rather than charged."""
+    grown = give_planting(db_session, member.id, "strawberry", growth=15.0)
+    seedling = give_planting(db_session, member.id, "banana", growth=0.0)
+    stock_manna(db_session, member.id, FEED_COST * 2)
+
+    assert feed_all(signed_in).json()["fed"] == 1
+    db_session.refresh(grown)
+    db_session.refresh(seedling)
+    assert (grown.fed_bonus, seedling.fed_bonus) == (1, 0)
+    assert state(signed_in)["manna"] == FEED_COST
+
+
+def test_feed_all_stops_at_the_cap_and_then_has_nothing_to_do(
+    signed_in, db_session, member
+):
+    """A plant holds only so much before it bears. Pressed until the row is
+    full, the next press is the empty answer rather than a spend."""
+    plant = give_planting(db_session, member.id, "strawberry", growth=15.0)
+    stock_manna(db_session, member.id, FEED_COST * (FEED_MAX_BANKED + 1))
+
+    for expected in range(1, FEED_MAX_BANKED + 1):
+        assert feed_all(signed_in).json()["fed"] == 1
+        db_session.refresh(plant)
+        assert plant.fed_bonus == expected
+
+    refused = feed_all(signed_in)
+    assert refused.status_code == 400
+    assert state(signed_in)["manna"] == FEED_COST
+
+
+def test_feed_all_with_nothing_grown_spends_nothing(signed_in, db_session, member):
+    """An empty plot and a plot of seedlings are the same answer, and neither
+    of them costs anything to press."""
+    give_planting(db_session, member.id, "strawberry", growth=0.0)
+    stock_manna(db_session, member.id, FEED_COST * 3)
+
+    refused = feed_all(signed_in)
+    assert refused.status_code == 400
+    assert state(signed_in)["manna"] == FEED_COST * 3
+
+
+def test_feed_all_is_all_or_nothing_when_the_bank_is_short(
+    signed_in, db_session, member
+):
+    """Two plants at five hundred each and only enough for one: the whole press
+    is refused and the bank is untouched, so what the dialog counted is what
+    would have been spent."""
+    first = give_planting(db_session, member.id, "strawberry", growth=15.0)
+    second = give_planting(db_session, member.id, "banana", growth=15.0)
+    stock_manna(db_session, member.id, FEED_COST)
+
+    refused = feed_all(signed_in)
+    assert refused.status_code == 400
+    assert state(signed_in)["manna"] == FEED_COST
+    db_session.refresh(first)
+    db_session.refresh(second)
+    assert (first.fed_bonus, second.fed_bonus) == (0, 0)
+
+
+def test_feed_all_never_reaches_a_friends_plot(signed_in, db_session, member):
+    """Your own grove only. A friend's plant is fed one at a time on purpose:
+    that is the act that carries a name and pays renown."""
+    other, _ = sign_in(db_session, "mate")
+    befriend(db_session, member, other)
+    theirs = give_planting(db_session, other.id, "strawberry", growth=15.0)
+    mine = give_planting(db_session, member.id, "banana", growth=15.0)
+    stock_manna(db_session, member.id, FEED_COST * 4)
+
+    assert feed_all(signed_in).json()["fed"] == 1
+    db_session.refresh(theirs)
+    db_session.refresh(mine)
+    assert (theirs.fed_bonus, mine.fed_bonus) == (0, 1)
+    assert renown_of(db_session, member.id) == 0
+
+
+def test_feed_all_writes_the_same_rows_the_single_feed_writes(
+    signed_in, db_session, member
+):
+    """A plot fed at once and a plot fed one at a time read identically
+    afterwards: one event row per plant, own grove, earning nobody anything."""
+    give_planting(db_session, member.id, "strawberry", growth=15.0)
+    give_planting(db_session, member.id, "banana", growth=15.0)
+    stock_manna(db_session, member.id, FEED_COST * 2)
+    feed_all(signed_in)
+
+    rows = db_session.query(models.PlantFeeding).all()
+    assert len(rows) == 2
+    for row in rows:
+        assert row.from_user_id == row.to_user_id == member.id
+        assert (row.bonus, row.manna_spent, row.earned_renown) == (
+            1,
+            FEED_COST,
+            False,
+        )
+
+
+def test_feed_all_buys_fruit_and_nothing_in_the_other_lane(
+    signed_in, db_session, member
+):
+    """The two-lane law, said of the button that spends the most at once: it
+    moves yield and not one mile of growth, one level or one chest."""
+    plant = give_planting(db_session, member.id, "strawberry", growth=15.0)
+    stock_manna(db_session, member.id, FEED_COST)
+    before = profile(signed_in)
+    growth_before = plant.growth_mi
+    chests_before = len(signed_in.get("/api/chests").json())
+
+    feed_all(signed_in)
+
+    after = profile(signed_in)
+    db_session.refresh(plant)
+    assert after["xp"] == before["xp"]
     assert plant.growth_mi == growth_before
     assert len(signed_in.get("/api/chests").json()) == chests_before
     assert after["medals"] == before["medals"]
@@ -949,7 +1135,8 @@ def test_more_than_the_basket_holds_gives_nothing_at_all(signed_in, db_session, 
 
 def test_what_a_gift_left_behind_is_still_fruit(signed_in, db_session, member):
     """A part-given batch keeps its remainder, and the remainder is fruit like
-    any other: it feeds a pet and it goes back to the soil in its own time."""
+    any other: it sits in the basket, it feeds a pet, and time does not take
+    it."""
     other, _ = sign_in(db_session, "mate")
     befriend(db_session, member, other)
     give_planting(db_session, member.id, "banana", growth=15.0)
@@ -958,10 +1145,8 @@ def test_what_a_gift_left_behind_is_still_fruit(signed_in, db_session, member):
     signed_in.post("/api/harvest/fruit", json={"user_id": other.id, "count": 1})
     assert state(signed_in)["basket"][0]["count"] == 2
 
-    let_a_moment_pass(db_session, seconds=GATHERED_LIFE_DAYS * DAY)
-    state(signed_in)
-    assert state(signed_in)["basket"] == []
-    assert signed_in.get("/api/recap").json()["composted"] is True
+    let_a_moment_pass(db_session, seconds=A_LONG_WHILE)
+    assert state(signed_in)["basket"][0]["count"] == 2
 
 
 def test_a_gift_off_two_seasons_says_since_rather_than_in(signed_in, db_session, member):
@@ -1451,19 +1636,14 @@ def test_the_season_is_reported_as_miles_and_never_as_a_clock(
     assert not [key for key in read if "days" in key or "until" in key]
 
 
-def test_the_window_is_seven_days_by_the_clock_and_not_by_a_stored_count(
-    signed_in, db_session, member
-):
-    """The sweep is passive and reads the stamp on the row, so an account that
-    is never opened for a fortnight composts on the next read rather than
-    holding onto everything until somebody presses something."""
+def test_the_basket_holds_no_clock_of_its_own(signed_in, db_session, member):
+    """Nothing counted down before and nothing does now. A batch carries the
+    moment it was gathered and no life, no window and no remaining anything, so
+    there is no stored count for a release to have to keep true."""
     give_planting(db_session, member.id, "strawberry", growth=15.0)
     run_miles(db_session, member.id, 33.0)
     gather(signed_in)
-    row = db_session.query(models.FruitBatch).one()
-    assert row.composted_at is None
-    let_a_moment_pass(db_session, seconds=GATHERED_LIFE_DAYS * DAY + 1)
-    harvest.compost(db_session, member.id, dt.datetime.now(dt.timezone.utc))
-    db_session.commit()
-    db_session.refresh(row)
-    assert row.composted_at is not None
+    held = state(signed_in)["basket"][0]
+    assert not [
+        key for key in held if "day" in key or "left" in key or "until" in key
+    ]

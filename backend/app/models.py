@@ -917,13 +917,13 @@ class FruitBatch(Base):
     # Whether the plant was fully grown when it bore. The same count either way:
     # a gilded plant's harvest is finer named and never larger.
     golden: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    # What is left of the batch: the number the basket shows, a gift carries and
-    # compost returns. It goes down when a pet is fed out of it and never up.
+    # What is left of the batch: the number the basket shows and a gift carries.
+    # It goes down when a pet is fed out of it and never up.
     count: Mapped[int] = mapped_column(Integer, nullable=False)
     # What the plant actually bore, written once at the bearing and never
     # touched again. The letter says what a grove bore, and that sentence must
-    # not change because the fruit was eaten, given away or left to compost
-    # afterwards; what became of it is the count above.
+    # not change because the fruit was eaten or given away afterwards; what
+    # became of it is the count above.
     borne_count: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0"
     )
@@ -939,10 +939,13 @@ class FruitBatch(Base):
     season_mi: Mapped[float] = mapped_column(Float, nullable=False)
     season_month: Mapped[str] = mapped_column(String(16), nullable=False)
     borne_at: Mapped[dt.datetime] = mapped_column(UtcDateTime, nullable=False)
-    # Null while it is still on the plant, which is safe forever. Set at the
-    # gather, which is also where the seven days start.
+    # Null while it is still on the plant. Set at the gather, which starts no
+    # clock: gathered fruit keeps for good.
     gathered_at: Mapped[dt.datetime | None] = mapped_column(UtcDateTime, nullable=True)
-    # Set when composted.
+    # DORMANT since fruit stopped composting (his word 2026-08-29). Nothing
+    # writes this any more. The rows stamped while the seven days were real are
+    # still read by the basket's own filter, so what went back to the soil then
+    # stays gone: kept because it is what happened, the same as given_at below.
     composted_at: Mapped[dt.datetime | None] = mapped_column(UtcDateTime, nullable=True)
     # DORMANT since giving became an amount rather than a batch. A gift now
     # takes fruit off the oldest batches and may leave a remainder in one of
@@ -1030,8 +1033,9 @@ class MannaBatch(Base):
     # writes these rows and nothing reads them, and what was in them was folded
     # into user_progress.manna by 0030. Kept because they are what happened.
     #
-    # The fruit batches beside them are live: fruit is still gathered and still
-    # composts, which is the half of the spoilage idea that survived.
+    # The fruit batches beside them are live, but nothing spoils there either
+    # any more: the last half of the spoilage idea went with his word on
+    # 2026-08-29, and gathered fruit now keeps as long as the bank does.
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True

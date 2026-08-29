@@ -3,12 +3,16 @@ import {
   errorText,
   feedPet,
   feedPlant,
+  feedWholePlot,
   gatherHarvest,
   getFriends,
   getHarvest,
   giveFruit,
   listGrove,
+  listSatchel,
   namePet,
+  pourWater,
+  waterWholePlot,
   type FruitBatch,
   type Gathered,
   type HarvestState,
@@ -23,14 +27,20 @@ import {
   basketLine,
   EMPTY_BASKET,
   FED,
+  feedAllHint,
   feedHint,
+  feedOneRow,
+  feedToGrownRow,
+  feedToNextRow,
   fedLine,
+  fedPlotLine,
   fromPlantsLine,
   FRUIT_GIVEN,
   GATHERED_GOLDEN,
   GIVE_FRUIT_HINT,
   GATHER_HINT,
   harvestHint,
+  NO_WATER_LEFT,
   NOTHING_BORNE,
   NOTHING_PLANTED,
   personName,
@@ -43,7 +53,10 @@ import {
   PET_NAMED,
   plantingName,
   plantStateLine,
+  POURED_ONE,
+  pouredPlotLine,
   readyLine,
+  waterHint,
 } from '../labels.ts'
 import { asList } from '../recap.ts'
 import Chooser, { type Choice } from './Chooser.tsx'
@@ -135,6 +148,45 @@ const GROUND_MARK = groundArt()
 // meter stand for.
 const PET_STAGES = [1, 2, 3]
 
+// Where a pet finishes growing. The server sends it; an older one that does not
+// falls back to the crossing it is heading for, which is what the meter read
+// before this number existed.
+function petGrownAt(pet: Pet): number {
+  return pet.grown_fruit ?? pet.next_fruit ?? pet.fruit_fed
+}
+
+// The rows the feeding menu offers, his shape 2026-08-29: one, enough to reach
+// the next drawing, and enough to finish growing.
+//
+// Nothing that would feed past the last crossing is ever offered, because fruit
+// over that line buys nothing: "all of it" used to hand the whole basket over
+// and burn the remainder. Nothing larger than the basket is offered either. The
+// three collapse into fewer whenever they would say the same number twice: a
+// half grown pet's next drawing IS its last, and a pet one fruit short of
+// either is just the first row.
+function feedChoices(pet: Pet, held: number): Choice[] {
+  const toNext = (pet.next_fruit ?? 0) - pet.fruit_fed
+  const toGrown = petGrownAt(pet) - pet.fruit_fed
+  const rows: Choice[] = []
+  const seen = new Set<number>()
+  const offer = (count: number, label: string) => {
+    if (count < 1 || count > held || seen.has(count)) return
+    seen.add(count)
+    rows.push({ id: count, label })
+  }
+  offer(1, feedOneRow())
+  // Half grown, and the next drawing IS the last one: one row, and it is the
+  // one that says so. Offered before the crossing row rather than after it,
+  // because the two would be the same number and whichever went first would
+  // take the label.
+  if (toNext === toGrown) offer(toGrown, feedToGrownRow(toGrown))
+  else {
+    offer(toNext, feedToNextRow(toNext))
+    offer(toGrown, feedToGrownRow(toGrown))
+  }
+  return rows
+}
+
 interface Props {
   userId: number
   // Whether the grove has fruit on it, said upward every time this screen
@@ -160,6 +212,9 @@ type Step =
   | { at: 'none' }
   | { at: 'gather' }
   | { at: 'feed'; plant: Planting }
+  | { at: 'feedAll' }
+  | { at: 'water'; plant: Planting }
+  | { at: 'waterAll' }
   | { at: 'give' }
   | { at: 'giveAmount'; person: Person }
   | { at: 'feedPet'; pet: Pet }
@@ -254,6 +309,12 @@ export default function Grove({ userId, onFruitReady }: Props) {
   // manna gift uses on a friend's screen.
   const [amount, setAmount] = useState('')
   const [friends, setFriends] = useState<Person[]>([])
+  // Bumped whenever this screen spends water. The satchel below draws itself
+  // from its own request, and this screen's verbs are the one thing that can
+  // empty it behind its back, so the count is used as a key and the squares are
+  // drawn again rather than left saying what was true a moment ago.
+  const [satchelTick, setSatchelTick] = useState(0)
+  const bumpSatchel = () => setSatchelTick((count) => count + 1)
 
   const load = useCallback(async () => {
     try {
@@ -286,6 +347,7 @@ export default function Grove({ userId, onFruitReady }: Props) {
   const manna = harvest?.manna ?? 0
   const feedCost = harvest?.feed_cost ?? 0
   const feedCap = harvest?.feed_cap ?? 0
+  const waterHeld = harvest?.water_held ?? 0
   const basket = harvest?.basket ?? []
   // The basket as one number. Batches are still what the server keeps; nothing
   // anybody presses is about one of them any more.
@@ -300,6 +362,15 @@ export default function Grove({ userId, onFruitReady }: Props) {
   // something happens here and never on a timer of its own.
   const now = new Date()
   const growingAsleep = growing !== null && asleepNow(growing, now)
+  // What the two buttons over the row would act on. Counted here rather than in
+  // the markup so the dialog and the button agree about the same number, and so
+  // a button with nothing to do is not drawn at all: an empty verb is worse than
+  // a missing one on a screen where every press spends something.
+  const feedable = plantings.filter((row) => row.mature && (row.fed ?? 0) < feedCap).length
+  const waterable = Math.min(
+    waterHeld,
+    plantings.filter((row) => !row.gilded).length,
+  )
   // What each plant is carrying, by plant, so a tile can say it without the
   // whole list being walked once per tile.
   const borne = new Map<number, FruitBatch[]>()
@@ -347,6 +418,37 @@ export default function Grove({ userId, onFruitReady }: Props) {
       await feedPlant(plant.id)
       setNote(FED)
       setStep({ at: 'none' })
+    })
+  }
+
+  function feedAll() {
+    void act(async () => {
+      const after = await feedWholePlot()
+      setNote(fedPlotLine(after.fed ?? 0))
+      setStep({ at: 'none' })
+    })
+  }
+
+  // The satchel is asked for an item only at the moment one is being poured.
+  // The screen knows how much water is held from the harvest payload it already
+  // reads; which row that water is is the server's own business until now.
+  function water(plant: Planting) {
+    void act(async () => {
+      const held = (await listSatchel()).find((row) => row.kind === 'water')
+      if (!held) throw new Error(NO_WATER_LEFT)
+      await pourWater(held.id, plant.id)
+      setNote(POURED_ONE)
+      setStep({ at: 'none' })
+      bumpSatchel()
+    })
+  }
+
+  function waterAll() {
+    void act(async () => {
+      const { poured } = await waterWholePlot()
+      setNote(pouredPlotLine(poured))
+      setStep({ at: 'none' })
+      bumpSatchel()
     })
   }
 
@@ -609,29 +711,23 @@ export default function Grove({ userId, onFruitReady }: Props) {
                     </button>
                   </p>
                   {/* A progress element rather than a div with a width on it: the
-                      content security policy allows no inline styles. It shows
-                      how far a pet has come and never how far it has to go.
-                      Around it, the two marks that say what it is without a
-                      sentence: the harvest's own fruit at the edge it fills from,
-                      and a pip per drawing, filled as far as this one has come.
-                      Both are drawings of what the element already reads out, so
-                      both are hidden from a screen reader. */}
+                      content security policy allows no inline styles. It fills
+                      toward the one number a pet finishes growing at, all the
+                      way through, so the count at its edge and the fill can
+                      never disagree; the pips beside it mark the crossings on
+                      the way. Both are readings of what the element already says
+                      out loud, so both are hidden from a screen reader. */}
                   {growing.next_fruit !== null && (
                     <div className="pet-meter-block">
-                      {FRUIT_MARK && (
-                        <img
-                          className="word-mark word-mark-small"
-                          src={FRUIT_MARK}
-                          alt=""
-                          aria-hidden="true"
-                        />
-                      )}
+                      <span className="pet-meter-mark" aria-hidden="true">
+                        XP {growing.fruit_fed} / {petGrownAt(growing)}
+                      </span>
                       <progress
                         className="xp-meter pet-meter"
                         value={growing.fruit_fed}
-                        max={growing.next_fruit}
+                        max={petGrownAt(growing)}
                       >
-                        Fed {growing.fruit_fed}
+                        Fed {growing.fruit_fed} of {petGrownAt(growing)}
                       </progress>
                       <span className="pet-pips" aria-hidden="true">
                         {PET_STAGES.map((step) => (
@@ -654,11 +750,13 @@ export default function Grove({ userId, onFruitReady }: Props) {
                   <div className="pet-verbs">
                     <button
                       type="button"
-                      className="secondary"
+                      className="secondary verb-square"
+                      aria-label={`Feed ${growing.display_name}`}
+                      title="Feed"
                       disabled={busy || inBasket === 0}
                       onClick={() => openPetStep({ at: 'feedPet', pet: growing })}
                     >
-                      Feed
+                      <Icon name="feed" />
                     </button>
                   </div>
                 </div>
@@ -747,6 +845,45 @@ export default function Grove({ userId, onFruitReady }: Props) {
       <section className="card">
         <h2 className="label">Your plants</h2>
         {!loading && plantings.length === 0 && <p className="hint">{NOTHING_PLANTED}</p>}
+        {/* The whole row at once, over the plot rather than in it: these act on
+            every plant, and a button that belongs to all of them cannot sit on
+            one. Each is gone when it has nothing to reach, so the row is empty
+            far more often than not. Words as well as marks here, unlike the
+            tiles: there is room, and "all" is the part that matters. */}
+        {(feedable > 0 || waterable > 0) && (
+          <div className="plot-verbs">
+            {feedable > 0 && (
+              <button
+                type="button"
+                className="secondary"
+                disabled={busy || manna < feedCost * feedable}
+                onClick={() => {
+                  setNote('')
+                  setStepError('')
+                  setStep({ at: 'feedAll' })
+                }}
+              >
+                <Icon name="feed" />
+                Feed all
+              </button>
+            )}
+            {waterable > 0 && (
+              <button
+                type="button"
+                className="secondary verb-water"
+                disabled={busy}
+                onClick={() => {
+                  setNote('')
+                  setStepError('')
+                  setStep({ at: 'waterAll' })
+                }}
+              >
+                <Icon name="water" />
+                Water all
+              </button>
+            )}
+          </div>
+        )}
         {plantings.length > 0 && (
           <ul className="plot">
             {plantings.map((row) => {
@@ -812,22 +949,50 @@ export default function Grove({ userId, onFruitReady }: Props) {
                     </p>
                   ))}
                   {fed > 0 && <p className="plant-fed">{fedLine(fed)}</p>}
-                  {/* Gone at the cap rather than disabled: a full plant is a
-                      finished state, not a wait. Short manna stays a wait. */}
-                  {row.mature && fed < feedCap && (
-                    <button
-                      type="button"
-                      className="secondary plant-feed"
-                      disabled={busy || manna < feedCost}
-                      onClick={() => {
-                        setNote('')
-                        setStepError('')
-                        setStep({ at: 'feed', plant: row })
-                      }}
-                    >
-                      Feed
-                    </button>
-                  )}
+                  {/* The verbs, at the foot of the tile whatever else it
+                      carries, so a row of plants keeps one line of buttons.
+                      Icons rather than words: two verbs would not sit side by
+                      side in a tile this narrow, and each one carries its own
+                      label for anything that is not looking at it.
+
+                      Both are gone rather than disabled where the act is
+                      finished: a plant at the cap and one with no levels left
+                      are states, not waits. Short manna stays a wait, and so
+                      does an empty satchel. */}
+                  <div className="plant-verbs">
+                    {row.mature && fed < feedCap && (
+                      <button
+                        type="button"
+                        className="secondary verb-square"
+                        aria-label={`Feed ${name}`}
+                        title="Feed"
+                        disabled={busy || manna < feedCost}
+                        onClick={() => {
+                          setNote('')
+                          setStepError('')
+                          setStep({ at: 'feed', plant: row })
+                        }}
+                      >
+                        <Icon name="feed" />
+                      </button>
+                    )}
+                    {waterHeld > 0 && !row.gilded && (
+                      <button
+                        type="button"
+                        className="secondary verb-square verb-water"
+                        aria-label={`Water ${name}`}
+                        title="Water"
+                        disabled={busy}
+                        onClick={() => {
+                          setNote('')
+                          setStepError('')
+                          setStep({ at: 'water', plant: row })
+                        }}
+                      >
+                        <Icon name="water" />
+                      </button>
+                    )}
+                  </div>
                 </li>
               )
             })}
@@ -840,7 +1005,7 @@ export default function Grove({ userId, onFruitReady }: Props) {
           held is half of what this screen is about. */}
       <section className="card">
         <h2 className="label">Inventory</h2>
-        <Inventory onChanged={() => void load()} />
+        <Inventory key={satchelTick} onChanged={() => void load()} />
       </section>
 
       {/* Asked rather than done on the press, because harvesting starts the
@@ -873,19 +1038,57 @@ export default function Grove({ userId, onFruitReady }: Props) {
         </Confirm>
       )}
 
-      {/* Two plain choices and no species anywhere: one fruit, or the lot. */}
+      {step.at === 'feedAll' && (
+        <Confirm
+          heading="Feed all"
+          confirmLabel="Feed all"
+          cancelLabel="Cancel"
+          busy={busy}
+          error={stepError}
+          onConfirm={feedAll}
+          onCancel={() => setStep({ at: 'none' })}
+        >
+          <p className="hint">{feedAllHint(feedCost * feedable, feedable)}</p>
+        </Confirm>
+      )}
+
+      {step.at === 'water' && (
+        <Confirm
+          heading={`Water ${plantingName(step.plant)}`}
+          confirmLabel="Water"
+          cancelLabel="Cancel"
+          busy={busy}
+          error={stepError}
+          onConfirm={() => water(step.plant)}
+          onCancel={() => setStep({ at: 'none' })}
+        >
+          <p className="hint">{waterHint(1, 1)}</p>
+        </Confirm>
+      )}
+
+      {step.at === 'waterAll' && (
+        <Confirm
+          heading="Water all"
+          confirmLabel="Water all"
+          cancelLabel="Cancel"
+          busy={busy}
+          error={stepError}
+          onConfirm={waterAll}
+          onCancel={() => setStep({ at: 'none' })}
+        >
+          <p className="hint">
+            {waterHint(waterable, plantings.filter((row) => !row.gilded).length)}
+          </p>
+        </Confirm>
+      )}
+
+      {/* Three plain choices at most and no species anywhere: one fruit, the
+          next drawing, or the last one. */}
       {step.at === 'feedPet' && (
         <Chooser
           title={`Feed ${step.pet.display_name}`}
           hint={PET_FEED_HINT}
-          choices={
-            inBasket > 1
-              ? [
-                  { id: 1, label: 'Feed 1' },
-                  { id: inBasket, label: `Feed all ${inBasket}` },
-                ]
-              : [{ id: 1, label: 'Feed 1' }]
-          }
+          choices={feedChoices(step.pet, inBasket)}
           empty={EMPTY_BASKET}
           busy={busy}
           error={stepError}

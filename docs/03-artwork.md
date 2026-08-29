@@ -16,14 +16,14 @@ whole of what a commission would cover.
 | Medals | 32 | One face per medal in the catalogue | You screen, Home rail, feed and Activity chips, avatar slots |
 | Avatar borders | 6 | One per level tier, `border-t1` to `border-t6` | Around every avatar, every screen |
 | Flourishes | 3 | The growth earned by encouraging people, `f1` to `f3` | Over the border, on every avatar |
-| Interface icons | 18 | Tab bar, cheer, gear, pencil, play, eye, caret, chest ladder marker, week diamond, running shoe, and the sport marks except the run | Chrome, everywhere |
+| Interface icons | 20 | Tab bar, cheer, gear, pencil, play, eye, caret, chest ladder marker, week diamond, running shoe, the feed sack and water droplet, and the sport marks except the run | Chrome, everywhere |
 | Plants | 39 | Thirteen species at three growth stages each | The plot, and the reveal when a seed is found |
 | Pets | 26 | Six animals at three growth stages each, one sleeping pose apiece, and the pat heart in both its colours | The Pets card on Grove, and the row of residents on a friend's profile |
 | Ground | 1 | The strip of soil a grove stands on, `ground` | The floor of the band across the top of both profiles, and the shelf under the grown pets on the Pets card |
 | Loose pieces | 7 | Chest, gilding overlay, boost potion, water, unmarked seed, basket, fruit | Inventory squares, chest reveals, finished plants, harvest headings, fruiting plants |
 | Landing hero | 2 | The four sports in four strips, one drawing per ground, `landing-hero-dark` and `landing-hero-light` | The top of the landing page |
 
-One hundred and thirty-four files in total, all under `frontend/src/assets/`.
+One hundred and thirty-six files in total, all under `frontend/src/assets/`.
 
 Every `border-t` file also has a `-light` twin beside it, such
 as `border-t3-light.svg`, which is the same drawing with its palette turned over
@@ -129,6 +129,8 @@ both.
 | `shoe.svg` | Gear: the Shoes heading on both profiles and the shoe picker in a card's edit panel (feed cards carry no gear) |
 | `eye.svg` | The View public profile button on the You screen |
 | `caret.svg` | The Insights header on Activity, pointing down at the shut band and turned over when it is open |
+| `feed.svg` | The feed button on a plant tile, the Feed all button over the plot, and the feed button on the Pets card |
+| `water.svg` | The water button on a plant tile and the Water all button over the plot |
 
 Three rules on top of the two above, because these files are placed straight
 into the page:
@@ -163,6 +165,12 @@ a side-on running shoe with laces and a lugged sole.
 by the stylesheet: the file points down, and the header that is open rotates it
 half a turn on the spot. The placeholder is a plain chevron in the same weight
 of line as the rest of this set.
+
+`feed.svg` and `water.svg` are one pair and stand side by side on a plant tile,
+so they want the same weight of line and the same amount of the square filled.
+The droplet is drawn in `currentColor` like everything else here; the blue it
+wears comes from the stylesheet, so redrawing it never has to know the palette.
+The placeholders are a tied sack and a plain teardrop.
 
 `sport-treadmill.svg` is the fifth of that set and the odd one out: it is not a
 sport but a place, drawn instead of the walk or run mark when the export named

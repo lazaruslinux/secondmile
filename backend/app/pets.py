@@ -63,9 +63,29 @@ def clean_name(sent: str | None) -> str | None:
     return cleaned[:MAX_NAME] or None
 
 
+# What an unnamed pet goes by at each of its three drawings, his pick 2026-08-29:
+# "Baby Rooster", then "Young Rooster", then plainly "Rooster". The grown one
+# takes no word, which is what makes growing up read on the card.
+STAGE_WORDS: tuple[str, ...] = ("Baby", "Young", "")
+
+
 def display_name(row: models.Pet) -> str:
-    """What it is called on screen: its name, or the species word."""
-    return row.name or row.species
+    """What it is called on screen: its name, or its species and the drawing it
+    stands at.
+
+    Composed here rather than anywhere else because every surface reads this
+    one: the card, the shelf, both aria labels, a friend's fence and the letter.
+
+    A pet somebody has named keeps that name at every stage. The species word is
+    only ever a stand-in, so it is the only half the growing shows on.
+    """
+    if row.name:
+        return row.name
+    # Clamped rather than indexed: a stage outside the three would be a bug
+    # somewhere else, and a name is not the place to raise about it.
+    word = STAGE_WORDS[min(max(row.stage, 1), len(STAGE_WORDS)) - 1]
+    species = row.species.capitalize()
+    return f"{word} {species}" if word else species
 
 
 def stage_for(fruit_fed: int) -> int:
@@ -240,6 +260,10 @@ def serialize(row: models.Pet) -> dict:
         # the next drawing, never a number of fruit still owed: there is nothing
         # to be late for and nothing counts down.
         "next_fruit": None if row.grown_at is not None else (second if row.stage == 1 else third),
+        # Where the meter ends. The bar fills toward this one number for the
+        # whole of a pet's growing, with the pips marking the crossing on the
+        # way, so the count beside it and the fill can never disagree.
+        "grown_fruit": third,
         "grown": row.grown_at is not None,
         "arrived_at": row.arrived_at.isoformat(),
     }

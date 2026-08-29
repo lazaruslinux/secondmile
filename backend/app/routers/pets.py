@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app import harvest, models, pets, progress, security, throttle
+from app.config import PET_STAGE_FRUIT
 from app.db import get_db
 from app.routers.harvest import NOT_ENOUGH_FRUIT, TOO_MANY_SPENDS
 
@@ -21,6 +22,7 @@ router = APIRouter(tags=["pets"])
 
 NO_PET = "Nothing in your grove is growing just now."
 NO_SUCH_PET = "No such pet."
+TOO_MUCH_FRUIT = "That is more fruit than it has room for."
 
 
 class FeedBody(BaseModel):
@@ -54,7 +56,9 @@ def feed_pet(
     on and whether it is golden change the word on the screen and nothing else.
 
     The basket is checked before anything is taken, so a request for more than
-    is there costs nothing rather than emptying it part way.
+    is there costs nothing rather than emptying it part way. A feeding larger
+    than what is left to grow is refused for the same reason: the fruit would go
+    in and buy nothing, and there is no verb here for wasting it.
     """
     _spending(user)
     progress.process_user(db, user.id)
@@ -65,6 +69,13 @@ def feed_pet(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, NO_PET)
     if body.count < 1:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "A feeding is at least one fruit.")
+    # Feeding past the last crossing used to swallow the remainder whole: "feed
+    # all 47" on a pet owing 20 burned the other 27 for nothing. Refused at the
+    # door now (his rule 2026-08-29), so the card's own Max row is the most
+    # anybody can hand over in one go.
+    room = PET_STAGE_FRUIT[-1] - pet.fruit_fed
+    if body.count > room:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, TOO_MUCH_FRUIT)
     basket = harvest.oldest_first(db, user.id)
     if body.count > sum(row.count for row in basket):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, NOT_ENOUGH_FRUIT)

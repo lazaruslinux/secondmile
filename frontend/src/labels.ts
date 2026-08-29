@@ -411,10 +411,23 @@ export function harvestHint(seasonXp: number): string {
 export const NOTHING_BORNE = 'Nothing to harvest yet.'
 export const EMPTY_BASKET = 'Nothing harvested. Fruit lands here when you harvest it.'
 export const NO_MANNA = 'No manna yet. Your calories earn it.'
-export const GATHER_HINT =
-  'The fruit comes in whole. Harvested fruit keeps for a week; what stays on the ' +
-  'plant keeps for good.'
+export const GATHER_HINT = 'The fruit comes in whole. Harvested fruit keeps for good.'
 export const FED = 'Fed. Its next harvest is bigger.'
+// The same word for the whole row. It names how many were fed because a press
+// that acted on the plot should say what it reached, and never the manna again:
+// the dialog said the price before it was spent.
+export function fedPlotLine(plants: number): string {
+  return plants === 1 ? FED : `Fed ${plants} plants. Their next harvest is bigger.`
+}
+// Watering, said the same two ways. The growth is the point rather than the
+// item, so the sentence is about the plants.
+export const POURED_ONE = 'Watered. That one grew.'
+export function pouredPlotLine(plants: number): string {
+  return plants === 1 ? POURED_ONE : `Watered ${plants} plants. They grew.`
+}
+// Said only if the satchel emptied between the button being drawn and pressed,
+// which is the one way the plot's own water verb can find nothing to spend.
+export const NO_WATER_LEFT = 'No water left to pour.'
 
 // What a gather brought in, said under the count when there are too many kinds
 // to name them. Plants rather than batches, because what bore is a plant.
@@ -452,6 +465,19 @@ export function petArrivedLine(species: string): string {
 // where the list came from and nothing else: the fruit at the meter's edge and
 // the pips beside it already say what feeding does, without a sentence.
 export const PET_FEED_HINT = 'From your basket.'
+// The rows the feeding menu offers, his shape 2026-08-29: one, enough to reach
+// the next drawing, and enough to finish growing. Never a row that would feed
+// past the last crossing, because the fruit over the line buys nothing and the
+// server refuses it anyway.
+export function feedOneRow(): string {
+  return '1 fruit'
+}
+export function feedToNextRow(count: number): string {
+  return `${count} fruit (Lvl Up)`
+}
+export function feedToGrownRow(count: number): string {
+  return `Max (${count} fruit)`
+}
 export const MANNA_SENT = 'Sent. It is in their manna.'
 export const FRUIT_GIVEN = 'Given. It is in their basket.'
 
@@ -470,6 +496,28 @@ export function basketLine(fruit: number): string {
 // stales the sentence.
 export function feedHint(cost: number, cap: number): string {
   return `Spend ${cost.toLocaleString()} manna for +1 fruit next harvest? (Max +${cap} per plant)`
+}
+
+// The whole row at once. One feeding per plant, so the price is always the plant
+// count times the cost: said before anything is spent, because this is the
+// largest single spend in the app.
+export function feedAllHint(cost: number, plants: number): string {
+  const each = plants === 1 ? '1 plant' : `${plants} plants`
+  return `Spend ${cost.toLocaleString()} manna for +1 fruit on ${each} next harvest?`
+}
+
+// The same shape for water, which is items rather than manna, and the same
+// sentence whether it is one plant or the row. When there is less water than
+// plot, both numbers are said: the oldest plants take it, and nobody should
+// have to work out afterwards where it went.
+export function waterHint(pours: number, plants: number): string {
+  const items = pours === 1 ? '1 water' : `${pours} water`
+  if (pours < plants) {
+    return `Pour ${items} on your ${plants} plants? The oldest ${
+      pours === 1 ? 'one takes it' : `${pours} take it`
+    }.`
+  }
+  return `Pour ${items} on ${pours === 1 ? 'your plant' : `all ${pours} of your plants`}?`
 }
 
 // What one plant is carrying, said under it. The number comes from the server

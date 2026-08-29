@@ -162,9 +162,6 @@ def read_recap(
         # letter, afterwards, by the person who received it.
         "manna_gifts": _manna_gifts(db, user.id, since),
         "fruit_gifts": _fruit_gifts(db, user.id, since),
-        # One quiet flag, and the client says one soft line about it. Nothing
-        # counts down to this anywhere and nothing is said before it happens.
-        "composted": harvest.composted_since(db, user.id, since),
         **_arrived(db, user.id, since),
         **_flourish(db, user.id, row, since),
     }
@@ -233,8 +230,8 @@ def _harvest(db: Session, user_id: int, since: dt.datetime | None) -> dict:
     distinct moments is the number of times the grove came round.
 
     Windowed by when the fruit was borne, like every other figure in the letter,
-    and counted whatever became of it afterwards. Gathering it, giving it away
-    and leaving it to compost all happened after the news.
+    and counted whatever became of it afterwards. Gathering it and giving it
+    away both happened after the news.
     """
     stmt = select(func.count(func.distinct(models.FruitBatch.season))).where(
         models.FruitBatch.user_id == user_id

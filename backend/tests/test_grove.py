@@ -352,6 +352,103 @@ def test_a_grown_plant_still_takes_water_toward_its_next_level(signed_in, db_ses
 
 
 # --------------------------------------------------------------------------
+# Watering the whole plot at once
+# --------------------------------------------------------------------------
+
+
+def water_all(client):
+    return client.post("/api/satchel/water-all")
+
+
+def test_water_all_pours_one_item_onto_each_planting(signed_in, db_session, member):
+    """One water per plant down the row, each worth the same ten Miles the
+    single pour is, and every item it used is out of the satchel."""
+    plants = [
+        give_planting(db_session, member.id, "strawberry"),
+        give_planting(db_session, member.id, "raspberry"),
+    ]
+    for _ in range(2):
+        give_item(db_session, member.id, "water")
+
+    body = water_all(signed_in)
+    assert body.status_code == 200, body.text
+    assert body.json()["poured"] == 2
+    for row in plants:
+        db_session.refresh(row)
+        assert row.growth_mi == WATER_POUR_MI
+    assert signed_in.get("/api/satchel").json() == []
+
+
+def test_water_all_takes_the_oldest_plants_when_there_is_not_enough(
+    signed_in, db_session, member
+):
+    """Fewer waters than plants is an ordinary answer rather than a refusal.
+    The plot's own order decides, which is the order the screen draws it in."""
+    first = give_planting(db_session, member.id, "strawberry")
+    second = give_planting(db_session, member.id, "raspberry")
+    give_item(db_session, member.id, "water")
+
+    assert water_all(signed_in).json()["poured"] == 1
+    db_session.refresh(first)
+    db_session.refresh(second)
+    assert (first.growth_mi, second.growth_mi) == (WATER_POUR_MI, 0.0)
+
+
+def test_water_all_leaves_a_finished_plant_alone(signed_in, db_session, member):
+    """Water helps until there are no levels left. A gilded plant is passed
+    over, and the item it would have been thrown away on stays in the satchel."""
+    gilded = give_planting(db_session, member.id, "strawberry", growth=100000.0)
+    assert grove.is_gilded(gilded)
+    give_item(db_session, member.id, "water")
+
+    refused = water_all(signed_in)
+    assert refused.status_code == 400
+    assert len(signed_in.get("/api/satchel").json()) == 1
+
+
+def test_water_all_with_an_empty_satchel_is_refused(signed_in, db_session, member):
+    """No water and no plot are the same answer to the same press, and neither
+    of them changes anything."""
+    plant = give_planting(db_session, member.id, "strawberry")
+
+    refused = water_all(signed_in)
+    assert refused.status_code == 400
+    db_session.refresh(plant)
+    assert plant.growth_mi == 0.0
+
+
+def test_water_all_never_reaches_a_friends_plot(signed_in, db_session, member, mate):
+    """Your own plot only. Watering a friend is the half that pays renown, and
+    it is aimed at one plant belonging to one person on purpose."""
+    friend, _ = mate
+    theirs = give_planting(db_session, friend.id, "strawberry")
+    mine = give_planting(db_session, member.id, "raspberry")
+    for _ in range(2):
+        give_item(db_session, member.id, "water")
+
+    assert water_all(signed_in).json()["poured"] == 1
+    db_session.refresh(theirs)
+    db_session.refresh(mine)
+    assert (theirs.growth_mi, mine.growth_mi) == (0.0, WATER_POUR_MI)
+    assert len(signed_in.get("/api/satchel").json()) == 1
+
+
+def test_water_all_writes_a_pour_a_rebuild_can_read(signed_in, db_session, member):
+    """The event rows are the point: a pour has nothing behind it, so a rebuild
+    that could not read these would take the water back out of the ground."""
+    give_planting(db_session, member.id, "strawberry")
+    give_planting(db_session, member.id, "raspberry")
+    for _ in range(2):
+        give_item(db_session, member.id, "water")
+    water_all(signed_in)
+
+    rows = db_session.query(models.PourEvent).all()
+    assert len(rows) == 2
+    assert {row.miles for row in rows} == {WATER_POUR_MI}
+    assert {row.user_id for row in rows} == {member.id}
+
+
+# --------------------------------------------------------------------------
 # The wish
 # --------------------------------------------------------------------------
 

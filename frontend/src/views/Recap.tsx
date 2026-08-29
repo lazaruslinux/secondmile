@@ -17,7 +17,6 @@ import {
   medalName,
 } from '../labels.ts'
 import {
-  compostLine,
   flourishLine,
   fruitGiftLines,
   harvestLine,
@@ -105,7 +104,6 @@ export default function Recap({ recap, units, onDismiss }: Props) {
   const growth = [...recapGrowthLines(recap), ...petLines(recap)]
   const harvest = harvestLine(recap)
   const gifts = [...mannaGiftLines(recap), ...fruitGiftLines(recap)]
-  const composted = compostLine(recap)
   const grew = flourishLine(recap)
   // What the letter had to leave out. The server sends the newest ten and the
   // true count, and a cut nobody is told about is the same as a lie.
@@ -278,10 +276,6 @@ export default function Recap({ recap, units, onDismiss }: Props) {
               </ul>
             </section>
           )}
-
-          {/* One soft line, afterwards, with no number and no reproach. Nothing
-              anywhere counted down to it. */}
-          {composted !== '' && <p className="hint recap-grew">{composted}</p>}
 
           {/* One line, said once. Growth comes from encouraging other people,
               so this is the only place the app mentions it. */}
