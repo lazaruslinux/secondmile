@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 
 from app import grove, models, species
 from app.config import (
+    FEED_MAX_BANKED,
     FRUIT_SEASON_MI,
     FRUIT_YIELD,
     GOLDEN_FRUIT_PREFIX,
@@ -423,6 +424,39 @@ def spend_manna(db: Session, user_id: int, amount: int) -> bool:
     held = db.get(models.UserProgress, user_id)
     if held is not None:
         db.expire(held)
+    db.flush()
+    return True
+
+
+def bank_feeding(db: Session, planting: models.Planting, bonus: int) -> bool:
+    """Put bought fruit on a plant. Answers False and puts none there when the
+    plant is already holding all it will hold.
+
+    One statement, which reads what is banked and adds to it together, the same
+    way the bank above is read and lowered. A read followed by a write banks one
+    fruit for two feedings that raced, and the manna for both is gone: this
+    cannot, because nothing here reads a number the caller then writes back.
+
+    The condition is the cap, so a plant another feeding filled in between
+    refuses here rather than being pushed past it. Every caller charges only for
+    a feeding this answered True to.
+
+    The row the caller is holding is expired afterwards, so whatever serializes
+    it next reads what this wrote rather than what it loaded.
+    """
+    if bonus < 1:
+        return False
+    banked = db.execute(
+        update(models.Planting)
+        .where(
+            models.Planting.id == planting.id,
+            models.Planting.fed_bonus <= FEED_MAX_BANKED - bonus,
+        )
+        .values(fed_bonus=models.Planting.fed_bonus + bonus)
+    )
+    if rows_touched(banked) != 1:
+        return False
+    db.expire(planting)
     db.flush()
     return True
 

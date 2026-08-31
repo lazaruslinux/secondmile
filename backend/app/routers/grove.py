@@ -69,15 +69,15 @@ def _item(
     return row
 
 
-def _spend(db: Session, item: models.SatchelItem, moment: dt.datetime) -> None:
-    """Take one item out of the satchel, or answer the way a spent one does.
+def _claim(db: Session, item: models.SatchelItem, moment: dt.datetime) -> bool:
+    """Take one item out of the satchel. Answers False and takes nothing when
+    somebody else already has.
 
     The check in _item reads; this writes, and only the write settles it. Two
     requests carrying the same item id can both pass the read, and without this
     they would both go on to plant a seed or pour a water that only exists once.
-    The condition is the same one the read made, so the loser is told exactly
-    what it would have been told a moment later: there is no such item, because
-    by then there is not.
+    The condition is the same one the read made, so the loser here is in exactly
+    the position it would have been in had it read a moment later.
 
     Every verb below claims before it does anything, so nothing is ever created
     on behalf of an item somebody else already spent.
@@ -87,7 +87,17 @@ def _spend(db: Session, item: models.SatchelItem, moment: dt.datetime) -> None:
         .where(models.SatchelItem.id == item.id, models.SatchelItem.used_at.is_(None))
         .values(used_at=moment)
     )
-    if rows_touched(claimed) != 1:
+    return rows_touched(claimed) == 1
+
+
+def _spend(db: Session, item: models.SatchelItem, moment: dt.datetime) -> None:
+    """Claim one item, or answer the way a spent one does.
+
+    What the doors that were handed an item id say when they lose the claim:
+    there is no such item, because by then there is not. The door that was
+    handed no id at all has its own answer and does not come through here.
+    """
+    if not _claim(db, item, moment):
         raise HTTPException(status.HTTP_404_NOT_FOUND, NO_SUCH_ITEM)
 
 
@@ -248,20 +258,34 @@ def water_whole_plot(
             .order_by(models.SatchelItem.id)
         ).scalars()
     )
-    poured = min(len(plantings), len(items))
-    if poured == 0:
+    if not plantings or not items:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, NOTHING_TO_WATER)
 
     now = security.now_utc()
-    for item, planting in zip(items[:poured], plantings[:poured]):
+    poured: list[models.Planting] = []
+    for item in items:
+        if len(poured) == len(plantings):
+            break
         # Claimed one at a time, each before its own water lands, so two presses
-        # racing cannot pour the same item onto two plants.
-        _spend(db, item, now)
+        # racing cannot pour the same item onto two plants. A claim lost to
+        # another press is one fewer water to go round rather than a refusal,
+        # which this door already has an ordinary answer for: the next item in
+        # the satchel takes the plant instead.
+        if not _claim(db, item, now):
+            continue
+        planting = plantings[len(poured)]
         grove.pour(db, user.id, planting, now)
+        poured.append(planting)
+    if not poured:
+        # Every water was spent by another press between the read and the write.
+        # Nobody picked an item here, so the answer is this door's own rather
+        # than the single pour's: by the time it wrote, there was nothing to
+        # pour, which is what an empty satchel says too.
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, NOTHING_TO_WATER)
     db.commit()
     return {
-        "poured": poured,
-        "plantings": [grove.serialize_planting(row) for row in plantings[:poured]],
+        "poured": len(poured),
+        "plantings": [grove.serialize_planting(row) for row in poured],
     }
 
 

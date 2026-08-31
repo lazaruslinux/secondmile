@@ -47,6 +47,11 @@ TOO_MANY_SPENDS = "Too many spends just now. Wait a minute."
 # Its own sentence rather than the single plant's, because a grove with nothing
 # grown in it and a grove already fed to the brim are the same answer here.
 NOTHING_TO_FEED = "Nothing in your grove can take a feeding just now."
+# Said twice at the single plant: once by the read that refuses a feeding before
+# it costs anything, and once by the write that refuses one which lost a race to
+# another feeding. A plant holding all it will hold is the same answer whenever
+# it is met.
+PLANT_IS_FULL = f"A plant holds {FEED_MAX_BANKED} extra fruit at most before it bears."
 
 
 class FeedBody(BaseModel):
@@ -219,10 +224,7 @@ def feed_plant(
     if body.bonus < 1:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "A feeding is at least one fruit.")
     if planting.fed_bonus + body.bonus > FEED_MAX_BANKED:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            f"A plant holds {FEED_MAX_BANKED} extra fruit at most before it bears.",
-        )
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, PLANT_IS_FULL)
     cost = FEED_COST * body.bonus
     _within_cap(db, user.id, planting.user_id, cost)
     if not harvest.spend_manna(db, user.id, cost):
@@ -231,7 +233,12 @@ def feed_plant(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, NOT_ENOUGH)
 
     now = security.now_utc()
-    planting.fed_bonus += body.bonus
+    if not harvest.bank_feeding(db, planting, body.bonus):
+        # The plant was read further up and is written here, and another feeding
+        # can fill it in between. The manna goes back with the rest of this
+        # request, because a feeding that did not land is never charged for.
+        db.rollback()
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, PLANT_IS_FULL)
     earned = fellowship.feed_earns_renown(db, user.id, planting.user_id, now)
     db.add(
         models.PlantFeeding(
@@ -261,16 +268,18 @@ def feed_whole_plot(
 
     The same act as the single Feed, done to the whole row: one more fruit on
     each plant's next bearing and nothing else (TWO-LANE LAW). One feeding per
-    plant per press, so the price is always the plant count times the cost and
-    the dialog can say it before anything is spent; pressing it again tops the
+    plant per press, so the price is the plant count times the cost and the
+    dialog can say it before anything is spent; pressing it again tops the
     row up a second time until every plant is holding all it will hold.
 
     Your own grove only. A friend's plot is fed one plant at a time on purpose:
     that is the act that carries a name, pays renown and answers to the window's
     cap, and none of those are things to do to a list of people at once.
 
-    Every plant is charged for or none is: the bank is read and lowered in the
-    one statement, so two presses racing cannot both spend the same manna.
+    What takes the feeding is what is charged for, and the whole press is
+    refused when the bank will not cover that: the fruit is banked one statement
+    per plant and the bank is lowered in one more, so two presses racing bank
+    two feedings rather than one and pay for exactly what they banked.
     """
     _spending(user)
     progress.process_user(db, user.id)
@@ -287,13 +296,17 @@ def feed_whole_plot(
     ]
     if not rows:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, NOTHING_TO_FEED)
-    cost = FEED_COST * len(rows)
-    if not harvest.spend_manna(db, user.id, cost):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, NOT_ENOUGH)
 
     now = security.now_utc()
+    fed: list[models.Planting] = []
     for row in rows:
-        row.fed_bonus += 1
+        # The plot was read a moment before it is written, and another press can
+        # fill a plant in between. One that was filled is passed over rather
+        # than pushed past the cap or paid for, exactly as it would have been
+        # had the read happened a moment later.
+        if not harvest.bank_feeding(db, row, 1):
+            continue
+        fed.append(row)
         # One event row per plant, the same shape the single Feed writes, so a
         # plot fed at once and a plot fed one at a time read identically
         # afterwards. Own grove, so it earns nobody anything: no renown, and
@@ -309,8 +322,21 @@ def feed_whole_plot(
                 earned_renown=False,
             )
         )
+    if not fed:
+        # Another press filled the whole row between the read and the write.
+        # Nothing was banked and nothing is owed, so the press ends the way an
+        # already-full grove ends, because by the time it wrote that is what it
+        # had.
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, NOTHING_TO_FEED)
+    cost = FEED_COST * len(fed)
+    if not harvest.spend_manna(db, user.id, cost):
+        # Charged for what was banked just above, and the bank does not cover
+        # it. The whole press goes back rather than some of the fruit standing
+        # unpaid for.
+        db.rollback()
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, NOT_ENOUGH)
     db.commit()
-    return {"fed": len(rows), "manna_spent": cost, **_state(db, user)}
+    return {"fed": len(fed), "manna_spent": cost, **_state(db, user)}
 
 
 @router.post("/harvest/manna", status_code=status.HTTP_201_CREATED)

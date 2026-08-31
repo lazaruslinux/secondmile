@@ -4767,8 +4767,8 @@ button:disabled {
 
 /* The one drop of colour on either verb. Water is the only thing in the grove
    that is a thing rather than an amount, and the blue is how it is told from the
-   sack beside it at a glance. The file itself is currentColor like every other
-   icon; this is the only place that colour is decided. */
+   strawberry beside it at a glance. The file itself is currentColor like every
+   other icon; this is the only place that colour is decided. */
 .verb-water .icon {
   color: var(--grove-water);
 }

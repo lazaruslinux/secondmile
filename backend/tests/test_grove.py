@@ -10,6 +10,7 @@ import datetime as dt
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import update
 
 from app import grove, models, progress, security, species
 from app.config import MAX_PENDING_ANOINTINGS, WATER_POUR_MI
@@ -446,6 +447,70 @@ def test_water_all_writes_a_pour_a_rebuild_can_read(signed_in, db_session, membe
     assert len(rows) == 2
     assert {row.miles for row in rows} == {WATER_POUR_MI}
     assert {row.user_id for row in rows} == {member.id}
+
+
+@pytest.fixture()
+def rival_press(monkeypatch):
+    """Another press spending a water between the read and the write.
+
+    The whole plot is read out of the satchel and then claimed one item at a
+    time, and two presses can both read the same items before either claims one.
+    Put an item id in what this answers with and the rival takes that one in the
+    gap, so the claim under test is the loser of a real race rather than a
+    request that was handed an id nobody holds. Not synchronised into this
+    session, because a second connection's write is not either.
+    """
+    taken: set[int] = set()
+    real = grove_router._claim
+
+    def after_a_rival(db, item, moment):
+        if item.id in taken:
+            db.execute(
+                update(models.SatchelItem)
+                .where(models.SatchelItem.id == item.id)
+                .values(used_at=moment)
+                .execution_options(synchronize_session=False)
+            )
+        return real(db, item, moment)
+
+    monkeypatch.setattr(grove_router, "_claim", after_a_rival)
+    return taken
+
+
+def test_water_all_takes_the_next_water_when_one_goes_underneath_it(
+    signed_in, db_session, member, rival_press
+):
+    """A water another press spent first is one fewer to go round, which this
+    door already has an ordinary answer for. The plant is poured on out of the
+    next item in the satchel rather than the press failing."""
+    plant = give_planting(db_session, member.id, "strawberry")
+    lost = give_item(db_session, member.id, "water")
+    give_item(db_session, member.id, "water")
+    rival_press.add(lost.id)
+
+    body = water_all(signed_in)
+    assert body.status_code == 200, body.text
+    assert body.json()["poured"] == 1
+    db_session.refresh(plant)
+    assert plant.growth_mi == WATER_POUR_MI
+    # Both are out of the satchel: one poured here, one taken by the rival.
+    assert signed_in.get("/api/satchel").json() == []
+
+
+def test_water_all_that_loses_every_claim_answers_in_its_own_words(
+    signed_in, db_session, member, rival_press
+):
+    """Nobody picked an item at this door, so the single pour's answer would be
+    about something the press never did. A satchel emptied a moment ago and one
+    that was empty all along are the same answer to the same press."""
+    give_planting(db_session, member.id, "strawberry")
+    items = [give_item(db_session, member.id, "water") for _ in range(2)]
+    rival_press.update(row.id for row in items)
+
+    refused = water_all(signed_in)
+    assert refused.status_code == 400
+    assert refused.json() == {"detail": "Nothing to water just now."}
+    assert db_session.query(models.PourEvent).count() == 0
 
 
 # --------------------------------------------------------------------------

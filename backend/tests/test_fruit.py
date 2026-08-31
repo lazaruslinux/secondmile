@@ -16,6 +16,7 @@ and a case that means "and then a week went by" has to say so.
 import datetime as dt
 
 import pytest
+from sqlalchemy import update
 
 from conftest import (
     LETTER_KEYS,
@@ -665,6 +666,10 @@ def test_feed_all_is_all_or_nothing_when_the_bank_is_short(
     db_session.refresh(first)
     db_session.refresh(second)
     assert (first.fed_bonus, second.fed_bonus) == (0, 0)
+    # The fruit is banked before the bank is asked for the total, so this is the
+    # rollback the refusal leans on: no fruit on either plant and no event row
+    # standing for one.
+    assert db_session.query(models.PlantFeeding).count() == 0
 
 
 def test_feed_all_never_reaches_a_friends_plot(signed_in, db_session, member):
@@ -723,6 +728,120 @@ def test_feed_all_buys_fruit_and_nothing_in_the_other_lane(
     assert plant.growth_mi == growth_before
     assert len(signed_in.get("/api/chests").json()) == chests_before
     assert after["medals"] == before["medals"]
+
+
+# --------------------------------------------------------------------------
+# Two feedings racing
+# --------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def rival_feeding(monkeypatch):
+    """Another feeding landing between the read and the write.
+
+    Two presses can both read what a plant is holding before either of them
+    writes, which is what a race is, and one thread cannot arrange that on its
+    own. This puts the rival's fruit on the plant in that gap, so what banks the
+    feeding under test is the conditional update and nothing else. Without one
+    the plant would be written back from a number read before the rival moved,
+    which is the whole bug: the manna is taken one press at a time and the fruit
+    would not be.
+
+    The rival's write is not synchronised into this session, because a second
+    connection's is not either: the point of the case is a request holding a
+    number that is already out of date.
+    """
+    real = harvest.bank_feeding
+
+    def after_a_rival(db, planting, bonus):
+        db.execute(
+            update(models.Planting)
+            .where(models.Planting.id == planting.id)
+            .values(fed_bonus=models.Planting.fed_bonus + 1)
+            .execution_options(synchronize_session=False)
+        )
+        return real(db, planting, bonus)
+
+    monkeypatch.setattr(harvest, "bank_feeding", after_a_rival)
+
+
+def test_a_feeding_lands_beside_a_racing_one_rather_than_over_it(
+    signed_in, db_session, member, rival_feeding
+):
+    """Both feedings are on the plant afterwards, and this press paid for one of
+    them. Two charges and one fruit is the shape of the lost update."""
+    plant = give_planting(db_session, member.id, "strawberry", growth=15.0)
+    stock_manna(db_session, member.id, FEED_COST * 2)
+
+    fed = signed_in.post("/api/harvest/feed", json={"planting_id": plant.id})
+    assert fed.status_code == 200, fed.text
+    assert fed.json()["fed"] == 2
+    db_session.refresh(plant)
+    assert plant.fed_bonus == 2
+    assert state(signed_in)["manna"] == FEED_COST
+
+
+def test_a_feeding_that_lost_the_cap_race_is_never_charged_for(
+    signed_in, db_session, member, rival_feeding
+):
+    """A plant filled by another press between the read and the write refuses
+    the same way it would have refused a moment later, and the manna goes back
+    with it: nothing here ever pays for fruit that did not land."""
+    plant = give_planting(db_session, member.id, "strawberry", growth=15.0)
+    stock_manna(db_session, member.id, FEED_COST * 2)
+    plant.fed_bonus = FEED_MAX_BANKED - 1
+    db_session.commit()
+    banked = state(signed_in)["manna"]
+
+    refused = signed_in.post("/api/harvest/feed", json={"planting_id": plant.id})
+    assert refused.status_code == 400
+    assert refused.json()["detail"] == "A plant holds 3 extra fruit at most before it bears."
+    # The money is what this case is about. The rival's own fruit goes back with
+    # the rollback here because one session is standing in for two; on two
+    # connections it stays, and the refusal reads the same either way.
+    assert state(signed_in)["manna"] == banked
+    assert db_session.query(models.PlantFeeding).count() == 0
+
+
+def test_feed_all_banks_beside_a_racing_press_down_the_whole_row(
+    signed_in, db_session, member, rival_feeding
+):
+    """The same law said of the button that writes the most at once: every plant
+    is read a moment before it is written, and what another press banked in
+    between is still there afterwards."""
+    grown = [
+        give_planting(db_session, member.id, "strawberry", growth=15.0),
+        give_planting(db_session, member.id, "banana", growth=15.0),
+    ]
+    stock_manna(db_session, member.id, FEED_COST * 4)
+
+    fed = feed_all(signed_in)
+    assert fed.status_code == 200, fed.text
+    body = fed.json()
+    assert (body["fed"], body["manna_spent"]) == (2, FEED_COST * 2)
+    for row in grown:
+        db_session.refresh(row)
+        assert row.fed_bonus == 2
+    assert state(signed_in)["manna"] == FEED_COST * 2
+
+
+def test_feed_all_whose_row_was_filled_underneath_it_says_so_in_its_own_words(
+    signed_in, db_session, member, rival_feeding
+):
+    """Nobody chose a plant at this door, so a press that found the whole row
+    full by the time it wrote answers the way an already-fed grove answers
+    rather than borrowing the single plant's refusal."""
+    plant = give_planting(db_session, member.id, "strawberry", growth=15.0)
+    stock_manna(db_session, member.id, FEED_COST * 2)
+    plant.fed_bonus = FEED_MAX_BANKED - 1
+    db_session.commit()
+    banked = state(signed_in)["manna"]
+
+    refused = feed_all(signed_in)
+    assert refused.status_code == 400
+    assert refused.json() == {"detail": "Nothing in your grove can take a feeding just now."}
+    assert state(signed_in)["manna"] == banked
+    assert db_session.query(models.PlantFeeding).count() == 0
 
 
 # --------------------------------------------------------------------------
