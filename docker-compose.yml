@@ -5,7 +5,7 @@ services:
   db:
     # Digest-pinned like the Dockerfiles (tag in the comment; Dependabot bumps
     # the digest): postgres:16
-    image: postgres:16@sha256:33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20
+    image: postgres:16@sha256:f1c3376c26f2609ab9f29f71f824103fe2fcd8ee0346485cb6122a4f93df6f94
     restart: unless-stopped
     # Only the three variables Postgres actually needs, interpolated from
     # .env. An env_file: here would hand the database container every secret
