@@ -1,7 +1,7 @@
 # Digest-pinned so a build is reproducible and a poisoned tag cannot slip in
 # between two builds of the same commit; Dependabot bumps the digest. The tag
 # rides along in this comment for humans: python:3.14-slim
-FROM python:3.14-slim@sha256:cea0e6040540fb2b965b6e7fb5ffa00871e632eef63719f0ea54bca189ce14a6
+FROM python:3.14-slim@sha256:656d12e70054d5fda18a045e2494c96701e9792dd1445f95b3d038df954f57e9
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
