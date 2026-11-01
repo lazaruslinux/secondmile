@@ -4,14 +4,14 @@
 # gate that installs whatever was published this morning is a gate that can go
 # red on a commit that touched nothing. These are the versions the suite is
 # green on today, and moving them is a deliberate act.
-pytest==9.1.1
+pytest==9.2.0
 # Starlette's TestClient is a thin wrapper over httpx and refuses to import
 # without it.
 httpx==0.28.1
 # Pinned: ruff's default rule set changes between releases, so an unpinned
 # linter starts failing CI on its own schedule instead of ours.
-ruff==0.16.0
+ruff==0.17.3
 # Pinned for the same reason, and more so: a type checker finds new things to
 # say with every release, and a green branch should not go red because a
 # machine somewhere published a version.
-mypy==2.3.1
+mypy==2.4.1
