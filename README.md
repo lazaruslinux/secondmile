@@ -10,6 +10,9 @@ of them. The app says so rather than hiding it: there is an alpha chip in the
 top bar and a line at the foot of every page, and most of the artwork is
 placeholder.
 
+Development is on hold and the project is not being actively maintained.
+Dependency updates are paused, so check for security updates before you run it.
+
 Current version: **0.2.1**. Releases are tagged in git, and each tag's GitHub
 release carries the notes for it.
 
