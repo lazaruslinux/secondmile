@@ -1,13 +1,19 @@
 # Dependency update PRs, grouped so a quiet week produces one pull request
 # rather than a dozen. Security fixes arrive separately and immediately through
-# Dependabot security updates, which are enabled in the repository settings;
+# Dependabot security updates, when those are enabled in the repository settings;
 # this file is only about staying current, not about emergencies.
+#
+# PAUSED: development is on hold, so every ecosystem below carries
+# open-pull-requests-limit: 0, which stops version-update PRs, and Dependabot
+# security updates are switched off in the repository settings. To resume,
+# remove those lines and switch security updates back on.
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
+    open-pull-requests-limit: 0
     groups:
       actions:
         patterns: ["*"]
@@ -16,6 +22,7 @@ updates:
     directory: /frontend
     schedule:
       interval: monthly
+    open-pull-requests-limit: 0
     groups:
       frontend:
         patterns: ["*"]
@@ -30,6 +37,7 @@ updates:
     directory: /backend
     schedule:
       interval: monthly
+    open-pull-requests-limit: 0
     groups:
       backend:
         patterns: ["*"]
@@ -47,6 +55,7 @@ updates:
     directories: [/backend, /frontend]
     schedule:
       interval: monthly
+    open-pull-requests-limit: 0
     groups:
       images:
         patterns: ["*"]
@@ -58,6 +67,7 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    open-pull-requests-limit: 0
     groups:
       images:
         patterns: ["*"]
